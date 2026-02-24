@@ -73,23 +73,21 @@ espidf_ble_keyboard:
   passkey: 123456
 
 button:
-  - platform: espidf_ble_keyboard
-    keyboard_id: my_keyboard
-    name: "Unlock PC"
-    # Sends a string of text followed by a newline (\n)
-    action: "MySecretPassword\n"
+  - platform: template
+    name: "Type Hello"
+    on_press:
+      - lambda: |-
+          id(my_keyboard).send_string("Hello\n");
+          
+  - platform: template
+    name: "Ctrl Alt Del"
+    on_press:
+      - lambda: |-
+          id(my_keyboard).send_ctrl_alt_del();
 
-  - platform: espidf_ble_keyboard
-    keyboard_id: my_keyboard
-    name: "Security Login"
-    # Special action keyword for Ctrl+Alt+Del
-    action: "ctrl_alt_del"
-
-  - platform: espidf_ble_keyboard
-    keyboard_id: my_keyboard
-    name: "Open Run Dialog"
-    # Note: Currently supports basic alphanumeric and some symbols.
-    action: "Hello World"
+binary_sensor:
+  - platform: status
+    name: Bluetooth Keyboard
 ```
 
 ## Configuration Variables
