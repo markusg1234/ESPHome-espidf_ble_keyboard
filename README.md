@@ -87,7 +87,7 @@ button:
 
 binary_sensor:
   - platform: status
-    name: Bluetooth Keyboard
+    name: ${friendly_name}
 ```
 
 ## Configuration Variables
