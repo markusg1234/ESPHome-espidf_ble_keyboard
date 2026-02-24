@@ -38,11 +38,15 @@ class EspidfBleKeyboard : public Component {
   bool has_passkey_{false};
 };
 
-class EspidfBleKeyboardButton : public button::Button {
+class EspidfBleKeyboardButton : public button::Button, public Component { // Added public Component here
  public:
   void set_parent(EspidfBleKeyboard *parent) { parent_ = parent; }
   void press_action() override;
   void set_action(const std::string &action) { action_ = action; }
+  
+  // This is required when inheriting from Component
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+
  protected:
   EspidfBleKeyboard *parent_{nullptr};
   std::string action_;
