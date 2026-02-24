@@ -1,4 +1,4 @@
-# WORK IN PROGRESS, FIXING ISSUE
+# WORK IN PROGRESS, FIXING ISSUE COMBO STILL TO ADD
 # ESP32 BLE HID Keyboard for ESPHome
 
 This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low Energy (BLE) HID Keyboard. Unlike many other implementations, this component uses the **direct ESP-IDF Bluedroid GATTS API** for improved reliability and compatibility.
