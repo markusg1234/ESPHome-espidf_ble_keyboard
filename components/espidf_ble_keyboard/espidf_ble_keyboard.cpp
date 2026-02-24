@@ -46,7 +46,23 @@ static esp_ble_adv_params_t adv_params = {
     .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
 };
 
-// ── Attributes ──
+// --- Static UUID and Property Variables (The fix for lvalue error) ---
+static uint16_t primary_service_uuid         = ESP_GATT_UUID_PRI_SERVICE;
+static uint16_t hid_service_uuid             = ESP_GATT_UUID_HID_SVC;
+static uint16_t char_declaration_uuid        = ESP_GATT_UUID_CHAR_DECLARE;
+static uint16_t hid_info_uuid                = ESP_GATT_UUID_HID_INFORMATION;
+static uint16_t hid_report_map_uuid          = ESP_GATT_UUID_HID_REPORT_MAP;
+static uint16_t hid_control_point_uuid       = ESP_GATT_UUID_HID_CONTROL_POINT;
+static uint16_t hid_proto_mode_uuid          = ESP_GATT_UUID_HID_PROTO_MODE;
+static uint16_t hid_report_uuid              = ESP_GATT_UUID_HID_REPORT;
+static uint16_t client_config_uuid           = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
+static uint16_t report_reference_uuid        = ESP_GATT_UUID_RPT_REF_DESCR;
+
+static uint8_t char_prop_read                = ESP_GATT_CHAR_PROP_BIT_READ;
+static uint8_t char_prop_write_nr            = ESP_GATT_CHAR_PROP_BIT_WRITE_NR;
+static uint8_t char_prop_read_write_nr       = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE_NR;
+static uint8_t char_prop_read_notify         = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
+
 enum {
     IDX_SVC,
     IDX_CHAR_HID_INFO,     IDX_CHAR_HID_INFO_VAL,
@@ -68,19 +84,19 @@ static uint16_t report_ccc_val = 0;
 static uint8_t report_ref_val[2] = {0x01, 0x01};
 
 static const esp_gatts_attr_db_t hid_attr_db[HID_IDX_NB] = {
-    [IDX_SVC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_PRI_SERVICE}, ESP_GATT_PERM_READ, 2, 2, (uint8_t *)&(uint16_t){ESP_GATT_UUID_HID_SVC}}},
-    [IDX_CHAR_HID_INFO] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_CHAR_DECLARE}, ESP_GATT_PERM_READ, 1, 1, (uint8_t *)&(uint8_t){ESP_GATT_CHAR_PROP_BIT_READ}}},
-    [IDX_CHAR_HID_INFO_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_HID_INFORMATION}, ESP_GATT_PERM_READ, 4, 4, hid_info_val}},
-    [IDX_CHAR_REPORT_MAP] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_CHAR_DECLARE}, ESP_GATT_PERM_READ, 1, 1, (uint8_t *)&(uint8_t){ESP_GATT_CHAR_PROP_BIT_READ}}},
-    [IDX_CHAR_REPORT_MAP_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_HID_REPORT_MAP}, ESP_GATT_PERM_READ, sizeof(hid_report_map), sizeof(hid_report_map), (uint8_t *)hid_report_map}},
-    [IDX_CHAR_HID_CTRL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_CHAR_DECLARE}, ESP_GATT_PERM_READ, 1, 1, (uint8_t *)&(uint8_t){ESP_GATT_CHAR_PROP_BIT_WRITE_NR}}},
-    [IDX_CHAR_HID_CTRL_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_HID_CONTROL_POINT}, ESP_GATT_PERM_WRITE, 1, 1, &hid_ctrl_val}},
-    [IDX_CHAR_PROTO_MODE] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_CHAR_DECLARE}, ESP_GATT_PERM_READ, 1, 1, (uint8_t *)&(uint8_t){ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE_NR}}},
-    [IDX_CHAR_PROTO_MODE_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_HID_PROTO_MODE}, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, 1, 1, &proto_mode_val}},
-    [IDX_CHAR_REPORT] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_CHAR_DECLARE}, ESP_GATT_PERM_READ, 1, 1, (uint8_t *)&(uint8_t){ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY}}},
-    [IDX_CHAR_REPORT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_HID_REPORT}, ESP_GATT_PERM_READ, 8, 8, report_val}},
-    [IDX_CHAR_REPORT_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_CHAR_CLIENT_CONFIG}, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, 2, 2, (uint8_t *)&report_ccc_val}},
-    [IDX_CHAR_REPORT_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&(uint16_t){ESP_GATT_UUID_RPT_REF_DESCR}, ESP_GATT_PERM_READ, 2, 2, report_ref_val}},
+    [IDX_SVC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&primary_service_uuid, ESP_GATT_PERM_READ, 2, 2, (uint8_t *)&hid_service_uuid}},
+    [IDX_CHAR_HID_INFO] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&char_declaration_uuid, ESP_GATT_PERM_READ, 1, 1, &char_prop_read}},
+    [IDX_CHAR_HID_INFO_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_info_uuid, ESP_GATT_PERM_READ, 4, 4, hid_info_val}},
+    [IDX_CHAR_REPORT_MAP] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&char_declaration_uuid, ESP_GATT_PERM_READ, 1, 1, &char_prop_read}},
+    [IDX_CHAR_REPORT_MAP_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_map_uuid, ESP_GATT_PERM_READ, sizeof(hid_report_map), sizeof(hid_report_map), (uint8_t *)hid_report_map}},
+    [IDX_CHAR_HID_CTRL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&char_declaration_uuid, ESP_GATT_PERM_READ, 1, 1, &char_prop_write_nr}},
+    [IDX_CHAR_HID_CTRL_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_control_point_uuid, ESP_GATT_PERM_WRITE, 1, 1, &hid_ctrl_val}},
+    [IDX_CHAR_PROTO_MODE] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&char_declaration_uuid, ESP_GATT_PERM_READ, 1, 1, &char_prop_read_write_nr}},
+    [IDX_CHAR_PROTO_MODE_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_proto_mode_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, 1, 1, &proto_mode_val}},
+    [IDX_CHAR_REPORT] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&char_declaration_uuid, ESP_GATT_PERM_READ, 1, 1, &char_prop_read_notify}},
+    [IDX_CHAR_REPORT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_uuid, ESP_GATT_PERM_READ, 8, 8, report_val}},
+    [IDX_CHAR_REPORT_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&client_config_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, 2, 2, (uint8_t *)&report_ccc_val}},
+    [IDX_CHAR_REPORT_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&report_reference_uuid, ESP_GATT_PERM_READ, 2, 2, report_ref_val}},
 };
 
 static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
