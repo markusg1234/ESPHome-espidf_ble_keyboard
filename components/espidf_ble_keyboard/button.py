@@ -11,9 +11,9 @@ EspidfBleKeyboardButton = espidf_ble_keyboard_ns.class_(
 
 CONF_KEYBOARD_ID = "keyboard_id"
 
-CONFIG_SCHEMA = button.BUTTON_SCHEMA.extend(
+# In ESPHome 2026+, we use button_schema(Class) instead of BUTTON_SCHEMA.extend
+CONFIG_SCHEMA = button.button_schema(EspidfBleKeyboardButton).extend(
     {
-        cv.GenerateID(): cv.declare_id(EspidfBleKeyboardButton),
         cv.Required(CONF_KEYBOARD_ID): cv.use_id(EspidfBleKeyboard),
         cv.Required(CONF_ACTION): cv.string,
     }
@@ -21,8 +21,9 @@ CONFIG_SCHEMA = button.BUTTON_SCHEMA.extend(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await button.register_button(var, config)
+    # Register common button and component properties
     await cg.register_component(var, config)
+    await button.register_button(var, config)
 
     # Link the button to the main keyboard component
     parent = await cg.get_variable(config[CONF_KEYBOARD_ID])
