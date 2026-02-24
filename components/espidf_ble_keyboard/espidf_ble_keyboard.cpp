@@ -64,9 +64,14 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
 
 void EspidfBleKeyboard::setup() {
     s_instance = this;
-    ESP_LOGI(TAG, "Starting BLE Setup (Rev 1.0 Clean Bond)...");
+    ESP_LOGI(TAG, "Starting BLE Setup (MAC Spoof Fix)...");
+
+    // NEW: Force a different MAC address so Windows thinks it's a new device
+    uint8_t new_mac[6] = {0x08, 0x3A, 0xF2, 0xAC, 0x65, 0x05}; // Changed last digit
+    esp_base_mac_addr_set(new_mac);
 
     esp_err_t ret = nvs_flash_init();
+    // ... (keep the rest of your NVS and BT init code the same)
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
         nvs_flash_init();
