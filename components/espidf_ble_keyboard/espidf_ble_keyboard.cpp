@@ -37,6 +37,17 @@ static esp_gatt_if_t s_gatts_if = ESP_GATT_IF_NONE;
 static uint16_t s_conn_id = 0;
 static uint16_t s_hid_report_handle = 0;
 
+// --- Raw Advertising Data (Restored from working history) ---
+static uint8_t adv_data_raw[] = {
+    0x02, 0x01, 0x06,       // Flags
+    0x03, 0x19, 0xC1, 0x03, // Appearance: Keyboard (0x03C1)
+    0x03, 0x03, 0x12, 0x18  // Complete Class UUID (HID)
+};
+
+static uint8_t scan_rsp_raw[] = {
+    0x0f, 0x09, 'E', 'S', 'P', '3', '2', ' ', 'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd'
+};
+
 static esp_ble_adv_params_t adv_params = {
     .adv_int_min       = 0x20,
     .adv_int_max       = 0x40,
@@ -46,7 +57,7 @@ static esp_ble_adv_params_t adv_params = {
     .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
 };
 
-// --- Static UUID and Property Variables (The fix for lvalue error) ---
+// --- GATT Table variables ---
 static uint16_t primary_service_uuid         = ESP_GATT_UUID_PRI_SERVICE;
 static uint16_t hid_service_uuid             = ESP_GATT_UUID_HID_SVC;
 static uint16_t char_declaration_uuid        = ESP_GATT_UUID_CHAR_DECLARE;
@@ -104,6 +115,9 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
         case ESP_GATTS_REG_EVT:
             s_gatts_if = gatts_if;
             esp_ble_gap_set_device_name("ESP32 Keyboard");
+            // Set Raw Adv Data
+            esp_ble_gap_config_adv_data_raw(adv_data_raw, sizeof(adv_data_raw));
+            esp_ble_gap_config_scan_rsp_data_raw(scan_rsp_raw, sizeof(scan_rsp_raw));
             esp_ble_gatts_create_attr_tab(hid_attr_db, gatts_if, HID_IDX_NB, 0);
             break;
         case ESP_GATTS_CREAT_ATTR_TAB_EVT:
