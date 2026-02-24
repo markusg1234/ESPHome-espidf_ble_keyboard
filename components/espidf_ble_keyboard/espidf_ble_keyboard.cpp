@@ -77,6 +77,7 @@ void EspidfBleKeyboard::setup() {
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
     esp_bluedroid_init();
     esp_bluedroid_enable();
+    esp_ble_gap_set_security_param(ESP_BLE_SM_CLEAR_STATIC_LIST, NULL, 0);
     
     esp_ble_gatts_register_callback(gatts_event_handler);
     esp_ble_gatts_app_register(0x55);
