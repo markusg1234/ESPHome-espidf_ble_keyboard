@@ -33,6 +33,50 @@ This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low
 Add the following to your ESPHome YAML configuration:
 
 ```yaml
+
+substitutions:
+  device_name: bluetooth-keyboard
+  friendly_name: "Bluetooth keyboard"
+  wifi_ssid: "***"
+  wifi_password: "***"
+  api_encryption_key: "***"
+  ota_password: "***"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    # Version 5.5.2 is standard now in PlatformIO for ESP-IDF
+    version: 5.5.2 
+    sdkconfig_options:
+      # These are the essential ones for HID/Keyboard stability
+      CONFIG_BT_ENABLED: y
+      CONFIG_BT_BLE_ENABLED: y
+      CONFIG_BT_BLUEDROID_ENABLED: y
+      CONFIG_GATTS_ENABLE: y
+      # Windows requires a higher security level for HID devices
+      CONFIG_BT_SMP_ENABLE: y
+      CONFIG_BT_ACL_CONNECTIONS: "4"
+  
+logger:
+
+api:
+  encryption:
+    key: ${api_encryption_key}
+
+ota:
+  - platform: esphome
+    password: ${ota_password}
+
+wifi:
+  ssid: ${wifi_ssid}
+  password: ${wifi_password}
+  power_save_mode: light
+  fast_connect: true
 external_components:
   - source:
       type: local
