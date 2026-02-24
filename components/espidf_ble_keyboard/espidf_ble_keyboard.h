@@ -18,12 +18,10 @@ class EspidfBleKeyboard : public Component {
   void loop() override;
   void send_string(const std::string &str);
   void send_ctrl_alt_del();
+  // New generic combo function
+  void send_key_combo(uint8_t modifiers, uint8_t keycode);
 
-  // Setter and check for YAML-configured passkey
-  void set_passkey(uint32_t passkey) { 
-    passkey_ = passkey; 
-    has_passkey_ = true; 
-  }
+  void set_passkey(uint32_t passkey) { passkey_ = passkey; has_passkey_ = true; }
   bool has_passkey() const { return has_passkey_; }
 
   void set_connected(bool connected, uint16_t conn_id) {
@@ -36,7 +34,6 @@ class EspidfBleKeyboard : public Component {
  protected:
   bool is_connected_{false};
   uint16_t conn_id_{0};
-  
   uint32_t passkey_{0};
   bool has_passkey_{false};
 };

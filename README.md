@@ -73,6 +73,17 @@ espidf_ble_keyboard:
   passkey: 123456
 
 button:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Ctrl + F1"
+    action: "combo:0x01:0x3A"
+
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Win + R (Run Dialog)"
+    # 0x08 = Windows Key, 0x15 = 'r'
+    action: "combo:0x08:0x15"
+    
   - platform: template
     name: "Type Hello"
     on_press:
