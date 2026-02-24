@@ -19,7 +19,7 @@ static const char *TAG = "espidf_ble_keyboard";
 static EspidfBleKeyboard *s_instance = nullptr;
 static esp_gatt_if_t s_gatts_if = ESP_GATT_IF_NONE;
 static uint16_t s_conn_id = 0;
-static uint16_t s_hid_report_handle = 0x2A; // Standard HID Report Handle
+static uint16_t s_hid_report_handle = 0x2A; 
 
 static esp_ble_adv_params_t h_adv_params = {
     .adv_int_min        = 0x20,
@@ -34,7 +34,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
     switch (event) {
         case ESP_GATTS_REG_EVT: {
             s_gatts_if = gatts_if;
-            esp_ble_gap_set_device_name("ESP32 Keyboard");
+            esp_ble_gap_set_device_name("ESP32 Key v2"); // New name to force fresh Windows pairing
             
             esp_ble_adv_data_t adv_data = {};
             adv_data.set_scan_rsp = false;
@@ -45,13 +45,13 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             
             esp_ble_gap_config_adv_data(&adv_data);
             esp_ble_gap_start_advertising(&h_adv_params);
-            ESP_LOGI(TAG, "GATT Registered & Advertising started.");
+            ESP_LOGI(TAG, "GATT Registered & Advertising started as 'ESP32 Key v2'");
             break;
         }
         case ESP_GATTS_CONNECT_EVT:
             s_conn_id = param->connect.conn_id;
             if(s_instance) s_instance->set_connected(true, s_conn_id);
-            ESP_LOGI(TAG, "Connected to Windows");
+            ESP_LOGI(TAG, "Connected to Windows. Handshaking...");
             break;
         case ESP_GATTS_DISCONNECT_EVT:
             if(s_instance) s_instance->set_connected(false, 0);
@@ -64,7 +64,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
 
 void EspidfBleKeyboard::setup() {
     s_instance = this;
-    ESP_LOGI(TAG, "Starting BLE Setup (Rev 1.0 Fix)...");
+    ESP_LOGI(TAG, "Starting BLE Setup (Rev 1.0 Clean Bond)...");
 
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -77,8 +77,20 @@ void EspidfBleKeyboard::setup() {
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
     esp_bluedroid_init();
     esp_bluedroid_enable();
-    esp_ble_gap_set_security_param(ESP_BLE_SM_CLEAR_STATIC_LIST, NULL, 0);
     
+    // FORCIBLY CLEAR ALL OLD BONDS
+    // This fixes the "Try connecting your device again" error in Windows
+    int dev_num = esp_ble_get_bond_device_num();
+    if (dev_num > 0) {
+        esp_ble_bond_dev_t *dev_list = (esp_ble_bond_dev_t *)malloc(sizeof(esp_ble_bond_dev_t) * dev_num);
+        esp_ble_get_bond_device_list(&dev_num, dev_list);
+        for (int i = 0; i < dev_num; i++) {
+            esp_ble_remove_bond_device(dev_list[i].bd_addr);
+        }
+        free(dev_list);
+        ESP_LOGI(TAG, "Cleared %d old Bluetooth bonds.", dev_num);
+    }
+
     esp_ble_gatts_register_callback(gatts_event_handler);
     esp_ble_gatts_app_register(0x55);
 }
@@ -100,10 +112,11 @@ void EspidfBleKeyboard::send_string(const std::string &str) {
     if (!is_connected_) return;
     for (char c : str) {
         uint8_t report[8] = {0};
-        if (c >= 'a' && c <= 'z') report[2] = (c - 'a' + 0x04);
-        else if (c >= 'A' && c <= 'Z') { report[0] = 0x02; report[2] = (c - 'A' + 0x04); }
-        else if (c == ' ') report[2] = 0x2C;
-        else if (c == '\n') report[2] = 0x28;
+        if      (c >= 'a' && c <= 'z') { report[2] = (uint8_t)(c - 'a' + 0x04); }
+        else if (c >= 'A' && c <= 'Z') { report[0] = 0x02; report[2] = (uint8_t)(c - 'A' + 0x04); }
+        else if (c == ' ') { report[2] = 0x2C; }
+        else if (c == '\n') { report[2] = 0x28; }
+        else continue;
 
         esp_ble_gatts_send_indicate(s_gatts_if, s_conn_id, s_hid_report_handle, 8, report, false);
         vTaskDelay(pdMS_TO_TICKS(20));
