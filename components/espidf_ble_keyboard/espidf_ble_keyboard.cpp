@@ -36,10 +36,21 @@ static const uint8_t hid_report_map[] = {
 static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
     switch (event) {
         case ESP_GATTS_REG_EVT: {
-            ESP_LOGI(TAG, "GATT Server Registered.");
             s_gatts_if = gatts_if;
             esp_ble_gap_set_device_name("ESP32 Keyboard");
             
+            // Define the device as a Keyboard (Appearance: 0x03C1)
+            esp_ble_adv_data_t adv_data = {};
+            adv_data.set_scan_rsp = false;
+            adv_data.include_name = true;
+            adv_data.include_txpower = true;
+            adv_data.min_interval = 0x0006;
+            adv_data.max_interval = 0x0010;
+            adv_data.appearance = 0x03C1; // HID Keyboard Appearance
+            adv_data.flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT);
+            
+            esp_ble_gap_config_adv_data(&adv_data);
+
             esp_ble_adv_params_t adv_params = {};
             adv_params.adv_int_min = 0x20;
             adv_params.adv_int_max = 0x40;
@@ -48,16 +59,18 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             adv_params.channel_map = ADV_CHNL_ALL;
             adv_params.adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
             esp_ble_gap_start_advertising(&adv_params);
+            
+            ESP_LOGI(TAG, "GATT Registered & Advertising started with Keyboard Appearance");
             break;
         }
         case ESP_GATTS_CONNECT_EVT:
             s_conn_id = param->connect.conn_id;
             if(s_instance) s_instance->set_connected(true, s_conn_id);
-            ESP_LOGI(TAG, "Connected to Windows");
             break;
         case ESP_GATTS_DISCONNECT_EVT:
             if(s_instance) s_instance->set_connected(false, 0);
-            ESP_LOGI(TAG, "Disconnected. Restarting advertising...");
+            // On a Rev 1.0 chip, we need to restart advertising manually after disconnect
+            esp_ble_gap_start_advertising(&adv_params); 
             break;
         default: break;
     }
