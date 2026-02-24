@@ -18,9 +18,12 @@ class EspidfBleKeyboard : public Component {
   void loop() override;
   void send_string(const std::string &str);
   void send_ctrl_alt_del();
-  void send_key_combo(uint8_t modifiers, uint8_t keycode);
 
-  void set_passkey(uint32_t passkey) { passkey_ = passkey; has_passkey_ = true; }
+  // Setter and check for YAML-configured passkey
+  void set_passkey(uint32_t passkey) { 
+    passkey_ = passkey; 
+    has_passkey_ = true; 
+  }
   bool has_passkey() const { return has_passkey_; }
 
   void set_connected(bool connected, uint16_t conn_id) {
@@ -30,22 +33,19 @@ class EspidfBleKeyboard : public Component {
   bool is_connected() const { return is_connected_; }
   uint16_t conn_id() const { return conn_id_; }
 
-  // Ensure high priority so Bluetooth starts before WiFi handshakes
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-
  protected:
   bool is_connected_{false};
   uint16_t conn_id_{0};
+  
   uint32_t passkey_{0};
   bool has_passkey_{false};
 };
 
-class EspidfBleKeyboardButton : public button::Button, public Component {
+class EspidfBleKeyboardButton : public button::Button {
  public:
   void set_parent(EspidfBleKeyboard *parent) { parent_ = parent; }
   void press_action() override;
   void set_action(const std::string &action) { action_ = action; }
-  float get_setup_priority() const override { return setup_priority::DATA; }
  protected:
   EspidfBleKeyboard *parent_{nullptr};
   std::string action_;

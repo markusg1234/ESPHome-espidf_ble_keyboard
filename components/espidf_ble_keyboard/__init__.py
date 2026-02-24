@@ -24,8 +24,8 @@ async def to_code(config):
     if CONF_PASSKEY in config:
         cg.add(var.set_passkey(config[CONF_PASSKEY]))
 
- 
-    cg.add(var.set_setup_priority(800.0))
+    # Run after WiFi (priority -100)
+    cg.add(var.set_setup_priority(-200))
 
     try:
         from esphome.components.esp32 import include_builtin_idf_component
