@@ -143,12 +143,19 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
 void EspidfBleKeyboard::setup() {
     s_instance = this;
     nvs_flash_init();
+    
+    // FORCING A FRESH SECURITY STATE
     esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     esp_bt_controller_init(&bt_cfg);
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
     esp_bluedroid_init();
     esp_bluedroid_enable();
+
+    // FORCE NEW BONDING:
+    esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, (uint8_t[]){ESP_LE_AUTH_BOND}, 1);
+    esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, (uint8_t[]){ESP_IO_CAP_NONE}, 1);
+
     esp_ble_gatts_register_callback(gatts_event_handler);
     esp_ble_gatts_app_register(0x55);
 }
