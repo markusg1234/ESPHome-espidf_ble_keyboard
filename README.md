@@ -4,7 +4,7 @@ This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low
 
 ## Features
 
-* **Standard HID Keyboard:** Recognized as a native keyboard by Windows, macOS, Android, and iOS.
+* **Standard HID Keyboard:** Recognized as a native keyboard by Windows.
 * **Secure Pairing:** Supports a configurable 6-digit static passkey (PIN) for secure bonding.
 * **Efficient Memory Usage:** Direct API implementation ensures stability even with complex ESPHome configurations.
 * **Pre-defined Actions:** Includes a specific helper for `Ctrl+Alt+Del` and general string sending.
@@ -98,7 +98,7 @@ button:
 
 binary_sensor:
   - platform: status
-    name: Bluetooth Keyboard
+    name: ${friendly_name}
 ```
 
 ## Configuration Variables
