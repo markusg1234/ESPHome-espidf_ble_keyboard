@@ -1,6 +1,4 @@
-This README provides a comprehensive guide for your component. It highlights the main advantage of your implementation—using the direct Bluedroid API to avoid the stack overflow and memory issues common with the standard ESP-IDF HID wrapper.
 
----
 
 # ESP32 BLE HID Keyboard for ESPHome
 
