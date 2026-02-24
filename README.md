@@ -1,8 +1,6 @@
-
-
 # ESP32 BLE HID Keyboard for ESPHome
 
-This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low Energy (BLE) HID Keyboard. Unlike many other implementations, this component uses the **direct ESP-IDF Bluedroid GATTS API**. This approach avoids the internal event loop overhead and stack overflow issues often encountered when using the standard `esp_hid` wrapper on newer ESPHome/ESP-IDF versions.
+This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low Energy (BLE) HID Keyboard. Unlike many other implementations, this component uses the **direct ESP-IDF Bluedroid GATTS API** for improved reliability and compatibility.
 
 ## Features
 
@@ -11,27 +9,11 @@ This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low
 * **Efficient Memory Usage:** Direct API implementation ensures stability even with complex ESPHome configurations.
 * **Pre-defined Actions:** Includes a specific helper for `Ctrl+Alt+Del` and general string sending.
 
-## Installation
-
-1. Create a folder named `custom_components` in your ESPHome configuration directory.
-2. Inside `custom_components`, create a folder named `espidf_ble_keyboard`.
-3. Place the following files into that folder:
-* `__init__.py`
-* `espidf_ble_keyboard.h`
-* `espidf_ble_keyboard.cpp`
-* `espidf_ble_keyboard_button.py`
-* `button.py` (empty file)
-* `automation.h`
-* `ble_keyboard_const.py`
-
-
-
 ## Usage Example
 
 Add the following to your ESPHome YAML configuration:
 
 ```yaml
-
 substitutions:
   device_name: bluetooth-keyboard
   friendly_name: "Bluetooth keyboard"
@@ -59,7 +41,7 @@ esp32:
       # Windows requires a higher security level for HID devices
       CONFIG_BT_SMP_ENABLE: y
       CONFIG_BT_ACL_CONNECTIONS: "4"
-  
+
 logger:
 
 api:
@@ -75,10 +57,14 @@ wifi:
   password: ${wifi_password}
   power_save_mode: light
   fast_connect: true
+
 external_components:
   - source:
-      type: local
-      path: custom_components
+      type: git
+      url: https://github.com/markusg1234/ESPHome-espidf_ble_keyboard
+      ref: main
+      path: components
+    components: [ espidf_ble_keyboard ]
 
 espidf_ble_keyboard:
   id: my_keyboard
@@ -104,7 +90,6 @@ button:
     name: "Open Run Dialog"
     # Note: Currently supports basic alphanumeric and some symbols.
     action: "Hello World"
-
 ```
 
 ## Configuration Variables
@@ -118,10 +103,10 @@ button:
 
 * **keyboard_id** (Required, ID): The ID of the `espidf_ble_keyboard` component.
 * **action** (Required, string): The text to type when the button is pressed.
-* Use `ctrl_alt_del` for the secure login sequence.
-* Use `\n` to simulate the Enter key.
+    - Use `ctrl_alt_del` for the secure login sequence.
+    - Use `\n` to simulate the Enter key.
 
-
+---
 
 ## Pairing with Windows
 
@@ -132,6 +117,8 @@ When you first flash the device or change the `passkey`:
 3. Click **Add device** -> **Bluetooth**.
 4. Select **ESP32 BLE Keyboard**.
 5. Windows will prompt you to enter the PIN. Type your configured `passkey` (e.g., `123456`) and click **Connect**.
+
+---
 
 ## Troubleshooting
 
