@@ -390,10 +390,12 @@ void EspidfBleKeyboard::send_media_stop() {
 
 void EspidfBleKeyboard::send_volume_up() {
     send_consumer(0x00E9);  // HID Consumer: Volume Increment
+    send_consumer(0x0000);  // HID Consumer: Release (Stop)send_consumer(0x0000);
 }
 
 void EspidfBleKeyboard::send_volume_down() {
     send_consumer(0x00EA);  // HID Consumer: Volume Decrement
+    send_consumer(0x0000);  // HID Consumer: Release (Stop)send_consumer(0x0000);
 }
 
 void EspidfBleKeyboard::send_mute() {
