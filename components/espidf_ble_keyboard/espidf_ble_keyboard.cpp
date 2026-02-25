@@ -19,7 +19,10 @@ static EspidfBleKeyboard *s_instance = nullptr;
 #define GATTS_APP_ID 0x55
 
 // ── HID Report Descriptor ────────────────────────────────────────────────────
+// Report ID 1: Standard keyboard (8 bytes)
+// Report ID 2: Consumer control — power, media keys (2 bytes)
 static const uint8_t hid_report_map[] = {
+    // ---- Keyboard (Report ID 1) ----
     0x05, 0x01, 0x09, 0x06, 0xA1, 0x01,
     0x85, 0x01,
     0x05, 0x07, 0x19, 0xE0, 0x29, 0xE7,
@@ -29,7 +32,20 @@ static const uint8_t hid_report_map[] = {
     0x95, 0x01, 0x75, 0x03, 0x91, 0x01,
     0x95, 0x06, 0x75, 0x08, 0x15, 0x00, 0x25, 0x65,
     0x05, 0x07, 0x19, 0x00, 0x29, 0x65, 0x81, 0x00,
-    0xC0
+    0xC0,
+    // ---- Consumer Control (Report ID 2) ----
+    0x05, 0x0C,        // Usage Page (Consumer)
+    0x09, 0x01,        // Usage (Consumer Control)
+    0xA1, 0x01,        // Collection (Application)
+    0x85, 0x02,        //   Report ID (2)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x26, 0xFF, 0x03,  //   Logical Maximum (1023)
+    0x19, 0x00,        //   Usage Minimum (0)
+    0x2A, 0xFF, 0x03,  //   Usage Maximum (1023)
+    0x75, 0x10,        //   Report Size (16)
+    0x95, 0x01,        //   Report Count (1)
+    0x81, 0x00,        //   Input (Data, Array)
+    0xC0               // End Collection
 };
 
 // ── Raw Advertising Data (Verified Working) ──────────────────────────────────
@@ -98,22 +114,31 @@ enum {
     IDX_CHAR_REPORT_MAP,   IDX_CHAR_REPORT_MAP_VAL,
     IDX_CHAR_HID_CTRL,     IDX_CHAR_HID_CTRL_VAL,
     IDX_CHAR_PROTO_MODE,   IDX_CHAR_PROTO_MODE_VAL,
+    // Keyboard report (Report ID 1)
     IDX_CHAR_REPORT,       IDX_CHAR_REPORT_VAL,
     IDX_CHAR_REPORT_CCC,
     IDX_CHAR_REPORT_REF,
+    // Consumer control report (Report ID 2)
+    IDX_CHAR_CONSUMER,     IDX_CHAR_CONSUMER_VAL,
+    IDX_CHAR_CONSUMER_CCC,
+    IDX_CHAR_CONSUMER_REF,
     HID_IDX_NB,
 };
 
 static uint16_t hid_handle_table[HID_IDX_NB];
 static esp_gatt_if_t s_gatts_if = ESP_GATT_IF_NONE;
 static uint16_t s_hid_report_handle = 0;
+static uint16_t s_consumer_report_handle = 0;
 
 static uint8_t  hid_info_val[4]   = {0x11, 0x01, 0x00, 0x01};
 static uint8_t  hid_ctrl_val      = 0;
 static uint8_t  proto_mode_val    = 0x01;
 static uint8_t  report_val[8]     = {0};
 static uint16_t report_ccc_val    = 0;
-static uint8_t  report_ref_val[2] = {0x01, 0x01};
+static uint8_t  report_ref_val[2]     = {0x01, 0x01};
+static uint8_t  consumer_val[2]       = {0};
+static uint16_t consumer_ccc_val      = 0;
+static uint8_t  consumer_ref_val[2]   = {0x02, 0x01};
 
 static const uint16_t UUID_PRI_SERVICE        = ESP_GATT_UUID_PRI_SERVICE;
 static const uint16_t UUID_HID_SVC            = ESP_GATT_UUID_HID_SVC;
@@ -145,6 +170,11 @@ static const esp_gatts_attr_db_t hid_attr_db[HID_IDX_NB] = {
     [IDX_CHAR_REPORT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_HID_REPORT, ESP_GATT_PERM_READ, sizeof(report_val), sizeof(report_val), report_val}},
     [IDX_CHAR_REPORT_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_CHAR_CLIENT_CONFIG, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, sizeof(report_ccc_val), sizeof(report_ccc_val), (uint8_t *)&report_ccc_val}},
     [IDX_CHAR_REPORT_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_RPT_REF_DESCR, ESP_GATT_PERM_READ, sizeof(report_ref_val), sizeof(report_ref_val), report_ref_val}},
+    // Consumer control report (Report ID 2)
+    [IDX_CHAR_CONSUMER] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_CHAR_DECLARE, ESP_GATT_PERM_READ, 1, 1, (uint8_t *)&PROP_READ_NOTIFY}},
+    [IDX_CHAR_CONSUMER_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_HID_REPORT, ESP_GATT_PERM_READ, sizeof(consumer_val), sizeof(consumer_val), consumer_val}},
+    [IDX_CHAR_CONSUMER_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_CHAR_CLIENT_CONFIG, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, sizeof(consumer_ccc_val), sizeof(consumer_ccc_val), (uint8_t *)&consumer_ccc_val}},
+    [IDX_CHAR_CONSUMER_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_RPT_REF_DESCR, ESP_GATT_PERM_READ, sizeof(consumer_ref_val), sizeof(consumer_ref_val), consumer_ref_val}},
 };
 
 // ── GATTS Event Handler ──────────────────────────────────────────────────────
@@ -158,6 +188,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
         case ESP_GATTS_CREAT_ATTR_TAB_EVT:
             memcpy(hid_handle_table, param->add_attr_tab.handles, sizeof(hid_handle_table));
             s_hid_report_handle = hid_handle_table[IDX_CHAR_REPORT_VAL];
+            s_consumer_report_handle = hid_handle_table[IDX_CHAR_CONSUMER_VAL];
             esp_ble_gatts_start_service(hid_handle_table[IDX_SVC]);
             break;
         case ESP_GATTS_START_EVT:
@@ -300,13 +331,56 @@ void EspidfBleKeyboard::send_shutdown() {
     send_key_combo(0x08, 0x15);
     vTaskDelay(pdMS_TO_TICKS(600));
     // Type the shutdown command
-    send_string("shutdown /s /t 10");
+    send_string("shutdown /s /t 0");
     vTaskDelay(pdMS_TO_TICKS(200));
     // Press Enter then immediately send all-zeros report to clear key state
     send_key_combo(0x00, 0x28);
     vTaskDelay(pdMS_TO_TICKS(100));
     uint8_t empty[8] = {0};
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, empty, false);
+}
+
+void EspidfBleKeyboard::send_consumer(uint16_t usage) {
+    if (!is_connected_) return;
+    // Send consumer key press
+    uint8_t report[2] = {(uint8_t)(usage & 0xFF), (uint8_t)(usage >> 8)};
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_consumer_report_handle, 2, report, false);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    // Send release
+    uint8_t release[2] = {0, 0};
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_consumer_report_handle, 2, release, false);
+}
+
+void EspidfBleKeyboard::send_power() {
+    send_consumer(0x0030);  // HID Consumer: Power
+}
+
+void EspidfBleKeyboard::send_media_play_pause() {
+    send_consumer(0x00CD);  // HID Consumer: Play/Pause
+}
+
+void EspidfBleKeyboard::send_media_next() {
+    send_consumer(0x00B5);  // HID Consumer: Scan Next Track
+}
+
+void EspidfBleKeyboard::send_media_prev() {
+    send_consumer(0x00B6);  // HID Consumer: Scan Previous Track
+}
+
+void EspidfBleKeyboard::send_media_stop() {
+    send_consumer(0x00B7);  // HID Consumer: Stop
+}
+
+void EspidfBleKeyboard::send_volume_up() {
+    send_consumer(0x00E9);  // HID Consumer: Volume Increment
+}
+
+void EspidfBleKeyboard::send_volume_down() {
+    send_consumer(0x00EA);  // HID Consumer: Volume Decrement
+}
+
+void EspidfBleKeyboard::send_mute() {
+    send_consumer(0x00E2);  // HID Consumer: Mute
 }
 
 
@@ -336,10 +410,18 @@ void EspidfBleKeyboardButton::press_action() {
     }
     
     // Named actions
-    if (action_ == "ctrl_alt_del") parent_->send_ctrl_alt_del();
-    else if (action_ == "sleep") parent_->send_sleep();
-    else if (action_ == "shutdown") parent_->send_shutdown();
+    if (action_ == "ctrl_alt_del")   parent_->send_ctrl_alt_del();
+    else if (action_ == "sleep")     parent_->send_sleep();
+    else if (action_ == "shutdown")  parent_->send_shutdown();
     else if (action_ == "hibernate") parent_->send_hibernate();
+    else if (action_ == "power")     parent_->send_power();
+    else if (action_ == "play_pause")   parent_->send_media_play_pause();
+    else if (action_ == "next_track")   parent_->send_media_next();
+    else if (action_ == "prev_track")   parent_->send_media_prev();
+    else if (action_ == "stop")         parent_->send_media_stop();
+    else if (action_ == "volume_up")    parent_->send_volume_up();
+    else if (action_ == "volume_down")  parent_->send_volume_down();
+    else if (action_ == "mute")         parent_->send_mute();
     else parent_->send_string(action_);
 }
 

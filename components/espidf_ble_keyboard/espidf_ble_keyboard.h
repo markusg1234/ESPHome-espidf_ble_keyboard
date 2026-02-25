@@ -22,6 +22,16 @@ class EspidfBleKeyboard : public Component {
   void send_sleep();
   void send_shutdown();
   void send_hibernate();
+  // Consumer control
+  void send_consumer(uint16_t usage);
+  void send_power();
+  void send_media_play_pause();
+  void send_media_next();
+  void send_media_prev();
+  void send_media_stop();
+  void send_volume_up();
+  void send_volume_down();
+  void send_mute();
 
   // Setter and check for YAML-configured passkey
   void set_passkey(uint32_t passkey) { 
