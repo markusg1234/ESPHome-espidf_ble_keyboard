@@ -287,8 +287,11 @@ void EspidfBleKeyboard::send_sleep() {
     // Type the sleep command
     send_string("rundll32.exe powrprof.dll,SetSuspendState 0,1,0");
     vTaskDelay(pdMS_TO_TICKS(200));
-    // Press Enter
+    // Press Enter then immediately send all-zeros report to clear key state
     send_key_combo(0x00, 0x28);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    uint8_t empty[8] = {0};
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, empty, false);
 }
 
 void EspidfBleKeyboard::send_shutdown() {
@@ -297,10 +300,13 @@ void EspidfBleKeyboard::send_shutdown() {
     send_key_combo(0x08, 0x15);
     vTaskDelay(pdMS_TO_TICKS(600));
     // Type the shutdown command
-    send_string("shutdown /s /t 0");
+    send_string("shutdown /s /t 5");
     vTaskDelay(pdMS_TO_TICKS(200));
-    // Press Enter
+    // Press Enter then immediately send all-zeros report to clear key state
     send_key_combo(0x00, 0x28);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    uint8_t empty[8] = {0};
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, empty, false);
 }
 
 
@@ -312,7 +318,7 @@ void EspidfBleKeyboard::send_hibernate() {
     // Type the hibernate command
     send_string("shutdown /h");
     vTaskDelay(pdMS_TO_TICKS(200));
-    // Press Enter
+    // Press Enter then immediately send all-zeros report to clear key state
     send_key_combo(0x00, 0x28);
 }
 
