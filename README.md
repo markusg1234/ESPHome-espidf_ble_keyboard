@@ -10,7 +10,8 @@ This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low
 * **Efficient Memory Usage:** Direct API implementation ensures stability even with complex ESPHome configurations.
 * **Pre-defined Actions:** Includes a specific helper for `Ctrl+Alt+Del` and general string sending.
 
-📖 [Keycode Reference](docs/keycodes.md)
+📖 [Keycode Reference](docs/keycodes.md)     https://markusg1234.github.io/ESPHome-espidf_ble_keyboard/docs/Keycodes.html
+
 
 ## Usage Example
 
