@@ -273,37 +273,35 @@ void EspidfBleKeyboard::send_string(const std::string &str) {
         else if (c == ':')  { report[0] = 0x02; report[2] = 0x33; }
         else continue;
 
-        uint8_t full[9] = {0x01, report[0], 0, report[2], 0, 0, 0, 0, 0};
-        esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 9, full, false);
+        esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
         vTaskDelay(pdMS_TO_TICKS(20));
-        memset(full, 0, 9); full[0] = 0x01;
-        esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 9, full, false);
+        memset(report, 0, 8);
+        esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
 
 void EspidfBleKeyboard::send_key_combo(uint8_t modifiers, uint8_t keycode) {
     if (!is_connected_) return;
-    // Report ID 1 prefix + 8 byte keyboard report = 9 bytes
-    uint8_t report[9] = {0x01, modifiers, 0, keycode, 0, 0, 0, 0, 0};
-    
+    uint8_t report[8] = {0};
+    report[0] = modifiers;
+    report[2] = keycode;
     // Send press
-    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 9, report, false);
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
     vTaskDelay(pdMS_TO_TICKS(30));
-    
-    // Send release (all zeros except report ID)
-    memset(report, 0, 9);
-    report[0] = 0x01;
-    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 9, report, false);
+    // Send release (all zeros)
+    memset(report, 0, 8);
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
 }
 
 void EspidfBleKeyboard::send_ctrl_alt_del() {
     if (!is_connected_) return;
-    uint8_t report[9] = {0x01, 0x05, 0, 0x4C, 0, 0, 0, 0, 0};
-    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 9, report, false);
+    uint8_t report[8] = {0};
+    report[0] = 0x05; report[2] = 0x4C;
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
     vTaskDelay(pdMS_TO_TICKS(50));
-    memset(report, 0, 9); report[0] = 0x01;
-    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 9, report, false);
+    memset(report, 0, 8);
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
 }
 
 
@@ -318,8 +316,8 @@ void EspidfBleKeyboard::send_sleep() {
     // Press Enter then immediately send all-zeros report to clear key state
     send_key_combo(0x00, 0x28);
     vTaskDelay(pdMS_TO_TICKS(100));
-    uint8_t empty[9] = {0x01, 0, 0, 0, 0, 0, 0, 0, 0};
-    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 9, empty, false);
+    uint8_t empty[8] = {0};
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, empty, false);
 }
 
 void EspidfBleKeyboard::send_shutdown() {
@@ -333,19 +331,19 @@ void EspidfBleKeyboard::send_shutdown() {
     // Press Enter then immediately send all-zeros report to clear key state
     send_key_combo(0x00, 0x28);
     vTaskDelay(pdMS_TO_TICKS(100));
-    uint8_t empty[9] = {0x01, 0, 0, 0, 0, 0, 0, 0, 0};
-    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 9, empty, false);
+    uint8_t empty[8] = {0};
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, empty, false);
 }
 
 void EspidfBleKeyboard::send_consumer(uint16_t usage) {
     if (!is_connected_) return;
-    // Report ID 2 must be prepended when multiple report IDs are in use
-    uint8_t report[3] = {0x02, (uint8_t)(usage & 0xFF), (uint8_t)(usage >> 8)};
-    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_consumer_report_handle, 3, report, false);
+    // Bluedroid handles Report ID internally — send data only (2 bytes)
+    uint8_t report[2] = {(uint8_t)(usage & 0xFF), (uint8_t)(usage >> 8)};
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_consumer_report_handle, 2, report, false);
     vTaskDelay(pdMS_TO_TICKS(50));
     // Send release
-    uint8_t release[3] = {0x02, 0, 0};
-    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_consumer_report_handle, 3, release, false);
+    uint8_t release[2] = {0, 0};
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_consumer_report_handle, 2, release, false);
     ESP_LOGI("espidf_ble_keyboard", "Consumer report sent: 0x%04X", usage);
 }
 
