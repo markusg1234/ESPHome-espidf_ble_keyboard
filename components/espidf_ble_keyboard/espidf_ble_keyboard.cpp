@@ -300,7 +300,7 @@ void EspidfBleKeyboard::send_shutdown() {
     send_key_combo(0x08, 0x15);
     vTaskDelay(pdMS_TO_TICKS(600));
     // Type the shutdown command
-    send_string("shutdown /s /t 5");
+    send_string("shutdown /s /t 10");
     vTaskDelay(pdMS_TO_TICKS(200));
     // Press Enter then immediately send all-zeros report to clear key state
     send_key_combo(0x00, 0x28);
