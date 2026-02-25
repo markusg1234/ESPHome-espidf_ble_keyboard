@@ -77,6 +77,7 @@ espidf_ble_keyboard:
   passkey: 123456
 
 button:
+
   - platform: espidf_ble_keyboard
     keyboard_id: my_keyboard
     name: "Ctrl + F1"
@@ -100,9 +101,29 @@ button:
       - lambda: |-
           id(my_keyboard).send_ctrl_alt_del();
 
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Sleep PC"
+    action: "sleep"
+
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Hibernate PC"
+    action: "hibernate" 
+
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Shutdown PC"
+    action: "shutdown"        
+          
+  - platform: restart
+    name: ${friendly_name}
+
 binary_sensor:
   - platform: status
     name: ${friendly_name}
+
+
 ```
 
 ## Configuration Variables

@@ -22,7 +22,6 @@ class EspidfBleKeyboard : public Component {
   void send_sleep();
   void send_shutdown();
   void send_hibernate();
-  void set_action(std::string action) { action_ = action; }
 
   // Setter and check for YAML-configured passkey
   void set_passkey(uint32_t passkey) { 

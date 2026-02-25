@@ -323,7 +323,6 @@ void EspidfBleKeyboardButton::press_action() {
     else if (action_ == "hibernate") parent_->send_hibernate();
     else parent_->send_string(action_);
 }
-}
 
 }  // namespace espidf_ble_keyboard
 }  // namespace esphome
