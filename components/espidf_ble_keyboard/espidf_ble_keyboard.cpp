@@ -282,7 +282,6 @@ void EspidfBleKeyboardButton::press_action() {
     if (action_ == "ctrl_alt_del") parent_->send_ctrl_alt_del();
     else parent_->send_string(action_);
 }
-}
 
 }  // namespace espidf_ble_keyboard
 }  // namespace esphome

@@ -19,7 +19,6 @@ class EspidfBleKeyboard : public Component {
   void send_string(const std::string &str);
   void send_ctrl_alt_del();
   void send_key_combo(uint8_t modifiers, uint8_t keycode);
-  void set_action(std::string action) { action_ = action; }
 
   // Setter and check for YAML-configured passkey
   void set_passkey(uint32_t passkey) { 
