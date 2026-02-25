@@ -265,6 +265,44 @@ void EspidfBleKeyboard::send_ctrl_alt_del() {
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
 }
 
+
+void EspidfBleKeyboard::send_sleep() {
+    if (!is_connected_) return;
+    // Win + R to open Run dialog
+    send_key_combo(0x08, 0x15);
+    vTaskDelay(pdMS_TO_TICKS(600));
+    // Type the sleep command
+    send_string("rundll32.exe powrprof.dll,SetSuspendState 0,1,0");
+    vTaskDelay(pdMS_TO_TICKS(200));
+    // Press Enter
+    send_key_combo(0x00, 0x28);
+}
+
+void EspidfBleKeyboard::send_shutdown() {
+    if (!is_connected_) return;
+    // Win + R to open Run dialog
+    send_key_combo(0x08, 0x15);
+    vTaskDelay(pdMS_TO_TICKS(600));
+    // Type the shutdown command
+    send_string("shutdown /s /t 0");
+    vTaskDelay(pdMS_TO_TICKS(200));
+    // Press Enter
+    send_key_combo(0x00, 0x28);
+}
+
+
+void EspidfBleKeyboard::send_hibernate() {
+    if (!is_connected_) return;
+    // Win + R to open Run dialog
+    send_key_combo(0x08, 0x15);
+    vTaskDelay(pdMS_TO_TICKS(600));
+    // Type the hibernate command
+    send_string("shutdown /h");
+    vTaskDelay(pdMS_TO_TICKS(200));
+    // Press Enter
+    send_key_combo(0x00, 0x28);
+}
+
 void EspidfBleKeyboardButton::press_action() {
     if (!parent_) return;
 
@@ -278,9 +316,13 @@ void EspidfBleKeyboardButton::press_action() {
         }
     }
     
-    // Fallback for previous actions
+    // Named actions
     if (action_ == "ctrl_alt_del") parent_->send_ctrl_alt_del();
+    else if (action_ == "sleep") parent_->send_sleep();
+    else if (action_ == "shutdown") parent_->send_shutdown();
+    else if (action_ == "hibernate") parent_->send_hibernate();
     else parent_->send_string(action_);
+}
 }
 
 }  // namespace espidf_ble_keyboard
