@@ -33,7 +33,7 @@ static const uint8_t hid_report_map[] = {
     0x95, 0x06, 0x75, 0x08, 0x15, 0x00, 0x25, 0x65,
     0x05, 0x07, 0x19, 0x00, 0x29, 0x65, 0x81, 0x00,
     0xC0,
-    // ---- Consumer Control (Report ID 2) ----
+    // ---- Consumer Control (Report ID 2) — media keys ----
     0x05, 0x0C,        // Usage Page (Consumer)
     0x09, 0x01,        // Usage (Consumer Control)
     0xA1, 0x01,        // Collection (Application)
@@ -43,6 +43,19 @@ static const uint8_t hid_report_map[] = {
     0x19, 0x00,        //   Usage Minimum (0)
     0x2A, 0xFF, 0x03,  //   Usage Maximum (1023)
     0x75, 0x10,        //   Report Size (16)
+    0x95, 0x01,        //   Report Count (1)
+    0x81, 0x00,        //   Input (Data, Array)
+    0xC0,              // End Collection
+    // ---- System Control (Report ID 3) — power/sleep ----
+    0x05, 0x01,        // Usage Page (Generic Desktop)
+    0x09, 0x80,        // Usage (System Control)
+    0xA1, 0x01,        // Collection (Application)
+    0x85, 0x03,        //   Report ID (3)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x26, 0xFF, 0x00,  //   Logical Maximum (255)
+    0x19, 0x00,        //   Usage Minimum (0)
+    0x29, 0xFF,        //   Usage Maximum (255)
+    0x75, 0x08,        //   Report Size (8)
     0x95, 0x01,        //   Report Count (1)
     0x81, 0x00,        //   Input (Data, Array)
     0xC0               // End Collection
@@ -122,6 +135,10 @@ enum {
     IDX_CHAR_CONSUMER,     IDX_CHAR_CONSUMER_VAL,
     IDX_CHAR_CONSUMER_CCC,
     IDX_CHAR_CONSUMER_REF,
+    // System control report (Report ID 3)
+    IDX_CHAR_SYSTEM,       IDX_CHAR_SYSTEM_VAL,
+    IDX_CHAR_SYSTEM_CCC,
+    IDX_CHAR_SYSTEM_REF,
     HID_IDX_NB,
 };
 
@@ -129,6 +146,7 @@ static uint16_t hid_handle_table[HID_IDX_NB];
 static esp_gatt_if_t s_gatts_if = ESP_GATT_IF_NONE;
 static uint16_t s_hid_report_handle = 0;
 static uint16_t s_consumer_report_handle = 0;
+static uint16_t s_system_report_handle = 0;
 
 static uint8_t  hid_info_val[4]   = {0x11, 0x01, 0x00, 0x01};
 static uint8_t  hid_ctrl_val      = 0;
@@ -139,6 +157,9 @@ static uint8_t  report_ref_val[2]     = {0x01, 0x01};
 static uint8_t  consumer_val[2]       = {0};
 static uint16_t consumer_ccc_val      = 0;
 static uint8_t  consumer_ref_val[2]   = {0x02, 0x01};
+static uint8_t  system_val            = 0;
+static uint16_t system_ccc_val        = 0;
+static uint8_t  system_ref_val[2]     = {0x03, 0x01};
 
 static const uint16_t UUID_PRI_SERVICE        = ESP_GATT_UUID_PRI_SERVICE;
 static const uint16_t UUID_HID_SVC            = ESP_GATT_UUID_HID_SVC;
@@ -175,6 +196,11 @@ static const esp_gatts_attr_db_t hid_attr_db[HID_IDX_NB] = {
     [IDX_CHAR_CONSUMER_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_HID_REPORT, ESP_GATT_PERM_READ, sizeof(consumer_val), sizeof(consumer_val), consumer_val}},
     [IDX_CHAR_CONSUMER_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_CHAR_CLIENT_CONFIG, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, sizeof(consumer_ccc_val), sizeof(consumer_ccc_val), (uint8_t *)&consumer_ccc_val}},
     [IDX_CHAR_CONSUMER_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_RPT_REF_DESCR, ESP_GATT_PERM_READ, sizeof(consumer_ref_val), sizeof(consumer_ref_val), consumer_ref_val}},
+    // System control report (Report ID 3)
+    [IDX_CHAR_SYSTEM] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_CHAR_DECLARE, ESP_GATT_PERM_READ, 1, 1, (uint8_t *)&PROP_READ_NOTIFY}},
+    [IDX_CHAR_SYSTEM_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_HID_REPORT, ESP_GATT_PERM_READ, sizeof(system_val), sizeof(system_val), &system_val}},
+    [IDX_CHAR_SYSTEM_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_CHAR_CLIENT_CONFIG, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, sizeof(system_ccc_val), sizeof(system_ccc_val), (uint8_t *)&system_ccc_val}},
+    [IDX_CHAR_SYSTEM_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_RPT_REF_DESCR, ESP_GATT_PERM_READ, sizeof(system_ref_val), sizeof(system_ref_val), system_ref_val}},
 };
 
 // ── GATTS Event Handler ──────────────────────────────────────────────────────
@@ -189,6 +215,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             memcpy(hid_handle_table, param->add_attr_tab.handles, sizeof(hid_handle_table));
             s_hid_report_handle = hid_handle_table[IDX_CHAR_REPORT_VAL];
             s_consumer_report_handle = hid_handle_table[IDX_CHAR_CONSUMER_VAL];
+            s_system_report_handle = hid_handle_table[IDX_CHAR_SYSTEM_VAL];
             esp_ble_gatts_start_service(hid_handle_table[IDX_SVC]);
             break;
         case ESP_GATTS_START_EVT:
@@ -348,7 +375,14 @@ void EspidfBleKeyboard::send_consumer(uint16_t usage) {
 }
 
 void EspidfBleKeyboard::send_power() {
-    send_consumer(0x0030);  // HID Consumer: Power
+    if (!is_connected_) return;
+    // System Power Down via Generic Desktop page (Report ID 3)
+    uint8_t report[1] = {0x81};  // 0x81 = System Power Down
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_system_report_handle, 1, report, false);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    uint8_t release[1] = {0};
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_system_report_handle, 1, release, false);
+    ESP_LOGI("espidf_ble_keyboard", "System Power Down sent");
 }
 
 void EspidfBleKeyboard::send_media_play_pause() {
