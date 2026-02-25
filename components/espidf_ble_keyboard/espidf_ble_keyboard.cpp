@@ -9,6 +9,7 @@
 #include "esp_gatt_defs.h"
 #include "esp_bt_defs.h"
 #include <cstring>
+#include <cstdio>
 
 namespace esphome {
 namespace espidf_ble_keyboard {
@@ -236,6 +237,24 @@ void EspidfBleKeyboard::send_string(const std::string &str) {
     }
 }
 
+void EspidfBleKeyboard::send_key_combo(uint8_t modifiers, uint8_t keycode) {
+    if (!is_connected_) return;
+    uint8_t report[8] = {0};
+    
+    // Set modifier (e.g., Windows Key, Ctrl, Shift) in byte 0
+    report[0] = modifiers;
+    // Set actual key (e.g., 'R', 'F1') in byte 2
+    report[2] = keycode;
+    
+    // Send press
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
+    vTaskDelay(pdMS_TO_TICKS(30)); // Brief delay
+    
+    // Send release (all zeros)
+    memset(report, 0, 8);
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
+}
+
 void EspidfBleKeyboard::send_ctrl_alt_del() {
     if (!is_connected_) return;
     uint8_t report[8] = {0};
@@ -247,10 +266,22 @@ void EspidfBleKeyboard::send_ctrl_alt_del() {
 }
 
 void EspidfBleKeyboardButton::press_action() {
-    if (parent_) {
-        if (action_ == "ctrl_alt_del") parent_->send_ctrl_alt_del();
-        else parent_->send_string(action_);
+    if (!parent_) return;
+
+    // Check if the action string starts with "combo:"
+    if (action_.find("combo:") == 0) {
+        int mod, key;
+        // %i automatically reads hex values (like 0x08) into integers
+        if (sscanf(action_.c_str(), "combo:%i:%i", &mod, &key) == 2) {
+            parent_->send_key_combo((uint8_t)mod, (uint8_t)key);
+            return;
+        }
     }
+    
+    // Fallback for previous actions
+    if (action_ == "ctrl_alt_del") parent_->send_ctrl_alt_del();
+    else parent_->send_string(action_);
+}
 }
 
 }  // namespace espidf_ble_keyboard
