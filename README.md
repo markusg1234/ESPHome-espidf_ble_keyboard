@@ -10,6 +10,8 @@ This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low
 * **Key Combos:** Send any modifier + key combination using hex keycodes (e.g. Win+R, Ctrl+C).
 * **String Typing:** Type any string directly including letters, numbers and punctuation.
 * **Pre-defined Actions:** Built-in helpers for `ctrl_alt_del`, `sleep`, `hibernate` and `shutdown`.
+* **Media Keys:** Control volume, playback, mute and more via HID consumer control.
+* **Power Button:** Native HID power/sleep signals — no Run dialog, clean OS-level control.
 
 📖 [Keycode Reference](docs/keycodes.md) · [🌐 View Web Page](https://markusg1234.github.io/ESPHome-espidf_ble_keyboard)
 
@@ -90,12 +92,6 @@ button:
     # 0x08 = Windows Key, 0x15 = 'r'
     action: "combo:0x08:0x15"
 
-  - platform: template
-    name: "Template Hello"
-    on_press:
-      - lambda: |-
-          id(my_keyboard).send_string("Hello\n");
-
   - platform: espidf_ble_keyboard
     keyboard_id: my_keyboard
     name: "Type Hello"
@@ -148,9 +144,17 @@ binary_sensor:
 | `"Hello\n"` | Type a string. Use `\n` for Enter. Supports letters, numbers and common punctuation. |
 | `"combo:0x08:0x15"` | Send a key combination. Format: `combo:<modifier_hex>:<keycode_hex>`. See [Keycode Reference](docs/keycodes.md). |
 | `"ctrl_alt_del"` | Send the Ctrl+Alt+Del secure login sequence. |
-| `"sleep"` | Put the PC to sleep (S3 suspend). Requires USB wake support enabled in BIOS to wake with keyboard. |
-| `"hibernate"` | Hibernate the PC (saves to disk, full power off). Wake with power button. Requires hibernate enabled in Windows (`powercfg /hibernate on`). |
-| `"shutdown"` | Shut down the PC immediately. |
+| `"sleep"` | Put the PC to sleep via HID System Sleep signal. |
+| `"hibernate"` | Hibernate the PC (saves to disk, full power off). Requires hibernate enabled in Windows (`powercfg /hibernate on`). |
+| `"shutdown"` | Shut down the PC via HID System Power Down signal. |
+| `"power"` | Send HID power button signal — triggers whatever Windows power button action is configured. |
+| `"mute"` | Toggle mute. |
+| `"volume_up"` | Volume up. |
+| `"volume_down"` | Volume down. |
+| `"play_pause"` | Play/pause media. |
+| `"next_track"` | Skip to next track. |
+| `"prev_track"` | Go to previous track. |
+| `"stop"` | Stop media playback. |
 
 ---
 
@@ -171,5 +175,6 @@ When you first flash the device or change the `passkey`:
 * **Not appearing in search:** Ensure no other device is currently connected. The ESP32 stops advertising once a connection is established.
 * **PIN prompt not appearing:** Windows often caches old security profiles. Fully "Remove" the device from Windows Bluetooth settings and try again.
 * **Typing speed:** The component includes a 20ms delay between keypresses to ensure the host OS registers them correctly. This can be adjusted in `espidf_ble_keyboard.cpp` if needed.
-* **Sleep/Hibernate/Shutdown not working:** These actions open the Windows Run dialog (Win+R) and type a command. Ensure the PC is not in a state where the Run dialog is blocked (e.g., fullscreen app or UAC prompt on screen).
+* **Hibernate not working:** Hibernate uses the Windows Run dialog. Ensure the PC is not in a state where it is blocked (e.g., fullscreen app or UAC prompt). Also ensure hibernate is enabled: run `powercfg /hibernate on` in an admin command prompt.
 * **PC not waking from sleep:** Check that **USB Wake Support** (or similar) is enabled in your BIOS/UEFI Power Management settings.
+* **Re-pair after firmware update:** If the HID descriptor changes (e.g. adding media keys), you must remove and re-pair the device in Windows Bluetooth settings.

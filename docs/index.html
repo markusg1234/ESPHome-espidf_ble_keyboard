@@ -309,7 +309,12 @@
     <div class="feature">
       <div class="feature-icon">💤</div>
       <h3>Power Commands</h3>
-      <p>Built-in sleep, hibernate and shutdown actions. Control your PC power state from Home Assistant.</p>
+      <p>Native HID sleep, hibernate and shutdown — clean OS-level signals, no Run dialog or lingering key state.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🎵</div>
+      <h3>Media Keys</h3>
+      <p>Volume up/down, mute, play/pause, next/prev track and stop via HID consumer control reports.</p>
     </div>
     <div class="feature">
       <div class="feature-icon">🏠</div>
@@ -356,9 +361,17 @@
       <tr><td><code>"Hello\n"</code></td><td class="desc">Type a string. Use \n for Enter.</td></tr>
       <tr><td><code>"combo:0x08:0x15"</code></td><td class="desc">Key combo — modifier + keycode in hex. See keycode reference.</td></tr>
       <tr><td><code>"ctrl_alt_del"</code></td><td class="desc">Send Ctrl+Alt+Del secure login sequence.</td></tr>
-      <tr><td><code>"sleep"</code></td><td class="desc">Put the PC to sleep (S3 suspend).</td></tr>
-      <tr><td><code>"hibernate"</code></td><td class="desc">Hibernate the PC — saves to disk, full power off.</td></tr>
-      <tr><td><code>"shutdown"</code></td><td class="desc">Shut down the PC immediately.</td></tr>
+      <tr><td><code>"sleep"</code></td><td class="desc">HID System Sleep signal — clean OS-level sleep.</td></tr>
+      <tr><td><code>"hibernate"</code></td><td class="desc">Hibernate via Run dialog — saves to disk, full power off.</td></tr>
+      <tr><td><code>"shutdown"</code></td><td class="desc">HID System Power Down signal — clean OS-level shutdown.</td></tr>
+      <tr><td><code>"power"</code></td><td class="desc">HID power button — triggers Windows power button action.</td></tr>
+      <tr><td><code>"mute"</code></td><td class="desc">Toggle mute.</td></tr>
+      <tr><td><code>"volume_up"</code></td><td class="desc">Volume up.</td></tr>
+      <tr><td><code>"volume_down"</code></td><td class="desc">Volume down.</td></tr>
+      <tr><td><code>"play_pause"</code></td><td class="desc">Play / pause media.</td></tr>
+      <tr><td><code>"next_track"</code></td><td class="desc">Skip to next track.</td></tr>
+      <tr><td><code>"prev_track"</code></td><td class="desc">Previous track.</td></tr>
+      <tr><td><code>"stop"</code></td><td class="desc">Stop media playback.</td></tr>
     </table>
   </div>
 
