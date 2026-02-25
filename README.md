@@ -37,8 +37,6 @@ esp32:
   board: esp32dev
   framework:
     type: esp-idf
-    # Version 5.5.2 is standard now in PlatformIO for ESP-IDF
-    version: 5.5.2 
     sdkconfig_options:
       # These are the essential ones for HID/Keyboard stability
       CONFIG_BT_ENABLED: y
@@ -91,6 +89,12 @@ button:
     name: "Win + R (Run Dialog)"
     # 0x08 = Windows Key, 0x15 = 'r'
     action: "combo:0x08:0x15"
+
+  - platform: template
+    name: "Template Hello"
+    on_press:
+      - lambda: |-
+          id(my_keyboard).send_string("Hello\n");    
 
   - platform: espidf_ble_keyboard
     keyboard_id: my_keyboard
