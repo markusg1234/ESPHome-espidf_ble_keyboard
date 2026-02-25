@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLE Keyboard Keycodes Reference</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161e;
+    --surface2: #1a1e28;
+    --border: #252a38;
+    --accent: #00d4aa;
+    --accent2: #ff6b35;
+    --text: #e2e8f0;
+    --muted: #6b7a99;
+    --code-bg: #0a0c10;
+    --header-bg: #0f1219;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    padding: 40px 32px;
+    background-image:
+      radial-gradient(ellipse at 10% 0%, rgba(0,212,170,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 90% 100%, rgba(255,107,53,0.05) 0%, transparent 50%);
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  h1 {
+    font-size: 2.4rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.95rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .syntax-box {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 16px 24px;
+    margin: 0 auto 48px;
+    max-width: 720px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 1.8;
+  }
+
+  .syntax-box .label {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  .syntax-box .comment { color: var(--muted); }
+  .syntax-box .string { color: #a8d8a8; }
+  .syntax-box .format { color: var(--accent2); font-weight: 600; }
+
+  /* Two-column grid */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+
+  .grid.three {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .grid.wide-left {
+    grid-template-columns: 1.1fr 0.9fr;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .card:nth-child(2) { animation-delay: 0.05s; }
+  .card:nth-child(3) { animation-delay: 0.10s; }
+  .card:nth-child(4) { animation-delay: 0.15s; }
+  .card:nth-child(5) { animation-delay: 0.20s; }
+  .card:nth-child(6) { animation-delay: 0.25s; }
+
+  .card-header {
+    background: var(--surface2);
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .card-header h2 {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .card-header .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .card-header .dot.orange { background: var(--accent2); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+  }
+
+  th {
+    background: var(--code-bg);
+    color: var(--muted);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 8px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+  }
+
+  td {
+    padding: 7px 14px;
+    border-bottom: 1px solid rgba(37,42,56,0.6);
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td { background: rgba(255,255,255,0.025); }
+
+  td code, .code {
+    background: var(--code-bg);
+    color: var(--accent);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    border: 1px solid rgba(0,212,170,0.15);
+  }
+
+  td .shifted {
+    color: var(--accent2);
+    background: rgba(255,107,53,0.08);
+    border-color: rgba(255,107,53,0.2);
+  }
+
+  td .mod {
+    color: #a78bfa;
+    background: rgba(167,139,250,0.08);
+    border-color: rgba(167,139,250,0.2);
+  }
+
+  .note {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+    padding: 10px 14px;
+    background: var(--code-bg);
+    border-top: 1px solid var(--border);
+  }
+
+  .note span { color: var(--accent); }
+
+  /* Full-width sections */
+  .full {
+    margin-bottom: 24px;
+  }
+
+  .shortcuts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+
+  .shortcuts-grid > div:first-child {
+    border-right: 1px solid var(--border);
+  }
+
+  .example-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 40px;
+  }
+
+  .example-box .card-header { }
+
+  .example-box pre {
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.83rem;
+    line-height: 1.75;
+    overflow-x: auto;
+    background: var(--code-bg);
+  }
+
+  .yaml-key { color: #7dd3fc; }
+  .yaml-val { color: #a8d8a8; }
+  .yaml-str { color: #fbbf24; }
+  .yaml-comment { color: var(--muted); }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 900px) {
+    .grid, .grid.wide-left, .grid.three { grid-template-columns: 1fr; }
+    .shortcuts-grid { grid-template-columns: 1fr; }
+    .shortcuts-grid > div:first-child { border-right: none; border-bottom: 1px solid var(--border); }
+    body { padding: 24px 16px; }
+    h1 { font-size: 1.8rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⌨️ BLE Keyboard <span>Keycodes</span></h1>
+  <p class="subtitle">espidf_ble_keyboard · ESPHome Component Reference</p>
+</header>
+
+<div class="syntax-box">
+  <div class="label">Syntax</div>
+  <span class="format">action: "combo:&lt;modifier_hex&gt;:&lt;keycode_hex&gt;"</span><br>
+  <br>
+  <span class="string">"combo:0x00:0x04"</span>  <span class="comment"># tap 'a'</span><br>
+  <span class="string">"combo:0x02:0x04"</span>  <span class="comment"># shift + a → 'A'</span><br>
+  <span class="string">"combo:0x08:0x15"</span>  <span class="comment"># Win + R (Run dialog)</span><br>
+  <span class="string">"combo:0x01:0x06"</span>  <span class="comment"># Ctrl + C (Copy)</span><br>
+  <span class="string">"Hello World"</span>     <span class="comment"># type a string directly</span><br>
+  <span class="string">"ctrl_alt_del"</span>    <span class="comment"># built-in shortcut</span>
+</div>
+
+<!-- ROW 1: Modifiers + Function Keys -->
+<div class="grid">
+
+  <div class="card">
+    <div class="card-header"><div class="dot"></div><h2>Modifier Keys</h2></div>
+    <table>
+      <tr><th>Modifier</th><th>Hex</th></tr>
+      <tr><td>None</td><td><code>0x00</code></td></tr>
+      <tr><td>Left Ctrl</td><td><code class="mod">0x01</code></td></tr>
+      <tr><td>Left Shift</td><td><code class="mod">0x02</code></td></tr>
+      <tr><td>Left Alt</td><td><code class="mod">0x04</code></td></tr>
+      <tr><td>Left GUI / Win / Cmd</td><td><code class="mod">0x08</code></td></tr>
+      <tr><td>Right Ctrl</td><td><code class="mod">0x10</code></td></tr>
+      <tr><td>Right Shift</td><td><code class="mod">0x20</code></td></tr>
+      <tr><td>Right Alt / AltGr</td><td><code class="mod">0x40</code></td></tr>
+      <tr><td>Right GUI / Win / Cmd</td><td><code class="mod">0x80</code></td></tr>
+    </table>
+    <div class="note">Combine by adding values: Ctrl+Shift = <span>0x01+0x02 = 0x03</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="dot"></div><h2>Function Keys</h2></div>
+    <table>
+      <tr><th>Key</th><th>Hex</th><th>Key</th><th>Hex</th></tr>
+      <tr><td>F1</td><td><code>0x3A</code></td><td>F7</td><td><code>0x40</code></td></tr>
+      <tr><td>F2</td><td><code>0x3B</code></td><td>F8</td><td><code>0x41</code></td></tr>
+      <tr><td>F3</td><td><code>0x3C</code></td><td>F9</td><td><code>0x42</code></td></tr>
+      <tr><td>F4</td><td><code>0x3D</code></td><td>F10</td><td><code>0x43</code></td></tr>
+      <tr><td>F5</td><td><code>0x3E</code></td><td>F11</td><td><code>0x44</code></td></tr>
+      <tr><td>F6</td><td><code>0x3F</code></td><td>F12</td><td><code>0x45</code></td></tr>
+    </table>
+    <div class="note">Example: Alt+F4 = <span>combo:0x04:0x3D</span></div>
+  </div>
+
+</div>
+
+<!-- ROW 2: Letters + Numbers & Punctuation -->
+<div class="grid wide-left">
+
+  <div class="card">
+    <div class="card-header"><div class="dot"></div><h2>Letter Keys A–Z</h2></div>
+    <table>
+      <tr><th>Key</th><th>Code</th><th>Key</th><th>Code</th><th>Key</th><th>Code</th></tr>
+      <tr><td>a / A</td><td><code>0x04</code></td><td>j / J</td><td><code>0x0D</code></td><td>s / S</td><td><code>0x16</code></td></tr>
+      <tr><td>b / B</td><td><code>0x05</code></td><td>k / K</td><td><code>0x0E</code></td><td>t / T</td><td><code>0x17</code></td></tr>
+      <tr><td>c / C</td><td><code>0x06</code></td><td>l / L</td><td><code>0x0F</code></td><td>u / U</td><td><code>0x18</code></td></tr>
+      <tr><td>d / D</td><td><code>0x07</code></td><td>m / M</td><td><code>0x10</code></td><td>v / V</td><td><code>0x19</code></td></tr>
+      <tr><td>e / E</td><td><code>0x08</code></td><td>n / N</td><td><code>0x11</code></td><td>w / W</td><td><code>0x1A</code></td></tr>
+      <tr><td>f / F</td><td><code>0x09</code></td><td>o / O</td><td><code>0x12</code></td><td>x / X</td><td><code>0x1B</code></td></tr>
+      <tr><td>g / G</td><td><code>0x0A</code></td><td>p / P</td><td><code>0x13</code></td><td>y / Y</td><td><code>0x1C</code></td></tr>
+      <tr><td>h / H</td><td><code>0x0B</code></td><td>q / Q</td><td><code>0x14</code></td><td>z / Z</td><td><code>0x1D</code></td></tr>
+      <tr><td>i / I</td><td><code>0x0C</code></td><td>r / R</td><td><code>0x15</code></td><td></td><td></td></tr>
+    </table>
+    <div class="note">Uppercase: add modifier <span>0x02</span> (Left Shift). e.g. <span>combo:0x02:0x04</span> = A</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="dot orange"></div><h2>Number Keys 0–9</h2></div>
+    <table>
+      <tr><th>Key</th><th>Code</th><th>Shifted</th></tr>
+      <tr><td>1</td><td><code>0x1E</code></td><td><code class="shifted">!</code></td></tr>
+      <tr><td>2</td><td><code>0x1F</code></td><td><code class="shifted">@</code></td></tr>
+      <tr><td>3</td><td><code>0x20</code></td><td><code class="shifted">#</code></td></tr>
+      <tr><td>4</td><td><code>0x21</code></td><td><code class="shifted">$</code></td></tr>
+      <tr><td>5</td><td><code>0x22</code></td><td><code class="shifted">%</code></td></tr>
+      <tr><td>6</td><td><code>0x23</code></td><td><code class="shifted">^</code></td></tr>
+      <tr><td>7</td><td><code>0x24</code></td><td><code class="shifted">&amp;</code></td></tr>
+      <tr><td>8</td><td><code>0x25</code></td><td><code class="shifted">*</code></td></tr>
+      <tr><td>9</td><td><code>0x26</code></td><td><code class="shifted">(</code></td></tr>
+      <tr><td>0</td><td><code>0x27</code></td><td><code class="shifted">)</code></td></tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- ROW 3: Special/Nav + Punctuation -->
+<div class="grid">
+
+  <div class="card">
+    <div class="card-header"><div class="dot"></div><h2>Special &amp; Navigation Keys</h2></div>
+    <table>
+      <tr><th>Key</th><th>Code</th><th>Key</th><th>Code</th></tr>
+      <tr><td>Enter</td><td><code>0x28</code></td><td>Up Arrow</td><td><code>0x52</code></td></tr>
+      <tr><td>Escape</td><td><code>0x29</code></td><td>Down Arrow</td><td><code>0x51</code></td></tr>
+      <tr><td>Backspace</td><td><code>0x2A</code></td><td>Left Arrow</td><td><code>0x50</code></td></tr>
+      <tr><td>Tab</td><td><code>0x2B</code></td><td>Right Arrow</td><td><code>0x4F</code></td></tr>
+      <tr><td>Space</td><td><code>0x2C</code></td><td>Insert</td><td><code>0x49</code></td></tr>
+      <tr><td>Caps Lock</td><td><code>0x39</code></td><td>Delete (Fwd)</td><td><code>0x4C</code></td></tr>
+      <tr><td>Print Screen</td><td><code>0x46</code></td><td>Home</td><td><code>0x4A</code></td></tr>
+      <tr><td>Scroll Lock</td><td><code>0x47</code></td><td>End</td><td><code>0x4D</code></td></tr>
+      <tr><td>Pause / Break</td><td><code>0x48</code></td><td>Page Up</td><td><code>0x4B</code></td></tr>
+      <tr><td>Menu / App</td><td><code>0x65</code></td><td>Page Down</td><td><code>0x4E</code></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="dot orange"></div><h2>Punctuation &amp; Symbols</h2></div>
+    <table>
+      <tr><th>Key</th><th>Code</th><th>Shifted</th></tr>
+      <tr><td>- / _</td><td><code>0x2D</code></td><td><code class="shifted">_</code></td></tr>
+      <tr><td>= / +</td><td><code>0x2E</code></td><td><code class="shifted">+</code></td></tr>
+      <tr><td>[ / {</td><td><code>0x2F</code></td><td><code class="shifted">{</code></td></tr>
+      <tr><td>] / }</td><td><code>0x30</code></td><td><code class="shifted">}</code></td></tr>
+      <tr><td>\ / |</td><td><code>0x31</code></td><td><code class="shifted">|</code></td></tr>
+      <tr><td>; / :</td><td><code>0x33</code></td><td><code class="shifted">:</code></td></tr>
+      <tr><td>' / "</td><td><code>0x34</code></td><td><code class="shifted">"</code></td></tr>
+      <tr><td>` / ~</td><td><code>0x35</code></td><td><code class="shifted">~</code></td></tr>
+      <tr><td>, / &lt;</td><td><code>0x36</code></td><td><code class="shifted">&lt;</code></td></tr>
+      <tr><td>. / &gt;</td><td><code>0x37</code></td><td><code class="shifted">&gt;</code></td></tr>
+      <tr><td>/ / ?</td><td><code>0x38</code></td><td><code class="shifted">?</code></td></tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- ROW 4: Numpad + Shortcuts -->
+<div class="grid">
+
+  <div class="card">
+    <div class="card-header"><div class="dot"></div><h2>Numpad Keys</h2></div>
+    <table>
+      <tr><th>Key</th><th>Code</th><th>Key</th><th>Code</th></tr>
+      <tr><td>Numpad 0</td><td><code>0x62</code></td><td>Numpad 6</td><td><code>0x5E</code></td></tr>
+      <tr><td>Numpad 1</td><td><code>0x59</code></td><td>Numpad 7</td><td><code>0x5F</code></td></tr>
+      <tr><td>Numpad 2</td><td><code>0x5A</code></td><td>Numpad 8</td><td><code>0x60</code></td></tr>
+      <tr><td>Numpad 3</td><td><code>0x5B</code></td><td>Numpad 9</td><td><code>0x61</code></td></tr>
+      <tr><td>Numpad 4</td><td><code>0x5C</code></td><td>Numpad .</td><td><code>0x63</code></td></tr>
+      <tr><td>Numpad 5</td><td><code>0x5D</code></td><td>Numpad Enter</td><td><code>0x58</code></td></tr>
+      <tr><td>Numpad +</td><td><code>0x57</code></td><td>Numpad -</td><td><code>0x56</code></td></tr>
+      <tr><td>Numpad *</td><td><code>0x55</code></td><td>Numpad /</td><td><code>0x54</code></td></tr>
+      <tr><td>Num Lock</td><td><code>0x53</code></td><td></td><td></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="dot orange"></div><h2>Common Shortcuts</h2></div>
+    <table>
+      <tr><th>Action</th><th>action: value</th></tr>
+      <tr><td>Win + R (Run)</td><td><code>combo:0x08:0x15</code></td></tr>
+      <tr><td>Win + L (Lock)</td><td><code>combo:0x08:0x0F</code></td></tr>
+      <tr><td>Win + D (Desktop)</td><td><code>combo:0x08:0x07</code></td></tr>
+      <tr><td>Win + E (Explorer)</td><td><code>combo:0x08:0x08</code></td></tr>
+      <tr><td>Ctrl + C (Copy)</td><td><code>combo:0x01:0x06</code></td></tr>
+      <tr><td>Ctrl + V (Paste)</td><td><code>combo:0x01:0x19</code></td></tr>
+      <tr><td>Ctrl + Z (Undo)</td><td><code>combo:0x01:0x1D</code></td></tr>
+      <tr><td>Ctrl + A (Select All)</td><td><code>combo:0x01:0x04</code></td></tr>
+      <tr><td>Alt + F4 (Close)</td><td><code>combo:0x04:0x3D</code></td></tr>
+      <tr><td>Alt + Tab (Switch)</td><td><code>combo:0x04:0x2B</code></td></tr>
+      <tr><td>Ctrl+Shift+Esc (Tasks)</td><td><code>combo:0x03:0x29</code></td></tr>
+      <tr><td>Ctrl + Alt + Del</td><td><code>ctrl_alt_del</code></td></tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- Full-width Example -->
+<div class="example-box">
+  <div class="card-header"><div class="dot"></div><h2>YAML Button Example</h2></div>
+  <pre><span class="yaml-key">button</span><span class="yaml-val">:</span>
+  <span class="yaml-val">- </span><span class="yaml-key">platform</span><span class="yaml-val">:</span> <span class="yaml-str">espidf_ble_keyboard</span>
+    <span class="yaml-key">keyboard_id</span><span class="yaml-val">:</span> <span class="yaml-str">ble_keyboard</span>
+    <span class="yaml-key">name</span><span class="yaml-val">:</span> <span class="yaml-str">"Open Run Dialog"</span>
+    <span class="yaml-key">action</span><span class="yaml-val">:</span> <span class="yaml-str">"combo:0x08:0x15"</span>     <span class="yaml-comment"># Win + R</span>
+
+  <span class="yaml-val">- </span><span class="yaml-key">platform</span><span class="yaml-val">:</span> <span class="yaml-str">espidf_ble_keyboard</span>
+    <span class="yaml-key">keyboard_id</span><span class="yaml-val">:</span> <span class="yaml-str">ble_keyboard</span>
+    <span class="yaml-key">name</span><span class="yaml-val">:</span> <span class="yaml-str">"Type Hello"</span>
+    <span class="yaml-key">action</span><span class="yaml-val">:</span> <span class="yaml-str">"Hello World"</span>           <span class="yaml-comment"># send a string directly</span>
+
+  <span class="yaml-val">- </span><span class="yaml-key">platform</span><span class="yaml-val">:</span> <span class="yaml-str">espidf_ble_keyboard</span>
+    <span class="yaml-key">keyboard_id</span><span class="yaml-val">:</span> <span class="yaml-str">ble_keyboard</span>
+    <span class="yaml-key">name</span><span class="yaml-val">:</span> <span class="yaml-str">"Ctrl+Alt+Del"</span>
+    <span class="yaml-key">action</span><span class="yaml-val">:</span> <span class="yaml-str">"ctrl_alt_del"</span>          <span class="yaml-comment"># built-in action</span>
+
+  <span class="yaml-val">- </span><span class="yaml-key">platform</span><span class="yaml-val">:</span> <span class="yaml-str">espidf_ble_keyboard</span>
+    <span class="yaml-key">keyboard_id</span><span class="yaml-val">:</span> <span class="yaml-str">ble_keyboard</span>
+    <span class="yaml-key">name</span><span class="yaml-val">:</span> <span class="yaml-str">"Ctrl+Shift+A"</span>
+    <span class="yaml-key">action</span><span class="yaml-val">:</span> <span class="yaml-str">"combo:0x03:0x04"</span>     <span class="yaml-comment"># 0x01+0x02=0x03 (Ctrl+Shift), 0x04=A</span></pre>
+</div>
+
+<footer>
+  Keycodes per <a href="https://www.usb.org/hid" target="_blank">USB HID Usage Tables</a> · Keyboard/Keypad Page 0x07 ·
+  8-byte report: <code style="background:none;border:none;color:inherit">[modifier, reserved, key1–key6]</code>
+</footer>
+
+</body>
+</html>
