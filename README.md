@@ -11,7 +11,7 @@ This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low
 * **String Typing:** Type any string directly including letters, numbers and punctuation.
 * **Pre-defined Actions:** Built-in helpers for `ctrl_alt_del`, `sleep`, `hibernate` and `shutdown`.
 
-📖 [Keycode Reference](docs/keycodes.md) · [🌐 View Keycode Reference as Web Page](https://markusg1234.github.io/ESPHome-espidf_ble_keyboard)keycodes.html)
+📖 [Keycode Reference](docs/keycodes.md) · [🌐 View Web Page](https://markusg1234.github.io/ESPHome-espidf_ble_keyboard)keycodes.html)
 
 
 ## Usage Example
