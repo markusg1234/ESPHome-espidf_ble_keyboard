@@ -2,12 +2,374 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="refresh" content="0; url=keycodes.html">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="google-site-verification" content="EcbcgSd61LAPad-mvazLhyf-fdXRDXLNUBGxr8-Gmxs" />
-<title>BLE Keyboard Keycodes</title>
+<meta name="description" content="ESP32 BLE HID Keyboard custom component for ESPHome. Turn your ESP32 into a Bluetooth keyboard controllable from Home Assistant.">
+<title>ESP32 BLE Keyboard — ESPHome Component</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161e;
+    --surface2: #1a1e28;
+    --border: #252a38;
+    --accent: #00d4aa;
+    --accent2: #ff6b35;
+    --text: #e2e8f0;
+    --muted: #6b7a99;
+    --code-bg: #0a0c10;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 10% 0%, rgba(0,212,170,0.07) 0%, transparent 50%),
+      radial-gradient(ellipse at 90% 100%, rgba(255,107,53,0.05) 0%, transparent 50%);
+  }
+
+  .hero {
+    text-align: center;
+    padding: 80px 32px 60px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .badge {
+    display: inline-block;
+    background: rgba(0,212,170,0.1);
+    border: 1px solid rgba(0,212,170,0.3);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    padding: 4px 14px;
+    border-radius: 20px;
+    margin-bottom: 24px;
+    letter-spacing: 0.08em;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .tagline {
+    font-size: 1.1rem;
+    color: var(--muted);
+    line-height: 1.7;
+    max-width: 560px;
+    margin: 0 auto 40px;
+  }
+
+  .buttons {
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+
+  .btn:hover { transform: translateY(-2px); }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0d0f14;
+    box-shadow: 0 4px 20px rgba(0,212,170,0.3);
+  }
+
+  .btn-primary:hover { box-shadow: 0 6px 28px rgba(0,212,170,0.45); }
+
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Features */
+  .section {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 32px 60px;
+  }
+
+  .section-title {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 24px;
+  }
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 60px;
+  }
+
+  .feature {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    transition: border-color 0.2s;
+  }
+
+  .feature:hover { border-color: rgba(0,212,170,0.3); }
+
+  .feature-icon {
+    font-size: 1.6rem;
+    margin-bottom: 12px;
+  }
+
+  .feature h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .feature p {
+    font-size: 0.83rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* Code block */
+  .code-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 60px;
+  }
+
+  .code-header {
+    background: var(--surface2);
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .code-header span {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+
+  pre {
+    padding: 22px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    line-height: 1.75;
+    overflow-x: auto;
+    background: var(--code-bg);
+  }
+
+  .yaml-key { color: #7dd3fc; }
+  .yaml-val { color: #e2e8f0; }
+  .yaml-str { color: #a8d8a8; }
+  .yaml-comment { color: var(--muted); }
+
+  /* Actions table */
+  .actions-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 60px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+  }
+
+  th {
+    background: var(--code-bg);
+    color: var(--muted);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 10px 18px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Syne', sans-serif;
+  }
+
+  td {
+    padding: 9px 18px;
+    border-bottom: 1px solid rgba(37,42,56,0.6);
+    color: var(--text);
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  td code {
+    background: var(--code-bg);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(0,212,170,0.15);
+    font-size: 0.8rem;
+  }
+
+  td.desc { color: var(--muted); font-family: 'Syne', sans-serif; font-size: 0.83rem; }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 32px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 600px) {
+    .hero { padding: 50px 20px 40px; }
+    .section { padding: 0 20px 40px; }
+    .buttons { flex-direction: column; align-items: center; }
+  }
+</style>
 </head>
 <body>
-<script>window.location.href = "keycodes.html";</script>
-<a href="keycodes.html">Click here if not redirected</a>
+
+<div class="hero">
+  <div class="badge">ESPHome Custom Component</div>
+  <h1>ESP32 <span>BLE Keyboard</span></h1>
+  <p class="tagline">Transform your ESP32 into a Bluetooth HID keyboard. Control any paired Windows PC directly from Home Assistant — send keystrokes, combos, and power commands.</p>
+  <div class="buttons">
+    <a class="btn btn-primary" href="https://github.com/markusg1234/ESPHome-espidf_ble_keyboard" target="_blank">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      View on GitHub
+    </a>
+    <a class="btn btn-secondary" href="keycodes.html">
+      ⌨️ Keycode Reference
+    </a>
+  </div>
+</div>
+
+<div class="section">
+
+  <p class="section-title">Features</p>
+  <div class="features">
+    <div class="feature">
+      <div class="feature-icon">🔵</div>
+      <h3>Native BLE HID</h3>
+      <p>Uses the ESP-IDF Bluedroid GATTS API directly. Recognised as a standard keyboard by Windows with no drivers needed.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🔒</div>
+      <h3>Secure Pairing</h3>
+      <p>Optional 6-digit static passkey (PIN) for secure bonding. Or use "Just Works" pairing with no PIN.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">⌨️</div>
+      <h3>Key Combos</h3>
+      <p>Send any modifier + key combination using hex keycodes. Win+R, Ctrl+C, Alt+F4 and more.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">💤</div>
+      <h3>Power Commands</h3>
+      <p>Built-in sleep, hibernate and shutdown actions. Control your PC power state from Home Assistant.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🏠</div>
+      <h3>Home Assistant</h3>
+      <p>Each button appears as an entity in Home Assistant. Trigger from automations, dashboards or scripts.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">⚡</div>
+      <h3>Stable &amp; Efficient</h3>
+      <p>Direct API implementation ensures reliability even with complex ESPHome configurations.</p>
+    </div>
+  </div>
+
+  <p class="section-title">Quick Start</p>
+  <div class="code-section">
+    <div class="code-header"><div class="dot"></div><span>bluetooth-keyboard.yaml</span></div>
+    <pre><span class="yaml-key">external_components</span><span class="yaml-val">:</span>
+  <span class="yaml-val">- </span><span class="yaml-key">source</span><span class="yaml-val">:</span>
+      <span class="yaml-key">type</span><span class="yaml-val">:</span> <span class="yaml-str">git</span>
+      <span class="yaml-key">url</span><span class="yaml-val">:</span> <span class="yaml-str">https://github.com/markusg1234/ESPHome-espidf_ble_keyboard</span>
+      <span class="yaml-key">ref</span><span class="yaml-val">:</span> <span class="yaml-str">main</span>
+    <span class="yaml-key">components</span><span class="yaml-val">: [</span> <span class="yaml-str">espidf_ble_keyboard</span> <span class="yaml-val">]</span>
+
+<span class="yaml-key">espidf_ble_keyboard</span><span class="yaml-val">:</span>
+  <span class="yaml-key">id</span><span class="yaml-val">:</span> <span class="yaml-str">my_keyboard</span>
+  <span class="yaml-key">passkey</span><span class="yaml-val">:</span> <span class="yaml-str">123456</span>  <span class="yaml-comment"># optional 6-digit PIN</span>
+
+<span class="yaml-key">button</span><span class="yaml-val">:</span>
+  <span class="yaml-val">- </span><span class="yaml-key">platform</span><span class="yaml-val">:</span> <span class="yaml-str">espidf_ble_keyboard</span>
+    <span class="yaml-key">keyboard_id</span><span class="yaml-val">:</span> <span class="yaml-str">my_keyboard</span>
+    <span class="yaml-key">name</span><span class="yaml-val">:</span> <span class="yaml-str">"Win + R"</span>
+    <span class="yaml-key">action</span><span class="yaml-val">:</span> <span class="yaml-str">"combo:0x08:0x15"</span>
+
+  <span class="yaml-val">- </span><span class="yaml-key">platform</span><span class="yaml-val">:</span> <span class="yaml-str">espidf_ble_keyboard</span>
+    <span class="yaml-key">keyboard_id</span><span class="yaml-val">:</span> <span class="yaml-str">my_keyboard</span>
+    <span class="yaml-key">name</span><span class="yaml-val">:</span> <span class="yaml-str">"Shutdown PC"</span>
+    <span class="yaml-key">action</span><span class="yaml-val">:</span> <span class="yaml-str">"shutdown"</span></pre>
+  </div>
+
+  <p class="section-title">Built-in Actions</p>
+  <div class="actions-section">
+    <table>
+      <tr><th>Action</th><th>Description</th></tr>
+      <tr><td><code>"Hello\n"</code></td><td class="desc">Type a string. Use \n for Enter.</td></tr>
+      <tr><td><code>"combo:0x08:0x15"</code></td><td class="desc">Key combo — modifier + keycode in hex. See keycode reference.</td></tr>
+      <tr><td><code>"ctrl_alt_del"</code></td><td class="desc">Send Ctrl+Alt+Del secure login sequence.</td></tr>
+      <tr><td><code>"sleep"</code></td><td class="desc">Put the PC to sleep (S3 suspend).</td></tr>
+      <tr><td><code>"hibernate"</code></td><td class="desc">Hibernate the PC — saves to disk, full power off.</td></tr>
+      <tr><td><code>"shutdown"</code></td><td class="desc">Shut down the PC immediately.</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<footer>
+  <a href="https://github.com/markusg1234/ESPHome-espidf_ble_keyboard" target="_blank">GitHub Repository</a>
+  &nbsp;·&nbsp;
+  <a href="keycodes.html">Keycode Reference</a>
+  &nbsp;·&nbsp;
+  Built for <a href="https://esphome.io" target="_blank">ESPHome</a>
+</footer>
+
 </body>
 </html>
