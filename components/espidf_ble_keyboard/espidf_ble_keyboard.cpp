@@ -334,32 +334,19 @@ void EspidfBleKeyboard::send_ctrl_alt_del() {
 
 void EspidfBleKeyboard::send_sleep() {
     if (!is_connected_) return;
-    // Win + R to open Run dialog
-    send_key_combo(0x08, 0x15);
-    vTaskDelay(pdMS_TO_TICKS(600));
-    // Type the sleep command
-    send_string("rundll32.exe powrprof.dll,SetSuspendState 0,1,0");
-    vTaskDelay(pdMS_TO_TICKS(200));
-    // Press Enter then immediately send all-zeros report to clear key state
-    send_key_combo(0x00, 0x28);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    uint8_t empty[8] = {0};
-    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, empty, false);
+    // Use HID System Sleep — clean OS-level sleep, no lingering key state
+    uint8_t report[1] = {0x82};  // 0x82 = System Sleep
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_system_report_handle, 1, report, false);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    uint8_t release[1] = {0};
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_system_report_handle, 1, release, false);
+    ESP_LOGI("espidf_ble_keyboard", "System Sleep sent");
 }
 
 void EspidfBleKeyboard::send_shutdown() {
     if (!is_connected_) return;
-    // Win + R to open Run dialog
-    send_key_combo(0x08, 0x15);
-    vTaskDelay(pdMS_TO_TICKS(600));
-    // Type the shutdown command
-    send_string("shutdown /s /t 0");
-    vTaskDelay(pdMS_TO_TICKS(200));
-    // Press Enter then immediately send all-zeros report to clear key state
-    send_key_combo(0x00, 0x28);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    uint8_t empty[8] = {0};
-    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, empty, false);
+    // Use HID System Power Down — clean OS-level shutdown, no lingering key state
+    send_power();
 }
 
 void EspidfBleKeyboard::send_consumer(uint16_t usage) {
