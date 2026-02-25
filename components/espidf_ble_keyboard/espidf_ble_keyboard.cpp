@@ -225,8 +225,21 @@ void EspidfBleKeyboard::send_string(const std::string &str) {
         report[0] = 0; report[2] = 0;
         if      (c >= 'a' && c <= 'z') { report[2] = (uint8_t)(c - 'a' + 0x04); }
         else if (c >= 'A' && c <= 'Z') { report[0] = 0x02; report[2] = (uint8_t)(c - 'A' + 0x04); }
-        else if (c == ' ') { report[2] = 0x2C; }
+        else if (c >= '1' && c <= '9') { report[2] = (uint8_t)(c - '1' + 0x1E); }
+        else if (c == '0') { report[2] = 0x27; }
+        else if (c == ' ')  { report[2] = 0x2C; }
         else if (c == '\n') { report[2] = 0x28; }
+        else if (c == '.')  { report[2] = 0x37; }
+        else if (c == ',')  { report[2] = 0x36; }
+        else if (c == '/')  { report[2] = 0x38; }
+        else if (c == '\\') { report[2] = 0x31; }
+        else if (c == '-')  { report[2] = 0x2D; }
+        else if (c == '=')  { report[2] = 0x2E; }
+        else if (c == ';')  { report[2] = 0x33; }
+        else if (c == '\'') { report[2] = 0x34; }
+        else if (c == '_')  { report[0] = 0x02; report[2] = 0x2D; }
+        else if (c == '+')  { report[0] = 0x02; report[2] = 0x2E; }
+        else if (c == ':')  { report[0] = 0x02; report[2] = 0x33; }
         else continue;
 
         esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
