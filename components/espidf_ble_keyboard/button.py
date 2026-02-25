@@ -7,7 +7,7 @@ from . import espidf_ble_keyboard_ns, EspidfBleKeyboard
 DEPENDENCIES = ["espidf_ble_keyboard"]
 
 EspidfBleKeyboardButton = espidf_ble_keyboard_ns.class_(
-    "EspidfBleKeyboardButton", button.Button
+    "EspidfBleKeyboardButton", button.Button, cg.Component
 )
 
 CONF_ACTION = "action"
