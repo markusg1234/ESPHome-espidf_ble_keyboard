@@ -43,7 +43,7 @@ class EspidfBleKeyboard : public Component {
   bool has_passkey_{false};
 };
 
-class EspidfBleKeyboardButton : public button::Button {
+class EspidfBleKeyboardButton : public button::Button, public Component {
  public:
   void set_parent(EspidfBleKeyboard *parent) { parent_ = parent; }
   void press_action() override;
