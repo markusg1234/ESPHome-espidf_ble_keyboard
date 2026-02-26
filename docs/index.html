@@ -6,7 +6,7 @@
 <meta name="google-site-verification" content="EcbcgSd61LAPad-mvazLhyf-fdXRDXLNUBGxr8-Gmxs" />
 <meta name="description" content="ESP32 BLE HID Keyboard custom component for ESPHome. Turn your ESP32 into a Bluetooth keyboard controllable from Home Assistant.">
 <title>ESP32 BLE Keyboard — ESPHome Component</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;800&family=Inter:wght@800&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #0d0f14;
@@ -55,16 +55,18 @@
   h1 {
     font-size: 3.2rem;
     font-weight: 800;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'Inter', sans-serif;
     letter-spacing: -0.03em;
     line-height: 1.1;
     margin-bottom: 20px;
+    color: var(--text);
   }
 
-  h1 span { color: var(--accent); font-size: 3.2rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; vertical-align: baseline; }
+  h1 .accent { color: var(--accent); }
 
   .tagline {
     font-size: 1.1rem;
+    font-family: 'Inter', sans-serif;
     color: var(--muted);
     line-height: 1.7;
     max-width: 560px;
@@ -274,7 +276,7 @@
 
 <div class="hero">
   <div class="badge">ESPHome Custom Component</div>
-  <h1>ESP32 <span>BLE Keyboard</span></h1>
+  <h1>ESP32 BLE <span class="accent">Keyboard</span></h1>
   <p class="tagline">Transform your ESP32 into a Bluetooth HID keyboard. Control any paired Windows PC directly from Home Assistant — send keystrokes, combos, and power commands.</p>
   <div class="buttons">
     <a class="btn btn-primary" href="https://github.com/markusg1234/ESPHome-espidf_ble_keyboard" target="_blank">
@@ -331,11 +333,7 @@
       <h3>Stable &amp; Efficient</h3>
       <p>Direct API implementation ensures reliability even with complex ESPHome configurations.</p>
     </div>
-    <div class="feature">
-      <div class="feature-icon">✏️</div>
-      <h3>Custom Text Input</h3>
-      <p>Expose a text field in Home Assistant to type and send any string to the PC on demand or via automation.</p>
-    </div>
+    
   </div>
 
   <p class="section-title">Quick Start</p>
@@ -382,6 +380,7 @@
       <tr><td><code>"next_track"</code></td><td class="desc">Skip to next track.</td></tr>
       <tr><td><code>"prev_track"</code></td><td class="desc">Previous track.</td></tr>
       <tr><td><code>"stop"</code></td><td class="desc">Stop media playback.</td></tr>
+      <tr><td><code>"consumer:0x0192"</code></td><td class="desc">Send any HID consumer control code — open apps, control brightness and more. See keycode reference.</td></tr>
       <tr><td><code>text entity</code></td><td class="desc">Type any text from Home Assistant and press Send Custom Text button. See README for setup.</td></tr>
     </table>
   </div>
