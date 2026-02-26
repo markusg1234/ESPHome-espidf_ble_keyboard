@@ -243,7 +243,9 @@
     margin-bottom: 40px;
   }
 
-   .example-box pre {
+  .example-box .card-header { }
+
+  .example-box pre {
     padding: 20px 24px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.83rem;
@@ -454,6 +456,50 @@
     </table>
   </div>
 
+</div>
+
+
+<!-- Consumer Control Codes -->
+<div class="full" style="margin-bottom:24px;">
+  <div class="card">
+    <div class="card-header"><div class="dot orange"></div><h2>Consumer Control Codes — <code style="font-size:0.75rem;background:var(--code-bg);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,107,53,0.2);color:var(--accent2)">consumer:0x0192</code></h2></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+      <div style="border-right:1px solid var(--border);">
+        <table>
+          <tr><th colspan="3">Application Launch</th></tr>
+          <tr><th>App</th><th>Code</th></tr>
+          <tr><td>Calculator</td><td><code>0x0192</code></td></tr>
+          <tr><td>Email Client</td><td><code>0x018A</code></td></tr>
+          <tr><td>File Explorer</td><td><code>0x0194</code></td></tr>
+          <tr><td>Media Player</td><td><code>0x0183</code></td></tr>
+          <tr><td>Browser Home</td><td><code>0x0223</code></td></tr>
+          <tr><td>Browser Search</td><td><code>0x0221</code></td></tr>
+          <tr><td>Browser Bookmarks</td><td><code>0x022A</code></td></tr>
+          <tr><td>Screen Saver</td><td><code>0x019E</code></td></tr>
+          <tr><td>Control Panel</td><td><code>0x019F</code></td></tr>
+          <tr><td>Task Manager</td><td><code>0x01A9</code></td></tr>
+        </table>
+      </div>
+      <div>
+        <table>
+          <tr><th colspan="3">Media &amp; Volume</th></tr>
+          <tr><th>Action</th><th>Code</th></tr>
+          <tr><td>Play / Pause</td><td><code>0x00CD</code></td></tr>
+          <tr><td>Stop</td><td><code>0x00B7</code></td></tr>
+          <tr><td>Next Track</td><td><code>0x00B5</code></td></tr>
+          <tr><td>Previous Track</td><td><code>0x00B6</code></td></tr>
+          <tr><td>Mute</td><td><code>0x00E2</code></td></tr>
+          <tr><td>Volume Up</td><td><code>0x00E9</code></td></tr>
+          <tr><td>Volume Down</td><td><code>0x00EA</code></td></tr>
+          <tr><td>Fast Forward</td><td><code>0x00B3</code></td></tr>
+          <tr><td>Rewind</td><td><code>0x00B4</code></td></tr>
+          <tr><td>Brightness Up</td><td><code>0x006F</code></td></tr>
+          <tr><td>Brightness Down</td><td><code>0x0070</code></td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="note">Use named actions for power: <span>sleep</span>, <span>shutdown</span>, <span>hibernate</span> are more reliable than consumer codes for system power.</div>
+  </div>
 </div>
 
 <!-- Full-width Example -->

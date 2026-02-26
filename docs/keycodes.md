@@ -105,6 +105,59 @@ Combine modifiers by adding hex values (e.g. Ctrl+Shift = `0x01 + 0x02` = `0x03`
 | Alt + F4 (Close) | `combo:0x04:0x3D` | | Ctrl + Shift + Esc | `combo:0x03:0x29` |
 | Alt + Tab (Switch) | `combo:0x04:0x2B` | | Ctrl + A (Select All) | `combo:0x01:0x04` |
 
+
+---
+
+## Consumer Control Codes
+
+Use with the `consumer:` action prefix to send any HID consumer control command directly from YAML — no C++ changes needed.
+
+```yaml
+action: "consumer:0x0192"   # Open Calculator
+action: "consumer:0x018A"   # Open Email
+action: "consumer:0x0223"   # Browser Home
+```
+
+### Application Launch
+
+| Action | Code | Description |
+|---|---|---|
+| Calculator | `0x0192` | Open calculator |
+| Email | `0x018A` | Open email client |
+| File Explorer | `0x0194` | Open file explorer |
+| Media Player | `0x0183` | Open media player |
+| Browser Home | `0x0223` | Open browser home page |
+| Browser Search | `0x0221` | Open browser search |
+| Browser Bookmarks | `0x022A` | Open browser bookmarks |
+| Screen Saver | `0x019E` | Activate screen saver |
+| Control Panel | `0x019F` | Open control panel |
+| Task Manager | `0x01A9` | Open task manager |
+
+### Media & Volume
+
+| Action | Code | Description |
+|---|---|---|
+| Play / Pause | `0x00CD` | Toggle play/pause |
+| Stop | `0x00B7` | Stop playback |
+| Next Track | `0x00B5` | Skip to next track |
+| Previous Track | `0x00B6` | Go to previous track |
+| Mute | `0x00E2` | Toggle mute |
+| Volume Up | `0x00E9` | Volume increment |
+| Volume Down | `0x00EA` | Volume decrement |
+| Fast Forward | `0x00B3` | Fast forward |
+| Rewind | `0x00B4` | Rewind |
+
+### Power & System
+
+| Action | Code | Description |
+|---|---|---|
+| Power Down | `0x0030` | Consumer power (use `shutdown` action instead) |
+| Sleep | `0x0031` | Consumer sleep (use `sleep` action instead) |
+| Brightness Up | `0x006F` | Increase display brightness |
+| Brightness Down | `0x0070` | Decrease display brightness |
+
+> **Note:** For `sleep` and `shutdown`, use the dedicated named actions instead — they use the more reliable Generic Desktop HID page (`0x81`/`0x82`).
+
 ---
 
 ## Full Button Example
