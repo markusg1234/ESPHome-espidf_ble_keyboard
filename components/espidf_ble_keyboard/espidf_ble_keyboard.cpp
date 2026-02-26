@@ -390,12 +390,10 @@ void EspidfBleKeyboard::send_media_stop() {
 
 void EspidfBleKeyboard::send_volume_up() {
     send_consumer(0x00E9);  // HID Consumer: Volume Increment
- 
 }
 
 void EspidfBleKeyboard::send_volume_down() {
     send_consumer(0x00EA);  // HID Consumer: Volume Decrement
-
 }
 
 void EspidfBleKeyboard::send_mute() {
@@ -424,6 +422,15 @@ void EspidfBleKeyboardButton::press_action() {
         // %i automatically reads hex values (like 0x08) into integers
         if (sscanf(action_.c_str(), "combo:%i:%i", &mod, &key) == 2) {
             parent_->send_key_combo((uint8_t)mod, (uint8_t)key);
+            return;
+        }
+    }
+
+    // Check if the action string starts with "consumer:"
+    if (action_.find("consumer:") == 0) {
+        int usage;
+        if (sscanf(action_.c_str(), "consumer:%i", &usage) == 1) {
+            parent_->send_consumer((uint16_t)usage);
             return;
         }
     }
