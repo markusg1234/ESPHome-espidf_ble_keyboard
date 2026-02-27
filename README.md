@@ -181,15 +181,16 @@ binary_sensor:
 ### `button` (Platform: `espidf_ble_keyboard`)
 
 * **keyboard_id** (Required, ID): The ID of the `espidf_ble_keyboard` component.
-* **action** (Required, string): The action to perform when the button is pressed.
+* **action** (Required, string or mapping): The action to perform when the button is pressed. Accepts either a string or a dict with `type` key (see below).
 
 #### Action Types
 
 | Action | Description |
 |---|---|
 | `"Hello\n"` | Type a string. Use `\n` for Enter. Supports letters, numbers and common punctuation. |
-| `"combo:0x08:0x15"` | Send a key combination. Format: `combo:<modifier_hex>:<keycode_hex>`. See [Keycode Reference](docs/keycodes.md). |
-| `"consumer:0x0192"` | Send any HID consumer control code. See [Keycode Reference](docs/keycodes.md) for full list. |
+| `"combo:0x08:0x15"` | Send a key combination. Format: `combo:<modifier_hex>:<keycode_hex>`. Use `0x00` as modifier for no modifier key. See [Keycode Reference](docs/keycodes.md). |
+| `"combo:0x00:0x04"` | Send a plain keypress with no modifier. `0x04` = A, `0x05` = B ... `0x1D` = Z. |
+| `"consumer:0x0192"` | Send any HID consumer control code. Format: `consumer:<usage_hex>`. See [Keycode Reference](docs/keycodes.md) for full list. |
 | `"ctrl_alt_del"` | Send the Ctrl+Alt+Del secure login sequence. |
 | `"sleep"` | HID System Sleep signal — clean OS-level sleep. |
 | `"hibernate"` | Hibernate the PC — saves to disk, full power off. Requires `powercfg /hibernate on`. |
@@ -202,6 +203,33 @@ binary_sensor:
 | `"next_track"` | Skip to next track. |
 | `"prev_track"` | Previous track. |
 | `"stop"` | Stop media playback. |
+
+---
+
+## Dict Action Format
+
+Instead of a string, `action` also accepts a mapping with a `type` key. This can be more readable for complex actions:
+
+```yaml
+# Combo — modifier + key
+action:
+  type: combo
+  modifier: 0x01   # 0x00 = none, 0x01 = Ctrl, 0x02 = Shift, 0x04 = Alt, 0x08 = Win
+  key: 0x04        # 0x04 = A ... 0x1D = Z, see Keycode Reference
+
+# Plain keypress — no modifier
+action:
+  type: combo
+  modifier: 0x00
+  key: 0x04        # Just 'A'
+
+# Consumer control
+action:
+  type: consumer
+  code: 0x0192     # Open Calculator
+```
+
+Both formats are equivalent — the dict format is converted to the string format at compile time so there is no runtime difference.
 
 ---
 

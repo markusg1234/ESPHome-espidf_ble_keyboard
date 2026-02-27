@@ -367,7 +367,9 @@
     <table>
       <tr><th>Action</th><th>Description</th></tr>
       <tr><td><code>"Hello\n"</code></td><td class="desc">Type a string. Use \n for Enter.</td></tr>
-      <tr><td><code>"combo:0x08:0x15"</code></td><td class="desc">Key combo — modifier + keycode in hex. See keycode reference.</td></tr>
+      <tr><td><code>"combo:0x08:0x15"</code></td><td class="desc">Key combo — modifier + keycode in hex. Use <code>0x00</code> as modifier for a plain keypress. See keycode reference.</td></tr>
+      <tr><td><code>type: combo</code></td><td class="desc">Dict format alternative — <code>type: combo</code>, <code>modifier: 0x01</code>, <code>key: 0x04</code>. More readable for complex actions.</td></tr>
+      <tr><td><code>type: consumer</code></td><td class="desc">Dict format for consumer codes — <code>type: consumer</code>, <code>code: 0x0192</code>.</td></tr>
       <tr><td><code>"ctrl_alt_del"</code></td><td class="desc">Send Ctrl+Alt+Del secure login sequence.</td></tr>
       <tr><td><code>"sleep"</code></td><td class="desc">HID System Sleep signal — clean OS-level sleep.</td></tr>
       <tr><td><code>"hibernate"</code></td><td class="desc">Hibernate via Run dialog — saves to disk, full power off.</td></tr>
