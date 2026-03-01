@@ -291,8 +291,10 @@ void EspidfBleKeyboard::setup() {
         if (this->has_passkey_) {
     #if defined(ESP_LE_AUTH_REQ_MITM_BOND)
             auth_req = ESP_LE_AUTH_REQ_MITM_BOND;
+    #elif defined(ESP_LE_AUTH_REQ_MITM)
+            auth_req = static_cast<esp_ble_auth_req_t>(ESP_LE_AUTH_BOND | ESP_LE_AUTH_REQ_MITM);
     #else
-            auth_req = ESP_LE_AUTH_REQ_SC_MITM_BOND;
+            auth_req = ESP_LE_AUTH_BOND;
     #endif
         }
         esp_ble_io_cap_t iocap = this->has_passkey_ ? ESP_IO_CAP_OUT : ESP_IO_CAP_NONE;
