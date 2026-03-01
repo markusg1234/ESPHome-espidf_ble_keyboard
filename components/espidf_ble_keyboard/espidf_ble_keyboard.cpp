@@ -18,6 +18,12 @@ static const char *TAG = "espidf_ble_keyboard";
 static EspidfBleKeyboard *s_instance = nullptr;
 #define GATTS_APP_ID 0x55
 
+static void log_bd_addr(const char *prefix, const esp_bd_addr_t bda) {
+    ESP_LOGI(TAG, "%s %02X:%02X:%02X:%02X:%02X:%02X",
+             prefix,
+             bda[0], bda[1], bda[2], bda[3], bda[4], bda[5]);
+}
+
 // ── HID Report Descriptor ────────────────────────────────────────────────────
 // Report ID 1: Standard keyboard (8 bytes)
 // Report ID 2: Consumer control — media keys (2 bytes)
@@ -133,8 +139,10 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
             break;
         case ESP_GAP_BLE_AUTH_CMPL_EVT:
             if (param->ble_security.auth_cmpl.success) {
+                log_bd_addr("GAP: Paired with", param->ble_security.auth_cmpl.bd_addr);
                 ESP_LOGI(TAG, "GAP: Pairing Successful");
             } else {
+                log_bd_addr("GAP: Pairing failed with", param->ble_security.auth_cmpl.bd_addr);
                 ESP_LOGE(TAG, "GAP: Pairing Failed (0x%x)", param->ble_security.auth_cmpl.fail_reason);
                 esp_ble_remove_bond_device(param->ble_security.auth_cmpl.bd_addr);
                 esp_ble_gap_start_advertising(&adv_params);
@@ -250,7 +258,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             do_start_advertising();
             break;
         case ESP_GATTS_CONNECT_EVT: {
-            ESP_LOGI(TAG, "GATTS: Connected");
+            log_bd_addr("GATTS: Connected", param->connect.remote_bda);
             if (s_instance) s_instance->set_connected(true, param->connect.conn_id);
             // Trigger encryption with security level matching configured pairing mode
             esp_ble_sec_act_t sec_act = ESP_BLE_SEC_ENCRYPT_NO_MITM;
@@ -261,7 +269,8 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             break;
         }
         case ESP_GATTS_DISCONNECT_EVT:
-            ESP_LOGI(TAG, "GATTS: Disconnected");
+            log_bd_addr("GATTS: Disconnected", param->disconnect.remote_bda);
+            ESP_LOGI(TAG, "GATTS: Disconnect reason 0x%02X", param->disconnect.reason);
             if (s_instance) s_instance->set_connected(false, 0);
             esp_ble_gap_start_advertising(&adv_params);
             break;
