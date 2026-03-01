@@ -233,7 +233,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
         case ESP_GATTS_START_EVT:
             do_start_advertising();
             break;
-        case ESP_GATTS_CONNECT_EVT:
+        case ESP_GATTS_CONNECT_EVT: {
             if (s_instance) s_instance->set_connected(true, param->connect.conn_id);
             // Trigger encryption with security level matching configured pairing mode
             esp_ble_sec_act_t sec_act = ESP_BLE_SEC_ENCRYPT_NO_MITM;
@@ -242,6 +242,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             }
             esp_ble_set_encryption(param->connect.remote_bda, sec_act);
             break;
+        }
         case ESP_GATTS_DISCONNECT_EVT:
             if (s_instance) s_instance->set_connected(false, 0);
             esp_ble_gap_start_advertising(&adv_params);
