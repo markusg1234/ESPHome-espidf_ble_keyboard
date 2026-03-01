@@ -74,10 +74,10 @@ static uint8_t hid_service_uuid16[] = {0x12, 0x18};  // HID service 0x1812 (litt
 static esp_ble_adv_data_t adv_data = {
     .set_scan_rsp = false,
     .include_name = true,
-    .include_txpower = true,
-    .min_interval = 0x0006,  // 7.5 ms in 1.25 ms units
-    .max_interval = 0x0010,  // 20 ms in 1.25 ms units
-    .appearance = 0x03C0,
+    .include_txpower = false,
+    .min_interval = 0,
+    .max_interval = 0,
+    .appearance = 0x03C1,
     .manufacturer_len = 0,
     .p_manufacturer_data = nullptr,
     .service_data_len = 0,
@@ -118,8 +118,20 @@ static bool s_scan_rsp_data_set = false;
 static void do_start_advertising() {
     s_adv_data_set = false;
     s_scan_rsp_data_set = false;
-    esp_ble_gap_config_adv_data(&adv_data);
-    esp_ble_gap_config_adv_data(&scan_rsp_data);
+    esp_err_t adv_ret = esp_ble_gap_config_adv_data(&adv_data);
+    esp_err_t scan_ret = esp_ble_gap_config_adv_data(&scan_rsp_data);
+
+    if (adv_ret != ESP_OK) {
+        ESP_LOGE(TAG, "GAP: Failed to config adv data (%d)", adv_ret);
+        s_adv_data_set = true;
+    }
+    if (scan_ret != ESP_OK) {
+        ESP_LOGE(TAG, "GAP: Failed to config scan rsp data (%d)", scan_ret);
+        s_scan_rsp_data_set = true;
+    }
+    if (s_adv_data_set && s_scan_rsp_data_set) {
+        esp_ble_gap_start_advertising(&adv_params);
+    }
 }
 
 // ── GAP Event Handler ────────────────────────────────────────────────────────
