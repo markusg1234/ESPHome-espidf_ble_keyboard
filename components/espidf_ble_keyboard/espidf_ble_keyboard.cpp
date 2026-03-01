@@ -73,7 +73,7 @@ static uint8_t hid_service_uuid16[] = {0x12, 0x18};  // HID service 0x1812 (litt
 
 static esp_ble_adv_data_t adv_data = {
     .set_scan_rsp = false,
-    .include_name = true,
+    .include_name = false,
     .include_txpower = false,
     .min_interval = 0,
     .max_interval = 0,
@@ -82,22 +82,22 @@ static esp_ble_adv_data_t adv_data = {
     .p_manufacturer_data = nullptr,
     .service_data_len = 0,
     .p_service_data = nullptr,
-    .service_uuid_len = 0,
-    .p_service_uuid = nullptr,
+    .service_uuid_len = sizeof(hid_service_uuid16),
+    .p_service_uuid = hid_service_uuid16,
     .flag = ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT,
 };
 
 static esp_ble_adv_data_t scan_rsp_data = {
     .set_scan_rsp = true,
-    .include_name = false,
+    .include_name = true,
     .include_txpower = false,
     .appearance = 0,
     .manufacturer_len = 0,
     .p_manufacturer_data = nullptr,
     .service_data_len = 0,
     .p_service_data = nullptr,
-    .service_uuid_len = sizeof(hid_service_uuid16),
-    .p_service_uuid = hid_service_uuid16,
+    .service_uuid_len = 0,
+    .p_service_uuid = nullptr,
     .flag = 0,
 };
 
