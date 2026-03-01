@@ -20,7 +20,8 @@ static EspidfBleKeyboard *s_instance = nullptr;
 
 // ── HID Report Descriptor ────────────────────────────────────────────────────
 // Report ID 1: Standard keyboard (8 bytes)
-// Report ID 2: Consumer control — power, media keys (2 bytes)
+// Report ID 2: Consumer control — media keys (2 bytes)
+// Report ID 3: System control — power/sleep (1 byte)
 static const uint8_t hid_report_map[] = {
     // ---- Keyboard (Report ID 1) ----
     0x05, 0x01, 0x09, 0x06, 0xA1, 0x01,
@@ -61,7 +62,7 @@ static const uint8_t hid_report_map[] = {
     0xC0               // End Collection
 };
 
-// ── Raw Advertising Data (Verified Working) ──────────────────────────────────
+// ── Raw Advertising Data ─────────────────────────────────────────────────────
 static uint8_t raw_adv_data[] = {
     0x02, 0x01, 0x06,           // Flags
     0x03, 0x19, 0xC1, 0x03,     // Appearance: HID Keyboard (0x03C1)
@@ -148,11 +149,11 @@ static uint16_t s_hid_report_handle = 0;
 static uint16_t s_consumer_report_handle = 0;
 static uint16_t s_system_report_handle = 0;
 
-static uint8_t  hid_info_val[4]   = {0x11, 0x01, 0x00, 0x01};
-static uint8_t  hid_ctrl_val      = 0;
-static uint8_t  proto_mode_val    = 0x01;
-static uint8_t  report_val[8]     = {0};
-static uint16_t report_ccc_val    = 0;
+static uint8_t  hid_info_val[4]       = {0x11, 0x01, 0x00, 0x01};
+static uint8_t  hid_ctrl_val          = 0;
+static uint8_t  proto_mode_val        = 0x01;
+static uint8_t  report_val[8]         = {0};
+static uint16_t report_ccc_val        = 0;
 static uint8_t  report_ref_val[2]     = {0x01, 0x01};
 static uint8_t  consumer_val[2]       = {0};
 static uint16_t consumer_ccc_val      = 0;
@@ -223,10 +224,8 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             break;
         case ESP_GATTS_CONNECT_EVT:
             if (s_instance) s_instance->set_connected(true, param->connect.conn_id);
-            // If passkey is used, trigger security
-            if (s_instance && s_instance->has_passkey()) {
-                esp_ble_set_encryption(param->connect.remote_bda, ESP_BLE_SEC_ENCRYPT_MITM);
-            }
+            // Always trigger encryption — required for HID on Android and Windows
+            esp_ble_set_encryption(param->connect.remote_bda, ESP_BLE_SEC_ENCRYPT_NO_MITM);
             break;
         case ESP_GATTS_DISCONNECT_EVT:
             if (s_instance) s_instance->set_connected(false, 0);
@@ -237,7 +236,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
     }
 }
 
-// ── Component Setup ─────────────────────────────────────────────────────────
+// ── Component Setup ──────────────────────────────────────────────────────────
 void EspidfBleKeyboard::setup() {
     s_instance = this;
     esp_err_t ret = nvs_flash_init();
@@ -245,28 +244,33 @@ void EspidfBleKeyboard::setup() {
         nvs_flash_erase();
         nvs_flash_init();
     }
-    
+
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     esp_bt_controller_init(&bt_cfg);
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
     esp_bluedroid_init();
     esp_bluedroid_enable();
 
-    if (this->has_passkey_) {
-        ESP_LOGI(TAG, "Setting passkey in setup: %06d", this->passkey_);
-        esp_ble_gap_set_security_param(ESP_BLE_SM_SET_STATIC_PASSKEY, &this->passkey_, sizeof(uint32_t));
-
+    // Always configure security — required for Android HID compatibility
+    {
         esp_ble_auth_req_t auth_req = ESP_LE_AUTH_BOND;
-        esp_ble_io_cap_t iocap = ESP_IO_CAP_OUT;
+        esp_ble_io_cap_t iocap = ESP_IO_CAP_NONE;
         uint8_t key_size = 16;
         uint8_t init_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
         uint8_t rsp_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
-
         esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(uint8_t));
         esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
         esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &key_size, sizeof(uint8_t));
         esp_ble_gap_set_security_param(ESP_BLE_SM_SET_INIT_KEY, &init_key, sizeof(uint8_t));
         esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &rsp_key, sizeof(uint8_t));
+    }
+
+    // If passkey configured, override IO cap and set static passkey for Windows
+    if (this->has_passkey_) {
+        ESP_LOGI(TAG, "Setting passkey: %06d", this->passkey_);
+        esp_ble_io_cap_t iocap = ESP_IO_CAP_OUT;
+        esp_ble_gap_set_security_param(ESP_BLE_SM_SET_STATIC_PASSKEY, &this->passkey_, sizeof(uint32_t));
+        esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
     }
 
     esp_ble_gap_register_callback(gap_event_handler);
@@ -313,10 +317,8 @@ void EspidfBleKeyboard::send_key_combo(uint8_t modifiers, uint8_t keycode) {
     uint8_t report[8] = {0};
     report[0] = modifiers;
     report[2] = keycode;
-    // Send press
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
     vTaskDelay(pdMS_TO_TICKS(30));
-    // Send release (all zeros)
     memset(report, 0, 8);
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
 }
@@ -331,85 +333,55 @@ void EspidfBleKeyboard::send_ctrl_alt_del() {
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_hid_report_handle, 8, report, false);
 }
 
-
 void EspidfBleKeyboard::send_sleep() {
     if (!is_connected_) return;
-    // Use HID System Sleep — clean OS-level sleep, no lingering key state
-    uint8_t report[1] = {0x82};  // 0x82 = System Sleep
+    uint8_t report[1] = {0x82};  // System Sleep
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_system_report_handle, 1, report, false);
     vTaskDelay(pdMS_TO_TICKS(50));
     uint8_t release[1] = {0};
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_system_report_handle, 1, release, false);
-    ESP_LOGI("espidf_ble_keyboard", "System Sleep sent");
+    ESP_LOGI(TAG, "System Sleep sent");
 }
 
 void EspidfBleKeyboard::send_shutdown() {
     if (!is_connected_) return;
-    // Use HID System Power Down — clean OS-level shutdown, no lingering key state
     send_power();
 }
 
 void EspidfBleKeyboard::send_consumer(uint16_t usage) {
     if (!is_connected_) return;
-    // Bluedroid handles Report ID internally — send data only (2 bytes)
     uint8_t report[2] = {(uint8_t)(usage & 0xFF), (uint8_t)(usage >> 8)};
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_consumer_report_handle, 2, report, false);
     vTaskDelay(pdMS_TO_TICKS(50));
-    // Send release
     uint8_t release[2] = {0, 0};
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_consumer_report_handle, 2, release, false);
-    ESP_LOGI("espidf_ble_keyboard", "Consumer report sent: 0x%04X", usage);
+    ESP_LOGI(TAG, "Consumer report sent: 0x%04X", usage);
 }
 
 void EspidfBleKeyboard::send_power() {
     if (!is_connected_) return;
-    // System Power Down via Generic Desktop page (Report ID 3)
-    uint8_t report[1] = {0x81};  // 0x81 = System Power Down
+    uint8_t report[1] = {0x81};  // System Power Down
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_system_report_handle, 1, report, false);
     vTaskDelay(pdMS_TO_TICKS(50));
     uint8_t release[1] = {0};
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_system_report_handle, 1, release, false);
-    ESP_LOGI("espidf_ble_keyboard", "System Power Down sent");
+    ESP_LOGI(TAG, "System Power Down sent");
 }
 
-void EspidfBleKeyboard::send_media_play_pause() {
-    send_consumer(0x00CD);  // HID Consumer: Play/Pause
-}
-
-void EspidfBleKeyboard::send_media_next() {
-    send_consumer(0x00B5);  // HID Consumer: Scan Next Track
-}
-
-void EspidfBleKeyboard::send_media_prev() {
-    send_consumer(0x00B6);  // HID Consumer: Scan Previous Track
-}
-
-void EspidfBleKeyboard::send_media_stop() {
-    send_consumer(0x00B7);  // HID Consumer: Stop
-}
-
-void EspidfBleKeyboard::send_volume_up() {
-    send_consumer(0x00E9);  // HID Consumer: Volume Increment
-}
-
-void EspidfBleKeyboard::send_volume_down() {
-    send_consumer(0x00EA);  // HID Consumer: Volume Decrement
-}
-
-void EspidfBleKeyboard::send_mute() {
-    send_consumer(0x00E2);  // HID Consumer: Mute
-}
-
+void EspidfBleKeyboard::send_media_play_pause() { send_consumer(0x00CD); }
+void EspidfBleKeyboard::send_media_next()        { send_consumer(0x00B5); }
+void EspidfBleKeyboard::send_media_prev()        { send_consumer(0x00B6); }
+void EspidfBleKeyboard::send_media_stop()        { send_consumer(0x00B7); }
+void EspidfBleKeyboard::send_volume_up()         { send_consumer(0x00E9); }
+void EspidfBleKeyboard::send_volume_down()       { send_consumer(0x00EA); }
+void EspidfBleKeyboard::send_mute()              { send_consumer(0x00E2); }
 
 void EspidfBleKeyboard::send_hibernate() {
     if (!is_connected_) return;
-    // Win + R to open Run dialog
     send_key_combo(0x08, 0x15);
     vTaskDelay(pdMS_TO_TICKS(600));
-    // Type the hibernate command
     send_string("shutdown /h");
     vTaskDelay(pdMS_TO_TICKS(200));
-    // Press Enter then immediately send all-zeros report to clear key state
     send_key_combo(0x00, 0x28);
 }
 
@@ -419,7 +391,6 @@ void EspidfBleKeyboardButton::press_action() {
     // Check if the action string starts with "combo:"
     if (action_.find("combo:") == 0) {
         int mod, key;
-        // %i automatically reads hex values (like 0x08) into integers
         if (sscanf(action_.c_str(), "combo:%i:%i", &mod, &key) == 2) {
             parent_->send_key_combo((uint8_t)mod, (uint8_t)key);
             return;
@@ -434,13 +405,13 @@ void EspidfBleKeyboardButton::press_action() {
             return;
         }
     }
-    
+
     // Named actions
-    if (action_ == "ctrl_alt_del")   parent_->send_ctrl_alt_del();
-    else if (action_ == "sleep")     parent_->send_sleep();
-    else if (action_ == "shutdown")  parent_->send_shutdown();
-    else if (action_ == "hibernate") parent_->send_hibernate();
-    else if (action_ == "power")     parent_->send_power();
+    if (action_ == "ctrl_alt_del")      parent_->send_ctrl_alt_del();
+    else if (action_ == "sleep")        parent_->send_sleep();
+    else if (action_ == "shutdown")     parent_->send_shutdown();
+    else if (action_ == "hibernate")    parent_->send_hibernate();
+    else if (action_ == "power")        parent_->send_power();
     else if (action_ == "play_pause")   parent_->send_media_play_pause();
     else if (action_ == "next_track")   parent_->send_media_next();
     else if (action_ == "prev_track")   parent_->send_media_prev();
