@@ -164,6 +164,8 @@ enum {
     IDX_CHAR_REPORT,       IDX_CHAR_REPORT_VAL,
     IDX_CHAR_REPORT_CCC,
     IDX_CHAR_REPORT_REF,
+    IDX_CHAR_REPORT_OUT,   IDX_CHAR_REPORT_OUT_VAL,
+    IDX_CHAR_REPORT_OUT_REF,
     // Consumer control report (Report ID 2)
     IDX_CHAR_CONSUMER,     IDX_CHAR_CONSUMER_VAL,
     IDX_CHAR_CONSUMER_CCC,
@@ -178,6 +180,7 @@ enum {
 static uint16_t hid_handle_table[HID_IDX_NB];
 static esp_gatt_if_t s_gatts_if = ESP_GATT_IF_NONE;
 static uint16_t s_hid_report_handle = 0;
+static uint16_t s_hid_output_report_handle = 0;
 static uint16_t s_consumer_report_handle = 0;
 static uint16_t s_system_report_handle = 0;
 
@@ -187,6 +190,8 @@ static uint8_t  proto_mode_val        = 0x01;
 static uint8_t  report_val[8]         = {0};
 static uint16_t report_ccc_val        = 0;
 static uint8_t  report_ref_val[2]     = {0x01, 0x01};
+static uint8_t  report_out_val[1]     = {0};
+static uint8_t  report_out_ref_val[2] = {0x01, 0x02};
 static uint8_t  consumer_val[2]       = {0};
 static uint16_t consumer_ccc_val      = 0;
 static uint8_t  consumer_ref_val[2]   = {0x02, 0x01};
@@ -208,6 +213,7 @@ static const uint16_t UUID_RPT_REF_DESCR      = ESP_GATT_UUID_RPT_REF_DESCR;
 static const uint8_t PROP_READ        = ESP_GATT_CHAR_PROP_BIT_READ;
 static const uint8_t PROP_WRITE_NR    = ESP_GATT_CHAR_PROP_BIT_WRITE_NR;
 static const uint8_t PROP_RW_NR       = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE_NR;
+static const uint8_t PROP_READ_WRITE  = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_WRITE_NR;
 static const uint8_t PROP_READ_NOTIFY = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
 
 static const esp_gatts_attr_db_t hid_attr_db[HID_IDX_NB] = {
@@ -224,6 +230,9 @@ static const esp_gatts_attr_db_t hid_attr_db[HID_IDX_NB] = {
     [IDX_CHAR_REPORT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_HID_REPORT, ESP_GATT_PERM_READ, sizeof(report_val), sizeof(report_val), report_val}},
     [IDX_CHAR_REPORT_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_CHAR_CLIENT_CONFIG, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, sizeof(report_ccc_val), sizeof(report_ccc_val), (uint8_t *)&report_ccc_val}},
     [IDX_CHAR_REPORT_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_RPT_REF_DESCR, ESP_GATT_PERM_READ, sizeof(report_ref_val), sizeof(report_ref_val), report_ref_val}},
+    [IDX_CHAR_REPORT_OUT] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_CHAR_DECLARE, ESP_GATT_PERM_READ, 1, 1, (uint8_t *)&PROP_READ_WRITE}},
+    [IDX_CHAR_REPORT_OUT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_HID_REPORT, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, sizeof(report_out_val), sizeof(report_out_val), report_out_val}},
+    [IDX_CHAR_REPORT_OUT_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_RPT_REF_DESCR, ESP_GATT_PERM_READ, sizeof(report_out_ref_val), sizeof(report_out_ref_val), report_out_ref_val}},
     // Consumer control report (Report ID 2)
     [IDX_CHAR_CONSUMER] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_CHAR_DECLARE, ESP_GATT_PERM_READ, 1, 1, (uint8_t *)&PROP_READ_NOTIFY}},
     [IDX_CHAR_CONSUMER_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&UUID_HID_REPORT, ESP_GATT_PERM_READ, sizeof(consumer_val), sizeof(consumer_val), consumer_val}},
@@ -249,6 +258,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             ESP_LOGI(TAG, "GATTS: Attribute table created");
             memcpy(hid_handle_table, param->add_attr_tab.handles, sizeof(hid_handle_table));
             s_hid_report_handle = hid_handle_table[IDX_CHAR_REPORT_VAL];
+            s_hid_output_report_handle = hid_handle_table[IDX_CHAR_REPORT_OUT_VAL];
             s_consumer_report_handle = hid_handle_table[IDX_CHAR_CONSUMER_VAL];
             s_system_report_handle = hid_handle_table[IDX_CHAR_SYSTEM_VAL];
             esp_ble_gatts_start_service(hid_handle_table[IDX_SVC]);
@@ -273,6 +283,11 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             ESP_LOGI(TAG, "GATTS: Disconnect reason 0x%02X", param->disconnect.reason);
             if (s_instance) s_instance->set_connected(false, 0);
             esp_ble_gap_start_advertising(&adv_params);
+            break;
+        case ESP_GATTS_WRITE_EVT:
+            if (param->write.handle == s_hid_output_report_handle && param->write.len > 0) {
+                ESP_LOGI(TAG, "GATTS: Keyboard LED report 0x%02X", param->write.value[0]);
+            }
             break;
         default:
             break;
