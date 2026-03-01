@@ -106,10 +106,19 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
             s_scan_rsp_data_set = true;
             if (s_adv_data_set) esp_ble_gap_start_advertising(&adv_params);
             break;
+        case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
+            if (param->adv_start_cmpl.status == ESP_BT_STATUS_SUCCESS) {
+                ESP_LOGI(TAG, "GAP: Advertising started");
+            } else {
+                ESP_LOGE(TAG, "GAP: Advertising start failed (%d)", param->adv_start_cmpl.status);
+            }
+            break;
         case ESP_GAP_BLE_SEC_REQ_EVT:
+            ESP_LOGI(TAG, "GAP: Security request");
             esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
             break;
         case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+            ESP_LOGI(TAG, "GAP: Passkey requested");
             if (s_instance && s_instance->has_passkey()) {
                 esp_ble_passkey_reply(param->ble_security.ble_req.bd_addr, true, s_instance->passkey());
             } else {
@@ -127,6 +136,7 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
                 ESP_LOGI(TAG, "GAP: Pairing Successful");
             } else {
                 ESP_LOGE(TAG, "GAP: Pairing Failed (0x%x)", param->ble_security.auth_cmpl.fail_reason);
+                esp_ble_remove_bond_device(param->ble_security.auth_cmpl.bd_addr);
                 esp_ble_gap_start_advertising(&adv_params);
             }
             break;
@@ -223,10 +233,12 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
     switch (event) {
         case ESP_GATTS_REG_EVT:
             s_gatts_if = gatts_if;
+            ESP_LOGI(TAG, "GATTS: Registered");
             esp_ble_gap_set_device_name("ESP32 BLE Keyboard");
             esp_ble_gatts_create_attr_tab(hid_attr_db, gatts_if, HID_IDX_NB, 0);
             break;
         case ESP_GATTS_CREAT_ATTR_TAB_EVT:
+            ESP_LOGI(TAG, "GATTS: Attribute table created");
             memcpy(hid_handle_table, param->add_attr_tab.handles, sizeof(hid_handle_table));
             s_hid_report_handle = hid_handle_table[IDX_CHAR_REPORT_VAL];
             s_consumer_report_handle = hid_handle_table[IDX_CHAR_CONSUMER_VAL];
@@ -234,9 +246,11 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             esp_ble_gatts_start_service(hid_handle_table[IDX_SVC]);
             break;
         case ESP_GATTS_START_EVT:
+            ESP_LOGI(TAG, "GATTS: Service started");
             do_start_advertising();
             break;
         case ESP_GATTS_CONNECT_EVT: {
+            ESP_LOGI(TAG, "GATTS: Connected");
             if (s_instance) s_instance->set_connected(true, param->connect.conn_id);
             // Trigger encryption with security level matching configured pairing mode
             esp_ble_sec_act_t sec_act = ESP_BLE_SEC_ENCRYPT_NO_MITM;
@@ -247,6 +261,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             break;
         }
         case ESP_GATTS_DISCONNECT_EVT:
+            ESP_LOGI(TAG, "GATTS: Disconnected");
             if (s_instance) s_instance->set_connected(false, 0);
             esp_ble_gap_start_advertising(&adv_params);
             break;
@@ -272,7 +287,7 @@ void EspidfBleKeyboard::setup() {
 
     // Configure security for BLE HID pairing (Android prefers LE Secure Connections)
     {
-        esp_ble_auth_req_t auth_req = this->has_passkey_ ? ESP_LE_AUTH_REQ_SC_MITM_BOND : ESP_LE_AUTH_BOND;
+        esp_ble_auth_req_t auth_req = this->has_passkey_ ? ESP_LE_AUTH_REQ_MITM_BOND : ESP_LE_AUTH_BOND;
         esp_ble_io_cap_t iocap = this->has_passkey_ ? ESP_IO_CAP_OUT : ESP_IO_CAP_NONE;
         uint8_t key_size = 16;
         uint8_t init_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
