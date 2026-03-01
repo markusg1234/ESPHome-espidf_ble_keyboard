@@ -68,17 +68,37 @@ static const uint8_t hid_report_map[] = {
     0xC0               // End Collection
 };
 
-// ── Raw Advertising Data ─────────────────────────────────────────────────────
-static uint8_t raw_adv_data[] = {
-    0x02, 0x01, 0x06,           // Flags
-    0x03, 0x19, 0xC1, 0x03,     // Appearance: HID Keyboard (0x03C1)
-    0x03, 0x03, 0x12, 0x18,     // Complete UUID16: HID service (0x1812)
-    0x13, 0x09,                 // Complete Local Name
-    'E','S','P','3','2',' ','B','L','E',' ','K','e','y','b','o','a','r','d'
+// ── Advertising Data ─────────────────────────────────────────────────────────
+static uint8_t hid_service_uuid16[] = {0x12, 0x18};  // HID service 0x1812 (little-endian)
+
+static esp_ble_adv_data_t adv_data = {
+    .set_scan_rsp = false,
+    .include_name = false,
+    .include_txpower = true,
+    .min_interval = ESP_BLE_GAP_CONN_ITVL_MS(7.5),
+    .max_interval = ESP_BLE_GAP_CONN_ITVL_MS(20),
+    .appearance = 0x03C1,
+    .manufacturer_len = 0,
+    .p_manufacturer_data = nullptr,
+    .service_data_len = 0,
+    .p_service_data = nullptr,
+    .service_uuid_len = sizeof(hid_service_uuid16),
+    .p_service_uuid = hid_service_uuid16,
+    .flag = ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT,
 };
 
-static uint8_t raw_scan_rsp_data[] = {
-    0x02, 0x0A, 0x00            // TX Power Level
+static esp_ble_adv_data_t scan_rsp_data = {
+    .set_scan_rsp = true,
+    .include_name = true,
+    .include_txpower = true,
+    .appearance = 0,
+    .manufacturer_len = 0,
+    .p_manufacturer_data = nullptr,
+    .service_data_len = 0,
+    .p_service_data = nullptr,
+    .service_uuid_len = 0,
+    .p_service_uuid = nullptr,
+    .flag = 0,
 };
 
 static esp_ble_adv_params_t adv_params = {
@@ -98,17 +118,19 @@ static bool s_scan_rsp_data_set = false;
 static void do_start_advertising() {
     s_adv_data_set = false;
     s_scan_rsp_data_set = false;
-    esp_ble_gap_config_adv_data_raw(raw_adv_data, sizeof(raw_adv_data));
-    esp_ble_gap_config_scan_rsp_data_raw(raw_scan_rsp_data, sizeof(raw_scan_rsp_data));
+    esp_ble_gap_config_adv_data(&adv_data);
+    esp_ble_gap_config_adv_data(&scan_rsp_data);
 }
 
 // ── GAP Event Handler ────────────────────────────────────────────────────────
 static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
     switch (event) {
+        case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
         case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
             s_adv_data_set = true;
             if (s_scan_rsp_data_set) esp_ble_gap_start_advertising(&adv_params);
             break;
+        case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
         case ESP_GAP_BLE_SCAN_RSP_DATA_RAW_SET_COMPLETE_EVT:
             s_scan_rsp_data_set = true;
             if (s_adv_data_set) esp_ble_gap_start_advertising(&adv_params);
