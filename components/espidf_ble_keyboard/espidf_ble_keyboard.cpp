@@ -73,31 +73,31 @@ static uint8_t hid_service_uuid16[] = {0x12, 0x18};  // HID service 0x1812 (litt
 
 static esp_ble_adv_data_t adv_data = {
     .set_scan_rsp = false,
-    .include_name = false,
+    .include_name = true,
     .include_txpower = true,
     .min_interval = 0x0006,  // 7.5 ms in 1.25 ms units
     .max_interval = 0x0010,  // 20 ms in 1.25 ms units
-    .appearance = 0x03C1,
-    .manufacturer_len = 0,
-    .p_manufacturer_data = nullptr,
-    .service_data_len = 0,
-    .p_service_data = nullptr,
-    .service_uuid_len = sizeof(hid_service_uuid16),
-    .p_service_uuid = hid_service_uuid16,
-    .flag = ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT,
-};
-
-static esp_ble_adv_data_t scan_rsp_data = {
-    .set_scan_rsp = true,
-    .include_name = true,
-    .include_txpower = true,
-    .appearance = 0,
+    .appearance = 0x03C0,
     .manufacturer_len = 0,
     .p_manufacturer_data = nullptr,
     .service_data_len = 0,
     .p_service_data = nullptr,
     .service_uuid_len = 0,
     .p_service_uuid = nullptr,
+    .flag = ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT,
+};
+
+static esp_ble_adv_data_t scan_rsp_data = {
+    .set_scan_rsp = true,
+    .include_name = false,
+    .include_txpower = false,
+    .appearance = 0,
+    .manufacturer_len = 0,
+    .p_manufacturer_data = nullptr,
+    .service_data_len = 0,
+    .p_service_data = nullptr,
+    .service_uuid_len = sizeof(hid_service_uuid16),
+    .p_service_uuid = hid_service_uuid16,
     .flag = 0,
 };
 
