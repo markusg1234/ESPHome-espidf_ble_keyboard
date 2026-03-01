@@ -288,10 +288,24 @@ When you first flash the device or change the `passkey`:
 
 ---
 
+## Pairing with Android
+
+Android is stricter about BLE HID security than Windows. For best results:
+
+1. Configure a 6-digit `passkey` in `espidf_ble_keyboard`.
+2. Flash firmware, then restart Bluetooth on the phone (or reboot phone once).
+3. In Android Bluetooth settings, remove any previous **ESP32 BLE Keyboard** entry before re-pairing.
+4. Start pairing and enter the configured passkey when prompted.
+
+If pairing fails with "can't connect", remove the old bond on Android and pair again after rebooting the ESP32.
+
+---
+
 ## Troubleshooting
 
 * **Not appearing in search:** Ensure no other device is currently connected. The ESP32 stops advertising once a connection is established.
 * **PIN prompt not appearing:** Windows often caches old security profiles. Fully "Remove" the device from Windows Bluetooth settings and try again.
+* **Android says "can't connect":** Android often keeps stale BLE bonds. Remove the device from Bluetooth settings, reboot the ESP32, then pair again. If still failing, toggle phone Bluetooth off/on and retry.
 * **Typing speed:** The component includes a 20ms delay between keypresses to ensure the host OS registers them correctly. This can be adjusted in `espidf_ble_keyboard.cpp` if needed.
 * **Hibernate not working:** Hibernate uses the Windows Run dialog. Ensure the PC is not in a state where it is blocked (e.g., fullscreen app or UAC prompt). Also ensure hibernate is enabled: run `powercfg /hibernate on` in an admin command prompt.
 * **PC not waking from sleep:** Check that **USB Wake Support** (or similar) is enabled in your BIOS/UEFI Power Management settings.

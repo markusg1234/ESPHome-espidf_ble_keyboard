@@ -109,6 +109,17 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
         case ESP_GAP_BLE_SEC_REQ_EVT:
             esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
             break;
+        case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+            if (s_instance && s_instance->has_passkey()) {
+                esp_ble_passkey_reply(param->ble_security.ble_req.bd_addr, true, s_instance->passkey());
+            }
+            break;
+        case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+            ESP_LOGI(TAG, "GAP: Passkey %06lu", (unsigned long) param->ble_security.key_notif.passkey);
+            break;
+        case ESP_GAP_BLE_NC_REQ_EVT:
+            esp_ble_confirm_reply(param->ble_security.key_notif.bd_addr, true);
+            break;
         case ESP_GAP_BLE_AUTH_CMPL_EVT:
             if (param->ble_security.auth_cmpl.success) {
                 ESP_LOGI(TAG, "GAP: Pairing Successful");
@@ -224,8 +235,12 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             break;
         case ESP_GATTS_CONNECT_EVT:
             if (s_instance) s_instance->set_connected(true, param->connect.conn_id);
-            // Always trigger encryption — required for HID on Android and Windows
-            esp_ble_set_encryption(param->connect.remote_bda, ESP_BLE_SEC_ENCRYPT_NO_MITM);
+            // Trigger encryption with security level matching configured pairing mode
+            esp_ble_sec_act_t sec_act = ESP_BLE_SEC_ENCRYPT_NO_MITM;
+            if (s_instance && s_instance->has_passkey()) {
+                sec_act = ESP_BLE_SEC_ENCRYPT_MITM;
+            }
+            esp_ble_set_encryption(param->connect.remote_bda, sec_act);
             break;
         case ESP_GATTS_DISCONNECT_EVT:
             if (s_instance) s_instance->set_connected(false, 0);
@@ -251,26 +266,26 @@ void EspidfBleKeyboard::setup() {
     esp_bluedroid_init();
     esp_bluedroid_enable();
 
-    // Always configure security — required for Android HID compatibility
+    // Configure security for BLE HID pairing (Android prefers LE Secure Connections)
     {
-        esp_ble_auth_req_t auth_req = ESP_LE_AUTH_BOND;
-        esp_ble_io_cap_t iocap = ESP_IO_CAP_NONE;
+        esp_ble_auth_req_t auth_req = this->has_passkey_ ? ESP_LE_AUTH_REQ_SC_MITM_BOND : ESP_LE_AUTH_REQ_SC_BOND;
+        esp_ble_io_cap_t iocap = this->has_passkey_ ? ESP_IO_CAP_OUT : ESP_IO_CAP_NONE;
         uint8_t key_size = 16;
         uint8_t init_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
         uint8_t rsp_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
+        uint8_t auth_option = ESP_BLE_ONLY_ACCEPT_SPECIFIED_AUTH_ENABLE;
+
+        if (this->has_passkey_) {
+            ESP_LOGI(TAG, "Setting passkey: %06lu", (unsigned long) this->passkey_);
+            esp_ble_gap_set_security_param(ESP_BLE_SM_SET_STATIC_PASSKEY, &this->passkey_, sizeof(uint32_t));
+        }
+
         esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(uint8_t));
         esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
         esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &key_size, sizeof(uint8_t));
         esp_ble_gap_set_security_param(ESP_BLE_SM_SET_INIT_KEY, &init_key, sizeof(uint8_t));
         esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &rsp_key, sizeof(uint8_t));
-    }
-
-    // If passkey configured, override IO cap and set static passkey for Windows
-    if (this->has_passkey_) {
-        ESP_LOGI(TAG, "Setting passkey: %06d", this->passkey_);
-        esp_ble_io_cap_t iocap = ESP_IO_CAP_OUT;
-        esp_ble_gap_set_security_param(ESP_BLE_SM_SET_STATIC_PASSKEY, &this->passkey_, sizeof(uint32_t));
-        esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
+        esp_ble_gap_set_security_param(ESP_BLE_SM_ONLY_ACCEPT_SPECIFIED_SEC_AUTH, &auth_option, sizeof(uint8_t));
     }
 
     esp_ble_gap_register_callback(gap_event_handler);

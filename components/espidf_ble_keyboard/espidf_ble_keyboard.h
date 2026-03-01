@@ -39,6 +39,7 @@ class EspidfBleKeyboard : public Component {
     has_passkey_ = true; 
   }
   bool has_passkey() const { return has_passkey_; }
+  uint32_t passkey() const { return passkey_; }
 
   void set_connected(bool connected, uint16_t conn_id) {
     is_connected_ = connected;
