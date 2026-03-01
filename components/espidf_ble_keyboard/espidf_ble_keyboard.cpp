@@ -112,6 +112,8 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
         case ESP_GAP_BLE_PASSKEY_REQ_EVT:
             if (s_instance && s_instance->has_passkey()) {
                 esp_ble_passkey_reply(param->ble_security.ble_req.bd_addr, true, s_instance->passkey());
+            } else {
+                esp_ble_passkey_reply(param->ble_security.ble_req.bd_addr, false, 0);
             }
             break;
         case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
@@ -125,6 +127,7 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
                 ESP_LOGI(TAG, "GAP: Pairing Successful");
             } else {
                 ESP_LOGE(TAG, "GAP: Pairing Failed (0x%x)", param->ble_security.auth_cmpl.fail_reason);
+                esp_ble_gap_start_advertising(&adv_params);
             }
             break;
         default:
@@ -160,7 +163,7 @@ static uint16_t s_hid_report_handle = 0;
 static uint16_t s_consumer_report_handle = 0;
 static uint16_t s_system_report_handle = 0;
 
-static uint8_t  hid_info_val[4]       = {0x11, 0x01, 0x00, 0x01};
+static uint8_t  hid_info_val[4]       = {0x11, 0x01, 0x00, 0x03};
 static uint8_t  hid_ctrl_val          = 0;
 static uint8_t  proto_mode_val        = 0x01;
 static uint8_t  report_val[8]         = {0};
@@ -269,12 +272,11 @@ void EspidfBleKeyboard::setup() {
 
     // Configure security for BLE HID pairing (Android prefers LE Secure Connections)
     {
-        esp_ble_auth_req_t auth_req = this->has_passkey_ ? ESP_LE_AUTH_REQ_SC_MITM_BOND : ESP_LE_AUTH_REQ_SC_BOND;
+        esp_ble_auth_req_t auth_req = this->has_passkey_ ? ESP_LE_AUTH_REQ_SC_MITM_BOND : ESP_LE_AUTH_BOND;
         esp_ble_io_cap_t iocap = this->has_passkey_ ? ESP_IO_CAP_OUT : ESP_IO_CAP_NONE;
         uint8_t key_size = 16;
         uint8_t init_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
         uint8_t rsp_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
-        uint8_t auth_option = ESP_BLE_ONLY_ACCEPT_SPECIFIED_AUTH_ENABLE;
 
         if (this->has_passkey_) {
             ESP_LOGI(TAG, "Setting passkey: %06lu", (unsigned long) this->passkey_);
@@ -286,7 +288,6 @@ void EspidfBleKeyboard::setup() {
         esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &key_size, sizeof(uint8_t));
         esp_ble_gap_set_security_param(ESP_BLE_SM_SET_INIT_KEY, &init_key, sizeof(uint8_t));
         esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &rsp_key, sizeof(uint8_t));
-        esp_ble_gap_set_security_param(ESP_BLE_SM_ONLY_ACCEPT_SPECIFIED_SEC_AUTH, &auth_option, sizeof(uint8_t));
     }
 
     esp_ble_gap_register_callback(gap_event_handler);
