@@ -72,12 +72,13 @@ static const uint8_t hid_report_map[] = {
 static uint8_t raw_adv_data[] = {
     0x02, 0x01, 0x06,           // Flags
     0x03, 0x19, 0xC1, 0x03,     // Appearance: HID Keyboard (0x03C1)
-    0x03, 0x03, 0x12, 0x18      // Complete UUID16: HID service (0x1812)
+    0x03, 0x03, 0x12, 0x18,     // Complete UUID16: HID service (0x1812)
+    0x13, 0x09,                 // Complete Local Name
+    'E','S','P','3','2',' ','B','L','E',' ','K','e','y','b','o','a','r','d'
 };
 
 static uint8_t raw_scan_rsp_data[] = {
-    0x13, 0x09,                 // Local Name
-    'E','S','P','3','2',' ','B','L','E',' ','K','e','y','b','o','a','r','d'
+    0x02, 0x0A, 0x00            // TX Power Level
 };
 
 static esp_ble_adv_params_t adv_params = {
@@ -111,6 +112,9 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
         case ESP_GAP_BLE_SCAN_RSP_DATA_RAW_SET_COMPLETE_EVT:
             s_scan_rsp_data_set = true;
             if (s_adv_data_set) esp_ble_gap_start_advertising(&adv_params);
+            break;
+        case ESP_GAP_BLE_SCAN_REQ_RECEIVED_EVT:
+            log_bd_addr("GAP: Scan request from", param->scan_req_received.bda);
             break;
         case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
             if (param->adv_start_cmpl.status == ESP_BT_STATUS_SUCCESS) {
