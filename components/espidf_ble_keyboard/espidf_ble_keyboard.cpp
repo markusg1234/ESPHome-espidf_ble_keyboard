@@ -114,7 +114,7 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
             if (s_adv_data_set) esp_ble_gap_start_advertising(&adv_params);
             break;
         case ESP_GAP_BLE_SCAN_REQ_RECEIVED_EVT:
-            log_bd_addr("GAP: Scan request from", param->scan_req_received.bda);
+            ESP_LOGI(TAG, "GAP: Scan request received");
             break;
         case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
             if (param->adv_start_cmpl.status == ESP_BT_STATUS_SUCCESS) {
