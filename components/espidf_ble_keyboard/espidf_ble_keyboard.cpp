@@ -783,6 +783,16 @@ static bool char_to_keycode(char c, uint8_t &modifiers, uint8_t &keycode) {
     else if (c == '^')  { modifiers = 0x02; keycode = 0x23; }
     else if (c == '&')  { modifiers = 0x02; keycode = 0x24; }
     else if (c == '*')  { modifiers = 0x02; keycode = 0x25; }
+    else if (c == '<')  { modifiers = 0x02; keycode = 0x36; }
+    else if (c == '>')  { modifiers = 0x02; keycode = 0x37; }
+    else if (c == '[')  { keycode = 0x2F; }
+    else if (c == ']')  { keycode = 0x30; }
+    else if (c == '{')  { modifiers = 0x02; keycode = 0x2F; }
+    else if (c == '}')  { modifiers = 0x02; keycode = 0x30; }
+    else if (c == '|')  { modifiers = 0x02; keycode = 0x31; }
+    else if (c == '`')  { keycode = 0x35; }
+    else if (c == '~')  { modifiers = 0x02; keycode = 0x35; }
+    else if (c == '\t') { keycode = 0x2B; }
     else return false;
     return true;
 }
