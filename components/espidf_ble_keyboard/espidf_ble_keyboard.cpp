@@ -648,8 +648,8 @@ void EspidfBleKeyboard::loop() {
     uint8_t report[8] = {0};
 
     if (type_key_up_pending_) {
-        // Send key-up (all zeros), then advance to next character.
-        send_keyboard_input_report(conn_id_, report, 8);
+        // Send key-up (all zeros). Retry next loop() if the stack queue is full.
+        if (send_keyboard_input_report(conn_id_, report, 8) != ESP_OK) return;
         type_key_up_pending_ = false;
         type_index_++;
         if (type_index_ >= type_queue_.size()) {
@@ -658,13 +658,13 @@ void EspidfBleKeyboard::loop() {
         }
         type_next_ms_ = now + 20;
     } else {
-        // Send key-down for the current character.
+        // Send key-down for the current character. Retry next loop() if the stack queue is full.
         uint8_t modifiers = 0, keycode = 0;
         char c = type_queue_[type_index_];
         if (char_to_keycode(c, modifiers, keycode)) {
             report[0] = modifiers;
             report[2] = keycode;
-            send_keyboard_input_report(conn_id_, report, 8);
+            if (send_keyboard_input_report(conn_id_, report, 8) != ESP_OK) return;
             type_key_up_pending_ = true;
         } else {
             // Unsupported character — skip it.
