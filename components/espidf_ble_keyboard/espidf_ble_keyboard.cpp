@@ -20,6 +20,10 @@ static const char *TAG = "espidf_ble_keyboard";
 static EspidfBleKeyboard *s_instance = nullptr;
 #define GATTS_APP_ID 0x55
 
+// Forward declarations
+static esp_err_t send_keyboard_input_report(uint16_t conn_id, const uint8_t *report, uint16_t len);
+static bool char_to_keycode(char c, uint8_t &modifiers, uint8_t &keycode);
+
 // ── HID Report Descriptor ────────────────────────────────────────────────────
 // Report ID 1: Standard keyboard (8 bytes)
 // Report ID 2: Consumer control — media keys (2 bytes)
