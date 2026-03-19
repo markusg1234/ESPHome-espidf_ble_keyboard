@@ -159,8 +159,8 @@ static void maybe_reset_bonds_after_security_config_change() {
 static void request_host_friendly_conn_params(const esp_bd_addr_t bda) {
     esp_ble_conn_update_params_t conn_params = {};
     memcpy(conn_params.bda, bda, sizeof(esp_bd_addr_t));
-    conn_params.min_int = 0x10;
-    conn_params.max_int = 0x20;
+    conn_params.min_int = 0x06;  // 7.5ms — minimum allowed by BLE spec
+    conn_params.max_int = 0x0C;  // 15ms
     conn_params.latency = 0;
     conn_params.timeout = 400;
 
@@ -648,8 +648,8 @@ void EspidfBleKeyboard::loop() {
     uint8_t report[8] = {0};
 
     if (type_key_up_pending_) {
-        // Send key-up (all zeros), then advance to next character.
-        send_keyboard_input_report(conn_id_, report, 8);
+        // Send key-up (all zeros). Retry next loop() if the stack queue is full.
+        if (send_keyboard_input_report(conn_id_, report, 8) != ESP_OK) return;
         type_key_up_pending_ = false;
         type_index_++;
         if (type_index_ >= type_queue_.size()) {
@@ -658,13 +658,13 @@ void EspidfBleKeyboard::loop() {
         }
         type_next_ms_ = now + 20;
     } else {
-        // Send key-down for the current character.
+        // Send key-down for the current character. Retry next loop() if the stack queue is full.
         uint8_t modifiers = 0, keycode = 0;
         char c = type_queue_[type_index_];
         if (char_to_keycode(c, modifiers, keycode)) {
             report[0] = modifiers;
             report[2] = keycode;
-            send_keyboard_input_report(conn_id_, report, 8);
+            if (send_keyboard_input_report(conn_id_, report, 8) != ESP_OK) return;
             type_key_up_pending_ = true;
         } else {
             // Unsupported character — skip it.
