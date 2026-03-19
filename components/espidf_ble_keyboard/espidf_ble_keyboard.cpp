@@ -733,10 +733,10 @@ void EspidfBleKeyboard::send_string(const std::string &str) {
         else continue;
 
         send_keyboard_input_report(conn_id_, report, 8);
-        vTaskDelay(pdMS_TO_TICKS(20));
+        vTaskDelay(pdMS_TO_TICKS(40));
         memset(report, 0, 8);
         send_keyboard_input_report(conn_id_, report, 8);
-        vTaskDelay(pdMS_TO_TICKS(20));
+        vTaskDelay(pdMS_TO_TICKS(40));
     }
 }
 
