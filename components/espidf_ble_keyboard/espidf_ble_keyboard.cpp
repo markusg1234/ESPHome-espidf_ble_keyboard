@@ -6,7 +6,6 @@
 #include "esphome/core/hal.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "esp_task_wdt.h"
 #include "esp_gatt_defs.h"
 #include "esp_bt_defs.h"
 #include "nvs.h"
@@ -635,6 +634,44 @@ void EspidfBleKeyboard::loop() {
     if (pending_paired_update_.exchange(false)) {
         set_paired(pending_paired_state_.load());
     }
+
+    // Non-blocking string typing: one keystroke step per loop() call, paced by timer.
+    if (type_queue_.empty() || !is_connected_) return;
+
+    uint32_t now = millis();
+    if (now < type_next_ms_) return;
+
+    uint8_t report[8] = {0};
+
+    if (type_key_up_pending_) {
+        // Send key-up (all zeros), then advance to next character.
+        send_keyboard_input_report(conn_id_, report, 8);
+        type_key_up_pending_ = false;
+        type_index_++;
+        if (type_index_ >= type_queue_.size()) {
+            type_queue_.clear();
+            type_index_ = 0;
+        }
+        type_next_ms_ = now + 20;
+    } else {
+        // Send key-down for the current character.
+        uint8_t modifiers = 0, keycode = 0;
+        char c = type_queue_[type_index_];
+        if (char_to_keycode(c, modifiers, keycode)) {
+            report[0] = modifiers;
+            report[2] = keycode;
+            send_keyboard_input_report(conn_id_, report, 8);
+            type_key_up_pending_ = true;
+        } else {
+            // Unsupported character — skip it.
+            type_index_++;
+            if (type_index_ >= type_queue_.size()) {
+                type_queue_.clear();
+                type_index_ = 0;
+            }
+        }
+        type_next_ms_ = now + 20;
+    }
 }
 
 static uint16_t get_keyboard_input_handle() {
@@ -709,37 +746,46 @@ static esp_err_t send_keyboard_input_report(uint16_t conn_id, const uint8_t *rep
     return fallback_ret;
 }
 
-void EspidfBleKeyboard::send_string(const std::string &str) {
-    if (!is_connected_) return;
-    uint8_t report[8] = {0};
-    for (char c : str) {
-        esp_task_wdt_reset();
-        report[0] = 0; report[2] = 0;
-        if      (c >= 'a' && c <= 'z') { report[2] = (uint8_t)(c - 'a' + 0x04); }
-        else if (c >= 'A' && c <= 'Z') { report[0] = 0x02; report[2] = (uint8_t)(c - 'A' + 0x04); }
-        else if (c >= '1' && c <= '9') { report[2] = (uint8_t)(c - '1' + 0x1E); }
-        else if (c == '0') { report[2] = 0x27; }
-        else if (c == ' ')  { report[2] = 0x2C; }
-        else if (c == '\n') { report[2] = 0x28; }
-        else if (c == '.')  { report[2] = 0x37; }
-        else if (c == ',')  { report[2] = 0x36; }
-        else if (c == '/')  { report[2] = 0x38; }
-        else if (c == '\\') { report[2] = 0x31; }
-        else if (c == '-')  { report[2] = 0x2D; }
-        else if (c == '=')  { report[2] = 0x2E; }
-        else if (c == ';')  { report[2] = 0x33; }
-        else if (c == '\'') { report[2] = 0x34; }
-        else if (c == '_')  { report[0] = 0x02; report[2] = 0x2D; }
-        else if (c == '+')  { report[0] = 0x02; report[2] = 0x2E; }
-        else if (c == ':')  { report[0] = 0x02; report[2] = 0x33; }
-        else continue;
+// Returns true if the character is supported, filling modifiers and keycode.
+static bool char_to_keycode(char c, uint8_t &modifiers, uint8_t &keycode) {
+    modifiers = 0;
+    keycode   = 0;
+    if      (c >= 'a' && c <= 'z') { keycode = (uint8_t)(c - 'a' + 0x04); }
+    else if (c >= 'A' && c <= 'Z') { modifiers = 0x02; keycode = (uint8_t)(c - 'A' + 0x04); }
+    else if (c >= '1' && c <= '9') { keycode = (uint8_t)(c - '1' + 0x1E); }
+    else if (c == '0')  { keycode = 0x27; }
+    else if (c == ' ')  { keycode = 0x2C; }
+    else if (c == '\n') { keycode = 0x28; }
+    else if (c == '.')  { keycode = 0x37; }
+    else if (c == ',')  { keycode = 0x36; }
+    else if (c == '/')  { keycode = 0x38; }
+    else if (c == '\\') { keycode = 0x31; }
+    else if (c == '-')  { keycode = 0x2D; }
+    else if (c == '=')  { keycode = 0x2E; }
+    else if (c == ';')  { keycode = 0x33; }
+    else if (c == '\'') { keycode = 0x34; }
+    else if (c == '_')  { modifiers = 0x02; keycode = 0x2D; }
+    else if (c == '+')  { modifiers = 0x02; keycode = 0x2E; }
+    else if (c == ':')  { modifiers = 0x02; keycode = 0x33; }
+    else if (c == '!')  { modifiers = 0x02; keycode = 0x1E; }
+    else if (c == '?')  { modifiers = 0x02; keycode = 0x38; }
+    else if (c == '"')  { modifiers = 0x02; keycode = 0x34; }
+    else if (c == '(')  { modifiers = 0x02; keycode = 0x26; }
+    else if (c == ')')  { modifiers = 0x02; keycode = 0x27; }
+    else if (c == '@')  { modifiers = 0x02; keycode = 0x1F; }
+    else if (c == '#')  { modifiers = 0x02; keycode = 0x20; }
+    else if (c == '$')  { modifiers = 0x02; keycode = 0x21; }
+    else if (c == '%')  { modifiers = 0x02; keycode = 0x22; }
+    else if (c == '^')  { modifiers = 0x02; keycode = 0x23; }
+    else if (c == '&')  { modifiers = 0x02; keycode = 0x24; }
+    else if (c == '*')  { modifiers = 0x02; keycode = 0x25; }
+    else return false;
+    return true;
+}
 
-        send_keyboard_input_report(conn_id_, report, 8);
-        vTaskDelay(pdMS_TO_TICKS(40));
-        memset(report, 0, 8);
-        send_keyboard_input_report(conn_id_, report, 8);
-        vTaskDelay(pdMS_TO_TICKS(40));
-    }
+void EspidfBleKeyboard::send_string(const std::string &str) {
+    // Non-blocking: just append to the queue; loop() will drain it one step at a time.
+    type_queue_ += str;
 }
 
 void EspidfBleKeyboard::send_key_combo(uint8_t modifiers, uint8_t keycode) {
