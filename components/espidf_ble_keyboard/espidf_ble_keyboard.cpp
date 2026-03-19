@@ -159,8 +159,8 @@ static void maybe_reset_bonds_after_security_config_change() {
 static void request_host_friendly_conn_params(const esp_bd_addr_t bda) {
     esp_ble_conn_update_params_t conn_params = {};
     memcpy(conn_params.bda, bda, sizeof(esp_bd_addr_t));
-    conn_params.min_int = 0x10;
-    conn_params.max_int = 0x20;
+    conn_params.min_int = 0x06;  // 7.5ms — minimum allowed by BLE spec
+    conn_params.max_int = 0x0C;  // 15ms
     conn_params.latency = 0;
     conn_params.timeout = 400;
 
