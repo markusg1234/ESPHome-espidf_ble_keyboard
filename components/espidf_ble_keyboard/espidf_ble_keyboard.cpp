@@ -71,10 +71,6 @@ static uint8_t raw_adv_data[] = {
     0x03, 0x19, 0xC1, 0x03      // Appearance: HID Keyboard (0x03C1)
 };
 
-static uint8_t raw_scan_rsp_data[] = {
-    0x0D, 0x09,                 // Complete Local Name (12 chars)
-    'E','S','P','3','2',' ','B','L','E',' ','K','B'
-};
 
 static esp_ble_adv_params_t adv_params = {
     .adv_int_min       = 0x20,
@@ -230,8 +226,17 @@ static void apply_security_params(bool use_static_passkey) {
 static void do_start_advertising() {
     s_adv_data_set = false;
     s_scan_rsp_data_set = false;
+
+    // Build scan response dynamically from the configured device name.
+    // Format: [length = name_len+1] [0x09 = Complete Local Name] [name bytes...]
+    std::string dev_name = (s_instance != nullptr) ? s_instance->device_name() : "ESP32 BLE KB";
+    std::vector<uint8_t> scan_rsp;
+    scan_rsp.push_back((uint8_t)(dev_name.length() + 1));
+    scan_rsp.push_back(0x09);
+    for (char c : dev_name) scan_rsp.push_back((uint8_t)c);
+
     esp_err_t adv_ret = esp_ble_gap_config_adv_data_raw(raw_adv_data, sizeof(raw_adv_data));
-    esp_err_t scan_ret = esp_ble_gap_config_scan_rsp_data_raw(raw_scan_rsp_data, sizeof(raw_scan_rsp_data));
+    esp_err_t scan_ret = esp_ble_gap_config_scan_rsp_data_raw(scan_rsp.data(), (uint16_t)scan_rsp.size());
 
     if (adv_ret != ESP_OK) {
         ESP_LOGE(TAG, "GAP: Failed to config adv data (%d)", adv_ret);
@@ -487,7 +492,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
     switch (event) {
         case ESP_GATTS_REG_EVT:
             s_gatts_if = gatts_if;
-            esp_ble_gap_set_device_name("ESP32 BLE KB");
+            esp_ble_gap_set_device_name(s_instance ? s_instance->device_name().c_str() : "ESP32 BLE KB");
             // Create each service as a separate attribute table
             esp_ble_gatts_create_attr_tab(dis_attr_db, gatts_if, DIS_IDX_NB, SVC_INST_DIS);
             esp_ble_gatts_create_attr_tab(bas_attr_db, gatts_if, BAS_IDX_NB, SVC_INST_BAS);
