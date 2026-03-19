@@ -6,6 +6,7 @@
 #include "esphome/core/hal.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_task_wdt.h"
 #include "esp_gatt_defs.h"
 #include "esp_bt_defs.h"
 #include "nvs.h"
@@ -712,6 +713,7 @@ void EspidfBleKeyboard::send_string(const std::string &str) {
     if (!is_connected_) return;
     uint8_t report[8] = {0};
     for (char c : str) {
+        esp_task_wdt_reset();
         report[0] = 0; report[2] = 0;
         if      (c >= 'a' && c <= 'z') { report[2] = (uint8_t)(c - 'a' + 0x04); }
         else if (c >= 'A' && c <= 'Z') { report[0] = 0x02; report[2] = (uint8_t)(c - 'A' + 0x04); }
