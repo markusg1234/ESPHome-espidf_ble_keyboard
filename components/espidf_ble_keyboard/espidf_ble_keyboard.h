@@ -19,6 +19,7 @@ class EspidfBleKeyboard : public Component {
   void setup() override;
   void loop() override;
   float get_setup_priority() const override { return -200.0f; }
+  void set_setup_priority(float priority) {}  // no-op: priority fixed via get_setup_priority() override
   void send_string(const std::string &str);
   void send_ctrl_alt_del();
   void send_key_combo(uint8_t modifiers, uint8_t keycode);
@@ -100,6 +101,7 @@ class EspidfBleKeyboardButton : public button::Button, public Component {
   void press_action() override;
   void set_action(const std::string &action) { action_ = action; }
   float get_setup_priority() const override { return -200.0f; }
+  void set_setup_priority(float priority) {}  // no-op: priority fixed via get_setup_priority() override
  protected:
   EspidfBleKeyboard *parent_{nullptr};
   std::string action_;
