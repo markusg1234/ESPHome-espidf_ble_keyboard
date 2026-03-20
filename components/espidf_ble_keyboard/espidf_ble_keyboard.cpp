@@ -22,7 +22,6 @@ static EspidfBleKeyboard *s_instance = nullptr;
 
 // Forward declarations
 static esp_err_t send_keyboard_input_report(uint16_t conn_id, const uint8_t *report, uint16_t len);
-static bool char_to_keycode(char c, uint8_t &modifiers, uint8_t &keycode);
 
 // ── HID Report Descriptor ────────────────────────────────────────────────────
 // Report ID 1: Standard keyboard (8 bytes)
@@ -66,6 +65,98 @@ static const uint8_t hid_report_map[] = {
     0x95, 0x01,        //   Report Count (1)
     0x81, 0x00,        //   Input (Data, Array)
     0xC0               // End Collection
+};
+
+// ── ASCII → USB HID Keycode Lookup Table (US keyboard layout) ───────────────
+struct HidKeyMapping {
+    uint8_t modifier;  // 0x00 = none, 0x02 = Left Shift
+    uint8_t keycode;   // USB HID keycode, 0x00 = unmapped
+};
+
+static const HidKeyMapping HID_ASCII_MAP[128] = {
+    // 0x00 - 0x07: control characters (unmapped)
+    {0x00, 0x00}, {0x00, 0x00}, {0x00, 0x00}, {0x00, 0x00},
+    {0x00, 0x00}, {0x00, 0x00}, {0x00, 0x00}, {0x00, 0x00},
+    // 0x08 - 0x0F
+    {0x00, 0x00}, // 0x08 BS
+    {0x00, 0x2B}, // 0x09 TAB
+    {0x00, 0x28}, // 0x0A LF (\n) → Enter
+    {0x00, 0x00}, // 0x0B VT
+    {0x00, 0x00}, // 0x0C FF
+    {0x00, 0x28}, // 0x0D CR (\r) → Enter
+    {0x00, 0x00}, // 0x0E
+    {0x00, 0x00}, // 0x0F
+    // 0x10 - 0x1F: control characters (unmapped)
+    {0x00, 0x00}, {0x00, 0x00}, {0x00, 0x00}, {0x00, 0x00},
+    {0x00, 0x00}, {0x00, 0x00}, {0x00, 0x00}, {0x00, 0x00},
+    {0x00, 0x00}, {0x00, 0x00}, {0x00, 0x00}, {0x00, 0x00},
+    {0x00, 0x00}, {0x00, 0x00}, {0x00, 0x00}, {0x00, 0x00},
+    // 0x20 - 0x2F: space, punctuation, digits
+    {0x00, 0x2C}, // 0x20 ' ' Space
+    {0x02, 0x1E}, // 0x21 '!' Shift+1
+    {0x02, 0x34}, // 0x22 '"' Shift+'
+    {0x02, 0x20}, // 0x23 '#' Shift+3
+    {0x02, 0x21}, // 0x24 '$' Shift+4
+    {0x02, 0x22}, // 0x25 '%' Shift+5
+    {0x02, 0x24}, // 0x26 '&' Shift+7
+    {0x00, 0x34}, // 0x27 '\''
+    {0x02, 0x26}, // 0x28 '(' Shift+9
+    {0x02, 0x27}, // 0x29 ')' Shift+0
+    {0x02, 0x25}, // 0x2A '*' Shift+8
+    {0x02, 0x2E}, // 0x2B '+' Shift+=
+    {0x00, 0x36}, // 0x2C ','
+    {0x00, 0x2D}, // 0x2D '-'
+    {0x00, 0x37}, // 0x2E '.'
+    {0x00, 0x38}, // 0x2F '/'
+    // 0x30 - 0x39: digits 0-9
+    {0x00, 0x27}, // 0x30 '0'
+    {0x00, 0x1E}, // 0x31 '1'
+    {0x00, 0x1F}, // 0x32 '2'
+    {0x00, 0x20}, // 0x33 '3'
+    {0x00, 0x21}, // 0x34 '4'
+    {0x00, 0x22}, // 0x35 '5'
+    {0x00, 0x23}, // 0x36 '6'
+    {0x00, 0x24}, // 0x37 '7'
+    {0x00, 0x25}, // 0x38 '8'
+    {0x00, 0x26}, // 0x39 '9'
+    // 0x3A - 0x3F: punctuation
+    {0x02, 0x33}, // 0x3A ':' Shift+;
+    {0x00, 0x33}, // 0x3B ';'
+    {0x02, 0x36}, // 0x3C '<' Shift+,
+    {0x00, 0x2E}, // 0x3D '='
+    {0x02, 0x37}, // 0x3E '>' Shift+.
+    {0x02, 0x38}, // 0x3F '?' Shift+/
+    // 0x40: @
+    {0x02, 0x1F}, // 0x40 '@' Shift+2
+    // 0x41 - 0x5A: uppercase A-Z
+    {0x02, 0x04}, {0x02, 0x05}, {0x02, 0x06}, {0x02, 0x07},
+    {0x02, 0x08}, {0x02, 0x09}, {0x02, 0x0A}, {0x02, 0x0B},
+    {0x02, 0x0C}, {0x02, 0x0D}, {0x02, 0x0E}, {0x02, 0x0F},
+    {0x02, 0x10}, {0x02, 0x11}, {0x02, 0x12}, {0x02, 0x13},
+    {0x02, 0x14}, {0x02, 0x15}, {0x02, 0x16}, {0x02, 0x17},
+    {0x02, 0x18}, {0x02, 0x19}, {0x02, 0x1A}, {0x02, 0x1B},
+    {0x02, 0x1C}, {0x02, 0x1D},
+    // 0x5B - 0x60: punctuation
+    {0x00, 0x2F}, // 0x5B '['
+    {0x00, 0x31}, // 0x5C '\'
+    {0x00, 0x30}, // 0x5D ']'
+    {0x02, 0x23}, // 0x5E '^' Shift+6
+    {0x02, 0x2D}, // 0x5F '_' Shift+-
+    {0x00, 0x35}, // 0x60 '`'
+    // 0x61 - 0x7A: lowercase a-z
+    {0x00, 0x04}, {0x00, 0x05}, {0x00, 0x06}, {0x00, 0x07},
+    {0x00, 0x08}, {0x00, 0x09}, {0x00, 0x0A}, {0x00, 0x0B},
+    {0x00, 0x0C}, {0x00, 0x0D}, {0x00, 0x0E}, {0x00, 0x0F},
+    {0x00, 0x10}, {0x00, 0x11}, {0x00, 0x12}, {0x00, 0x13},
+    {0x00, 0x14}, {0x00, 0x15}, {0x00, 0x16}, {0x00, 0x17},
+    {0x00, 0x18}, {0x00, 0x19}, {0x00, 0x1A}, {0x00, 0x1B},
+    {0x00, 0x1C}, {0x00, 0x1D},
+    // 0x7B - 0x7F: punctuation + DEL
+    {0x02, 0x2F}, // 0x7B '{' Shift+[
+    {0x02, 0x31}, // 0x7C '|' Shift+'\'
+    {0x02, 0x30}, // 0x7D '}' Shift+]
+    {0x02, 0x35}, // 0x7E '~' Shift+`
+    {0x00, 0x00}, // 0x7F DEL (unmapped)
 };
 
 // ── Advertising Data ─────────────────────────────────────────────────────────
@@ -620,9 +711,22 @@ void EspidfBleKeyboard::setup() {
     esp_bluedroid_init();
     esp_bluedroid_enable();
 
+    // Force clear all stale bonds — ESP-IDF 5.5.3 is stricter about bond key loading.
+    // This prevents the handle=0 / 0x66 auth failure loop on first boot after reflash.
+    int dev_num = esp_ble_get_bond_device_num();
+    if (dev_num > 0) {
+        ESP_LOGW(TAG, "Clearing %d stale bond(s) from NVS", dev_num);
+        std::vector<esp_ble_bond_dev_t> dev_list(static_cast<size_t>(dev_num));
+        int query_num = dev_num;
+        if (esp_ble_get_bond_device_list(&query_num, dev_list.data()) == ESP_OK) {
+            for (int i = 0; i < query_num; i++) {
+                esp_ble_remove_bond_device(dev_list[static_cast<size_t>(i)].bd_addr);
+            }
+        }
+    }
+
     maybe_reset_bonds_after_security_config_change();
 
-    // Configure security for BLE HID pairing.
     apply_security_params(this->has_passkey_);
 
     esp_ble_gap_register_callback(gap_event_handler);
@@ -630,7 +734,6 @@ void EspidfBleKeyboard::setup() {
     esp_ble_gatts_app_register(GATTS_APP_ID);
 
     set_connected(false, 0);
-    // Pairing sensor starts OFF and turns ON after successful pairing.
     set_paired(false);
 }
 
@@ -659,11 +762,11 @@ void EspidfBleKeyboard::loop() {
         type_next_ms_ = now + 20;
     } else {
         // Send key-down for the current character. Retry next loop() if the stack queue is full.
-        uint8_t modifiers = 0, keycode = 0;
         char c = type_queue_[type_index_];
-        if (char_to_keycode(c, modifiers, keycode)) {
-            report[0] = modifiers;
-            report[2] = keycode;
+        const auto &mapping = (c >= 0 && c < 128) ? HID_ASCII_MAP[static_cast<uint8_t>(c)] : HidKeyMapping{0, 0};
+        if (mapping.keycode != 0x00) {
+            report[0] = mapping.modifier;
+            report[2] = mapping.keycode;
             if (send_keyboard_input_report(conn_id_, report, 8) != ESP_OK) return;
             type_key_up_pending_ = true;
         } else {
@@ -748,53 +851,6 @@ static esp_err_t send_keyboard_input_report(uint16_t conn_id, const uint8_t *rep
         ESP_LOGW(TAG, "Fallback keyboard report send also failed on handle 0x%04X (%d)", fallback_handle, fallback_ret);
     }
     return fallback_ret;
-}
-
-// Returns true if the character is supported, filling modifiers and keycode.
-static bool char_to_keycode(char c, uint8_t &modifiers, uint8_t &keycode) {
-    modifiers = 0;
-    keycode   = 0;
-    if      (c >= 'a' && c <= 'z') { keycode = (uint8_t)(c - 'a' + 0x04); }
-    else if (c >= 'A' && c <= 'Z') { modifiers = 0x02; keycode = (uint8_t)(c - 'A' + 0x04); }
-    else if (c >= '1' && c <= '9') { keycode = (uint8_t)(c - '1' + 0x1E); }
-    else if (c == '0')  { keycode = 0x27; }
-    else if (c == ' ')  { keycode = 0x2C; }
-    else if (c == '\n') { keycode = 0x28; }
-    else if (c == '.')  { keycode = 0x37; }
-    else if (c == ',')  { keycode = 0x36; }
-    else if (c == '/')  { keycode = 0x38; }
-    else if (c == '\\') { keycode = 0x31; }
-    else if (c == '-')  { keycode = 0x2D; }
-    else if (c == '=')  { keycode = 0x2E; }
-    else if (c == ';')  { keycode = 0x33; }
-    else if (c == '\'') { keycode = 0x34; }
-    else if (c == '_')  { modifiers = 0x02; keycode = 0x2D; }
-    else if (c == '+')  { modifiers = 0x02; keycode = 0x2E; }
-    else if (c == ':')  { modifiers = 0x02; keycode = 0x33; }
-    else if (c == '!')  { modifiers = 0x02; keycode = 0x1E; }
-    else if (c == '?')  { modifiers = 0x02; keycode = 0x38; }
-    else if (c == '"')  { modifiers = 0x02; keycode = 0x34; }
-    else if (c == '(')  { modifiers = 0x02; keycode = 0x26; }
-    else if (c == ')')  { modifiers = 0x02; keycode = 0x27; }
-    else if (c == '@')  { modifiers = 0x02; keycode = 0x1F; }
-    else if (c == '#')  { modifiers = 0x02; keycode = 0x20; }
-    else if (c == '$')  { modifiers = 0x02; keycode = 0x21; }
-    else if (c == '%')  { modifiers = 0x02; keycode = 0x22; }
-    else if (c == '^')  { modifiers = 0x02; keycode = 0x23; }
-    else if (c == '&')  { modifiers = 0x02; keycode = 0x24; }
-    else if (c == '*')  { modifiers = 0x02; keycode = 0x25; }
-    else if (c == '<')  { modifiers = 0x02; keycode = 0x36; }
-    else if (c == '>')  { modifiers = 0x02; keycode = 0x37; }
-    else if (c == '[')  { keycode = 0x2F; }
-    else if (c == ']')  { keycode = 0x30; }
-    else if (c == '{')  { modifiers = 0x02; keycode = 0x2F; }
-    else if (c == '}')  { modifiers = 0x02; keycode = 0x30; }
-    else if (c == '|')  { modifiers = 0x02; keycode = 0x31; }
-    else if (c == '`')  { keycode = 0x35; }
-    else if (c == '~')  { modifiers = 0x02; keycode = 0x35; }
-    else if (c == '\t') { keycode = 0x2B; }
-    else return false;
-    return true;
 }
 
 void EspidfBleKeyboard::send_string(const std::string &str) {

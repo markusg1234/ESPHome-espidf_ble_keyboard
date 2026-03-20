@@ -18,13 +18,13 @@ class EspidfBleKeyboard : public Component {
  public:
   void setup() override;
   void loop() override;
+  float get_setup_priority() const override { return -200.0f; }
   void send_string(const std::string &str);
   void send_ctrl_alt_del();
   void send_key_combo(uint8_t modifiers, uint8_t keycode);
   void send_sleep();
   void send_shutdown();
   void send_hibernate();
-  // Consumer control
   void send_consumer(uint16_t usage);
   void send_power();
   void send_media_play_pause();
@@ -39,10 +39,9 @@ class EspidfBleKeyboard : public Component {
   void set_device_name(const std::string &name) { device_name_ = name; }
   const std::string &device_name() const { return device_name_; }
 
-  // Setter and check for YAML-configured passkey
-  void set_passkey(uint32_t passkey) { 
-    passkey_ = passkey; 
-    has_passkey_ = true; 
+  void set_passkey(uint32_t passkey) {
+    passkey_ = passkey;
+    has_passkey_ = true;
   }
   void set_passkey_secure_connections(bool enabled) { passkey_secure_connections_ = enabled; }
   bool has_passkey() const { return has_passkey_; }
@@ -64,7 +63,6 @@ class EspidfBleKeyboard : public Component {
   }
   bool is_paired() const { return is_paired_; }
 
-  // Queue state updates from BLE callback context for publish in loop().
   void queue_paired_state(bool paired) {
     pending_paired_state_.store(paired);
     pending_paired_update_.store(true);
@@ -85,7 +83,6 @@ class EspidfBleKeyboard : public Component {
   std::atomic<bool> pending_paired_update_{false};
   std::atomic<bool> pending_paired_state_{false};
   binary_sensor::BinarySensor *paired_binary_sensor_{nullptr};
-  
   uint32_t passkey_{0};
   bool has_passkey_{false};
   bool passkey_secure_connections_{false};
@@ -102,6 +99,7 @@ class EspidfBleKeyboardButton : public button::Button, public Component {
   void set_parent(EspidfBleKeyboard *parent) { parent_ = parent; }
   void press_action() override;
   void set_action(const std::string &action) { action_ = action; }
+  float get_setup_priority() const override { return -200.0f; }
  protected:
   EspidfBleKeyboard *parent_{nullptr};
   std::string action_;

@@ -17,7 +17,6 @@ EspidfBleKeyboard = espidf_ble_keyboard_ns.class_("EspidfBleKeyboard", cg.Compon
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(EspidfBleKeyboard),
     cv.Optional(CONF_DEVICE_NAME, default="ESP32 BLE KB"): cv.string,
-    # Allow a 6-digit integer for the passkey
     cv.Optional(CONF_PASSKEY): cv.int_range(min=0, max=999999),
     cv.Optional(CONF_PASSKEY_MODE, default=PASSKEY_MODE_LEGACY): cv.one_of(
         PASSKEY_MODE_LEGACY,
@@ -32,7 +31,6 @@ async def to_code(config):
 
     cg.add(var.set_device_name(config[CONF_DEVICE_NAME]))
 
-    # If a passkey is provided in the YAML, set it in the C++ object
     if CONF_PASSKEY in config:
         cg.add(var.set_passkey(config[CONF_PASSKEY]))
 
@@ -40,8 +38,8 @@ async def to_code(config):
         config[CONF_PASSKEY_MODE] == PASSKEY_MODE_SECURE_CONNECTIONS
     ))
 
-    # Run after WiFi (priority -100)
-    cg.add(var.set_setup_priority(-200))
+    # set_setup_priority() removed in ESPHome 2026.x
+    # Priority is now set via get_setup_priority() override in the C++ header
 
     try:
         from esphome.components.esp32 import include_builtin_idf_component

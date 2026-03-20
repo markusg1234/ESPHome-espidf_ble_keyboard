@@ -8,7 +8,7 @@ This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low
 * **Secure Pairing:** Supports a configurable 6-digit static passkey (PIN) for secure bonding, with automatic Android compatibility fallback in `passkey_mode: legacy`.
 * **Efficient Memory Usage:** Direct API implementation ensures stability even with complex ESPHome configurations.
 * **Key Combos:** Send any modifier + key combination using hex keycodes (e.g. Win+R, Ctrl+C).
-* **String Typing:** Type any string directly including letters, numbers and punctuation.
+* **String Typing:** Type any string directly — all printable ASCII characters are supported (US keyboard layout).
 * **Pre-defined Actions:** Built-in helpers for `ctrl_alt_del`, `sleep`, `hibernate` and `shutdown`.
 * **Media Keys:** Control volume, playback, mute and more via HID consumer control.
 * **Power Button:** Native HID power/sleep signals — no Run dialog, clean OS-level control.
@@ -207,7 +207,7 @@ State behavior:
 
 | Action | Description |
 |---|---|
-| `"Hello\n"` | Type a string. Use `\n` for Enter. Supports letters, numbers and common punctuation. |
+| `"Hello\n"` | Type a string. Use `\n` for Enter. All printable ASCII characters supported (US layout). |
 | `"combo:0x08:0x15"` | Send a key combination. Format: `combo:<modifier_hex>:<keycode_hex>`. Use `0x00` as modifier for no modifier key. See [Keycode Reference](docs/keycodes.md). |
 | `"combo:0x00:0x04"` | Send a plain keypress with no modifier. `0x04` = A, `0x05` = B ... `0x1D` = Z. |
 | `"consumer:0x0192"` | Send any HID consumer control code. Format: `consumer:<usage_hex>`. See [Keycode Reference](docs/keycodes.md) for full list. |
@@ -292,7 +292,7 @@ automation:
           entity_id: button.bluetooth_keyboard_send_custom_text
 ```
 
-> **Note:** Only letters, numbers and common punctuation are supported. Unsupported characters are silently skipped.
+> **Note:** All printable ASCII characters and tab are supported (US keyboard layout). Non-ASCII and control characters are silently skipped.
 
 ---
 
