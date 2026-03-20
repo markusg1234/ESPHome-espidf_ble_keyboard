@@ -4,6 +4,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include <atomic>
 #include <string>
+#include "freertos/semphr.h"
 
 #include "esp_bt.h"
 #include "esp_bt_main.h"
@@ -89,6 +90,7 @@ class EspidfBleKeyboard : public Component {
   bool passkey_secure_connections_{false};
 
   // Non-blocking string typing state machine (driven from loop())
+  SemaphoreHandle_t type_mutex_{nullptr};
   std::string type_queue_;
   size_t type_index_{0};
   bool type_key_up_pending_{false};
