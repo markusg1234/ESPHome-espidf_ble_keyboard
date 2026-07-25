@@ -393,7 +393,7 @@ sensor:
 
 #### Active Host Sensor
 
-Publishes the currently active host slot number (0-based). Updates instantly when the host is switched from the webserver, HA card, or YAML automation. Required for the keyboard card's host display to stay in sync.
+Publishes the currently active host slot number (0-based). Updates instantly when the host is switched from the webserver, HA card, or YAML automation. Required for the [card host switchers](#host-switcher-on-the-cards) to stay in sync — with it, switching the host on one card updates the other two.
 
 * **keyboard_id** (Required, ID): The ID of the `espidf_ble_keyboard` component.
 * **type** (Required, string): `active_host`.
@@ -407,7 +407,7 @@ sensor:
     name: "BLE Keyboard Active Host"
 ```
 
-The keyboard card auto-detects this entity by name pattern (`sensor.*_active_host`). If auto-detection fails, set `active_host_entity` in the card config:
+The cards auto-detect this entity by name pattern (`sensor.*_active_host`). If auto-detection fails, set `active_host_entity` in the card config:
 
 ```yaml
 type: custom:ble-keyboard-card
@@ -945,6 +945,12 @@ mouse_acceleration: 0.2       # speed-based acceleration factor (default: 0.15)
 mouse_max_speed: 6.0          # max sensitivity cap (default: 4.5)
 scroll_sensitivity: 3         # faster scroll (default: 2)
 tap_to_click: false           # disable tap-to-click (default: true)
+host_slots: 4                 # show host switcher (default: 0 = hidden)
+host_names:                   # custom names for each slot (optional)
+  - TV
+  - Phone
+  - Laptop
+  - Tablet
 ```
 
 Optional configuration:
@@ -957,12 +963,18 @@ Optional configuration:
 | `mouse_max_speed` | `4.5` | Maximum sensitivity cap. Limits how fast the cursor can move. |
 | `scroll_sensitivity` | `2` | Scroll speed multiplier. |
 | `tap_to_click` | `true` | Tap the touchpad for a left click (5px dead zone prevents accidental clicks). |
+| `host_slots` | `0` | Number of host slots. Set to match your `host_slots` config to show a [host switcher](#host-switcher-on-the-cards) in the header. Needs at least `2` — `0` or `1` hides it. |
+| `host_names` | `[]` | List of custom names for each host slot (e.g., `["TV", "Phone"]`). Index 0 = slot 0. Falls back to `switch_host` button names from the ESP32, then "Host N". |
+| `active_host_entity` | Auto | Entity ID of the [active host sensor](#active-host-sensor). Auto-detected by name pattern (`sensor.*_active_host`). Set explicitly if auto-detection fails. |
+| `show_mac` | `true` | Show the active host's MAC address to the left of the switcher. |
+| `host_url` | Auto | Address of the ESP32 (e.g. `http://192.168.1.50`), used to read slot MACs. Auto-detected from the device's HA registry entry. |
 
 Features:
 - **Touchpad** — 16:9 aspect ratio, drag to move cursor, tap for left click, mouse wheel/trackpad scroll.
 - **Mouse acceleration** — slow movements are precise, fast swipes cover more ground.
 - **Buttons** — Left, Middle, Right click; long-press to hold for dragging (needs the `mouse_hold`/`mouse_release` services), tap the held button to release.
 - **Scroll** — Scroll Up / Scroll Down buttons (hold to repeat).
+- **Host switcher** — optional prev/next buttons in the header to change the active BLE host, with its name and MAC address. See [Host switcher on the cards](#host-switcher-on-the-cards).
 - **Auto device name** — card title is auto-detected from Home Assistant's device registry.
 
 ![Mouse HA Card](docs/mouse_ha_card.png)
@@ -1317,13 +1329,14 @@ device: bluetooth_keyboard
 name: Living Room Keyboard    # card title (auto-detected from HA if omitted)
 show_fkeys: true             # hide F1-F12 row (default: true)
 layout: us                    # us (default), uk, de, or be — match the ESP's keyboard_layout
-host_slots: 4                 # show host switcher bar (default: 0 = hidden)
+host_slots: 4                 # show host switcher (default: 0 = hidden)
 host_names:                   # custom names for each slot (optional)
   - TV
   - Phone
   - Laptop
   - Tablet
 active_host_entity: sensor.bluetooth_keyboard_active_host  # (auto-detected)
+show_mac: true                # show the host's MAC address (default: true)
 ```
 
 Minimal UK layout example:
@@ -1341,9 +1354,11 @@ Optional configuration:
 | `name` | Auto from HA | Card title. Auto-detected from HA device registry if omitted. |
 | `show_fkeys` | `true` | Show the F1–F12 function key row. |
 | `layout` | `us` | Keyboard layout for the on-screen card: `us`, `uk`, `de`, or `be`. UK draws the ISO shape (extra `\|` key, `£` on Shift+3); DE draws QWERTZ (Y/Z swapped, `ü`/`ö`/`ä`/`ß` keys, German modifier labels); BE draws AZERTY (A↔Q and Z↔W swapped, `M` on home row, `é è à ç ù` on the digit row). Set this to match the ESP's `keyboard_layout` option so the visual matches what gets typed. |
-| `host_slots` | `0` | Number of host slots. Set to match your `host_slots` config to show a host switcher bar with prev/next buttons, host name, and MAC address. `0` hides the bar. |
+| `host_slots` | `0` | Number of host slots. Set to match your `host_slots` config to show a [host switcher](#host-switcher-on-the-cards) in the header. Needs at least `2` — `0` or `1` hides it. |
 | `host_names` | `[]` | List of custom names for each host slot (e.g., `["TV", "Phone"]`). Index 0 = slot 0, etc. Falls back to switch_host button names from the ESP32, then "Host N". |
-| `active_host_entity` | Auto | Entity ID of the active host sensor. Auto-detected by name pattern (`sensor.*_active_host`). Set explicitly if auto-detection fails. |
+| `active_host_entity` | Auto | Entity ID of the [active host sensor](#active-host-sensor). Auto-detected by name pattern (`sensor.*_active_host`). Set explicitly if auto-detection fails. |
+| `show_mac` | `true` | Show the active host's MAC address to the left of the switcher. |
+| `host_url` | Auto | Address of the ESP32 (e.g. `http://192.168.1.50`), used to read slot MACs. Auto-detected from the device's HA registry entry. |
 
 Features:
 - **Full QWERTY layout** — letters, numbers, punctuation, all standard keys.
@@ -1352,7 +1367,7 @@ Features:
 - **Function keys** — F1–F12 (can be hidden with `show_fkeys: false`).
 - **Arrow keys** — Up, Down, Left, Right + Delete.
 - **Shift labels** — key labels update to show shifted characters when Shift is active.
-- **Host switcher** — prev/next buttons to switch hosts, shows current host name and MAC address (requires `host_slots` and `switch_host` ESPHome service).
+- **Host switcher** — prev/next buttons to switch hosts, shows current host name and MAC address (requires `host_slots` and the `switch_host` ESPHome service). Also available on the mouse and remote cards — see [Host switcher on the cards](#host-switcher-on-the-cards).
 - **Auto device name** — card title is auto-detected from Home Assistant's device registry.
 - **Keyboard layouts** — `layout: us` (default), `layout: uk`, `layout: de`, or `layout: be` renders the matching ANSI/ISO/QWERTZ/AZERTY shape with the correct shifted labels.
 
@@ -1422,6 +1437,12 @@ name: Living Room Remote      # card title (auto-detected from HA if omitted)
 show_numpad: true             # show number pad (default: false)
 show_apps: true               # show app launch row (default: true)
 show_color: true              # show color buttons (default: false)
+host_slots: 4                 # show host switcher (default: 0 = hidden)
+host_names:                   # custom names for each slot (optional)
+  - TV
+  - Phone
+  - Laptop
+  - Tablet
 ```
 
 Optional configuration:
@@ -1433,6 +1454,11 @@ Optional configuration:
 | `show_apps` | `true` | Show app launch buttons (Explorer, Browser, Email, Calc, Search). |
 | `show_color` | `false` | Show red/green/yellow/blue color buttons (mapped to F1–F4). |
 | `hidden_entity` | `sensor.<device>_hidden_buttons` | Text sensor carrying the active host's hidden buttons, so the card mirrors the web remote's [per-host hiding](#removing-remote-buttons-per-host). Optional — without the entity every button is shown. |
+| `host_slots` | `0` | Number of host slots. Set to match your `host_slots` config to show a [host switcher](#host-switcher-on-the-cards) in the header. Needs at least `2` — `0` or `1` hides it. |
+| `host_names` | `[]` | List of custom names for each host slot (e.g., `["TV", "Phone"]`). Index 0 = slot 0. Falls back to `switch_host` button names from the ESP32, then "Host N". |
+| `active_host_entity` | Auto | Entity ID of the [active host sensor](#active-host-sensor). Auto-detected by name pattern (`sensor.*_active_host`). Set explicitly if auto-detection fails. |
+| `show_mac` | `true` | Show the active host's MAC address to the left of the switcher. |
+| `host_url` | Auto | Address of the ESP32 (e.g. `http://192.168.1.50`), used to read slot MACs. Auto-detected from the device's HA registry entry. |
 
 Features:
 - **Power button** — HID power signal for clean OS-level power control.
@@ -1445,9 +1471,46 @@ Features:
 - **Number pad** — optional 0–9 keypad for channel/PIN entry.
 - **Color buttons** — optional red/green/yellow/blue (F1–F4).
 - **Per-host remapping** — every button is a named action, so any of them can do something different on each paired host (the number pad excepted).
+- **Host switcher** — optional prev/next buttons in the header to change the active BLE host, with its name and MAC address. Switching here also repaints the card's [per-host hidden buttons](#removing-remote-buttons-per-host). See [Host switcher on the cards](#host-switcher-on-the-cards).
 - **Auto device name** — card title is auto-detected from Home Assistant's device registry.
 
 ![Remote HA Card](docs/remote_ha_card.png)
+
+---
+
+## Host Switcher on the Cards
+
+All three Lovelace cards can show a host switcher in their header — prev/next arrows around the active host's name, with its MAC address to the left:
+
+```
+🖱  Mouse Control          AA:BB:CC:DD:EE:FF  ◀  Office PC  ▶
+```
+
+Add `host_slots` to any card to enable it (it needs at least `2`; `0` or `1` hides it):
+
+```yaml
+type: custom:ble-mouse-card
+device: bluetooth_keyboard
+host_slots: 4
+host_names: [TV, Phone, Laptop, Tablet]   # optional
+show_mac: true                            # optional, default true
+```
+
+**The cards stay in sync with each other.** The firmware publishes the active slot to the [active host sensor](#active-host-sensor) on *every* switch — a card, the [web control page](#web-control), a physical `switch_host:N` button, or a YAML action — so changing the host on the remote card updates the mouse and keyboard cards within a second. Add the sensor to your YAML to get this:
+
+```yaml
+sensor:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: active_host
+    name: "Active Host"
+```
+
+Without that sensor each card only knows about its own switches, and the others catch up on their next 30-second poll of the device.
+
+**Where the name and MAC come from.** The name is `host_names[slot]` if you set one, otherwise the name of the matching `switch_host:N` button on the ESP32, otherwise "Host N". The MAC is read from the device's `/api/ble_keyboard/hosts` endpoint — the card finds the ESP32's address automatically from its Home Assistant device entry, or you can set `host_url: http://192.168.1.50` explicitly. An unpaired slot shows `Empty`.
+
+> **If the MAC doesn't appear:** the card reads it directly from the ESP32 over plain HTTP. When Home Assistant itself is served over **HTTPS** (Nabu Casa remote access, or a TLS reverse proxy) the browser blocks that request as mixed content, and the MAC line is hidden. The switcher itself still works — it goes through Home Assistant, not the browser. Set `show_mac: false` to hide the line deliberately.
 
 ---
 

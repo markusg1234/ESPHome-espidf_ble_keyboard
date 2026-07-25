@@ -24,6 +24,13 @@
  *   # mouse_max_speed: 4.5         # max sensitivity cap (default 4.5)
  *   # scroll_sensitivity: 2        # scroll multiplier (default 2)
  *   # tap_to_click: true           # tap touchpad = left click (default true)
+ *   # host_slots: 4                # show host switcher (needs >1; default 0 = hidden)
+ *   # host_names:                   # custom names for each host slot (optional)
+ *   #   - TV
+ *   #   - Phone
+ *   # active_host_entity: sensor.bluetooth_keyboard_active_host  # (auto-detected)
+ *   # show_mac: true               # show the active host's MAC address (default true)
+ *   # host_url: http://192.168.1.50  # ESP address (auto-detected from HA)
  *
  * Full example with overrides:
  *   type: custom:ble-mouse-card
@@ -34,6 +41,12 @@
  *   mouse_max_speed: 6.0
  *   scroll_sensitivity: 3
  *   tap_to_click: false
+ *   host_slots: 4
+ *   host_names:
+ *     - TV
+ *     - Phone
+ *     - Laptop
+ *     - Tablet
  */
 
 class BleMouseCard extends HTMLElement {
@@ -41,6 +54,24 @@ class BleMouseCard extends HTMLElement {
     this._hass = hass;
     if (!this._initialized) {
       this._initialize();
+    }
+    // Track active host changes via HA sensor entity. The firmware publishes to
+    // this sensor on every switch_host() path — HA service, the device's own web
+    // UI, a physical button — so every card following it stays in step with the
+    // others without polling.
+    if (this._config && this._config.host_slots > 1) {
+      const entity = this._config.active_host_entity
+        || Object.keys(hass.states).find(eid =>
+             eid.startsWith('sensor.') && eid.includes(this._config.device) && eid.endsWith('_active_host')
+           );
+      this._hasActiveHostEntity = !!(entity && hass.states[entity]);
+      if (this._hasActiveHostEntity) {
+        const val = parseInt(hass.states[entity].state, 10);
+        if (!isNaN(val) && val !== this._activeSlot) {
+          this._activeSlot = val;
+          this._updateHostDisplay();
+        }
+      }
     }
   }
 
@@ -56,6 +87,11 @@ class BleMouseCard extends HTMLElement {
       mouse_max_speed: config.mouse_max_speed || 4.5,
       scroll_sensitivity: config.scroll_sensitivity || 2,
       tap_to_click: config.tap_to_click !== false,
+      host_slots: config.host_slots || 0,
+      host_names: config.host_names || [],
+      active_host_entity: config.active_host_entity || null,
+      show_mac: config.show_mac !== false,
+      host_url: config.host_url || null,
     };
   }
 
@@ -91,6 +127,49 @@ class BleMouseCard extends HTMLElement {
           height: 20px;
           fill: var(--primary-text-color);
           opacity: 0.7;
+        }
+        .header-right {
+          margin-left: auto;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .host-btn {
+          width: 24px;
+          height: 24px;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          border-radius: 4px;
+          background: var(--secondary-background-color, #f0f0f0);
+          color: var(--primary-text-color);
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          touch-action: manipulation;
+          padding: 0;
+        }
+        .host-btn:active {
+          background: var(--primary-color, #03a9f4);
+          color: #fff;
+        }
+        .host-info {
+          text-align: center;
+          min-width: 0;
+        }
+        .host-name {
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--primary-text-color);
+          line-height: 1.2;
+        }
+        .host-addr {
+          font-size: 10px;
+          font-weight: 400;
+          color: var(--secondary-text-color, #999);
+          font-family: monospace;
+          white-space: nowrap;
         }
         .touchpad {
           width: 100%;
@@ -177,6 +256,12 @@ class BleMouseCard extends HTMLElement {
         <div class="header">
           <svg viewBox="0 0 24 24"><path d="M11 1.5v8.5l4 4.5h3.5l-2-2.5L20 8.5 14 5.5V1.5l-3 0zm-1 0L7 1.5v4L3.5 8.5 7 12l-2 2.5H8.5l4-4.5V1.5z" opacity="0"/><path d="M12 2C8.14 2 5 5.14 5 9v6c0 3.86 3.14 7 7 7s7-3.14 7-7V9c0-3.86-3.14-7-7-7zm0 2c2.76 0 5 2.24 5 5v2h-4V5h-2v6H7V9c0-2.76 2.24-5 5-5z"/></svg>
           <span class="header-name">${this._config.name || 'Mouse Control'}</span>
+          <div class="header-right" id="host-switcher" style="display:none">
+            <span class="host-addr"></span>
+            <button class="host-btn" id="host-prev">&#9664;</button>
+            <div class="host-info"><div class="host-name"></div></div>
+            <button class="host-btn" id="host-next">&#9654;</button>
+          </div>
         </div>
         <div class="touchpad" id="touchpad">
           <span class="touchpad-hint">Drag to move cursor</span>
@@ -197,23 +282,143 @@ class BleMouseCard extends HTMLElement {
     this._setupTouchpad();
     this._setupButtons();
     this._setupScroll();
+    this._setupHostSwitcher(shadow);
 
-    // Auto-resolve device friendly name from HA if name not set
-    if (!this._config.name && this._hass) {
+    // One device-registry lookup serves two purposes: the friendly name (when no
+    // title was configured) and the ESP's own URL, which HA fills in as
+    // configuration_url because web_control requires the web_server component.
+    const wantsName = !this._config.name;
+    const wantsUrl = this._config.host_slots > 1 && !this._config.host_url;
+    if ((wantsName || wantsUrl) && this._hass) {
       const nameSpan = shadow.querySelector('.header-name');
       const slug = this._config.device.replace(/-/g, '_');
       this._hass.callWS({ type: 'config/device_registry/list' }).then(devices => {
         const dev = devices.find(d => d.name_by_user
           ? d.name_by_user.replace(/[^a-z0-9]/gi, '_').toLowerCase() === slug
           : (d.name || '').replace(/[^a-z0-9]/gi, '_').toLowerCase() === slug);
-        if (dev) nameSpan.textContent = dev.name_by_user || dev.name;
+        if (!dev) return;
+        if (wantsName) nameSpan.textContent = dev.name_by_user || dev.name;
+        if (wantsUrl && dev.configuration_url) {
+          this._deviceUrl = dev.configuration_url;
+          this._pollHosts();   // the first poll ran before the URL was known
+        }
       }).catch(() => { /* keep default */ });
     }
   }
 
   _callService(service, data) {
     if (!this._hass) return;
-    this._hass.callService('esphome', `${this._config.device}_${service}`, data);
+    const slug = this._config.device.replace(/-/g, '_');
+    this._hass.callService('esphome', `${slug}_${service}`, data);
+  }
+
+  // ── Host switcher ────────────────────────────────────────────────
+  // Mirrors the keyboard card: prev/next arrows around the active host's name,
+  // with its MAC to the left. Every card watches the same active-host sensor,
+  // so a switch made here shows up on the keyboard and remote cards too.
+
+  _setupHostSwitcher(shadow) {
+    if (this._config.host_slots < 2) return;
+    this._activeSlot = 0;
+    this._hostSlots = [];
+
+    shadow.getElementById('host-switcher').style.display = '';
+    this._hostNameEl = shadow.querySelector('.host-name');
+    this._hostAddrEl = shadow.querySelector('.host-addr');
+
+    const step = (delta) => {
+      const n = this._config.host_slots;
+      this._switchHost((this._activeSlot + delta + n) % n);
+    };
+    shadow.getElementById('host-prev').addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      step(-1);
+    });
+    shadow.getElementById('host-next').addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      step(1);
+    });
+
+    this._updateHostDisplay();
+    this._startHostPolling();
+  }
+
+  _switchHost(slot) {
+    if (!this._hass) return;
+    this._activeSlot = slot;
+    this._callService('switch_host', { slot });
+    this._updateHostDisplay();
+  }
+
+  // Slot metadata (MAC, ESP-side name, occupied) comes straight from the device.
+  // /hosts returns every slot at once, so a host switch repaints from this cache
+  // with no refetch — the poll only exists to notice new or forgotten bonds,
+  // which is why it runs every 30s rather than continuously.
+  _startHostPolling() {
+    if (this._hostPollInterval) return;
+    this._pollHosts();
+    this._hostPollInterval = setInterval(() => this._pollHosts(), 30000);
+  }
+
+  connectedCallback() {
+    if (this._initialized && this._config && this._config.host_slots > 1) {
+      this._startHostPolling();
+    }
+  }
+
+  disconnectedCallback() {
+    clearInterval(this._hostPollInterval);
+    this._hostPollInterval = null;
+  }
+
+  // Resolves the ESP's base URL: an explicit host_url wins, otherwise the
+  // configuration_url HA recorded for the device.
+  _hostBaseUrl() {
+    const url = this._config.host_url || this._deviceUrl;
+    return url ? url.replace(/\/+$/, '').replace(/\/ble_keyboard$/, '') : '';
+  }
+
+  _pollHosts() {
+    if (!this._hass || this._config.host_slots < 2) return;
+    const baseUrl = this._hostBaseUrl();
+    if (!baseUrl) {
+      this._updateHostDisplay();
+      return;
+    }
+    // The endpoint sends Access-Control-Allow-Origin: *, so a normal cors fetch
+    // works. It still fails when HA itself is served over https — the browser
+    // blocks the http request as mixed content — hence the quiet catch.
+    fetch(baseUrl + '/api/ble_keyboard/hosts', { signal: AbortSignal.timeout(3000) })
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(data => {
+        // The active-host sensor is the faster and authoritative source; only
+        // trust the poll's own idea of the active slot when that sensor is
+        // absent, otherwise an in-flight response can undo a fresh switch.
+        if (!this._hasActiveHostEntity && typeof data.active === 'number') {
+          this._activeSlot = data.active;
+        }
+        this._hostSlots = data.slots || [];
+        this._hostDataAvailable = true;
+        this._updateHostDisplay();
+      })
+      .catch(() => this._updateHostDisplay());
+  }
+
+  _updateHostDisplay() {
+    if (!this._hostNameEl) return;
+    const names = this._config.host_names;
+    const apiSlot = this._hostSlots.find(s => s.slot === this._activeSlot);
+    this._hostNameEl.textContent = (names && names[this._activeSlot])
+      ? names[this._activeSlot]
+      : (apiSlot && apiSlot.name) ? apiSlot.name
+      : 'Host ' + (this._activeSlot + 1);
+    // Without device data there's nothing truthful to show, so the element
+    // collapses rather than leaving a blank gap beside the arrows.
+    const showAddr = this._config.show_mac && this._hostDataAvailable;
+    this._hostAddrEl.style.display = showAddr ? '' : 'none';
+    if (showAddr) {
+      this._hostAddrEl.textContent = (apiSlot && apiSlot.occupied && apiSlot.addr) ? apiSlot.addr : 'Empty';
+    }
   }
 
   // ── Touchpad: drag-to-move + tap-to-click ────────────────────────
@@ -430,10 +635,6 @@ class BleMouseCard extends HTMLElement {
   static getStubConfig() {
     return { device: 'bluetooth_keyboard' };
   }
-
-  static getStubConfig() {
-    return { device: 'bluetooth_keyboard' };
-  }
 }
 
 customElements.define('ble-mouse-card', BleMouseCard);
@@ -441,6 +642,9 @@ customElements.define('ble-mouse-card', BleMouseCard);
 /* ── Visual editor ───────────────────────────────────────────────────────
  * Prefers Home Assistant's own <ha-form> so the panel matches built-in cards,
  * falling back to plain inputs if ha-form isn't registered.
+ *
+ * `host_names` is a YAML list, so it edits here as one comma-separated field
+ * and is converted back to a list on the way out (see setConfig / _emit).
  * ---------------------------------------------------------------------- */
 
 const MOUSE_EDITOR_SCHEMA = [
@@ -451,6 +655,11 @@ const MOUSE_EDITOR_SCHEMA = [
   { name: 'mouse_max_speed', selector: { number: { min: 0.5, max: 20, step: 0.5, mode: 'box' } } },
   { name: 'scroll_sensitivity', selector: { number: { min: 0.1, max: 10, step: 0.1, mode: 'box' } } },
   { name: 'tap_to_click', selector: { boolean: {} } },
+  { name: 'host_slots', selector: { number: { min: 0, max: 10, step: 1, mode: 'box' } } },
+  { name: 'host_names', selector: { text: {} } },
+  { name: 'active_host_entity', selector: { entity: { domain: 'sensor' } } },
+  { name: 'show_mac', selector: { boolean: {} } },
+  { name: 'host_url', selector: { text: {} } },
 ];
 
 const MOUSE_EDITOR_LABELS = {
@@ -461,6 +670,11 @@ const MOUSE_EDITOR_LABELS = {
   mouse_max_speed: 'Max speed multiplier',
   scroll_sensitivity: 'Scroll sensitivity',
   tap_to_click: 'Tap touchpad to click',
+  host_slots: 'Host switcher (needs 2+; 0 = hide)',
+  host_names: 'Host names, comma-separated (optional)',
+  active_host_entity: 'Active-host sensor (optional)',
+  show_mac: 'Show host MAC address',
+  host_url: 'Device URL (optional, auto-detected)',
 };
 
 class BleMouseCardEditor extends HTMLElement {
@@ -471,8 +685,15 @@ class BleMouseCardEditor extends HTMLElement {
       mouse_max_speed: 4.5,
       scroll_sensitivity: 2,
       tap_to_click: true,
+      host_slots: 0,
+      show_mac: true,
       ...config,
     };
+    // host_names is a YAML list but edits as one comma-separated field; show it
+    // as text here and turn it back into a list in _emit().
+    if (Array.isArray(this._config.host_names)) {
+      this._config.host_names = this._config.host_names.join(', ');
+    }
     this._render();
   }
 
@@ -483,8 +704,15 @@ class BleMouseCardEditor extends HTMLElement {
 
   _emit(config) {
     this._config = config;
+    // Hand the card a real list again — it expects host_names to be an array.
+    const out = { ...config };
+    if (typeof out.host_names === 'string') {
+      const names = out.host_names.split(',').map((n) => n.trim()).filter(Boolean);
+      if (names.length) out.host_names = names;
+      else delete out.host_names;
+    }
     this.dispatchEvent(new CustomEvent('config-changed', {
-      detail: { config },
+      detail: { config: out },
       bubbles: true,
       composed: true,
     }));

@@ -20,11 +20,13 @@
  *   # show_fkeys: true             # show F1-F12 row (default true)
  *   # layout: us                    # keyboard layout: us (default), uk, or de
  *   #                                 NOTE: should match the ESP's keyboard_layout YAML option
- *   # host_slots: 4                # show host switcher bar (default 0 = hidden)
+ *   # host_slots: 4                # show host switcher (needs >1; default 0 = hidden)
  *   # host_names:                   # custom names for each host slot (optional)
  *   #   - TV
  *   #   - Phone
  *   # active_host_entity: sensor.bluetooth_keyboard_active_host  # (auto-detected)
+ *   # show_mac: true               # show the active host's MAC address (default true)
+ *   # host_url: http://192.168.1.50  # ESP address (auto-detected from HA)
  *
  * Full example with overrides:
  *   type: custom:ble-keyboard-card
@@ -39,6 +41,7 @@
  *     - Laptop
  *     - Tablet
  *   active_host_entity: sensor.bluetooth_keyboard_active_host
+ *   show_mac: true
  */
 
 // HID keycodes for printable characters (used when Ctrl/Alt/Win modifiers are active)
@@ -456,13 +459,17 @@ class BleKeyboardCard extends HTMLElement {
     if (!this._initialized) {
       this._initialize();
     }
-    // Track active host changes via HA sensor entity
+    // Track active host changes via HA sensor entity. The firmware publishes to
+    // this sensor on every switch_host() path — HA service, the device's own web
+    // UI, a physical button — so every card following it stays in step with the
+    // others without polling.
     if (this._config && this._config.host_slots > 1) {
       const entity = this._config.active_host_entity
         || Object.keys(hass.states).find(eid =>
              eid.startsWith('sensor.') && eid.includes(this._config.device) && eid.endsWith('_active_host')
            );
-      if (entity && hass.states[entity]) {
+      this._hasActiveHostEntity = !!(entity && hass.states[entity]);
+      if (this._hasActiveHostEntity) {
         const val = parseInt(hass.states[entity].state, 10);
         if (!isNaN(val) && val !== this._activeSlot) {
           this._activeSlot = val;
@@ -485,6 +492,8 @@ class BleKeyboardCard extends HTMLElement {
       host_slots: config.host_slots || 0,
       host_names: config.host_names || [],
       active_host_entity: config.active_host_entity || null,
+      show_mac: config.show_mac !== false,
+      host_url: config.host_url || null,
     };
   }
 
@@ -660,9 +669,10 @@ class BleKeyboardCard extends HTMLElement {
       }
       .host-addr {
         font-size: 10px;
+        font-weight: 400;
         color: var(--secondary-text-color, #888);
         font-family: monospace;
-        line-height: 1.2;
+        white-space: nowrap;
       }
     `;
 
@@ -705,30 +715,41 @@ class BleKeyboardCard extends HTMLElement {
       hostInfo.className = 'host-info';
       this._hostNameEl = document.createElement('div');
       this._hostNameEl.className = 'host-name';
-      this._hostAddrEl = document.createElement('div');
-      this._hostAddrEl.className = 'host-addr';
       hostInfo.appendChild(this._hostNameEl);
-      hostInfo.appendChild(this._hostAddrEl);
 
+      // MAC sits to the left of the selector, outside .host-info, so the name
+      // stays vertically centred between the arrows whether or not it's shown.
+      this._hostAddrEl = document.createElement('span');
+      this._hostAddrEl.className = 'host-addr';
+
+      hostRight.appendChild(this._hostAddrEl);
       hostRight.appendChild(prevBtn);
       hostRight.appendChild(hostInfo);
       hostRight.appendChild(nextBtn);
       header.appendChild(hostRight);
 
-      this._pollHosts();
-      this._hostPollInterval = setInterval(() => this._pollHosts(), 5000);
+      this._startHostPolling();
     }
 
     card.appendChild(header);
-    // Auto-resolve device friendly name from HA if name not set
-    if (!this._config.name && this._hass) {
+    // One device-registry lookup serves two purposes: the friendly name (when no
+    // title was configured) and the ESP's own URL, which HA fills in as
+    // configuration_url because web_control requires the web_server component.
+    const wantsName = !this._config.name;
+    const wantsUrl = this._config.host_slots > 1 && !this._config.host_url;
+    if ((wantsName || wantsUrl) && this._hass) {
       const nameSpan = header.querySelector('.header-name');
       const slug = this._config.device.replace(/-/g, '_');
       this._hass.callWS({ type: 'config/device_registry/list' }).then(devices => {
         const dev = devices.find(d => d.name_by_user
           ? d.name_by_user.replace(/[^a-z0-9]/gi, '_').toLowerCase() === slug
           : (d.name || '').replace(/[^a-z0-9]/gi, '_').toLowerCase() === slug);
-        if (dev) nameSpan.textContent = dev.name_by_user || dev.name;
+        if (!dev) return;
+        if (wantsName) nameSpan.textContent = dev.name_by_user || dev.name;
+        if (wantsUrl && dev.configuration_url) {
+          this._deviceUrl = dev.configuration_url;
+          this._pollHosts();   // the first poll ran before the URL was known
+        }
       }).catch(() => { /* keep default */ });
     }
 
@@ -903,29 +924,58 @@ class BleKeyboardCard extends HTMLElement {
   _switchHost(slot) {
     if (!this._hass) return;
     this._activeSlot = slot;
-    this._hass.callService('esphome', `${this._config.device}_switch_host`, { slot });
+    const slug = this._config.device.replace(/-/g, '_');
+    this._hass.callService('esphome', `${slug}_switch_host`, { slot });
     this._updateHostDisplay();
+  }
+
+  // Slot metadata (MAC, ESP-side name, occupied) comes straight from the device.
+  // /hosts returns every slot at once, so a host switch repaints from this cache
+  // with no refetch — the poll only exists to notice new or forgotten bonds,
+  // which is why it runs every 30s rather than continuously.
+  _startHostPolling() {
+    if (this._hostPollInterval) return;
+    this._pollHosts();
+    this._hostPollInterval = setInterval(() => this._pollHosts(), 30000);
+  }
+
+  connectedCallback() {
+    if (this._initialized && this._config && this._config.host_slots > 1) {
+      this._startHostPolling();
+    }
+  }
+
+  disconnectedCallback() {
+    clearInterval(this._hostPollInterval);
+    this._hostPollInterval = null;
+  }
+
+  // Resolves the ESP's base URL: an explicit host_url wins, otherwise the
+  // configuration_url HA recorded for the device.
+  _hostBaseUrl() {
+    const url = this._config.host_url || this._deviceUrl;
+    return url ? url.replace(/\/+$/, '').replace(/\/ble_keyboard$/, '') : '';
   }
 
   _pollHosts() {
     if (!this._hass || !this._config.host_slots) return;
-    const slug = this._config.device;
-    const ipEntity = Object.keys(this._hass.states).find(eid =>
-      eid.startsWith('text_sensor.') && eid.includes(slug) && this._hass.states[eid].state.startsWith('http')
-    );
-    let baseUrl = '';
-    if (ipEntity) {
-      baseUrl = this._hass.states[ipEntity].state.replace(/\/ble_keyboard$/, '');
-    }
+    const baseUrl = this._hostBaseUrl();
     if (!baseUrl) {
       this._updateHostDisplay();
       return;
     }
-    // Use no-cors mode won't give us data, so try with cors and handle failure
+    // The endpoint sends Access-Control-Allow-Origin: *, so a normal cors fetch
+    // works. It still fails when HA itself is served over https — the browser
+    // blocks the http request as mixed content — hence the quiet catch.
     fetch(baseUrl + '/api/ble_keyboard/hosts', { signal: AbortSignal.timeout(3000) })
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(data => {
-        this._activeSlot = data.active;
+        // The active-host sensor is the faster and authoritative source; only
+        // trust the poll's own idea of the active slot when that sensor is
+        // absent, otherwise an in-flight response can undo a fresh switch.
+        if (!this._hasActiveHostEntity && typeof data.active === 'number') {
+          this._activeSlot = data.active;
+        }
         this._hostSlots = data.slots || [];
         this._hostDataAvailable = true;
         this._updateHostDisplay();
@@ -941,11 +991,12 @@ class BleKeyboardCard extends HTMLElement {
       ? names[this._activeSlot]
       : (apiSlot && apiSlot.name) ? apiSlot.name
       : 'Host ' + (this._activeSlot + 1);
-    if (this._hostDataAvailable) {
-      const slot = this._hostSlots.find(s => s.slot === this._activeSlot);
-      this._hostAddrEl.textContent = (slot && slot.occupied && slot.addr) ? slot.addr : 'Empty';
-    } else {
-      this._hostAddrEl.textContent = '';
+    // Without device data there's nothing truthful to show, so the element
+    // collapses rather than leaving a blank gap beside the arrows.
+    const showAddr = this._config.show_mac && this._hostDataAvailable;
+    this._hostAddrEl.style.display = showAddr ? '' : 'none';
+    if (showAddr) {
+      this._hostAddrEl.textContent = (apiSlot && apiSlot.occupied && apiSlot.addr) ? apiSlot.addr : 'Empty';
     }
   }
 
@@ -956,10 +1007,6 @@ class BleKeyboardCard extends HTMLElement {
   // Enables the dashboard's visual editor; YAML editing is unaffected.
   static getConfigElement() {
     return document.createElement('ble-keyboard-card-editor');
-  }
-
-  static getStubConfig() {
-    return { device: 'bluetooth_keyboard' };
   }
 
   static getStubConfig() {
@@ -990,6 +1037,8 @@ const KB_EDITOR_SCHEMA = [
   { name: 'host_slots', selector: { number: { min: 0, max: 10, step: 1, mode: 'box' } } },
   { name: 'host_names', selector: { text: {} } },
   { name: 'active_host_entity', selector: { entity: { domain: 'sensor' } } },
+  { name: 'show_mac', selector: { boolean: {} } },
+  { name: 'host_url', selector: { text: {} } },
 ];
 
 const KB_EDITOR_LABELS = {
@@ -997,14 +1046,16 @@ const KB_EDITOR_LABELS = {
   name: 'Card title (optional)',
   layout: 'Keyboard layout',
   show_fkeys: 'Show function key row',
-  host_slots: 'Host switch buttons (0 = hide)',
+  host_slots: 'Host switcher (needs 2+; 0 = hide)',
   host_names: 'Host names, comma-separated (optional)',
   active_host_entity: 'Active-host sensor (optional)',
+  show_mac: 'Show host MAC address',
+  host_url: 'Device URL (optional, auto-detected)',
 };
 
 class BleKeyboardCardEditor extends HTMLElement {
   setConfig(config) {
-    this._config = { layout: 'us', show_fkeys: true, host_slots: 0, ...config };
+    this._config = { layout: 'us', show_fkeys: true, host_slots: 0, show_mac: true, ...config };
     // host_names is a YAML list but edits as one comma-separated field; show it
     // as text here and turn it back into a list in _emit().
     if (Array.isArray(this._config.host_names)) {

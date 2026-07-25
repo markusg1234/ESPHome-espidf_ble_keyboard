@@ -27,6 +27,13 @@
  *   # show_apps: true              # show app launch row (default true)
  *   # show_color: true             # show color buttons (default false)
  *   # hidden_entity: sensor.x_hidden_buttons   # override the auto-detected id
+ *   # host_slots: 4                # show host switcher (needs >1; default 0 = hidden)
+ *   # host_names:                   # custom names for each host slot (optional)
+ *   #   - TV
+ *   #   - Phone
+ *   # active_host_entity: sensor.bluetooth_keyboard_active_host  # (auto-detected)
+ *   # show_mac: true               # show the active host's MAC address (default true)
+ *   # host_url: http://192.168.1.50  # ESP address (auto-detected from HA)
  *
  * Per-host hiding: if the device exposes the optional `hidden_buttons` text
  * sensor, this card hides whatever the active host hides on the web remote, and
@@ -39,6 +46,12 @@
  *   show_numpad: true
  *   show_apps: true
  *   show_color: true
+ *   host_slots: 4
+ *   host_names:
+ *     - TV
+ *     - Phone
+ *     - Laptop
+ *     - Tablet
  */
 
 class BleRemoteCard extends HTMLElement {
@@ -48,6 +61,24 @@ class BleRemoteCard extends HTMLElement {
       this._initialize();
     }
     this._applyHidden();
+    // Track active host changes via HA sensor entity. The firmware publishes to
+    // this sensor on every switch_host() path — HA service, the device's own web
+    // UI, a physical button — so every card following it stays in step with the
+    // others without polling.
+    if (this._config.host_slots > 1) {
+      const entity = this._config.active_host_entity
+        || Object.keys(hass.states).find(eid =>
+             eid.startsWith('sensor.') && eid.includes(this._config.device) && eid.endsWith('_active_host')
+           );
+      this._hasActiveHostEntity = !!(entity && hass.states[entity]);
+      if (this._hasActiveHostEntity) {
+        const val = parseInt(hass.states[entity].state, 10);
+        if (!isNaN(val) && val !== this._activeSlot) {
+          this._activeSlot = val;
+          this._updateHostDisplay();
+        }
+      }
+    }
   }
 
   setConfig(config) {
@@ -64,6 +95,11 @@ class BleRemoteCard extends HTMLElement {
       // card mirrors the web remote's per-host hiding. Absent entity = show all.
       hidden_entity: config.hidden_entity ||
         `sensor.${config.device.replace(/-/g, '_')}_hidden_buttons`,
+      host_slots: config.host_slots || 0,
+      host_names: config.host_names || [],
+      active_host_entity: config.active_host_entity || null,
+      show_mac: config.show_mac !== false,
+      host_url: config.host_url || null,
     };
   }
 
@@ -117,6 +153,22 @@ class BleRemoteCard extends HTMLElement {
           color: var(--primary-text-color, #333);
         }
         .header svg { width: 22px; height: 22px; fill: var(--primary-color, #03a9f4); }
+
+        /* Host switcher */
+        .header-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+        .host-btn {
+          width: 24px; height: 24px; padding: 0;
+          border: 1px solid var(--divider-color, #e0e0e0); border-radius: 4px;
+          background: var(--secondary-background-color, #f5f5f5);
+          color: var(--primary-text-color, #333);
+          font-size: 12px; font-weight: 700; cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+          touch-action: manipulation;
+        }
+        .host-btn:active { background: var(--primary-color, #03a9f4); color: #fff; }
+        .host-info { text-align: center; min-width: 0; }
+        .host-name { font-size: 12px; font-weight: 600; color: var(--primary-text-color, #333); line-height: 1.2; }
+        .host-addr { font-size: 10px; font-weight: 400; font-family: monospace; white-space: nowrap; color: var(--secondary-text-color, #888); }
 
         /* Button grid sections */
         .section { margin-bottom: 12px; }
@@ -190,6 +242,12 @@ class BleRemoteCard extends HTMLElement {
         <div class="header">
           <svg viewBox="0 0 24 24"><path d="M18 7V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v3H2v15h20V7h-4zM8 4h8v3H8V4zm10 16H6V9h12v11zm-6-7c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
           <span class="header-name">${this._config.name || 'Media Remote'}</span>
+          <div class="header-right" id="host-switcher" style="display:none">
+            <span class="host-addr"></span>
+            <button class="host-btn" id="host-prev">&#9664;</button>
+            <div class="host-info"><div class="host-name"></div></div>
+            <button class="host-btn" id="host-next">&#9654;</button>
+          </div>
         </div>
 
         <!-- Power & Back row -->
@@ -387,20 +445,141 @@ class BleRemoteCard extends HTMLElement {
       });
     }
 
-    // Auto-resolve device friendly name from HA if name not set
-    if (!this._config.name && this._hass) {
+    // One device-registry lookup serves two purposes: the friendly name (when no
+    // title was configured) and the ESP's own URL, which HA fills in as
+    // configuration_url because web_control requires the web_server component.
+    const wantsName = !this._config.name;
+    const wantsUrl = this._config.host_slots > 1 && !this._config.host_url;
+    if ((wantsName || wantsUrl) && this._hass) {
       const nameSpan = shadow.querySelector('.header-name');
       const slug = this._config.device.replace(/-/g, '_');
       this._hass.callWS({ type: 'config/device_registry/list' }).then(devices => {
         const dev = devices.find(d => d.name_by_user
           ? d.name_by_user.replace(/[^a-z0-9]/gi, '_').toLowerCase() === slug
           : (d.name || '').replace(/[^a-z0-9]/gi, '_').toLowerCase() === slug);
-        if (dev) nameSpan.textContent = dev.name_by_user || dev.name;
+        if (!dev) return;
+        if (wantsName) nameSpan.textContent = dev.name_by_user || dev.name;
+        if (wantsUrl && dev.configuration_url) {
+          this._deviceUrl = dev.configuration_url;
+          this._pollHosts();   // the first poll ran before the URL was known
+        }
       }).catch(() => { /* keep default */ });
     }
 
     // Wire up all buttons
     this._wireButtons(shadow);
+    this._setupHostSwitcher(shadow);
+  }
+
+  // ── Host switcher ────────────────────────────────────────────────
+  // Mirrors the keyboard card: prev/next arrows around the active host's name,
+  // with its MAC to the left. Every card watches the same active-host sensor, so
+  // a switch made here shows up on the keyboard and mouse cards too — and
+  // _applyHidden() repaints this card's own buttons for the new host.
+
+  _setupHostSwitcher(shadow) {
+    if (this._config.host_slots < 2) return;
+    this._activeSlot = 0;
+    this._hostSlots = [];
+
+    shadow.getElementById('host-switcher').style.display = '';
+    this._hostNameEl = shadow.querySelector('.host-name');
+    this._hostAddrEl = shadow.querySelector('.host-addr');
+
+    const step = (delta) => {
+      const n = this._config.host_slots;
+      this._switchHost((this._activeSlot + delta + n) % n);
+    };
+    shadow.getElementById('host-prev').addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      step(-1);
+    });
+    shadow.getElementById('host-next').addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      step(1);
+    });
+
+    this._updateHostDisplay();
+    this._startHostPolling();
+  }
+
+  _switchHost(slot) {
+    if (!this._hass) return;
+    this._activeSlot = slot;
+    const slug = this._config.device.replace(/-/g, '_');
+    this._hass.callService('esphome', `${slug}_switch_host`, { slot });
+    this._updateHostDisplay();
+  }
+
+  // Slot metadata (MAC, ESP-side name, occupied) comes straight from the device.
+  // /hosts returns every slot at once, so a host switch repaints from this cache
+  // with no refetch — the poll only exists to notice new or forgotten bonds,
+  // which is why it runs every 30s rather than continuously.
+  _startHostPolling() {
+    if (this._hostPollInterval) return;
+    this._pollHosts();
+    this._hostPollInterval = setInterval(() => this._pollHosts(), 30000);
+  }
+
+  connectedCallback() {
+    if (this._initialized && this._config && this._config.host_slots > 1) {
+      this._startHostPolling();
+    }
+  }
+
+  disconnectedCallback() {
+    clearInterval(this._hostPollInterval);
+    this._hostPollInterval = null;
+  }
+
+  // Resolves the ESP's base URL: an explicit host_url wins, otherwise the
+  // configuration_url HA recorded for the device.
+  _hostBaseUrl() {
+    const url = this._config.host_url || this._deviceUrl;
+    return url ? url.replace(/\/+$/, '').replace(/\/ble_keyboard$/, '') : '';
+  }
+
+  _pollHosts() {
+    if (!this._hass || this._config.host_slots < 2) return;
+    const baseUrl = this._hostBaseUrl();
+    if (!baseUrl) {
+      this._updateHostDisplay();
+      return;
+    }
+    // The endpoint sends Access-Control-Allow-Origin: *, so a normal cors fetch
+    // works. It still fails when HA itself is served over https — the browser
+    // blocks the http request as mixed content — hence the quiet catch.
+    fetch(baseUrl + '/api/ble_keyboard/hosts', { signal: AbortSignal.timeout(3000) })
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(data => {
+        // The active-host sensor is the faster and authoritative source; only
+        // trust the poll's own idea of the active slot when that sensor is
+        // absent, otherwise an in-flight response can undo a fresh switch.
+        if (!this._hasActiveHostEntity && typeof data.active === 'number') {
+          this._activeSlot = data.active;
+        }
+        this._hostSlots = data.slots || [];
+        this._hostDataAvailable = true;
+        this._updateHostDisplay();
+      })
+      .catch(() => this._updateHostDisplay());
+  }
+
+  _updateHostDisplay() {
+    if (!this._hostNameEl) return;
+    const names = this._config.host_names;
+    const apiSlot = this._hostSlots.find(s => s.slot === this._activeSlot);
+    this._hostNameEl.textContent = (names && names[this._activeSlot])
+      ? names[this._activeSlot]
+      : (apiSlot && apiSlot.name) ? apiSlot.name
+      : 'Host ' + (this._activeSlot + 1);
+    // Without device data there's nothing truthful to show, so the element
+    // collapses rather than leaving a blank gap beside the arrows.
+    const showAddr = this._config.show_mac && this._hostDataAvailable;
+    this._hostAddrEl.style.display = showAddr ? '' : 'none';
+    if (showAddr) {
+      this._hostAddrEl.textContent = (apiSlot && apiSlot.occupied && apiSlot.addr) ? apiSlot.addr : 'Empty';
+    }
   }
 
   _press(btn) {
@@ -529,6 +708,11 @@ const REMOTE_EDITOR_SCHEMA = [
   { name: 'show_apps', selector: { boolean: {} } },
   { name: 'show_color', selector: { boolean: {} } },
   { name: 'hidden_entity', selector: { entity: { domain: 'sensor' } } },
+  { name: 'host_slots', selector: { number: { min: 0, max: 10, step: 1, mode: 'box' } } },
+  { name: 'host_names', selector: { text: {} } },
+  { name: 'active_host_entity', selector: { entity: { domain: 'sensor' } } },
+  { name: 'show_mac', selector: { boolean: {} } },
+  { name: 'host_url', selector: { text: {} } },
 ];
 
 const REMOTE_EDITOR_LABELS = {
@@ -538,6 +722,11 @@ const REMOTE_EDITOR_LABELS = {
   show_apps: 'Show app launcher row',
   show_color: 'Show colour buttons',
   hidden_entity: 'Hidden-buttons sensor (optional)',
+  host_slots: 'Host switcher (needs 2+; 0 = hide)',
+  host_names: 'Host names, comma-separated (optional)',
+  active_host_entity: 'Active-host sensor (optional)',
+  show_mac: 'Show host MAC address',
+  host_url: 'Device URL (optional, auto-detected)',
 };
 
 class BleRemoteCardEditor extends HTMLElement {
@@ -549,8 +738,15 @@ class BleRemoteCardEditor extends HTMLElement {
       show_numpad: false,
       show_apps: true,
       show_color: false,
+      host_slots: 0,
+      show_mac: true,
       ...config,
     };
+    // host_names is a YAML list but edits as one comma-separated field; show it
+    // as text here and turn it back into a list in _emit().
+    if (Array.isArray(this._config.host_names)) {
+      this._config.host_names = this._config.host_names.join(', ');
+    }
     this._render();
   }
 
@@ -561,8 +757,15 @@ class BleRemoteCardEditor extends HTMLElement {
 
   _emit(config) {
     this._config = config;
+    // Hand the card a real list again — it expects host_names to be an array.
+    const out = { ...config };
+    if (typeof out.host_names === 'string') {
+      const names = out.host_names.split(',').map((n) => n.trim()).filter(Boolean);
+      if (names.length) out.host_names = names;
+      else delete out.host_names;
+    }
     this.dispatchEvent(new CustomEvent('config-changed', {
-      detail: { config },
+      detail: { config: out },
       bubbles: true,
       composed: true,
     }));
