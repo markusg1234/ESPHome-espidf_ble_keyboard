@@ -1237,8 +1237,23 @@ void EspidfBleKeyboard::save_macros_() {
     nvs_close(handle);
 }
 
+// Names are referenced by `macro:<name>`, so they have to be unambiguous and
+// survive the action parser. A '|' would split the reference into steps (or
+// into alternate: branches); a duplicate would make it ambiguous which macro
+// is meant. ':' needs no restriction — everything after the first one is the
+// name, so "macro:My:Thing" still resolves.
+bool EspidfBleKeyboard::macro_name_available(const std::string &name, int skip_index) const {
+    if (name.find('|') != std::string::npos) return false;
+    for (size_t i = 0; i < macros_.size(); i++) {
+        if ((int) i == skip_index) continue;
+        if (macros_[i].name == name) return false;
+    }
+    return true;
+}
+
 bool EspidfBleKeyboard::add_macro(const std::string &name, const std::string &action) {
     if (macros_.size() >= MAX_MACROS) return false;
+    if (!macro_name_available(name, -1)) return false;
     macros_.push_back({name, action});
     save_macros_();
     ESP_LOGI(TAG, "Added macro: %s -> %s", name.c_str(), action.c_str());
@@ -1247,6 +1262,8 @@ bool EspidfBleKeyboard::add_macro(const std::string &name, const std::string &ac
 
 bool EspidfBleKeyboard::update_macro(uint8_t index, const std::string &name, const std::string &action) {
     if (index >= macros_.size()) return false;
+    // skip_index so renaming a macro to the name it already has still saves.
+    if (!macro_name_available(name, (int) index)) return false;
     macros_[index].name = name;
     macros_[index].action = action;
     save_macros_();
@@ -2407,6 +2424,11 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
     else if (action.find("press_button:") == 0) {
         press_external_button_(action.substr(13));
     }
+    // Run a stored macro by name. Same placement rule as press_button: above —
+    // an unmatched name must not reach the send-as-text fallback.
+    else if (action.find("macro:") == 0) {
+        run_macro_by_name_(action.substr(6));
+    }
     // Remote buttons (D-pad, Power, Channel, colour and app keys) — table-driven
     // so the chain doesn't carry 22 near-identical branches.
     else if (execute_remote_action_(action)) { /* handled */ }
@@ -2418,6 +2440,30 @@ bool EspidfBleKeyboard::execute_macro(uint8_t index) {
     if (index >= macros_.size()) return false;
     execute_action(macros_[index].action);
     return true;
+}
+
+// Backs the `macro:<name>` action, so a host override can *reference* a macro
+// rather than hold a copy of its text and drift when the macro is edited.
+//
+// By name, not index: delete_macro erases from the middle of the vector, so an
+// index would silently repoint at whatever shifted up. Names survive that, and
+// a missing one fails loudly instead of running the wrong thing.
+void EspidfBleKeyboard::run_macro_by_name_(const std::string &name) {
+    // Macros can now call each other, so a cycle is reachable. These run inline
+    // (callers depend on the steps completing in order), so the stack is the
+    // thing at risk — a depth cap is the guard, not deferral.
+    if (macro_depth_ >= MAX_MACRO_DEPTH) {
+        ESP_LOGW(TAG, "Macro nesting too deep at '%s' — stopping", name.c_str());
+        return;
+    }
+    for (const auto &m : macros_) {
+        if (m.name != name) continue;
+        macro_depth_++;
+        execute_action(m.action);
+        macro_depth_--;
+        return;
+    }
+    ESP_LOGW(TAG, "No macro named '%s'", name.c_str());
 }
 
 void EspidfBleKeyboard::press_external_button_(const std::string &object_id) {

@@ -29,7 +29,7 @@ web control page shows the matching version badge.
   confirmation step to power off:
 
   ```
-  alternate:consumer:0x30 | delay:1000 | ok || repeat:5:press_button:samsung_43_m70f_wol
+  alternate:consumer:0x30 | delay:1000 | ok || repeat:3:press_button:samsung_43_m70f_wol
   ```
 
   Set that as `remote_power` in Host Actions and the remote's power button sleeps the
@@ -38,6 +38,9 @@ web control page shows the matching version badge.
   which Wake-on-LAN usually wants since magic packets are unacknowledged UDP. Note this is
   *assumed* state — HID is one-way, so the device can't detect the monitor being switched
   off by other means; the README shows a template-button recipe for when it must be real.
+- **`macro:<name>` action** — run a stored web macro from any action string, so macros can
+  call each other and an `alternate:` branch can be a whole macro. Names must now be unique
+  and cannot contain `|`, since that would split the reference.
 - **`show_mac` option** on all three cards to show or hide the active host's MAC address.
 - **`host_url` option** on all three cards to point a card at the ESP32 explicitly when
   auto-detection can't find it.
@@ -65,6 +68,13 @@ web control page shows the matching version badge.
   no cache has seen.
 
 ### Changed
+- **Host Actions now reference a macro instead of copying it.** Picking a macro from the
+  preset dropdown used to paste a snapshot of its text, so editing the macro afterwards
+  left the override running the old version with nothing showing they'd diverged. It now
+  inserts `macro:<name>`, which follows the macro. Existing overrides keep their copied
+  text and work unchanged — re-pick the macro to convert one into a reference. Overrides
+  pointing at a macro that no longer exists are flagged with a ⚠ naming it, updated live
+  as macros are renamed or deleted.
 - **Your existing buttons will now show on the web control page.** Button listing is on by
   default, so after this update any `restart`, `safe_mode` or `factory_reset` button in
   your config appears on `/ble_keyboard` alongside the keyboard's own. Add them to

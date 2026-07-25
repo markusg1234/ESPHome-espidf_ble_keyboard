@@ -83,7 +83,11 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .macro-act.del:hover{background:#c44;color:#fff}
 .macro-form{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap;align-items:center}
 .macro-form input,.macro-form select,.macro-form textarea{flex:1;min-width:60px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;resize:vertical}
-.macro-form select{flex:0 1 auto;min-width:100px}
+/* Cap the select: it sizes to its widest <option>, so a long preset label
+   would otherwise stretch the row and squeeze the action box beside it. */
+.macro-form select{flex:0 1 auto;min-width:100px;max-width:150px}
+/* The replacement action is the field that actually needs room on this row. */
+#ov-act{flex:3}
 .macro-form button{padding:6px 12px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 .macro-form button:active{opacity:.8}
 .macro-form .cancel{background:var(--muted)}
@@ -101,6 +105,8 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .ovr-name{font-weight:600;color:var(--name);flex-shrink:0}
 .ovr-act{color:var(--fg);font-family:ui-monospace,monospace;word-break:break-all;flex:1}
 .ovr-tag{font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 5px;border-radius:4px;background:var(--bg);border:1px solid var(--border);color:var(--muted);flex-shrink:0}
+/* Dangling macro: reference — the override will do nothing until it resolves. */
+.ovr-warn{font-size:11px;line-height:1;padding:2px 4px;border-radius:4px;background:#c62828;color:#fff;flex-shrink:0;cursor:help}
 .hid-panel{margin-top:10px;border-top:1px solid var(--border);padding-top:8px}
 .hid-toggle{width:100%;text-align:left;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--name);font-size:12px;font-weight:600;cursor:pointer}
 .hid-panel:not(.open) .hid-body{display:none}
@@ -322,7 +328,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <h2><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 12h2v2H7v-2zm0-4h2v2H7V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8z"/></svg>Macros<button class="macro-edit-btn" id="macro-edit-toggle">Edit</button></h2>
 <div class="prog-btns" id="macro-btns"><span class="prog-empty">Loading...</span></div>
 <div class="macro-form" id="macro-form">
-<input id="mn" placeholder="Name" maxlength="31">
+<input id="mn" placeholder="Name" maxlength="31" title="Must be unique and cannot contain '|'.&#10;Host actions reference a macro by name (macro:&lt;name&gt;), so renaming one breaks any override pointing at it.">
 <textarea id="ma" placeholder="Action (use | to chain steps)" maxlength="255" rows="3"></textarea>
 <select id="mp"><option value="">Preset...</option>
 <optgroup label="Media">
@@ -407,8 +413,8 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="delay:500">Delay 500ms</option>
 <option value="delay:1000">Delay 1000ms</option>
 <option value="repeat:5:">Repeat 5&times; (edit count)</option>
-<option value="__br__">&mdash;&mdash; New branch (||) &mdash; next press &mdash;&mdash;</option>
-<option value="__alt__">Alternate &mdash; one branch per press (wraps)</option>
+<option value="__br__">&mdash; New branch (||) &mdash;</option>
+<option value="__alt__">Alternate (one per press)</option>
 </optgroup>
 </select>
 <button id="macro-save">+ Add</button>
@@ -609,6 +615,44 @@ function newBranch(el){
   el.value=cur+' || ';
 }
 
+// Macro names, for spotting host overrides that point at a macro that no longer
+// exists. Null until the first /buttons load lands — flagging before then would
+// mark every reference as missing.
+let knownMacroNames=null;
+// Set by the Host Actions card so a macro rename/delete can re-flag its rows
+// without a page reload.
+let reflagOverrides=null;
+
+// Pull every macro reference out of an action string, mirroring the firmware's
+// own parse order (repeat: and alternate: are read before the '|' split, and a
+// step is only a reference if it *starts* with macro:). Matching the parser
+// rather than pattern-matching the text is what keeps this honest: it finds
+// nested refs like 'repeat:3:macro:X' and ignores literal text that merely
+// contains 'macro:', such as 'string:run macro:later'.
+function macroRefs(action,out){
+  out=out||[];
+  const a=String(action||'').trim();
+  if(!a)return out;
+  if(a.indexOf('repeat:')===0){
+    const sep=a.indexOf(':',7);
+    if(sep!==-1)macroRefs(a.substring(sep+1),out);
+    return out;
+  }
+  if(a.indexOf('alternate:')===0){
+    a.substring(10).split('||').forEach(b=>macroRefs(b,out));
+    return out;
+  }
+  if(a.indexOf('|')!==-1){
+    a.split('|').forEach(s=>macroRefs(s,out));
+    return out;
+  }
+  if(a.indexOf('macro:')===0){
+    const n=a.substring(6).trim();
+    if(n&&out.indexOf(n)===-1)out.push(n);
+  }
+  return out;
+}
+
 // Presets join with ' | ' (next step), with two exceptions driven by the last
 // character already in the box:
 //   '|'  a separator is already there — '… || foo', not '… || | foo'
@@ -672,6 +716,10 @@ function appendStep(el,val){
 
   function loadButtons(){
     fetch('/api/ble_keyboard/buttons').then(r=>r.json()).then(btns=>{
+      // Macros are the editable entries. Refresh the shared name list first so
+      // a rename or delete immediately re-flags any override referencing it.
+      knownMacroNames=btns.filter(b=>b.editable).map(b=>b.name);
+      if(reflagOverrides)reflagOverrides();
       containerBtns.innerHTML='';
       containerMacros.innerHTML='';
       let hasBtns=false, hasMacros=false;
@@ -743,7 +791,9 @@ function appendStep(el,val){
         btns.forEach(b=>{
           if(b.editable){
             const o=document.createElement('option');
-            o.value=b.action;      // macro's action string (snapshot)
+            // A reference, not a copy of the text — so editing the macro later
+            // updates every override that points at it.
+            o.value='macro:'+b.name;
             o.textContent=b.name;  // macro name shown in the dropdown
             mog.appendChild(o);
           }
@@ -818,6 +868,25 @@ function appendStep(el,val){
     });
   }
 
+  // Mark overrides whose macro: reference no longer resolves. Runs after the
+  // list renders and again whenever the macro list changes, so renaming or
+  // deleting a macro lights up the rows that pointed at it.
+  function applyMacroFlags(){
+    list.querySelectorAll('.ovr-row').forEach(row=>{
+      const old=row.querySelector('.ovr-warn');
+      if(old)old.remove();
+      if(!knownMacroNames)return;   // names not loaded yet — flagging now would be noise
+      const missing=macroRefs(row.dataset.act).filter(n=>knownMacroNames.indexOf(n)===-1);
+      if(!missing.length)return;
+      const w=document.createElement('span');
+      w.className='ovr-warn';
+      w.textContent='⚠';
+      w.title='No macro named '+missing.join(', ')+'.\nThis override does nothing until that macro exists again — recreate it under that name, or edit this override.';
+      row.insertBefore(w,row.querySelector('.ovr-tag'));
+    });
+  }
+  reflagOverrides=applyMacroFlags;
+
   function load(){
     fetch('/api/ble_keyboard/overrides?'+new URLSearchParams({slot:slot})).then(r=>r.json()).then(d=>{
       list.innerHTML='';
@@ -825,6 +894,9 @@ function appendStep(el,val){
       d.items.forEach(it=>{
         const row=document.createElement('div');
         row.className='ovr-row';
+        // Kept on the element so flags can be re-evaluated after a macro
+        // changes without refetching the override list.
+        row.dataset.act=it.action;
         const n=document.createElement('span');
         n.className='ovr-name';n.textContent=it.name;
         const a=document.createElement('span');
@@ -850,6 +922,7 @@ function appendStep(el,val){
         }
         list.appendChild(row);
       });
+      applyMacroFlags();
     }).catch(()=>{list.innerHTML='<span class="prog-empty">Error loading</span>'});
   }
 
@@ -2226,6 +2299,10 @@ class BleKbWebHandler : public AsyncWebHandler {
         send_response(400, "text/plain", "name and action required");
       } else if (name.size() > 31 || action.size() > 255) {
         send_response(400, "text/plain", "name max 31, action max 255 chars");
+      } else if (name.find('|') != std::string::npos) {
+        send_response(400, "text/plain", "Name cannot contain '|'");
+      } else if (!kb_->macro_name_available(name, -1)) {
+        send_response(400, "text/plain", "A macro with that name already exists");
       } else if (!kb_->add_macro(name, action)) {
         send_response(400, "text/plain", "Max macros reached");
       } else {
@@ -2240,6 +2317,10 @@ class BleKbWebHandler : public AsyncWebHandler {
         send_response(400, "text/plain", "index, name, and action required");
       } else if (name.size() > 31 || action.size() > 255) {
         send_response(400, "text/plain", "name max 31, action max 255 chars");
+      } else if (name.find('|') != std::string::npos) {
+        send_response(400, "text/plain", "Name cannot contain '|'");
+      } else if (!kb_->macro_name_available(name, index)) {
+        send_response(400, "text/plain", "A macro with that name already exists");
       } else if (!kb_->update_macro((uint8_t) index, name, action)) {
         send_response(404, "text/plain", "Invalid index");
       } else {

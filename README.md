@@ -791,6 +791,12 @@ The replacement can be any action string, including a multi-step chain: `record:
 - An override body is executed with overrides disabled, so `record: "record"` safely runs the built-in Record rather than looping.
 - Overrides apply everywhere the named action is used — remote buttons, macros, YAML `button` actions, and the `run_action` HA service — not just the remote.
 
+**Reusing a macro:** picking a macro from the Host Actions preset dropdown inserts `macro:<name>` — a **reference**, not a copy. Edit the macro afterwards and every override pointing at it follows automatically. Because the link is by name, renaming a macro breaks it: the override then logs "no macro named …" and does nothing rather than silently running something else. Macro names must be unique and cannot contain `|`.
+
+A dangling reference is flagged: any override row pointing at a macro that no longer exists gets a red **⚠** whose tooltip names the missing macro. It updates live, so renaming or deleting a macro immediately marks the rows that referred to it.
+
+> Overrides created before v1.5.0 hold a *copy* of the macro's text and keep working unchanged — they just don't track edits. Re-pick the macro from the dropdown to turn one into a reference.
+
 **Editing without a reflash:** the web UI has a **Host Actions** card. Pick a host slot, then add or edit overrides for it; they persist to NVS and win over the YAML value. The action-name box offers every overridable name as you type, and the replacement box has the same preset dropdown as the macro editor, so neither has to be typed from memory. Rows tagged `YAML` come from your config and are read-only — set an override of the same name to shadow one, and delete that override to fall back. You can edit a slot other than the one currently active.
 
 <img src="docs/host_actions.png" width="420" alt="Host Actions card in the web UI">
@@ -829,6 +835,7 @@ The card picks up `sensor.<device>_hidden_buttons` automatically (override with 
 | `"forget_host:N"` | Remove the bond for host slot N (0–9). Clears the stored address and removes the BLE bond from the ESP32. If the forgotten host is currently connected, it is disconnected. |
 | `"press_button:<object_id>"` | Press another ESPHome button — e.g. `press_button:samsung_43_m70f_wol`. See [Pressing other ESPHome buttons](#pressing-other-esphome-buttons). |
 | `"alternate:<a> \|\| <b> \|\| …"` | Run **one branch** per press, advancing each time. Branches split on `\|\|`; a single `\|` still means "next step", so a branch can be a whole sequence. See [Toggling one button between two actions](#toggling-one-button-between-two-actions). |
+| `"macro:<name>"` | Run a stored [web macro](#web-macros) by name — a live reference, so editing the macro updates everything pointing at it. Macros may call each other (nesting is capped). |
 
 ---
 
@@ -898,12 +905,12 @@ That matters for real hardware. The M70F won't sleep from the power code alone �
 
 Put it in **Host Actions** as the replacement for `remote_power` on the monitor's slot and the remote's power button sleeps it, then wakes it, then sleeps it. No reflash — Host Actions persist to NVS, so this can be edited from the web UI at any time. It also works in macros, YAML `actions:`, and the REST API.
 
-In the web UI, build the first branch with the preset dropdown as usual, then pick **Alternate — one branch per press** from the *Other* group. Unlike every other preset it **wraps** what's already in the box rather than appending, because `alternate:` takes the whole chain. Then type ` || ` and build the second branch.
+In the web UI, build the first branch with the preset dropdown as usual, then pick **Alternate — one branch per press** from the *Other* group. Then pick **— New branch (||) —** and build the second branch, and finally **Alternate (one per press)** to wrap the lot. Unlike every other preset, Alternate **wraps** what's already in the box rather than appending, because `alternate:` takes the whole chain.
 
 > **Wake-on-LAN often needs more than one packet.** Magic packets are unacknowledged UDP and get dropped, and some displays ignore the first one while their network interface wakes. Branches are ordinary action strings, so `repeat:` composes:
 >
 > ```
-> alternate:consumer:0x30 | delay:1000 | ok || repeat:5:press_button:samsung_43_m70f_wol | delay:100
+> alternate:consumer:0x30 | delay:1000 | ok || repeat:3:press_button:samsung_43_m70f_wol | delay:100
 > ```
 >
 > Still one press per branch — press once to sleep, once to send three wake packets. Raise the count if your display needs more.

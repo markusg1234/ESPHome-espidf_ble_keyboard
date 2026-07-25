@@ -202,6 +202,11 @@ class EspidfBleKeyboard : public Component
   bool add_macro(const std::string &name, const std::string &action);
   bool update_macro(uint8_t index, const std::string &name, const std::string &action);
   bool delete_macro(uint8_t index);
+  /// True if `name` is usable as a macro name: no '|' (it would split a
+  /// `macro:<name>` reference into steps or alternate: branches) and not
+  /// already taken. `skip_index` excludes the row being edited; pass -1 when
+  /// adding. Public so the web handlers can report *why* a save was refused.
+  bool macro_name_available(const std::string &name, int skip_index) const;
 
   // Per-host action overrides: remap a named action for one host slot, so the
   // same button does the right thing on whichever host is active. Motivating
@@ -441,6 +446,10 @@ class EspidfBleKeyboard : public Component
   /// button. Honours hide_buttons and refuses to nest.
   void press_external_button_(const std::string &object_id);
 
+  /// Backs the `macro:<name>` action — runs a stored macro by name, so an
+  /// override references it rather than copying its text. Depth-capped.
+  void run_macro_by_name_(const std::string &name);
+
   const std::string *find_override_(uint8_t slot, const std::string &name) const;
   void load_overrides_();
   void save_overrides_(uint8_t slot);
@@ -516,6 +525,10 @@ class EspidfBleKeyboard : public Component
   // persisting the guess would add no accuracy.
   static const size_t MAX_ALTERNATE_COUNTERS = 16;
   std::map<std::string, uint8_t> alternate_index_;
+  // Nesting depth for `macro:<name>`; macros run inline, so this bounds the
+  // stack when macros reference each other.
+  static const uint8_t MAX_MACRO_DEPTH = 4;
+  uint8_t macro_depth_{0};
 };
 
 class EspidfBleKeyboardButton : public button::Button, public Component {
