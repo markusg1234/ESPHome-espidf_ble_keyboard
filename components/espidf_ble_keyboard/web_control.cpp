@@ -1828,6 +1828,17 @@ class BleKbWebHandler : public AsyncWebHandler {
         json += json_escape(btns[i].action);
         json += "\",\"editable\":false}";
       }
+      // Buttons from other ESPHome platforms (wake_on_lan, template, …).
+      // Read-only like the YAML ones — the page can press them but not edit.
+      for (const auto &ext : kb_->get_external_buttons()) {
+        if (!first) json += ",";
+        first = false;
+        json += "{\"name\":\"";
+        json += json_escape(ext.name);
+        json += "\",\"action\":\"";
+        json += json_escape(ext.action);
+        json += "\",\"editable\":false}";
+      }
       // User-defined macros (editable)
       const auto &macros = kb_->get_macros();
       for (size_t i = 0; i < macros.size(); i++) {

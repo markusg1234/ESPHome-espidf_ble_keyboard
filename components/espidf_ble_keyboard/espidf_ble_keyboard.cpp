@@ -2,6 +2,7 @@
  * BLE HID Keyboard for ESPHome — Fixed Raw Advertising & YAML Passkey logic.
  */
 #include "espidf_ble_keyboard.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "freertos/FreeRTOS.h"
@@ -10,6 +11,7 @@
 #include "esp_bt_defs.h"
 #include "nvs.h"
 #include "esp_random.h"
+#include <algorithm>
 #include <cstring>
 #include <cstdio>
 #include <vector>
@@ -2351,6 +2353,12 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
             send_string(custom_texts_[idx]->state);
     }
 #endif
+    // Press another ESPHome button (wake_on_lan, template, …) by object id.
+    // Must precede the remote/string/typed-text fallbacks below, or the action
+    // string gets typed to the host as literal text instead of running.
+    else if (action.find("press_button:") == 0) {
+        press_external_button_(action.substr(13));
+    }
     // Remote buttons (D-pad, Power, Channel, colour and app keys) — table-driven
     // so the chain doesn't carry 22 near-identical branches.
     else if (execute_remote_action_(action)) { /* handled */ }
@@ -2362,6 +2370,67 @@ bool EspidfBleKeyboard::execute_macro(uint8_t index) {
     if (index >= macros_.size()) return false;
     execute_action(macros_[index].action);
     return true;
+}
+
+void EspidfBleKeyboard::press_external_button_(const std::string &object_id) {
+    if (!expose_buttons_) return;
+    // A template button's on_press can call execute_action, so two of them can
+    // form a cycle. Own buttons are never reachable here (they're skipped by
+    // the scan), but this keeps a user-built loop from blowing the stack.
+    if (in_button_press_) {
+        ESP_LOGW(TAG, "Ignoring nested press_button:%s", object_id.c_str());
+        return;
+    }
+    for (auto *b : App.get_buttons()) {
+        if (b == nullptr || b->get_object_id() != object_id) continue;
+        // Re-checked here, not just in the scan: without it a hidden button
+        // stays reachable by typing its action into a macro by hand.
+        if (std::find(hidden_buttons_.begin(), hidden_buttons_.end(), b) != hidden_buttons_.end()) {
+            ESP_LOGW(TAG, "Button '%s' is in hide_buttons — not pressed", object_id.c_str());
+            return;
+        }
+        ESP_LOGI(TAG, "Pressing button '%s'", object_id.c_str());
+        // Run it on the main loop, not the caller's task. Web handlers execute
+        // on the AsyncTCP task, and unlike every other action here — which are
+        // known BLE writes — this runs whatever automation the user attached:
+        // network I/O, `delay:` steps needing the scheduler, anything.
+        this->defer([this, b]() {
+            in_button_press_ = true;
+            b->press();
+            in_button_press_ = false;
+        });
+        return;
+    }
+    ESP_LOGW(TAG, "No button with object id '%s'", object_id.c_str());
+}
+
+// Buttons from other ESPHome platforms, discovered once on first use. Built
+// lazily rather than in setup() because components register with App in an
+// order this component can't rely on — scanning too early misses whatever
+// initialises after us.
+//
+// Actions key off get_object_id() rather than a list index: these strings get
+// persisted in NVS by macros and per-host overrides, and an index would
+// silently repoint every stored override the moment a button is added to the
+// YAML.
+const std::vector<EspidfBleKeyboard::ButtonInfo> &EspidfBleKeyboard::get_external_buttons() {
+    if (external_scanned_ || !expose_buttons_) return external_buttons_;
+    external_scanned_ = true;
+
+    for (auto *b : App.get_buttons()) {
+        if (b == nullptr || b->is_internal()) continue;
+        if (std::find(own_buttons_.begin(), own_buttons_.end(), b) != own_buttons_.end())
+            continue;  // ours already — registered with its real action
+        if (std::find(hidden_buttons_.begin(), hidden_buttons_.end(), b) != hidden_buttons_.end())
+            continue;  // hide_buttons:
+        // .c_str() rather than the return value directly: get_name() yields a
+        // StringRef on current ESPHome and a std::string on older ones.
+        external_buttons_.push_back({std::string(b->get_name().c_str()),
+                                     "press_button:" + b->get_object_id()});
+    }
+    ESP_LOGI(TAG, "Discovered %u external button(s) for the web page",
+             (unsigned) external_buttons_.size());
+    return external_buttons_;
 }
 
 void EspidfBleKeyboardButton::press_action() {

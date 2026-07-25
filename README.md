@@ -304,6 +304,8 @@ binary_sensor:
 * **mouse_goto_scale** (Optional, float): Calibration multiplier for `mouse_goto`'s relative step, to compensate for the host's pointer-speed / DPI scaling — sets **both** axes. Defaults to `1.0`. If the cursor travels about **twice** as far as intended, set `0.5`; tune until a `mouse_goto` lands on target. (Requires "Enhance pointer precision" **off** — acceleration is non-linear and can't be calibrated out.) Range: 0.05–20.0.
 * **mouse_goto_scale_x** / **mouse_goto_scale_y** (Optional, float): Per-axis override of `mouse_goto_scale`. X and Y often need **different** values (a host can scale the axes differently), so calibrate each independently. Range: 0.05–20.0. Easiest to dial in live via the web Position Finder, which also saves the values per host. See [Absolute mouse positioning](#absolute-mouse-positioning).
 * **custom_text_id** (Optional, ID or list of IDs): Link one or more ESPHome `text` entities for custom text input. Automatically registers a "Send" button in the web UI for each. Use `send_custom_text` or `send_custom_text:N` action to trigger.
+* **expose_buttons** (Optional, boolean): List every non-internal ESPHome `button` in your config on the [web control page](#pressing-other-esphome-buttons), so it can reach things BLE can't — Wake-on-LAN, a relay, a restart. Defaults to `true`.
+* **hide_buttons** (Optional, ID or list of IDs): Buttons to keep *off* the web page. The page has no authentication, so use this for anything destructive (`factory_reset`, `restart`). Hidden buttons also refuse to run if their action is typed by hand.
 * **keyboard_layout** (Optional, string): Default keyboard layout. One of `us` (default), `uk`, `de`, `be`. Controls how `send_string` maps each character to USB HID keycodes — must match the *host's* keyboard layout. Can be overridden at runtime from the web UI (persisted to NVS, survives reboot). See [Keyboard layouts](#keyboard-layouts) below.
 * **hosts** (Optional, list): Per-slot passkey and pairing mode overrides. Each entry has:
   * **slot** (Required, int): Host slot number (0–9).
@@ -825,6 +827,60 @@ The card picks up `sensor.<device>_hidden_buttons` automatically (override with 
 |---|---|
 | `"switch_host:N"` | Switch to host slot N (0–9). If the slot has a stored host, uses directed advertising to reconnect. If empty, starts normal advertising for new pairing. |
 | `"forget_host:N"` | Remove the bond for host slot N (0–9). Clears the stored address and removes the BLE bond from the ESP32. If the forgotten host is currently connected, it is disconnected. |
+| `"press_button:<object_id>"` | Press another ESPHome button — e.g. `press_button:samsung_43_m70f_wol`. See [Pressing other ESPHome buttons](#pressing-other-esphome-buttons). |
+
+---
+
+## Pressing Other ESPHome Buttons
+
+Some things a keyboard simply can't do over BLE. The clearest case is power: a monitor or PC can be told to sleep with a HID consumer code, but nothing can wake it over Bluetooth once it's off — that needs Wake-on-LAN.
+
+So every non-internal `button:` in your config is listed on the web control page automatically, next to the component's own buttons. **No configuration is needed** — define the button as usual and it appears:
+
+```yaml
+button:
+  - platform: wake_on_lan
+    name: "Samsung 43 M70F WOL"
+    target_mac_address: "04:CB:01:07:D2:24"
+    id: button_wake_on_lan_m70f
+```
+
+The page shows it as **Samsung 43 M70F WOL** (the `name`, not the `id`). Because it goes through the normal action system as `press_button:samsung_43_m70f_wol`, it works everywhere an action does — in [web macros](#web-macros), in [per-host overrides](#host-actions-per-host-overrides), and via the REST API:
+
+```bash
+curl -X POST http://<device-ip>/api/ble_keyboard/press -d 'action=press_button:samsung_43_m70f_wol'
+```
+
+Actions are keyed by **object id** (the slugified name), not by position, so adding or reordering buttons never repoints a saved macro or override.
+
+**Powering a monitor both ways.** The two directions need different transports, so map them to separate buttons — off over BLE, on over the network:
+
+```yaml
+espidf_ble_keyboard:
+  id: my_keyboard
+
+button:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Monitor Off"
+    action: "consumer:0x30"
+  - platform: wake_on_lan
+    name: "Monitor On"
+    target_mac_address: "04:CB:01:07:D2:24"
+    id: button_wake_on_lan_m70f
+```
+
+> **The web page has no authentication.** Anyone who can reach it on your network can press any listed button, so keep destructive ones off it with `hide_buttons`. Hidden buttons are also rejected if their action is typed into a macro by hand.
+>
+> ```yaml
+> espidf_ble_keyboard:
+>   id: my_keyboard
+>   hide_buttons:
+>     - button_factory_reset
+>     - button_restart
+> ```
+>
+> `expose_buttons: false` turns the whole listing off. Buttons marked `internal: true` are never listed. The component's own `espidf_ble_keyboard` buttons are unaffected — they appear exactly as before, once.
 
 ---
 

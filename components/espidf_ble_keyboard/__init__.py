@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
+from esphome.components import button
 from esphome.const import CONF_ID
 from esphome import automation
 
@@ -37,6 +38,8 @@ CONF_PRIMARY = "primary"
 CONF_HOSTS = "hosts"
 CONF_SLOT = "slot"
 CONF_CUSTOM_TEXT_ID = "custom_text_id"
+CONF_EXPOSE_BUTTONS = "expose_buttons"
+CONF_HIDE_BUTTONS = "hide_buttons"
 CONF_KEYBOARD_LAYOUT = "keyboard_layout"
 CONF_LAYOUT = "layout"
 CONF_ACTIONS = "actions"
@@ -176,6 +179,10 @@ CONFIG_SCHEMA = cv.All(
         cv.Optional(CONF_MONITORS): cv.ensure_list(MONITOR_SCHEMA),
         cv.Optional(CONF_KEYBOARD_LAYOUT, default="us"): cv.one_of(*SUPPORTED_LAYOUTS, lower=True),
         cv.Optional(CONF_CUSTOM_TEXT_ID): cv.ensure_list(cv.use_id(cg.EntityBase)),
+        # Every non-internal ESPHome button in the config is listed on the web
+        # control page. use_id (not a name string) so a typo fails the build.
+        cv.Optional(CONF_EXPOSE_BUTTONS, default=True): cv.boolean,
+        cv.Optional(CONF_HIDE_BUTTONS): cv.ensure_list(cv.use_id(button.Button)),
         cv.Optional(CONF_HOST_SLOTS, default=4): cv.int_range(min=1, max=10),
         cv.Optional(CONF_HOSTS): cv.All(cv.ensure_list(HOST_SCHEMA)),
         cv.Optional(CONF_ON_RSSI_ABOVE): automation.validate_automation({
@@ -236,6 +243,10 @@ async def to_code(config):
             text_entity = await cg.get_variable(text_id)
             cg.add(var.add_custom_text(text_entity))
             cg.add(var.register_button(f"Send {text_id.id}", f"send_custom_text:{i}"))
+
+    cg.add(var.set_expose_buttons(config[CONF_EXPOSE_BUTTONS]))
+    for btn_id in config.get(CONF_HIDE_BUTTONS, []):
+        cg.add(var.add_hidden_button(await cg.get_variable(btn_id)))
 
     if config[CONF_API_SERVICES]:
         cg.add(var.set_api_services(True))

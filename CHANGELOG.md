@@ -14,6 +14,15 @@ web control page shows the matching version badge.
   other two, as do switches made from the web control page, a physical button, or a YAML
   action. Works out of the box via the cards' 30-second device poll; adding the optional
   `active_host` sensor makes it instant.
+- **Other ESPHome buttons appear on the web control page** — every non-internal `button:`
+  in your config is listed automatically, so the page can reach things BLE can't. The
+  motivating case is power: a monitor can be slept with `consumer:0x30` but only woken
+  with Wake-on-LAN. They work as `press_button:<object_id>` actions too, so they can be
+  used in macros, per-host overrides, and the REST API. Keyed by object id rather than
+  position, so adding buttons never repoints a saved macro.
+- **`hide_buttons` option** to keep destructive buttons (`factory_reset`, `restart`) off
+  the page, which has no authentication. Hidden buttons are also refused if their action
+  is typed by hand. **`expose_buttons: false`** turns the listing off entirely.
 - **`show_mac` option** on all three cards to show or hide the active host's MAC address.
 - **`host_url` option** on all three cards to point a card at the ESP32 explicitly when
   auto-detection can't find it.
@@ -40,10 +49,17 @@ web control page shows the matching version badge.
   themselves. The imports now carry the release version, so every release produces URLs
   no cache has seen.
 
+### Changed
+- **Your existing buttons will now show on the web control page.** Button listing is on by
+  default, so after this update any `restart`, `safe_mode` or `factory_reset` button in
+  your config appears on `/ble_keyboard` alongside the keyboard's own. Add them to
+  `hide_buttons`, mark them `internal: true`, or set `expose_buttons: false` if you'd
+  rather they didn't.
+
 ### Notes
-- **Reflash required for the MAC display.** The CORS fix above is firmware-side, so the
-  host switcher works after a card update alone but the MAC address only appears once the
-  device is reflashed. Everything else in this release is cards-only.
+- **Reflash required for the MAC display and the button listing.** Both are firmware-side.
+  The host switcher itself works after a card update alone; the MAC address and the new
+  buttons only appear once the device is reflashed.
 - The MAC is read straight from the ESP32 over HTTP. If Home Assistant is served over
   HTTPS the browser blocks that as mixed content and the MAC line hides itself; the
   switcher still works.

@@ -322,6 +322,18 @@ class EspidfBleKeyboard : public Component
   const std::vector<text::Text *> &get_custom_texts() const { return custom_texts_; }
 #endif
 
+  // Buttons defined by other ESPHome platforms (wake_on_lan, template, …) are
+  // listed on the web page alongside this component's own, so the page can
+  // reach things BLE can't — e.g. WOL to power a monitor back on.
+  void set_expose_buttons(bool v) { expose_buttons_ = v; }
+  void add_hidden_button(button::Button *b) { hidden_buttons_.push_back(b); }
+  // Called by EspidfBleKeyboardButton::set_parent so the scan can tell this
+  // component's own buttons apart without RTTI (ESPHome builds -fno-rtti).
+  void add_own_button(button::Button *b) { own_buttons_.push_back(b); }
+  // Not const: fills the list on first call. Scanning lazily rather than in
+  // setup() avoids depending on cross-component registration order.
+  const std::vector<ButtonInfo> &get_external_buttons();
+
   // Active host sensor
   void set_active_host_sensor(sensor::Sensor *sensor) { active_host_sensor_ = sensor; }
 
@@ -424,6 +436,10 @@ class EspidfBleKeyboard : public Component
   /// Returns false if the name isn't one of them, so the caller falls through.
   bool execute_remote_action_(const std::string &action);
 
+  /// Backs the `press_button:<object_id>` action — presses another ESPHome
+  /// button. Honours hide_buttons and refuses to nest.
+  void press_external_button_(const std::string &object_id);
+
   const std::string *find_override_(uint8_t slot, const std::string &name) const;
   void load_overrides_();
   void save_overrides_(uint8_t slot);
@@ -485,11 +501,20 @@ class EspidfBleKeyboard : public Component
 #ifdef USE_TEXT
   std::vector<text::Text *> custom_texts_;
 #endif
+  bool expose_buttons_{true};
+  bool external_scanned_{false};
+  bool in_button_press_{false};
+  std::vector<button::Button *> hidden_buttons_;
+  std::vector<button::Button *> own_buttons_;
+  std::vector<ButtonInfo> external_buttons_;
 };
 
 class EspidfBleKeyboardButton : public button::Button, public Component {
  public:
-  void set_parent(EspidfBleKeyboard *parent) { parent_ = parent; }
+  void set_parent(EspidfBleKeyboard *parent) {
+    parent_ = parent;
+    if (parent_ != nullptr) parent_->add_own_button(this);
+  }
   void press_action() override;
   void set_action(const std::string &action) { action_ = action; }
   float get_setup_priority() const override { return -200.0f; }
