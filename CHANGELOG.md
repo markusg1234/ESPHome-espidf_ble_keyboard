@@ -10,9 +10,10 @@ web control page shows the matching version badge.
 - **Host switcher on the mouse and remote cards** — the prev/next host selector that
   the keyboard card had is now in all three cards' headers, via the same `host_slots`,
   `host_names` and `active_host_entity` options.
-- **Cards stay in sync with each other** — all three follow the `active_host` sensor, so
-  switching the host on one card updates the other two (and follows switches made from
-  the web control page, a physical button, or a YAML action).
+- **Cards stay in sync with each other** — switching the host on one card updates the
+  other two, as do switches made from the web control page, a physical button, or a YAML
+  action. Works out of the box via the cards' 30-second device poll; adding the optional
+  `active_host` sensor makes it instant.
 - **`show_mac` option** on all three cards to show or hide the active host's MAC address.
 - **`host_url` option** on all three cards to point a card at the ESP32 explicitly when
   auto-detection can't find it.
@@ -28,6 +29,11 @@ web control page shows the matching version badge.
 - **The host poller leaked a timer per dashboard view switch** and never stopped. It is
   now cleared on disconnect, re-armed on reconnect, and runs every 30 s instead of 5 s —
   the endpoint returns every slot at once, so a host switch repaints from cache.
+- **The `/api/ble_keyboard/*` endpoints sent `Access-Control-Allow-Origin` twice.** ESPHome's
+  `web_server` already adds one globally, and the component added a second, so browsers saw
+  `*, *` and refused the request — stricter than sending no CORS header at all. Any
+  cross-origin read of the API failed, which is why the cards could never fetch host MACs.
+  The component no longer sets the header and relies on ESPHome's.
 - **HACS updates could leave stale cards in the browser.** The HACS entry point imported
   the three card files at fixed URLs, so an update re-fetched the entry point (HACS gives
   it a new `?hacstag=`) while the browser could keep serving cached copies of the cards
@@ -35,8 +41,9 @@ web control page shows the matching version badge.
   no cache has seen.
 
 ### Notes
-- Cards only; no firmware behaviour changed. Reflashing is not required — update the card
-  files (HACS, or copy them to `config/www/`).
+- **Reflash required for the MAC display.** The CORS fix above is firmware-side, so the
+  host switcher works after a card update alone but the MAC address only appears once the
+  device is reflashed. Everything else in this release is cards-only.
 - The MAC is read straight from the ESP32 over HTTP. If Home Assistant is served over
   HTTPS the browser blocks that as mixed content and the MAC line hides itself; the
   switcher still works.

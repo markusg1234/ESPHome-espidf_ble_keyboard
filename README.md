@@ -393,7 +393,9 @@ sensor:
 
 #### Active Host Sensor
 
-Publishes the currently active host slot number (0-based). Updates instantly when the host is switched from the webserver, HA card, or YAML automation. Required for the [card host switchers](#host-switcher-on-the-cards) to stay in sync — with it, switching the host on one card updates the other two.
+Publishes the currently active host slot number (0-based). Updates instantly when the host is switched from the webserver, HA card, or YAML automation.
+
+Optional, and only relevant if you use the [card host switchers](#host-switcher-on-the-cards). They already stay in sync by polling the device every 30 seconds; this sensor makes that instant, and becomes the *only* sync path when the cards can't reach the device directly (Home Assistant on HTTPS).
 
 * **keyboard_id** (Required, ID): The ID of the `espidf_ble_keyboard` component.
 * **type** (Required, string): `active_host`.
@@ -1506,7 +1508,14 @@ host_names: [TV, Phone, Laptop, Tablet]   # optional
 show_mac: true                            # optional, default true
 ```
 
-**The cards stay in sync with each other.** The firmware publishes the active slot to the [active host sensor](#active-host-sensor) on *every* switch — a card, the [web control page](#web-control), a physical `switch_host:N` button, or a YAML action — so changing the host on the remote card updates the mouse and keyboard cards within a second. Add the sensor to your YAML to get this:
+**The cards stay in sync with each other.** Switch the host on the remote card and the mouse and keyboard cards follow — as do switches made from the [web control page](#web-control), a physical `switch_host:N` button, or a YAML action. There are two paths for this, and the cards use whichever is available:
+
+| | How it works | Speed |
+|---|---|---|
+| [Active-host sensor](#active-host-sensor) | The firmware publishes the slot number on every switch; cards watch the entity | Instant |
+| `/hosts` poll | Cards read the active slot from the device directly | Up to 30 s |
+
+The poll alone is enough for most setups, so **the sensor is optional** — adding it just removes the lag:
 
 ```yaml
 sensor:
@@ -1516,11 +1525,13 @@ sensor:
     name: "Active Host"
 ```
 
-Without that sensor each card only knows about its own switches, and the others catch up on their next 30-second poll of the device.
+It stops being optional when the poll can't run — when Home Assistant is served over **HTTPS** (see the note below), or when the card can't work out the device's address. In those cases the sensor is the only thing keeping the cards in sync. If the MAC address is showing on your cards, the poll is working and the sensor is purely a speed-up.
 
 **Where the name and MAC come from.** The name is `host_names[slot]` if you set one, otherwise the name of the matching `switch_host:N` button on the ESP32, otherwise "Host N". The MAC is read from the device's `/api/ble_keyboard/hosts` endpoint — the card finds the ESP32's address automatically from its Home Assistant device entry, or you can set `host_url: http://192.168.1.50` explicitly. An unpaired slot shows `Empty`.
 
-> **If the MAC doesn't appear:** the card reads it directly from the ESP32 over plain HTTP. When Home Assistant itself is served over **HTTPS** (Nabu Casa remote access, or a TLS reverse proxy) the browser blocks that request as mixed content, and the MAC line is hidden. The switcher itself still works — it goes through Home Assistant, not the browser. Set `show_mac: false` to hide the line deliberately.
+> **If the MAC doesn't appear:** the card reads it directly from the ESP32 over plain HTTP, so it needs firmware **v1.5.0 or newer** — earlier builds sent a duplicated CORS header that browsers reject, blocking the read. Beyond that, when Home Assistant itself is served over **HTTPS** (Nabu Casa remote access, or a TLS reverse proxy) the browser blocks the request as mixed content and the MAC line hides itself. The switcher works regardless — it goes through Home Assistant, not the browser. Set `show_mac: false` to hide the line deliberately.
+>
+> To check quickly, open `http://<device-ip>/api/ble_keyboard/hosts` in a browser tab: JSON means the device is fine, and anything else points at the firmware or the address.
 
 ---
 

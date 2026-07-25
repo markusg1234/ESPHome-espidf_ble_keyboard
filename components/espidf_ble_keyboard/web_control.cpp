@@ -1761,10 +1761,14 @@ class BleKbWebHandler : public AsyncWebHandler {
   void handleRequest(AsyncWebServerRequest *request) override {
       std::string url = get_url(request);
 
+      // Do NOT add Access-Control-Allow-Origin here. ESPHome's web_server (which
+      // web_control requires) already installs one globally via DefaultHeaders,
+      // so setting it again emits the header twice — and a browser rejects
+      // "*, *" outright, which is worse than having no CORS at all. That broke
+      // cross-origin reads of /hosts from the Home Assistant cards.
       auto send_response = [request](int code, const char* type, const char* content) {
         AsyncWebServerResponse* response = request->beginResponse(code, type, content);
         response->addHeader("Connection", "close");
-        response->addHeader("Access-Control-Allow-Origin", "*");
         request->send(response);
       };
 

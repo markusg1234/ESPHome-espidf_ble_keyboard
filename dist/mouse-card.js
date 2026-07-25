@@ -314,8 +314,9 @@ class BleMouseCard extends HTMLElement {
 
   // ── Host switcher ────────────────────────────────────────────────
   // Mirrors the keyboard card: prev/next arrows around the active host's name,
-  // with its MAC to the left. Every card watches the same active-host sensor,
-  // so a switch made here shows up on the keyboard and remote cards too.
+  // with its MAC to the left. A switch made here reaches the other cards two
+  // ways — instantly if the active-host sensor exists, otherwise on their next
+  // poll below. Either is enough; the sensor just removes the lag.
 
   _setupHostSwitcher(shadow) {
     if (this._config.host_slots < 2) return;
