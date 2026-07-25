@@ -405,7 +405,8 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="string:">Type Text</option>
 <option value="delay:100">Delay 100ms</option>
 <option value="delay:500">Delay 500ms</option>
-<option value="repeat:3:">Repeat 3&times; (edit)</option>
+<option value="delay:1000">Delay 1000ms</option>
+<option value="repeat:5:">Repeat 5&times; (edit count)</option>
 <option value="__br__">&mdash;&mdash; New branch (||) &mdash; next press &mdash;&mdash;</option>
 <option value="__alt__">Alternate &mdash; one branch per press (wraps)</option>
 </optgroup>
@@ -608,13 +609,17 @@ function newBranch(el){
   el.value=cur+' || ';
 }
 
-// Presets join with ' | ' (next step) — except straight after a separator,
-// where the separator is already there. Picking one right after "New branch"
-// should read '… || foo', not '… || | foo'.
+// Presets join with ' | ' (next step), with two exceptions driven by the last
+// character already in the box:
+//   '|'  a separator is already there — '… || foo', not '… || | foo'
+//   ':'  the value is a prefix awaiting its body ('repeat:3:', 'string:'), and
+//        those delimit with ':'. Joining with '|' would give 'repeat:3: | foo',
+//        which parses as repeating 'foo' minus its own prefix — silently wrong.
 function appendStep(el,val){
   const cur=el.value.trim();
   if(!cur){el.value=val;return}
-  el.value=cur+(cur.charAt(cur.length-1)==='|'?' ':' | ')+val;
+  const last=cur.charAt(cur.length-1);
+  el.value=cur+(last==='|'?' ':last===':'?'':' | ')+val;
 }
 
 // ── Buttons & Macros ──

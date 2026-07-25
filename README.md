@@ -890,7 +890,7 @@ Having "off" and "on" as separate buttons is fine on a web page but wrong on a r
 **Assumed state — the `alternate:` action.** It runs one **branch** per press and advances each time. Branches are separated by `||`, while a single `|` keeps its usual meaning of "next step" — so each branch can be a whole sequence:
 
 ```
-alternate:consumer:0x30 | delay:500 | ok || press_button:samsung_43_m70f_wol
+alternate:consumer:0x30 | delay:1000 | ok || press_button:samsung_43_m70f_wol
          └──────── branch 1: press, wait, confirm ────────┘    └─ branch 2 ─┘
 ```
 
@@ -903,7 +903,7 @@ In the web UI, build the first branch with the preset dropdown as usual, then pi
 > **Wake-on-LAN often needs more than one packet.** Magic packets are unacknowledged UDP and get dropped, and some displays ignore the first one while their network interface wakes. Branches are ordinary action strings, so `repeat:` composes:
 >
 > ```
-> alternate:consumer:0x30 | delay:500 | ok || repeat:3:press_button:samsung_43_m70f_wol
+> alternate:consumer:0x30 | delay:1000 | ok || repeat:5:press_button:samsung_43_m70f_wol | delay:100
 > ```
 >
 > Still one press per branch — press once to sleep, once to send three wake packets. Raise the count if your display needs more.

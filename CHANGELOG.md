@@ -29,7 +29,7 @@ web control page shows the matching version badge.
   confirmation step to power off:
 
   ```
-  alternate:consumer:0x30 | delay:500 | ok || repeat:3:press_button:samsung_43_m70f_wol
+  alternate:consumer:0x30 | delay:1000 | ok || repeat:5:press_button:samsung_43_m70f_wol
   ```
 
   Set that as `remote_power` in Host Actions and the remote's power button sleeps the
