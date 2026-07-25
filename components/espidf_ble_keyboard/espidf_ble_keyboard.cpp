@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
+#include <span>
 #include <vector>
 
 namespace esphome {
@@ -2381,8 +2382,13 @@ void EspidfBleKeyboard::press_external_button_(const std::string &object_id) {
         ESP_LOGW(TAG, "Ignoring nested press_button:%s", object_id.c_str());
         return;
     }
+    char oid_buf[OBJECT_ID_MAX_LEN];
     for (auto *b : App.get_buttons()) {
-        if (b == nullptr || b->get_object_id() != object_id) continue;
+        if (b == nullptr) continue;
+        // get_object_id_to writes into the caller's buffer and hands back a
+        // StringRef; .str() because StringRef::c_str() isn't guaranteed to be
+        // null-terminated, only the pointer/length pair is meaningful.
+        if (b->get_object_id_to(oid_buf).str() != object_id) continue;
         // Re-checked here, not just in the scan: without it a hidden button
         // stays reachable by typing its action into a macro by hand.
         if (std::find(hidden_buttons_.begin(), hidden_buttons_.end(), b) != hidden_buttons_.end()) {
@@ -2409,24 +2415,26 @@ void EspidfBleKeyboard::press_external_button_(const std::string &object_id) {
 // order this component can't rely on — scanning too early misses whatever
 // initialises after us.
 //
-// Actions key off get_object_id() rather than a list index: these strings get
-// persisted in NVS by macros and per-host overrides, and an index would
-// silently repoint every stored override the moment a button is added to the
-// YAML.
+// Actions key off the entity's object id rather than a list index: these
+// strings get persisted in NVS by macros and per-host overrides, and an index
+// would silently repoint every stored override the moment a button is added to
+// the YAML.
 const std::vector<EspidfBleKeyboard::ButtonInfo> &EspidfBleKeyboard::get_external_buttons() {
     if (external_scanned_ || !expose_buttons_) return external_buttons_;
     external_scanned_ = true;
 
+    char oid_buf[OBJECT_ID_MAX_LEN];
     for (auto *b : App.get_buttons()) {
         if (b == nullptr || b->is_internal()) continue;
         if (std::find(own_buttons_.begin(), own_buttons_.end(), b) != own_buttons_.end())
             continue;  // ours already — registered with its real action
         if (std::find(hidden_buttons_.begin(), hidden_buttons_.end(), b) != hidden_buttons_.end())
             continue;  // hide_buttons:
-        // .c_str() rather than the return value directly: get_name() yields a
-        // StringRef on current ESPHome and a std::string on older ones.
-        external_buttons_.push_back({std::string(b->get_name().c_str()),
-                                     "press_button:" + b->get_object_id()});
+        // .str() on both: these are StringRefs into ESPHome's own storage, and
+        // c_str() on one isn't guaranteed null-terminated. str() copies using
+        // the length, which is what we want anyway since we keep the strings.
+        external_buttons_.push_back({b->get_name().str(),
+                                     "press_button:" + b->get_object_id_to(oid_buf).str()});
     }
     ESP_LOGI(TAG, "Discovered %u external button(s) for the web page",
              (unsigned) external_buttons_.size());
