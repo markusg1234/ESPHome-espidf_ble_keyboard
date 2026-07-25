@@ -1456,7 +1456,7 @@ Features:
 When `web_control: true` is enabled, macros can be created, edited, and deleted directly from the web UI at `/ble_keyboard` — no reflash needed. Macros are stored in NVS flash and persist across reboots. Up to 16 macros are supported.
 
 The web UI provides:
-- **Add form** with name, action textarea, and a preset dropdown (media, system, clipboard, consumer HID, text, delays)
+- **Add form** with name, action textarea, and a preset dropdown (media, system, clipboard, consumer HID, text, delays). Your YAML-defined `espidf_ble_keyboard` buttons also appear here under a **Buttons** group — pick one to reuse its action. The same preset dropdown is shared by the Host Actions card.
 - **Combo builder** — toggle Ctrl/Shift/Alt/Win modifier buttons, then pick a key (F1-F12, arrows, letters, numbers, etc.) to insert `combo:mod:key`
 - **Edit/Delete** controls on each macro (pencil and X buttons)
 - **Macro index** shown as `[0]`, `[1]`, etc. next to each macro name — use with `execute_macro(N)` in YAML

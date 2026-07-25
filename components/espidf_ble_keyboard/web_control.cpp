@@ -681,6 +681,21 @@ setInterval(pollStatus,3000);
       });
       if(!hasBtns) containerBtns.innerHTML='<span class="prog-empty">No buttons</span>';
       if(!hasMacros) containerMacros.innerHTML='<span class="prog-empty">No macros</span>';
+      // Surface the YAML (non-editable) buttons as presets in both dropdowns. The
+      // Host Actions preset mirrors mp, so populate mp then re-sync ov-preset.
+      const og=document.createElement('optgroup');
+      og.label='Buttons'; og.className='yaml-preset';
+      btns.forEach(b=>{
+        if(!b.editable){
+          const o=document.createElement('option');
+          o.value=b.action;      // action string dropped into the action field
+          o.textContent=b.name;  // button name shown in the dropdown
+          og.appendChild(o);
+        }
+      });
+      const old=presetSel.querySelector('optgroup.yaml-preset'); if(old)old.remove();
+      if(og.children.length)presetSel.insertBefore(og, presetSel.children[1]||null);
+      const ov=document.getElementById('ov-preset'); if(ov)ov.innerHTML=presetSel.innerHTML;
     }).catch(()=>{
       containerBtns.innerHTML='<span class="prog-empty">Error loading</span>';
       containerMacros.innerHTML='<span class="prog-empty">Error loading</span>';
