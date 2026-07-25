@@ -168,7 +168,7 @@ class BleRemoteCard extends HTMLElement {
         .host-btn:active { background: var(--primary-color, #03a9f4); color: #fff; }
         .host-info { text-align: center; min-width: 0; }
         .host-name { font-size: 12px; font-weight: 600; color: var(--primary-text-color, #333); line-height: 1.2; }
-        .host-addr { font-size: 10px; font-weight: 400; font-family: monospace; white-space: nowrap; color: var(--secondary-text-color, #888); }
+        .host-addr { font-size: 12px; font-weight: 400; font-family: monospace; white-space: nowrap; color: var(--secondary-text-color, #888); }
 
         /* Button grid sections */
         .section { margin-bottom: 12px; }

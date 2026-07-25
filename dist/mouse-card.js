@@ -165,7 +165,7 @@ class BleMouseCard extends HTMLElement {
           line-height: 1.2;
         }
         .host-addr {
-          font-size: 10px;
+          font-size: 12px;
           font-weight: 400;
           color: var(--secondary-text-color, #999);
           font-family: monospace;
