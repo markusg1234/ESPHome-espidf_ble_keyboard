@@ -695,7 +695,26 @@ setInterval(pollStatus,3000);
       });
       const old=presetSel.querySelector('optgroup.yaml-preset'); if(old)old.remove();
       if(og.children.length)presetSel.insertBefore(og, presetSel.children[1]||null);
-      const ov=document.getElementById('ov-preset'); if(ov)ov.innerHTML=presetSel.innerHTML;
+      // Host Actions preset mirrors mp, then also gets a Macros group (macros are
+      // only offered there, not in the Macros editor's own preset).
+      const ov=document.getElementById('ov-preset');
+      if(ov){
+        ov.innerHTML=presetSel.innerHTML;
+        const mog=document.createElement('optgroup');
+        mog.label='Macros'; mog.className='macro-preset';
+        btns.forEach(b=>{
+          if(b.editable){
+            const o=document.createElement('option');
+            o.value=b.action;      // macro's action string (snapshot)
+            o.textContent=b.name;  // macro name shown in the dropdown
+            mog.appendChild(o);
+          }
+        });
+        if(mog.children.length){
+          const ref=ov.querySelector('optgroup.yaml-preset');
+          if(ref)ref.after(mog); else ov.insertBefore(mog, ov.children[1]||null);
+        }
+      }
     }).catch(()=>{
       containerBtns.innerHTML='<span class="prog-empty">Error loading</span>';
       containerMacros.innerHTML='<span class="prog-empty">Error loading</span>';
