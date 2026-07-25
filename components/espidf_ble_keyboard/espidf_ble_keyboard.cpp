@@ -2168,6 +2168,47 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
         }
         return;
     }
+    // Alternate: run ONE step per invocation instead of all of them, cycling
+    // on each call. Like repeat:, it must be checked before the '|' split
+    // because it needs the whole remaining sequence, not a single step.
+    //
+    // The counter is keyed on the body rather than the caller, so the same
+    // alternate string driven from the web remote, the HA card and a macro
+    // stays in step — they're all working one physical device.
+    //
+    // This is assumed state: HID is one-way, so the device cannot know what it
+    // actually toggled. Switch the target off by other means and the sequence
+    // is inverted until it's pressed through once more.
+    if (action.find("alternate:") == 0) {
+        std::string body = action.substr(10);
+        std::vector<std::string> steps;
+        size_t start = 0;
+        while (start <= body.size()) {
+            size_t end = body.find('|', start);
+            if (end == std::string::npos) end = body.size();
+            std::string step = body.substr(start, end - start);
+            while (!step.empty() && step.front() == ' ') step.erase(step.begin());
+            while (!step.empty() && step.back() == ' ') step.pop_back();
+            if (!step.empty()) steps.push_back(step);
+            if (end == body.size()) break;
+            start = end + 1;
+        }
+        if (steps.empty()) return;
+
+        uint8_t idx = 0;
+        auto it = alternate_index_.find(body);
+        if (it != alternate_index_.end()) {
+            idx = it->second;
+            it->second = (uint8_t) ((idx + 1) % steps.size());
+        } else if (alternate_index_.size() < MAX_ALTERNATE_COUNTERS) {
+            alternate_index_[body] = (uint8_t) (1 % steps.size());
+        }
+        // Past the cap the counter simply isn't tracked and step 0 runs every
+        // time — a bounded map matters more than toggling an unbounded number
+        // of distinct sequences.
+        execute_action(steps[idx % steps.size()]);
+        return;
+    }
     // Multi-step actions: split on '|' and execute each step
     if (action.find('|') != std::string::npos) {
         size_t start = 0;
@@ -2375,13 +2416,6 @@ bool EspidfBleKeyboard::execute_macro(uint8_t index) {
 
 void EspidfBleKeyboard::press_external_button_(const std::string &object_id) {
     if (!expose_buttons_) return;
-    // A template button's on_press can call execute_action, so two of them can
-    // form a cycle. Own buttons are never reachable here (they're skipped by
-    // the scan), but this keeps a user-built loop from blowing the stack.
-    if (in_button_press_) {
-        ESP_LOGW(TAG, "Ignoring nested press_button:%s", object_id.c_str());
-        return;
-    }
     char oid_buf[OBJECT_ID_MAX_LEN];
     for (auto *b : App.get_buttons()) {
         if (b == nullptr) continue;
@@ -2395,15 +2429,27 @@ void EspidfBleKeyboard::press_external_button_(const std::string &object_id) {
             ESP_LOGW(TAG, "Button '%s' is in hide_buttons — not pressed", object_id.c_str());
             return;
         }
+        // Only a button triggering *itself* is refused. Chaining to a different
+        // button is legitimate — a template button deciding between two actions
+        // and calling execute_action("press_button:…") is the documented way to
+        // build a stateful toggle.
+        if (pressing_button_ == b) {
+            ESP_LOGW(TAG, "Button '%s' triggers itself — not pressed", object_id.c_str());
+            return;
+        }
         ESP_LOGI(TAG, "Pressing button '%s'", object_id.c_str());
         // Run it on the main loop, not the caller's task. Web handlers execute
         // on the AsyncTCP task, and unlike every other action here — which are
         // known BLE writes — this runs whatever automation the user attached:
         // network I/O, `delay:` steps needing the scheduler, anything.
+        //
+        // Deferring also means a nested press schedules another loop iteration
+        // rather than growing the stack, so a chain can't overflow it.
         this->defer([this, b]() {
-            in_button_press_ = true;
+            button::Button *prev = pressing_button_;
+            pressing_button_ = b;
             b->press();
-            in_button_press_ = false;
+            pressing_button_ = prev;
         });
         return;
     }

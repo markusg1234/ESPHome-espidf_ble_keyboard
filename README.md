@@ -828,6 +828,7 @@ The card picks up `sensor.<device>_hidden_buttons` automatically (override with 
 | `"switch_host:N"` | Switch to host slot N (0–9). If the slot has a stored host, uses directed advertising to reconnect. If empty, starts normal advertising for new pairing. |
 | `"forget_host:N"` | Remove the bond for host slot N (0–9). Clears the stored address and removes the BLE bond from the ESP32. If the forgotten host is currently connected, it is disconnected. |
 | `"press_button:<object_id>"` | Press another ESPHome button — e.g. `press_button:samsung_43_m70f_wol`. See [Pressing other ESPHome buttons](#pressing-other-esphome-buttons). |
+| `"alternate:<a> \| <b> \| …"` | Run **one** step per press, advancing each time, instead of all of them in sequence. See [Toggling one button between two actions](#toggling-one-button-between-two-actions). |
 
 ---
 
@@ -881,6 +882,57 @@ button:
 > ```
 >
 > `expose_buttons: false` turns the whole listing off. Buttons marked `internal: true` are never listed. The component's own `espidf_ble_keyboard` buttons are unaffected — they appear exactly as before, once.
+
+### Toggling One Button Between Two Actions
+
+Having "off" and "on" as separate buttons is fine on a web page but wrong on a remote, where power is one button. The catch: **HID is one-way.** The keyboard sends reports and never receives anything back, so it cannot tell whether the monitor is currently on. A toggle must therefore either *assume* the state or *read* it from somewhere else. Both are supported.
+
+**Assumed state — the `alternate:` action.** It runs one step per press and advances each time:
+
+```
+alternate:consumer:0x30 | press_button:samsung_43_m70f_wol
+```
+
+Put that in **Host Actions** as the replacement for `remote_power` on the monitor's slot and the remote's power button sleeps it, then wakes it, then sleeps it. No reflash — Host Actions persist to NVS, so this can be edited from the web UI at any time. It also works in macros, YAML `actions:`, and the REST API.
+
+The counter is keyed on the action text, so the same string driven from the web remote, the HA card and a macro stays in step — they're all working one physical device.
+
+> **It's a guess, and guesses drift.** Turn the monitor off with its own button and the sequence is inverted until you press through once more. The device has no way to detect that, which is what the next option is for. The position also resets on reboot.
+
+Two smaller limits: `alternate:` must be the **whole** action, not one step inside a longer `|` chain (the chain's split would consume its separators), and at most 16 distinct alternate sequences are tracked at once.
+
+**Real state — a template button.** For a toggle that can't drift, let a template button hold the decision. It appears on the web page automatically, so it works exactly like any other button:
+
+```yaml
+globals:
+  - id: monitor_on
+    type: bool
+    restore_value: yes
+
+button:
+  - platform: template
+    name: "Monitor Power"
+    id: monitor_power
+    on_press:
+      - lambda: |-
+          if (id(monitor_on)) {
+            id(my_keyboard).execute_action("consumer:0x30");   // sleep over BLE
+          } else {
+            id(button_wake_on_lan_m70f).press();               // wake over the network
+          }
+          id(monitor_on) = !id(monitor_on);
+
+espidf_ble_keyboard:
+  id: my_keyboard
+  hosts:
+    - slot: 0
+      actions:
+        remote_power: "press_button:monitor_power"
+```
+
+As written this still assumes — but `restore_value: yes` carries the state across reboots, and swapping the global for a real `binary_sensor` (a ping probe, a power monitor, anything that actually knows) makes it correct. That's the advantage over `alternate:`; the cost is that changing it needs a reflash.
+
+A button cannot trigger *itself* — that's refused and logged. Chaining to a *different* button is fine, so the lambda above may equally call `id(my_keyboard).execute_action("press_button:samsung_43_m70f_wol")` instead of `.press()`.
 
 ---
 

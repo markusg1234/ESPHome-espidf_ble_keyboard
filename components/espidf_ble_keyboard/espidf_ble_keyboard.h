@@ -13,6 +13,7 @@
 #endif
 #include <atomic>
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -503,10 +504,18 @@ class EspidfBleKeyboard : public Component
 #endif
   bool expose_buttons_{true};
   bool external_scanned_{false};
-  bool in_button_press_{false};
+  // Which button is mid-press, so a button can't trigger itself. Null when
+  // idle. A pointer rather than a flag: chaining one button to a different one
+  // is legitimate, only self-reference isn't.
+  button::Button *pressing_button_{nullptr};
   std::vector<button::Button *> hidden_buttons_;
   std::vector<button::Button *> own_buttons_;
   std::vector<ButtonInfo> external_buttons_;
+  // Per-sequence position for `alternate:` actions, keyed on the action body.
+  // RAM only — after a reboot the device can't know what it last toggled, so
+  // persisting the guess would add no accuracy.
+  static const size_t MAX_ALTERNATE_COUNTERS = 16;
+  std::map<std::string, uint8_t> alternate_index_;
 };
 
 class EspidfBleKeyboardButton : public button::Button, public Component {
