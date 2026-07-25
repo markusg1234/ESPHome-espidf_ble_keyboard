@@ -895,6 +895,16 @@ alternate:consumer:0x30 | press_button:samsung_43_m70f_wol
 
 Put that in **Host Actions** as the replacement for `remote_power` on the monitor's slot and the remote's power button sleeps it, then wakes it, then sleeps it. No reflash — Host Actions persist to NVS, so this can be edited from the web UI at any time. It also works in macros, YAML `actions:`, and the REST API.
 
+In the web UI, build the steps with the preset dropdown as usual, then pick **Alternate — one step per press** from the *Other* group. Unlike every other preset it **wraps** what's already in the box rather than appending, because `alternate:` takes the whole chain.
+
+> **Wake-on-LAN often needs more than one packet.** Magic packets are unacknowledged UDP and get dropped, and some displays ignore the first one while their network interface wakes. Steps compose, so wrap the WOL step in [`repeat:`](#action-reference):
+>
+> ```
+> alternate:consumer:0x30 | repeat:3:press_button:samsung_43_m70f_wol
+> ```
+>
+> Still one press per step — press once to sleep, once to send three wake packets. Raise the count if your display needs more.
+
 The counter is keyed on the action text, so the same string driven from the web remote, the HA card and a macro stays in step — they're all working one physical device.
 
 > **It's a guess, and guesses drift.** Turn the monitor off with its own button and the sequence is inverted until you press through once more. The device has no way to detect that, which is what the next option is for. The position also resets on reboot.

@@ -406,6 +406,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="delay:100">Delay 100ms</option>
 <option value="delay:500">Delay 500ms</option>
 <option value="repeat:3:">Repeat 3&times; (edit)</option>
+<option value="__alt__">Alternate &mdash; one step per press (wraps)</option>
 </optgroup>
 </select>
 <button id="macro-save">+ Add</button>
@@ -588,6 +589,16 @@ setInterval(pollStatus,3000);
   setInterval(loadHosts,5000);
 })();
 
+// `alternate:` owns the whole chain (it splits the '|' itself), so its preset
+// wraps what's already in the field instead of being appended like every other
+// one. Build the steps normally, then pick it to turn them into a toggle.
+// Shared: both the Macros form and Host Actions use it.
+function wrapAlternate(el){
+  const cur=el.value.trim();
+  if(cur.indexOf('alternate:')===0)return;   // already one
+  el.value=cur?('alternate:'+cur):'alternate:';
+}
+
 // ── Buttons & Macros ──
 (function(){
   const containerBtns=document.getElementById('prog-btns');
@@ -610,7 +621,9 @@ setInterval(pollStatus,3000);
   });
 
   presetSel.addEventListener('change',()=>{
-    if(presetSel.value){
+    if(presetSel.value==='__alt__'){
+      wrapAlternate(actIn);
+    }else if(presetSel.value){
       if(actIn.value.trim()){actIn.value+=(' | '+presetSel.value)}else{actIn.value=presetSel.value}
       if(!nameIn.value)nameIn.value=presetSel.options[presetSel.selectedIndex].text;
     }
@@ -752,7 +765,9 @@ setInterval(pollStatus,3000);
   const macroPreset=document.getElementById('mp');
   if(preset&&macroPreset)preset.innerHTML=macroPreset.innerHTML;
   if(preset)preset.addEventListener('change',()=>{
-    if(preset.value){
+    if(preset.value==='__alt__'){
+      wrapAlternate(actIn);
+    }else if(preset.value){
       if(actIn.value.trim()){actIn.value+=' | '+preset.value}else{actIn.value=preset.value}
     }
     preset.value='';

@@ -26,9 +26,12 @@ web control page shows the matching version badge.
 - **`alternate:` action** — runs one step per press instead of all in sequence, so a single
   button can toggle. `alternate:consumer:0x30 | press_button:samsung_43_m70f_wol` makes the
   remote's power button sleep a monitor over BLE and wake it over Wake-on-LAN. Editable
-  from Host Actions with no reflash. Note this is *assumed* state — HID is one-way, so the
-  device can't detect the monitor being switched off by other means; the README shows a
-  template-button recipe for when the state must be real.
+  from Host Actions with no reflash, where its preset **wraps** the steps already in the
+  box rather than appending. Composes with `repeat:`, which Wake-on-LAN usually wants since
+  magic packets are unacknowledged UDP: `alternate:consumer:0x30 | repeat:3:press_button:…`.
+  Note this is *assumed* state — HID is one-way, so the device can't detect the monitor
+  being switched off by other means; the README shows a template-button recipe for when the
+  state must be real.
 - **`show_mac` option** on all three cards to show or hide the active host's MAC address.
 - **`host_url` option** on all three cards to point a card at the ESP32 explicitly when
   auto-detection can't find it.
