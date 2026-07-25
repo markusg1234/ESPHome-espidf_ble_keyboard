@@ -28,6 +28,11 @@ web control page shows the matching version badge.
 - **The host poller leaked a timer per dashboard view switch** and never stopped. It is
   now cleared on disconnect, re-armed on reconnect, and runs every 30 s instead of 5 s —
   the endpoint returns every slot at once, so a host switch repaints from cache.
+- **HACS updates could leave stale cards in the browser.** The HACS entry point imported
+  the three card files at fixed URLs, so an update re-fetched the entry point (HACS gives
+  it a new `?hacstag=`) while the browser could keep serving cached copies of the cards
+  themselves. The imports now carry the release version, so every release produces URLs
+  no cache has seen.
 
 ### Notes
 - Cards only; no firmware behaviour changed. Reflashing is not required — update the card
