@@ -828,7 +828,7 @@ The card picks up `sensor.<device>_hidden_buttons` automatically (override with 
 | `"switch_host:N"` | Switch to host slot N (0–9). If the slot has a stored host, uses directed advertising to reconnect. If empty, starts normal advertising for new pairing. |
 | `"forget_host:N"` | Remove the bond for host slot N (0–9). Clears the stored address and removes the BLE bond from the ESP32. If the forgotten host is currently connected, it is disconnected. |
 | `"press_button:<object_id>"` | Press another ESPHome button — e.g. `press_button:samsung_43_m70f_wol`. See [Pressing other ESPHome buttons](#pressing-other-esphome-buttons). |
-| `"alternate:<a> \| <b> \| …"` | Run **one** step per press, advancing each time, instead of all of them in sequence. See [Toggling one button between two actions](#toggling-one-button-between-two-actions). |
+| `"alternate:<a> \|\| <b> \|\| …"` | Run **one branch** per press, advancing each time. Branches split on `\|\|`; a single `\|` still means "next step", so a branch can be a whole sequence. See [Toggling one button between two actions](#toggling-one-button-between-two-actions). |
 
 ---
 
@@ -887,29 +887,32 @@ button:
 
 Having "off" and "on" as separate buttons is fine on a web page but wrong on a remote, where power is one button. The catch: **HID is one-way.** The keyboard sends reports and never receives anything back, so it cannot tell whether the monitor is currently on. A toggle must therefore either *assume* the state or *read* it from somewhere else. Both are supported.
 
-**Assumed state — the `alternate:` action.** It runs one step per press and advances each time:
+**Assumed state — the `alternate:` action.** It runs one **branch** per press and advances each time. Branches are separated by `||`, while a single `|` keeps its usual meaning of "next step" — so each branch can be a whole sequence:
 
 ```
-alternate:consumer:0x30 | press_button:samsung_43_m70f_wol
+alternate:consumer:0x30 | delay:500 | ok || press_button:samsung_43_m70f_wol
+         └──────── branch 1: press, wait, confirm ────────┘    └─ branch 2 ─┘
 ```
 
-Put that in **Host Actions** as the replacement for `remote_power` on the monitor's slot and the remote's power button sleeps it, then wakes it, then sleeps it. No reflash — Host Actions persist to NVS, so this can be edited from the web UI at any time. It also works in macros, YAML `actions:`, and the REST API.
+That matters for real hardware. The M70F won't sleep from the power code alone — it puts a confirmation prompt on screen, so the off sequence is three steps that must run together on one press. Using a single `|` between them would spread them across three presses.
 
-In the web UI, build the steps with the preset dropdown as usual, then pick **Alternate — one step per press** from the *Other* group. Unlike every other preset it **wraps** what's already in the box rather than appending, because `alternate:` takes the whole chain.
+Put it in **Host Actions** as the replacement for `remote_power` on the monitor's slot and the remote's power button sleeps it, then wakes it, then sleeps it. No reflash — Host Actions persist to NVS, so this can be edited from the web UI at any time. It also works in macros, YAML `actions:`, and the REST API.
 
-> **Wake-on-LAN often needs more than one packet.** Magic packets are unacknowledged UDP and get dropped, and some displays ignore the first one while their network interface wakes. Steps compose, so wrap the WOL step in [`repeat:`](#action-reference):
+In the web UI, build the first branch with the preset dropdown as usual, then pick **Alternate — one branch per press** from the *Other* group. Unlike every other preset it **wraps** what's already in the box rather than appending, because `alternate:` takes the whole chain. Then type ` || ` and build the second branch.
+
+> **Wake-on-LAN often needs more than one packet.** Magic packets are unacknowledged UDP and get dropped, and some displays ignore the first one while their network interface wakes. Branches are ordinary action strings, so `repeat:` composes:
 >
 > ```
-> alternate:consumer:0x30 | repeat:3:press_button:samsung_43_m70f_wol
+> alternate:consumer:0x30 | delay:500 | ok || repeat:3:press_button:samsung_43_m70f_wol
 > ```
 >
-> Still one press per step — press once to sleep, once to send three wake packets. Raise the count if your display needs more.
+> Still one press per branch — press once to sleep, once to send three wake packets. Raise the count if your display needs more.
 
 The counter is keyed on the action text, so the same string driven from the web remote, the HA card and a macro stays in step — they're all working one physical device.
 
 > **It's a guess, and guesses drift.** Turn the monitor off with its own button and the sequence is inverted until you press through once more. The device has no way to detect that, which is what the next option is for. The position also resets on reboot.
 
-Two smaller limits: `alternate:` must be the **whole** action, not one step inside a longer `|` chain (the chain's split would consume its separators), and at most 16 distinct alternate sequences are tracked at once.
+Two smaller limits: `alternate:` must be the **whole** action, not one step inside a longer chain, and at most 16 distinct alternate sequences are tracked at once. With no `||` at all there's just one branch, which runs in full on every press.
 
 **Real state — a template button.** For a toggle that can't drift, let a template button hold the decision. It appears on the web page automatically, so it works exactly like any other button:
 

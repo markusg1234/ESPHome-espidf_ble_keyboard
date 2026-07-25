@@ -406,7 +406,8 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="delay:100">Delay 100ms</option>
 <option value="delay:500">Delay 500ms</option>
 <option value="repeat:3:">Repeat 3&times; (edit)</option>
-<option value="__alt__">Alternate &mdash; one step per press (wraps)</option>
+<option value="__br__">&mdash;&mdash; New branch (||) &mdash; next press &mdash;&mdash;</option>
+<option value="__alt__">Alternate &mdash; one branch per press (wraps)</option>
 </optgroup>
 </select>
 <button id="macro-save">+ Add</button>
@@ -599,6 +600,23 @@ function wrapAlternate(el){
   el.value=cur?('alternate:'+cur):'alternate:';
 }
 
+// Start the next alternate branch. No-op on an empty field or one already
+// ending in a separator, so picking it twice can't produce '|| ||'.
+function newBranch(el){
+  const cur=el.value.trim();
+  if(!cur||cur.charAt(cur.length-1)==='|')return;
+  el.value=cur+' || ';
+}
+
+// Presets join with ' | ' (next step) — except straight after a separator,
+// where the separator is already there. Picking one right after "New branch"
+// should read '… || foo', not '… || | foo'.
+function appendStep(el,val){
+  const cur=el.value.trim();
+  if(!cur){el.value=val;return}
+  el.value=cur+(cur.charAt(cur.length-1)==='|'?' ':' | ')+val;
+}
+
 // ── Buttons & Macros ──
 (function(){
   const containerBtns=document.getElementById('prog-btns');
@@ -623,8 +641,10 @@ function wrapAlternate(el){
   presetSel.addEventListener('change',()=>{
     if(presetSel.value==='__alt__'){
       wrapAlternate(actIn);
+    }else if(presetSel.value==='__br__'){
+      newBranch(actIn);
     }else if(presetSel.value){
-      if(actIn.value.trim()){actIn.value+=(' | '+presetSel.value)}else{actIn.value=presetSel.value}
+      appendStep(actIn,presetSel.value);
       if(!nameIn.value)nameIn.value=presetSel.options[presetSel.selectedIndex].text;
     }
     presetSel.value='';
@@ -767,8 +787,10 @@ function wrapAlternate(el){
   if(preset)preset.addEventListener('change',()=>{
     if(preset.value==='__alt__'){
       wrapAlternate(actIn);
+    }else if(preset.value==='__br__'){
+      newBranch(actIn);
     }else if(preset.value){
-      if(actIn.value.trim()){actIn.value+=' | '+preset.value}else{actIn.value=preset.value}
+      appendStep(actIn,preset.value);
     }
     preset.value='';
   });

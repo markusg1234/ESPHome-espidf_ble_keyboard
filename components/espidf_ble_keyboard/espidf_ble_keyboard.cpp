@@ -2181,32 +2181,38 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
     // is inverted until it's pressed through once more.
     if (action.find("alternate:") == 0) {
         std::string body = action.substr(10);
-        std::vector<std::string> steps;
+        // Branches are separated by '||'. A single '|' keeps its usual meaning
+        // of "next step", so each branch can be a whole sequence — a power-off
+        // that needs "code, wait, confirm" is one branch, not three presses.
+        std::vector<std::string> branches;
         size_t start = 0;
-        while (start <= body.size()) {
-            size_t end = body.find('|', start);
-            if (end == std::string::npos) end = body.size();
-            std::string step = body.substr(start, end - start);
-            while (!step.empty() && step.front() == ' ') step.erase(step.begin());
-            while (!step.empty() && step.back() == ' ') step.pop_back();
-            if (!step.empty()) steps.push_back(step);
-            if (end == body.size()) break;
-            start = end + 1;
+        while (true) {
+            size_t sep = body.find("||", start);
+            std::string branch = (sep == std::string::npos) ? body.substr(start)
+                                                            : body.substr(start, sep - start);
+            while (!branch.empty() && branch.front() == ' ') branch.erase(branch.begin());
+            while (!branch.empty() && branch.back() == ' ') branch.pop_back();
+            if (!branch.empty()) branches.push_back(branch);
+            if (sep == std::string::npos) break;
+            start = sep + 2;
         }
-        if (steps.empty()) return;
+        if (branches.empty()) return;
 
         uint8_t idx = 0;
         auto it = alternate_index_.find(body);
         if (it != alternate_index_.end()) {
             idx = it->second;
-            it->second = (uint8_t) ((idx + 1) % steps.size());
+            it->second = (uint8_t) ((idx + 1) % branches.size());
         } else if (alternate_index_.size() < MAX_ALTERNATE_COUNTERS) {
-            alternate_index_[body] = (uint8_t) (1 % steps.size());
+            alternate_index_[body] = (uint8_t) (1 % branches.size());
         }
-        // Past the cap the counter simply isn't tracked and step 0 runs every
+        // Past the cap the counter simply isn't tracked and branch 0 runs every
         // time — a bounded map matters more than toggling an unbounded number
         // of distinct sequences.
-        execute_action(steps[idx % steps.size()]);
+        //
+        // Recursing into execute_action means a branch is a normal action
+        // string: multi-step, repeat:, delays, everything.
+        execute_action(branches[idx % branches.size()]);
         return;
     }
     // Multi-step actions: split on '|' and execute each step
