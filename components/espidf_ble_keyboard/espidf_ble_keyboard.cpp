@@ -1705,7 +1705,7 @@ void EspidfBleKeyboard::send_string(const std::string &str) {
                 strokes.push_back({m.followup_modifier, m.followup_keycode, 0x00, 0x00});
             }
         } else {
-            ESP_LOGD(TAG, "send_string: skipped unmapped codepoint U+%04X", cp);
+            ESP_LOGD(TAG, "send_string: skipped unmapped codepoint U+%04X", (unsigned) cp);
         }
     }
 
