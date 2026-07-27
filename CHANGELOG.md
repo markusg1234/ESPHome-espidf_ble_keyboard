@@ -4,6 +4,29 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
+## v1.6.0 — 2026-07-27
+
+### Added
+- **Hold to repeat on the web remote, configurable per host** — holding a button makes it
+  fire repeatedly, the way a real remote ramps the volume or scrolls a menu; a quick tap
+  still sends exactly one press. The D-pad, volume, channel, rewind and fast forward
+  repeat by default. A **Hold to repeat** panel in the Host Actions card sets which
+  buttons repeat, how long a button must be held first (100–2000 ms, default 400) and how
+  fast it repeats (50–2000 ms, default 180) — **per host**, since a TV wants a fast volume
+  ramp while a PC may want only the D-pad. Stored on the device rather than in the
+  browser, so the setting follows the host instead of the phone that set it, and included
+  in Backup & Restore. New `/api/ble_keyboard/repeat` and `/repeat_set` endpoints.
+
+  The 50 ms floor on the repeat rate is deliberate: the device drops an identical press
+  arriving within 30 ms of the last one, so a faster repeat would silently lose events.
+
+### Fixed
+- **Holding a button on the web remote did nothing.** The repeat had been dropped in an
+  earlier reinstatement of tap-fires-on-release, leaving the `data-repeat` markup with no
+  code behind it while the README still advertised the feature.
+- **README** no longer credits the Home Assistant card's Mute button with hold-to-repeat;
+  that card repeats volume and channel only.
+
 ## v1.5.0 — 2026-07-25
 
 ### Added

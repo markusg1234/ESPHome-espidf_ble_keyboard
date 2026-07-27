@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
+#include <cstdlib>
 #include <span>
 #include <vector>
 
@@ -1178,6 +1179,122 @@ void EspidfBleKeyboard::save_hidden_(uint8_t slot) {
     nvs_close(handle);
 }
 
+// ── Per-host hold-to-repeat (NVS-persisted) ───────────────────────
+//
+// One NVS entry per slot (key "rpt<slot>"), value "<delay>,<rate>" followed by
+// the action names that repeat. The first two comma fields are always numeric,
+// so the same comma walk that reads the hidden list parses this unambiguously.
+//
+// Presentation only, like the hidden list: the browser holds the timer and
+// re-sends an ordinary press, so nothing here runs an action. The device stores
+// it so the setting follows the host rather than the phone that set it.
+//
+// Storing an empty name list is meaningful — it means "nothing repeats on this
+// host" — so unlike save_hidden_() an empty list still writes the key. Erasing
+// it (clear_repeat) is what returns the slot to the page's own defaults.
+
+bool EspidfBleKeyboard::set_repeat(uint8_t slot, uint16_t delay, uint16_t rate,
+                                   const std::vector<std::string> &names) {
+    if (slot >= MAX_HOST_SLOTS || names.size() > MAX_REPEAT_BUTTONS) return false;
+    for (const auto &n : names) {
+        // valid_override_name() already rejects '=', '|' and whitespace; the
+        // comma is this list's own separator.
+        if (!valid_override_name(n) || n.find(',') != std::string::npos) return false;
+    }
+    // Clamped rather than rejected: the bounds exist to keep the repeat usable
+    // (see REPEAT_RATE_MIN and the dedup guards), not to police the caller.
+    if (delay < REPEAT_DELAY_MIN) delay = REPEAT_DELAY_MIN;
+    if (delay > REPEAT_DELAY_MAX) delay = REPEAT_DELAY_MAX;
+    if (rate < REPEAT_RATE_MIN) rate = REPEAT_RATE_MIN;
+    if (rate > REPEAT_RATE_MAX) rate = REPEAT_RATE_MAX;
+
+    repeat_[slot].set = true;
+    repeat_[slot].delay = delay;
+    repeat_[slot].rate = rate;
+    repeat_[slot].names = names;
+    save_repeat_(slot);
+    ESP_LOGI(TAG, "Repeat for host %u: %u button(s), %ums then every %ums",
+             (unsigned) slot, (unsigned) names.size(), (unsigned) delay, (unsigned) rate);
+    return true;
+}
+
+void EspidfBleKeyboard::clear_repeat(uint8_t slot) {
+    if (slot >= MAX_HOST_SLOTS) return;
+    repeat_[slot] = RepeatCfg{};
+    save_repeat_(slot);  // .set is false now, so this erases the key
+    ESP_LOGI(TAG, "Repeat for host %u reset to defaults", (unsigned) slot);
+}
+
+void EspidfBleKeyboard::load_repeat_() {
+    nvs_handle_t handle;
+    if (nvs_open("espidf_ble_kb", NVS_READONLY, &handle) != ESP_OK) return;
+
+    for (uint8_t slot = 0; slot < MAX_HOST_SLOTS; slot++) {
+        char key[12];
+        snprintf(key, sizeof(key), "rpt%u", slot);
+
+        size_t len = 0;
+        if (nvs_get_str(handle, key, nullptr, &len) != ESP_OK || len == 0) continue;
+        if (len > MAX_REPEAT_BUTTONS * 33 + 16) {
+            ESP_LOGW(TAG, "Repeat list for slot %u is oversized (%u bytes) — ignoring",
+                     (unsigned) slot, (unsigned) len);
+            continue;
+        }
+
+        std::vector<char> buf(len);
+        if (nvs_get_str(handle, key, buf.data(), &len) != ESP_OK) continue;
+
+        std::string blob(buf.data());
+        RepeatCfg cfg;
+        size_t start = 0;
+        for (int field = 0; start <= blob.size(); field++) {
+            size_t end = blob.find(',', start);
+            if (end == std::string::npos) end = blob.size();
+            std::string tok = blob.substr(start, end - start);
+            if (field == 0) {
+                cfg.delay = (uint16_t) atoi(tok.c_str());
+            } else if (field == 1) {
+                cfg.rate = (uint16_t) atoi(tok.c_str());
+            } else if (valid_override_name(tok) && cfg.names.size() < MAX_REPEAT_BUTTONS) {
+                cfg.names.push_back(tok);
+            }
+            if (end == blob.size()) break;
+            start = end + 1;
+        }
+        // A blob written by an older or corrupt build could carry out-of-range
+        // timings; clamp on the way in so the page never gets a useless rate.
+        if (cfg.delay < REPEAT_DELAY_MIN) cfg.delay = REPEAT_DELAY_MIN;
+        if (cfg.delay > REPEAT_DELAY_MAX) cfg.delay = REPEAT_DELAY_MAX;
+        if (cfg.rate < REPEAT_RATE_MIN) cfg.rate = REPEAT_RATE_MIN;
+        if (cfg.rate > REPEAT_RATE_MAX) cfg.rate = REPEAT_RATE_MAX;
+        cfg.set = true;
+        repeat_[slot] = cfg;
+        ESP_LOGI(TAG, "Loaded repeat for host %u: %u button(s), %ums/%ums",
+                 (unsigned) slot, (unsigned) cfg.names.size(),
+                 (unsigned) cfg.delay, (unsigned) cfg.rate);
+    }
+    nvs_close(handle);
+}
+
+void EspidfBleKeyboard::save_repeat_(uint8_t slot) {
+    if (slot >= MAX_HOST_SLOTS) return;
+    nvs_handle_t handle;
+    if (nvs_open("espidf_ble_kb", NVS_READWRITE, &handle) != ESP_OK) return;
+
+    char key[12];
+    snprintf(key, sizeof(key), "rpt%u", slot);
+    if (!repeat_[slot].set) {
+        nvs_erase_key(handle, key);
+    } else {
+        std::string blob = std::to_string(repeat_[slot].delay) + "," +
+                           std::to_string(repeat_[slot].rate);
+        for (const auto &n : repeat_[slot].names) blob += "," + n;
+        nvs_set_str(handle, key, blob.c_str());
+    }
+    nvs_commit(handle);
+    nvs_close(handle);
+}
+
 // ── User-editable macros (NVS-persisted) ──────────────────────────
 
 void EspidfBleKeyboard::load_macros_() {
@@ -1436,6 +1553,7 @@ void EspidfBleKeyboard::setup() {
     load_macros_();
     load_overrides_();  // all slots, so the web UI can edit an inactive slot
     load_hidden_();
+    load_repeat_();
     // Apply YAML default if no setter ran (defensive), then let NVS override.
     if (active_layout_ == nullptr) active_layout_ = default_layout();
     load_layout_();

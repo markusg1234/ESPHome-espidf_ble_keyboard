@@ -115,6 +115,9 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .hid-items{display:flex;flex-wrap:wrap;gap:4px 12px}
 .hid-item{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg);min-width:120px;cursor:pointer}
 .hid-item input{margin:0;cursor:pointer}
+.rpt-times{display:flex;flex-wrap:wrap;gap:6px 16px;margin:8px 0}
+.rpt-times label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg)}
+.rpt-times input{width:70px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg);font-size:12px}
 .host-bar{display:flex;gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;flex-wrap:wrap;overflow:hidden}
 /* max-width is what stops a lone host on a wrapped row from growing to the full
    width of the bar. flex-grow still lets several share a row and shrink to fit,
@@ -172,7 +175,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="status-dot" id="sdot"></div>
 <span class="status-text" id="stxt">Disconnected</span>
 <span class="dev-name" id="dname"></span>
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.5.0</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.6.0</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -489,6 +492,18 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="macro-form"><button id="hid-save">Save buttons</button><button id="hid-all" class="cancel">All</button><button id="hid-none" class="cancel">None</button></div>
 </div>
 </div>
+<div class="hid-panel" id="rpt-panel">
+<button class="hid-toggle" id="rpt-toggle">Hold to repeat &#9662;</button>
+<div class="hid-body" id="rpt-body">
+<div style="font-size:12px;color:var(--muted);margin:6px 0">Tick a button to make it fire again and again while you hold it on this host &mdash; handy for volume and menu scrolling. A quick tap still sends exactly one press. Saved per host; <strong>Reset</strong> returns to the defaults (D-pad, volume, channel, rewind and fast forward).</div>
+<div class="rpt-times">
+<label>Start after <input id="rpt-delay" type="number" min="100" max="2000" step="50" value="400" title="How long a button must be held before it starts repeating."> ms</label>
+<label>Repeat every <input id="rpt-rate" type="number" min="50" max="2000" step="10" value="180" title="Time between repeats while held. Values below 50ms are raised to 50 &mdash; identical presses closer together than 30ms are dropped by the device's duplicate guard."> ms</label>
+</div>
+<div id="rpt-list"></div>
+<div class="macro-form"><button id="rpt-save">Save repeat</button><button id="rpt-all" class="cancel">All</button><button id="rpt-none" class="cancel">None</button><button id="rpt-reset" class="cancel">Reset</button></div>
+</div>
+</div>
 </div>
 </div>
 
@@ -557,8 +572,10 @@ setInterval(pollStatus,3000);
       lastHostsRaw=txt;
       const d=JSON.parse(txt);
       // Before the single-slot early return below: a one-host device still has
-      // a hidden set to apply, and the active slot may have changed.
+      // a hidden set and a repeat set to apply, and the active slot may have
+      // changed.
       if(window.applyHidden)window.applyHidden(false);
+      if(window.applyRepeat)window.applyRepeat(false);
       if(!d.slots||d.slots.length<=1){bar.style.display='none';return}
       bar.style.display='';
       bar.innerHTML='';
@@ -930,6 +947,7 @@ function appendStep(el,val){
     slot=parseInt(slotSel.value);
     load();
     if(hidPanel&&hidPanel.classList.contains('open'))loadHidden();
+    if(rptPanel&&rptPanel.classList.contains('open'))loadRepeat();
   });
 
   saveBtn.addEventListener('click',()=>{
@@ -960,15 +978,18 @@ function appendStep(el,val){
       seen[a]=true;
       const sec=b.closest('.rmt-section');
       const secs=[...document.querySelectorAll('#media-card .rmt-section')];
-      out.push({action:a,label:b.title||b.textContent.trim()||a,group:secs.indexOf(sec)});
+      out.push({action:a,label:b.title||b.textContent.trim()||a,group:secs.indexOf(sec),
+                rpt:b.hasAttribute('data-repeat')});
     });
     return out;
   }
   const GROUP_NAMES=['Power &amp; navigation','D-pad','Volume &amp; channel','Media','Colours','Apps'];
 
-  function buildHidList(hidden){
+  // Shared by both per-host panels: same button list, same grouping — only what
+  // a tick means differs, so the caller supplies that as a predicate.
+  function buildCheckGrid(host,isChecked){
     const btns=remoteButtons();
-    hidList.innerHTML='';
+    host.innerHTML='';
     const groups={};
     btns.forEach(b=>{(groups[b.group]=groups[b.group]||[]).push(b)});
     Object.keys(groups).sort((a,b)=>a-b).forEach(g=>{
@@ -986,20 +1007,22 @@ function appendStep(el,val){
         const cb=document.createElement('input');
         cb.type='checkbox';
         cb.dataset.action=b.action;
-        cb.checked=hidden.indexOf(b.action)<0;   // ticked = shown
+        cb.checked=isChecked(b);
         lab.appendChild(cb);
         lab.appendChild(document.createTextNode(b.label));
         items.appendChild(lab);
       });
       wrap.appendChild(items);
-      hidList.appendChild(wrap);
+      host.appendChild(wrap);
     });
   }
 
   function loadHidden(){
     if(!hidList)return Promise.resolve();
     return fetch('/api/ble_keyboard/hidden?'+new URLSearchParams({slot:slot}))
-      .then(r=>r.json()).then(d=>buildHidList(d.hidden||[]))
+      .then(r=>r.json())
+      .then(d=>{const hidden=d.hidden||[];
+                buildCheckGrid(hidList,b=>hidden.indexOf(b.action)<0)})  // ticked = shown
       .catch(()=>{hidList.innerHTML='<span class="prog-empty">Error loading</span>'});
   }
 
@@ -1019,6 +1042,61 @@ function appendStep(el,val){
       .then(r=>{
         if(!r.ok)return r.text().then(t=>{alert(t)});
         if(window.applyHidden)window.applyHidden(true);
+      });
+  });
+
+  // ── Hold to repeat (per host) ──
+  // Same grid as above; a tick here means "repeats while held". An untouched
+  // host reports set:false and the grid shows the page's own data-repeat
+  // defaults, so saving is what turns those defaults into a stored choice.
+  const rptPanel=document.getElementById('rpt-panel');
+  const rptToggle=document.getElementById('rpt-toggle');
+  const rptList=document.getElementById('rpt-list');
+  const rptDelayIn=document.getElementById('rpt-delay');
+  const rptRateIn=document.getElementById('rpt-rate');
+
+  function loadRepeat(){
+    if(!rptList)return Promise.resolve();
+    return fetch('/api/ble_keyboard/repeat?'+new URLSearchParams({slot:slot}))
+      .then(r=>r.json()).then(d=>{
+        rptDelayIn.value=d.delay;rptRateIn.value=d.rate;
+        const on=d.buttons||[];
+        buildCheckGrid(rptList,b=>d.set?on.indexOf(b.action)>=0:b.rpt);
+      })
+      .catch(()=>{rptList.innerHTML='<span class="prog-empty">Error loading</span>'});
+  }
+
+  if(rptToggle)rptToggle.addEventListener('click',()=>{
+    rptPanel.classList.toggle('open');
+    rptToggle.innerHTML='Hold to repeat '+(rptPanel.classList.contains('open')?'▴':'▾');
+    if(rptPanel.classList.contains('open'))loadRepeat();
+  });
+  const rptAll=document.getElementById('rpt-all');
+  const rptNone=document.getElementById('rpt-none');
+  if(rptAll)rptAll.addEventListener('click',()=>rptList.querySelectorAll('input').forEach(c=>c.checked=true));
+  if(rptNone)rptNone.addEventListener('click',()=>rptList.querySelectorAll('input').forEach(c=>c.checked=false));
+
+  const rptSave=document.getElementById('rpt-save');
+  if(rptSave)rptSave.addEventListener('click',()=>{
+    const on=[...rptList.querySelectorAll('input')].filter(c=>c.checked).map(c=>c.dataset.action);
+    fetch('/api/ble_keyboard/repeat_set?'+new URLSearchParams({
+        slot:slot,delay:rptDelayIn.value,rate:rptRateIn.value,names:on.join(',')}),{method:'POST'})
+      .then(r=>{
+        if(!r.ok)return r.text().then(t=>{alert(t)});
+        // Re-read rather than trust the inputs: the device clamps the timings,
+        // so the boxes should show what was actually stored.
+        if(window.applyRepeat)window.applyRepeat(true);
+        return loadRepeat();
+      });
+  });
+
+  const rptReset=document.getElementById('rpt-reset');
+  if(rptReset)rptReset.addEventListener('click',()=>{
+    fetch('/api/ble_keyboard/repeat_set?'+new URLSearchParams({slot:slot,reset:'1'}),{method:'POST'})
+      .then(r=>{
+        if(!r.ok)return r.text().then(t=>{alert(t)});
+        if(window.applyRepeat)window.applyRepeat(true);
+        return loadRepeat();
       });
   });
 
@@ -1153,6 +1231,23 @@ function appendStep(el,val){
       }
       return chain;
     }).then(()=>{
+      status('Restoring: hold to repeat...');
+      // Same every-slot rule as above, except a slot the file doesn't mention
+      // is reset rather than emptied — an empty list is itself a setting here.
+      const rpt=d.repeat&&typeof d.repeat==='object'?d.repeat:{};
+      let chain=Promise.resolve();
+      for(let s=0;s<slotSel.options.length;s++){
+        const sl=parseInt(slotSel.options[s].value);
+        const v=rpt[sl]||rpt[String(sl)];
+        if(v&&Array.isArray(v.buttons)){
+          chain=chain.then(()=>post('repeat_set',
+            {slot:sl,delay:v.delay,rate:v.rate,names:v.buttons.join(',')}));
+        }else{
+          chain=chain.then(()=>post('repeat_set',{slot:sl,reset:'1'}));
+        }
+      }
+      return chain;
+    }).then(()=>{
       if(!d.layout)return;
       status('Restoring: layout...');
       return post('set_layout',{id:d.layout});
@@ -1191,6 +1286,7 @@ function appendStep(el,val){
         alert(msg);
         load();
         if(window.applyHidden)window.applyHidden(true);
+        if(window.applyRepeat)window.applyRepeat(true);
       }
     }).catch(e=>status('Restore stopped at "'+e.message+'" — the device is partly restored.',true));
   }
@@ -1533,21 +1629,61 @@ buildKeyboard();
 (function(){
   const card=document.getElementById('media-card');
   if(!card)return;
-  let ri=null;
-  function stopRepeat(){if(ri){clearInterval(ri);ri=null}}
-  {let sx,sy,ok,ab;
+  // Hold-to-repeat set for the active host. Populated by applyRepeat() below;
+  // until that first fetch lands the page falls back to its own data-repeat
+  // markup, so holding works from the moment the page is usable.
+  let rptSet=null,rptDelay=400,rptRate=180;
+  const repeats=(el,a)=>rptSet?rptSet.indexOf(a)>=0:el.hasAttribute('data-repeat');
+
+  let ri=null,rt=null;
+  function stopRepeat(){if(ri){clearInterval(ri);ri=null}if(rt){clearTimeout(rt);rt=null}}
+  // `fired` is what keeps hold and tap from both counting: once the hold timer
+  // has sent anything, pointerup must NOT send its usual press on release.
+  {let sx,sy,ok,ab,fired=false;
   card.addEventListener('pointerdown',e=>{
     ab=e.target.closest('.rmt-btn');if(!ab)return;
-    sx=e.clientX;sy=e.clientY;ok=true;ab.classList.add('p');
+    sx=e.clientX;sy=e.clientY;ok=true;fired=false;ab.classList.add('p');
+    const act=ab.dataset.action;
+    if(!repeats(ab,act))return;
+    // Nothing is sent until the hold threshold passes, so a tap still fires on
+    // release and a drag can still cancel it — both were the point of the
+    // fire-on-release rework this repeat was reinstated into.
+    rt=setTimeout(()=>{
+      rt=null;if(!ok)return;
+      fired=true;api('press',{action:act});
+      ri=setInterval(()=>api('press',{action:act}),rptRate);
+    },rptDelay);
   });
   card.addEventListener('pointermove',e=>{if(ok&&(Math.abs(e.clientX-sx)+Math.abs(e.clientY-sy))>10){ok=false;if(ab)ab.classList.remove('p');stopRepeat()}});
   card.addEventListener('pointerup',()=>{
     if(ab)ab.classList.remove('p');
-    if(ok&&ab){api('press',{action:ab.dataset.action})}
-    ok=false;ab=null;stopRepeat();
+    if(ok&&ab&&!fired){api('press',{action:ab.dataset.action})}
+    ok=false;ab=null;fired=false;stopRepeat();
   });
-  card.addEventListener('pointercancel',()=>{if(ab)ab.classList.remove('p');ok=false;ab=null;stopRepeat()});
+  const abort=()=>{if(ab)ab.classList.remove('p');ok=false;ab=null;fired=false;stopRepeat()};
+  card.addEventListener('pointercancel',abort);
+  // Releasing outside the card never fires pointerup on it, which would strand a
+  // running interval hammering the device. The 10px drag cancel usually catches
+  // that first; this is the backstop for a fast flick off the edge.
+  card.addEventListener('pointerleave',abort);
   }
+
+  // ── Per-host hold-to-repeat ──
+  // Timing lives on the device so it follows the host rather than the browser
+  // that set it; the repeat itself is driven here, one ordinary press per tick.
+  let lastRptKey=null;
+  window.applyRepeat=function(force){
+    fetch('/api/ble_keyboard/repeat').then(r=>r.json()).then(d=>{
+      const key=d.slot+':'+(d.set?1:0)+':'+d.delay+':'+d.rate+':'+(d.buttons||[]).join(',');
+      if(!force&&key===lastRptKey)return;
+      lastRptKey=key;
+      // set:false means this host was never configured — back to data-repeat.
+      rptSet=d.set?(d.buttons||[]):null;
+      rptDelay=d.delay||400;rptRate=d.rate||180;
+      stopRepeat();  // a rate change mid-hold would otherwise keep the old one
+    }).catch(()=>{});
+  };
+  window.applyRepeat(true);
 
   // ── Per-host hidden buttons ──
   // Hides the buttons this host has no use for, then collapses any container
@@ -2111,6 +2247,29 @@ class BleKbWebHandler : public AsyncWebHandler {
       return;
     }
 
+    if (path == "repeat") {
+      int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : kb_->active_host_slot();
+      if (slot < 0 || slot >= kb_->host_slots()) {
+        send_response(400, "text/plain", "Invalid slot");
+        return;
+      }
+      const auto &r = kb_->get_repeat((uint8_t) slot);
+      // "set" is what tells the page whether to use these values or fall back to
+      // its own data-repeat defaults — an empty "buttons" with set:true means
+      // the user deliberately turned every repeat off for this host.
+      std::string json = "{\"slot\":" + std::to_string(slot) +
+                         ",\"set\":" + (r.set ? "true" : "false") +
+                         ",\"delay\":" + std::to_string(r.delay) +
+                         ",\"rate\":" + std::to_string(r.rate) + ",\"buttons\":[";
+      for (size_t i = 0; i < r.names.size(); i++) {
+        if (i > 0) json += ",";
+        json += "\"" + json_escape(r.names[i]) + "\"";
+      }
+      json += "]}";
+      send_response(200, "application/json", json.c_str());
+      return;
+    }
+
     if (path == "backup") {
       // Everything the user can edit at runtime, in one document. Deliberately
       // excludes the passkey and the generated per-slot addresses (device
@@ -2155,6 +2314,21 @@ class BleKbWebHandler : public AsyncWebHandler {
           json += "\"" + json_escape(h[i]) + "\"";
         }
         json += "]";
+      }
+      json += "},\"repeat\":{";
+      bool first_repeat = true;
+      for (uint8_t s = 0; s < kb_->host_slots(); s++) {
+        const auto &r = kb_->get_repeat(s);
+        if (!r.set) continue;  // unset slots restore as "reset to defaults"
+        if (!first_repeat) json += ",";
+        first_repeat = false;
+        json += "\"" + std::to_string(s) + "\":{\"delay\":" + std::to_string(r.delay) +
+                ",\"rate\":" + std::to_string(r.rate) + ",\"buttons\":[";
+        for (size_t i = 0; i < r.names.size(); i++) {
+          if (i > 0) json += ",";
+          json += "\"" + json_escape(r.names[i]) + "\"";
+        }
+        json += "]}";
       }
       json += "},\"goto_scale\":{";
       bool first_scale = true;
@@ -2377,6 +2551,47 @@ class BleKbWebHandler : public AsyncWebHandler {
       } else if (list.size() > EspidfBleKeyboard::MAX_HIDDEN) {
         send_response(400, "text/plain", "Too many hidden buttons (max 40)");
       } else if (!kb_->set_hidden((uint8_t) slot, list)) {
+        send_response(400, "text/plain", "Invalid button name in list");
+      } else {
+        send_response(200, "text/plain", "OK");
+      }
+
+    } else if (path == "repeat_set") {
+      // Replaces the whole set for one slot. An empty "names" is a real setting
+      // ("nothing repeats here"); "reset=1" is what returns the slot to the
+      // page's built-in defaults.
+      int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : -1;
+      // Via c_str() rather than comparing arg() directly: the return type differs
+      // between the Async and esp-idf web server backends, .c_str() does not.
+      bool reset = request->hasArg("reset") &&
+                   std::string(request->arg("reset").c_str()) == "1";
+      int delay = request->hasArg("delay") ? atoi(request->arg("delay").c_str()) : 400;
+      int rate = request->hasArg("rate") ? atoi(request->arg("rate").c_str()) : 180;
+      // Ceiling applied here, before the narrowing cast below: set_repeat() would
+      // clamp too, but only after a value past 65535 had already wrapped into
+      // something plausible-looking. The floor is left to set_repeat().
+      if (delay > EspidfBleKeyboard::REPEAT_DELAY_MAX) delay = EspidfBleKeyboard::REPEAT_DELAY_MAX;
+      if (rate > EspidfBleKeyboard::REPEAT_RATE_MAX) rate = EspidfBleKeyboard::REPEAT_RATE_MAX;
+      std::string names = request->hasArg("names") ? request->arg("names").c_str() : "";
+      std::vector<std::string> list;
+      size_t start = 0;
+      while (start < names.size()) {
+        size_t end = names.find(',', start);
+        if (end == std::string::npos) end = names.size();
+        std::string n = names.substr(start, end - start);
+        start = end + 1;
+        if (!n.empty()) list.push_back(n);
+      }
+      if (slot < 0 || slot >= kb_->host_slots()) {
+        send_response(400, "text/plain", "Invalid slot");
+      } else if (reset) {
+        kb_->clear_repeat((uint8_t) slot);
+        send_response(200, "text/plain", "OK");
+      } else if (list.size() > EspidfBleKeyboard::MAX_REPEAT_BUTTONS) {
+        send_response(400, "text/plain", "Too many repeat buttons (max 40)");
+      } else if (delay < 0 || rate < 0) {
+        send_response(400, "text/plain", "Invalid timing");
+      } else if (!kb_->set_repeat((uint8_t) slot, (uint16_t) delay, (uint16_t) rate, list)) {
         send_response(400, "text/plain", "Invalid button name in list");
       } else {
         send_response(200, "text/plain", "OK");

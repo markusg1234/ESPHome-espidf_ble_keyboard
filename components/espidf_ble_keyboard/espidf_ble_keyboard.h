@@ -234,6 +234,30 @@ class EspidfBleKeyboard : public Component
   /// The active slot's hidden list as a comma-separated string, for the text sensor.
   std::string hidden_csv(uint8_t slot) const;
 
+  // Per-host hold-to-repeat for the web remote. Like the hidden list above this
+  // is presentation only: the browser does the timing and just sends the same
+  // press again, so nothing here touches execute_action(). Stored per slot
+  // because a TV wants a fast volume ramp while a PC may want only the D-pad.
+  static const uint8_t MAX_REPEAT_BUTTONS = 40;
+  // Bounds. `rate` cannot go below the 30ms dedup guard in send_consumer() /
+  // send_key_combo() — a faster repeat of the same action would be silently
+  // dropped there, so a too-low rate must be clamped, not honoured.
+  static const uint16_t REPEAT_DELAY_MIN = 100, REPEAT_DELAY_MAX = 2000;
+  static const uint16_t REPEAT_RATE_MIN = 50, REPEAT_RATE_MAX = 2000;
+  struct RepeatCfg {
+    /// False = this slot was never configured, so the browser falls back to the
+    /// page's own `data-repeat` defaults. Distinct from a configured-but-empty
+    /// list, which means "nothing repeats on this host".
+    bool set{false};
+    uint16_t delay{400};  // held this long before repeating starts
+    uint16_t rate{180};   // and once per this long after that
+    std::vector<std::string> names;
+  };
+  const RepeatCfg &get_repeat(uint8_t slot) const { return repeat_[slot]; }
+  bool set_repeat(uint8_t slot, uint16_t delay, uint16_t rate,
+                  const std::vector<std::string> &names);  // replaces the set
+  void clear_repeat(uint8_t slot);  // back to the page defaults
+
   /// Execute an action string (combo:, consumer:, named actions, or literal text).
   /// Used by buttons, macros, web API, and YAML automations.
   void execute_action(const std::string &action);
@@ -459,6 +483,11 @@ class EspidfBleKeyboard : public Component
   void load_hidden_();
   void save_hidden_(uint8_t slot);
   void publish_hidden_();  // push the active slot's list to the text sensor
+
+  // Per-host hold-to-repeat (NVS key "rpt<slot>", "<delay>,<rate>,name,name").
+  RepeatCfg repeat_[MAX_HOST_SLOTS];
+  void load_repeat_();
+  void save_repeat_(uint8_t slot);
 
   // Multi-host state
   uint8_t host_slots_{MAX_HOST_SLOTS};

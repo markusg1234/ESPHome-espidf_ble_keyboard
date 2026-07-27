@@ -801,7 +801,7 @@ A dangling reference is flagged: any override row pointing at a macro that no lo
 
 <img src="docs/host_actions.png" width="420" alt="Host Actions card in the web UI">
 
-The same card also hosts the [Backup & Restore](#backup-and-restore) buttons and the [Remote buttons](#removing-remote-buttons-per-host) hiding panel.
+The same card also hosts the [Backup & Restore](#backup-and-restore) buttons, the [Remote buttons](#removing-remote-buttons-per-host) hiding panel and the [Hold to repeat](#hold-to-repeat-per-host) panel.
 
 ### Removing Remote Buttons Per Host
 
@@ -826,6 +826,25 @@ text_sensor:
 The card picks up `sensor.<device>_hidden_buttons` automatically (override with `hidden_entity:` on the card) and hides the same buttons, following host switches live. Without the text sensor the card simply shows everything.
 
 > Home Assistant caps entity states at 255 characters. Hiding nearly every button on a host exceeds that, so the device truncates the published list at a whole-name boundary and logs a warning — a couple of buttons would stay visible on the card, though the web remote is unaffected. Normal-sized sets are nowhere near the limit.
+
+### Hold to Repeat Per Host
+
+Holding a button on the **web remote** makes it fire again and again, the way a real remote ramps the volume or scrolls a menu. A quick tap still sends exactly one press.
+
+Out of the box the D-pad, Volume, Channel, Rewind and Fast Forward repeat; everything else fires once. Open **Hold to repeat** in the Host Actions card to change that per host — tick the buttons that should repeat, set how long a button must be held before it starts (**Start after**, default 400 ms) and how fast it repeats after that (**Repeat every**, default 180 ms). **Reset** returns the host to the defaults above.
+
+Different hosts want different answers: a TV wants a fast volume ramp, while a PC may want only the D-pad repeating and volume left alone so a long press can't run away with the mixer.
+
+| | Range | Default |
+|---|---|---|
+| Start after | 100–2000 ms | 400 ms |
+| Repeat every | 50–2000 ms | 180 ms |
+
+Values outside those ranges are clamped rather than rejected. The 50 ms floor is not arbitrary — the device drops an identical press that arrives within 30 ms of the last one (the duplicate guard that stops Home Assistant's double-delivered service calls from firing twice), so a faster repeat would silently lose events.
+
+Each repeat is a normal press, so per-host overrides apply to it. One consequence worth knowing: if a button is overridden to something that already loops, such as `repeat:3:volume_up`, holding it multiplies the two.
+
+Settings are stored per host on the device (max 40 buttons per slot), not in the browser, so they follow the host rather than the phone that set them, and they are included in [Backup and restore](#backup-and-restore). This panel drives the **web remote only** — the Home Assistant card has its own fixed hold-to-repeat on volume and channel.
 
 ### Action Reference
 
@@ -1338,7 +1357,8 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 - **Mouse acceleration** — slow movements are precise, fast swipes cover more ground (up to 4x)
 - **Mouse buttons** — Left, Middle, Right click; long-press a button to hold it for dragging (drag the touchpad or run `mouse_goto` while held), tap the held button to release
 - **Scroll controls** — buttons + mouse wheel on the touchpad
-- **Remote control** — D-pad navigation (Up/Down/Left/Right/Enter), Power, Home, Back, Search, Volume +/-, Mute with hold-to-repeat, media transport including Record, red/green/yellow/blue colour keys (F1–F4), and app launchers (Explorer, Browser, Email, Calc, Search). Every button is a named action, so any of them can be remapped per host — see [Per-host action overrides](#host-actions-per-host-overrides)
+- **Remote control** — D-pad navigation (Up/Down/Left/Right/Enter), Power, Home, Back, Search, Volume +/-, Mute, media transport including Record, red/green/yellow/blue colour keys (F1–F4), and app launchers (Explorer, Browser, Email, Calc, Search). Every button is a named action, so any of them can be remapped per host — see [Per-host action overrides](#host-actions-per-host-overrides)
+- **Hold to repeat** — the D-pad, volume, channel and scan buttons fire repeatedly while held; which buttons repeat and how fast is set per host — see [Hold to repeat per host](#hold-to-repeat-per-host)
 - **Host Actions** — remap a named action per host slot (e.g. Record → Game Bar on a PC, HID Record on a TV), saved on the device — see [Per-host action overrides](#host-actions-per-host-overrides)
 - **Backup & Restore** — download every runtime setting as a JSON file and re-apply it later or on another board — see [Backup and restore](#backup-and-restore)
 - **Remove buttons per host** — untick the remote buttons a host doesn't need; they disappear for that host only — see [Removing remote buttons per host](#removing-remote-buttons-per-host)
@@ -1362,6 +1382,7 @@ Macros, host actions and `mouse_goto` calibration only exist in the device's NVS
 - The keyboard layout chosen in the web UI
 - Per-host `mouse_goto` calibration
 - Per-host hidden remote buttons
+- Per-host hold-to-repeat settings (a host left on the defaults is simply absent, and restores as "reset to defaults")
 - Occupied host slots — address, address type, and whether the device still holds a Bluetooth bond for it
 - This browser's interface preferences: theme, zoom, and which sections are shown and in what order
 
@@ -1405,6 +1426,8 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/override_clear` | POST | `slot`, `name` | Delete a saved override, falling back to YAML / built-in |
 | `/api/ble_keyboard/hidden` | GET | `slot` (int, default active) | Buttons removed from the remote for that host: `{"slot":N,"hidden":["record"]}` |
 | `/api/ble_keyboard/hidden_set` | POST | `slot`, `names` (comma-separated) | Replace a host's hidden-button set; empty `names` clears it (max 40) |
+| `/api/ble_keyboard/repeat` | GET | `slot` (int, default active) | That host's hold-to-repeat config: `{"slot":N,"set":bool,"delay":400,"rate":180,"buttons":["volume_up"]}`. `set:false` means the host is on the page defaults |
+| `/api/ble_keyboard/repeat_set` | POST | `slot`, `delay`, `rate`, `names` (comma-separated), or `reset=1` | Replace a host's repeat config; empty `names` means nothing repeats, `reset=1` returns it to the defaults. Timings are clamped (delay 100–2000, rate 50–2000) |
 | `/api/ble_keyboard/backup` | GET | — | All runtime settings as JSON: macros, saved overrides, layout, per-host calibration, and occupied host slots (with a `bonded` flag) |
 | `/api/ble_keyboard/goto_scale_slot` | POST | `slot`, `x`, `y` | Write `mouse_goto` calibration for any slot (`goto_scale` only writes the active one) |
 | `/api/ble_keyboard/set_host_slot` | POST | `slot`, `addr`, `type` | Restore a host slot's address. Returns `OK-NOBOND` if the BLE bond is missing, meaning that host must be re-paired |
@@ -1604,7 +1627,7 @@ Features:
 - **Power button** — HID power signal for clean OS-level power control.
 - **D-pad navigation** — arrow keys + Enter, ideal for media apps and menus.
 - **Back & Home** — Escape and Windows key for quick navigation.
-- **Volume** — up, down, and mute with hold-to-repeat.
+- **Volume** — up and down with hold-to-repeat, plus mute.
 - **Channel** — Page Up/Down with hold-to-repeat for channel surfing.
 - **Media playback** — play/pause, stop, previous, next, rewind, fast forward, record.
 - **App launchers** — quick launch Explorer, Browser, Email, Calculator, Search.
