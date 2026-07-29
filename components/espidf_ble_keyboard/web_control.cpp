@@ -179,7 +179,10 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="status-dot" id="sdot"></div>
 <span class="status-text" id="stxt">Disconnected</span>
 <span class="dev-name" id="dname"></span>
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.6.0</span>
+<!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
+     the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
+     apart when chasing a "my edit didn't reach the device" problem. -->
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.7.0-dev</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">

@@ -4,6 +4,16 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
+## Unreleased
+
+### Changed
+- **Forget Host moved into the Host Actions card**, on the same row as the host picker, and
+  it now forgets **the slot the picker shows** rather than always the active host — so a host
+  that isn't currently connected can be forgotten too. The host bar at the top is host buttons
+  only. Still two taps (`Confirm?`, disarming after three seconds or when you change slot).
+  This also puts it on single-slot devices, which never had it: the host bar hides itself
+  below two slots, while the Host Actions card is always shown.
+
 ## v1.6.0 — 2026-07-27
 
 ### Added
