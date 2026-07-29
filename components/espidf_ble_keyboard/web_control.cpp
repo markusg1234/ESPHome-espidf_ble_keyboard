@@ -88,8 +88,14 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 /* Cap the select: it sizes to its widest <option>, so a long preset label
    would otherwise stretch the row and squeeze the action box beside it. */
 .macro-form select{flex:0 1 auto;min-width:100px;max-width:150px}
-/* The replacement action is the field that actually needs room on this row. */
-#ov-act{flex:3}
+/* The action is the field that actually needs room, in both editors — three shares
+   against one for the name beside it. */
+#ov-act,#ma{flex:3}
+/* Both preset dropdowns to one fixed width so the two editors line up. The shared
+   .macro-form select rule only *caps* them, so each was really sized by its longest
+   option and they came out different. Kept off that rule because it also covers the
+   combo-row key picker and #ov-slot, which need to size themselves. */
+#mp,#ov-preset{flex:0 0 150px}
 /* The host picker is the name of what this whole card acts on, so it overrides
    the 150px select cap and takes every pixel Forget Host leaves on its row.
    Widen it further by shrinking #ov-forget's fixed width, not by touching this. */
