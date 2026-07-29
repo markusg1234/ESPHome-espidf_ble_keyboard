@@ -36,7 +36,9 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .status-text{font-size:13px;color:var(--muted)}
 .status-text.on{color:var(--accent)}
 .dev-name{font-size:13px;color:var(--name);margin-left:4px;font-weight:500}
-.toolbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+/* flex-grow so this reaches the right-hand card padding instead of stopping at its
+   content width — the leftover is what the toggles below share out. */
+.toolbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-grow:1}
 .zoom-controls{display:flex;align-items:center;gap:4px}
 .zoom-btn,.theme-btn{width:30px;height:30px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:17px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
 .zoom-btn:active,.theme-btn:active{background:var(--active);color:#fff}
@@ -146,9 +148,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .host-btn .slot-label{font-size:11px;color:var(--fg);display:block}
 .host-btn.active .slot-label{color:rgba(255,255,255,.7)}
 /* Deliberately NOT the host bar's 5-column grid: these are content-width labels, and
-   forcing them into equal columns stretches short ones like Finder into slabs. */
-.section-toggles{display:flex;gap:4px;align-items:center;flex-wrap:wrap;touch-action:none}
-.toggle-btn{padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--name);font-size:11px;font-weight:500;cursor:pointer;touch-action:manipulation;transition:background .15s,color .15s;user-select:none;-webkit-user-select:none}
+   forcing them into equal columns stretches short ones like Finder into slabs.
+   flex-grow passes the toolbar's spare width down to the buttons instead. */
+.section-toggles{display:flex;gap:4px;align-items:center;flex-wrap:wrap;touch-action:none;flex-grow:1}
+/* flex-grow (not flex:1) keeps each label's natural width and only shares out what is
+   left over, so they widen by a pixel or two each rather than becoming equal slabs.
+   max-width stops the two or three on a wrapped last row from ballooning to fill it. */
+.toggle-btn{flex-grow:1;max-width:150px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--name);font-size:11px;font-weight:500;cursor:pointer;touch-action:manipulation;transition:background .15s,color .15s;user-select:none;-webkit-user-select:none}
 .toggle-btn.on{background:var(--active);color:#fff;border-color:var(--active)}
 .toggle-btn.dragging{opacity:.5}
 .toggle-btn.drag-over{box-shadow:inset 0 0 0 2px var(--accent)}
