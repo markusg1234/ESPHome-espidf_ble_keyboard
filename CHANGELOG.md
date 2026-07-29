@@ -13,6 +13,16 @@ web control page shows the matching version badge.
   only. Still two taps (`Confirm?`, disarming after three seconds or when you change slot).
   This also puts it on single-slot devices, which never had it: the host bar hides itself
   below two slots, while the Host Actions card is always shown.
+- **Both editors' save buttons now read `Save`** — the Macros button was `+ Add` (becoming
+  `Save` mid-edit) and the Host Actions one was `+ Set`. The Macros label no longer changes
+  to signal add-versus-update; the populated Name and Action fields are the cue instead.
+- **The Host Actions replacement box is a 3-line textarea**, matching the Macros action box,
+  so a long chained action is readable without scrolling through a single-line field. Both
+  action boxes are also wider than the name box beside them, and the two preset dropdowns are
+  now a matched width.
+- **The host bar fills the card width**, five hosts per row, dividing the space evenly instead
+  of leaving a lopsided gap at the right; a short final row stays left-aligned under the one
+  above. The toolbar's section toggles likewise stretch to reach the right-hand edge.
 
 ## v1.6.0 — 2026-07-27
 

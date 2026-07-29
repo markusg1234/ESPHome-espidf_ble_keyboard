@@ -803,6 +803,8 @@ A dangling reference is flagged: any override row pointing at a macro that no lo
 
 **Forget Host** sits next to the slot picker and removes the BLE bond for whichever slot the picker shows — including one that isn't the active host. It takes two taps: the first turns it red and reads `Confirm?`, the second does it, and it disarms itself after three seconds or if you change slot.
 
+> **Unreleased — `main` only.** In **v1.6.0 and earlier** this button is in the host bar at the top of the page, not in this card, and it always forgets the *active* host.
+
 The same card also hosts the [Backup & Restore](#backup-and-restore) buttons, the [Remote buttons](#removing-remote-buttons-per-host) hiding panel and the [Hold to repeat](#hold-to-repeat-per-host) panel.
 
 ### Removing Remote Buttons Per Host
