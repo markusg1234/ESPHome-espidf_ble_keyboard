@@ -450,7 +450,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="__alt__">Alternate (one per press)</option>
 </optgroup>
 </select>
-<button id="macro-save">+ Add</button>
+<button id="macro-save">Save</button>
 <div class="combo-row">
 <button class="mod-btn" data-mod="1">Ctrl</button>
 <button class="mod-btn" data-mod="2">Shift</button>
@@ -513,7 +513,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </datalist>
 <textarea id="ov-act" placeholder="Replacement action" maxlength="255" rows="3" title="What this action should do on the selected host.&#10;&#10;Examples:&#10;combo:0x0C:0x15 = Win+Alt+R (Game Bar record)&#10;combo:0x01:0x15 = Ctrl+R (Sound Recorder, needs focus)&#10;consumer:0x00B2 = raw HID usage&#10;play_pause = another named action&#10;string:hello = type text&#10;&#10;Chain steps with a | between them:&#10;combo:0x0C:0x15 | delay:500 | string:rec&#10;&#10;Modifier bits add up: 1=Ctrl, 2=Shift, 4=Alt, 8=Win&#10;so Win+Alt = 12 = 0x0C. Decimal or 0x hex both work."></textarea>
 <select id="ov-preset"><option value="">Preset...</option></select>
-<button id="ov-save">+ Set</button>
+<button id="ov-save">Save</button>
 </div>
 <div class="hid-panel" id="hid-panel">
 <button class="hid-toggle" id="hid-toggle">Remote buttons &#9662;</button>
@@ -713,7 +713,7 @@ function appendStep(el,val){
     editToggle.classList.toggle('on');
     const editing=macrosCard.classList.contains('editing');
     editToggle.textContent=editing?'Done':'Edit';
-    if(!editing){editIdx=-1;nameIn.value='';actIn.value='';saveBtn.textContent='+ Add'}
+    if(!editing){editIdx=-1;nameIn.value='';actIn.value=''}
     loadButtons();
   });
 
@@ -777,7 +777,6 @@ function appendStep(el,val){
           eb.title='Edit';
           eb.addEventListener('click',()=>{
             nameIn.value=b.name;actIn.value=b.action;editIdx=b.index;
-            saveBtn.textContent='Save';
           });
           const db=document.createElement('button');
           db.className='macro-act del';
@@ -786,7 +785,7 @@ function appendStep(el,val){
           db.addEventListener('click',()=>{
             if(confirm('Delete macro "'+b.name+'"?')){
               fetch('/api/ble_keyboard/macro_delete?'+new URLSearchParams({index:b.index}),{method:'POST'}).then(()=>{
-                if(editIdx===b.index){editIdx=-1;nameIn.value='';actIn.value='';saveBtn.textContent='+ Add'}
+                if(editIdx===b.index){editIdx=-1;nameIn.value='';actIn.value=''}
                 loadButtons();
               });
             }
@@ -846,7 +845,7 @@ function appendStep(el,val){
     const p=editIdx>=0?{index:editIdx,name:n,action:a}:{name:n,action:a};
     fetch('/api/ble_keyboard/'+ep+'?'+new URLSearchParams(p),{method:'POST'}).then(r=>{
       if(!r.ok)return r.text().then(t=>{alert(t)});
-      nameIn.value='';actIn.value='';presetSel.value='';editIdx=-1;saveBtn.textContent='+ Add';
+      nameIn.value='';actIn.value='';presetSel.value='';editIdx=-1;
       loadButtons();
     });
   });
