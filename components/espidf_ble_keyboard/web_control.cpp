@@ -128,9 +128,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rpt-times{display:flex;flex-wrap:wrap;gap:6px 16px;margin:8px 0}
 .rpt-times label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg)}
 .rpt-times input{width:70px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg);font-size:12px}
-.host-bar{display:flex;gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;flex-wrap:wrap;overflow:hidden}
+/* justify-content:center is what keeps the gap at the far left equal to the one at
+   the far right. The buttons are width-capped below, so a row can never absorb its
+   leftover width — without centring, all of that remainder piles up on the right. */
+.host-bar{display:flex;justify-content:center;gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;flex-wrap:wrap;overflow:hidden}
 /* max-width is what stops a lone host on a wrapped row from growing to the full
-   width of the bar. flex-grow still lets several share a row and shrink to fit. */
+   width of the bar. flex-grow still lets several share a row and shrink to fit.
+   It is also what leaves the leftover for the centring above to split evenly. */
 .host-btn{flex:1 0 110px;max-width:110px;padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:11px;font-weight:500;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .15s;overflow:hidden}
 .host-btn.active{background:var(--active);color:#fff;border-color:var(--active)}
 .host-btn.occupied{border-color:var(--accent)}
