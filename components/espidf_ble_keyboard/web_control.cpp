@@ -140,7 +140,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    lone wrapped host would float in the middle. auto-fit (not auto-fill) collapses the
    empty tracks, otherwise they would count toward the centring and shove hosts left.
    The 110px here is the button width — it is the one knob for resizing them. */
-.host-bar{display:grid;grid-template-columns:repeat(auto-fit,110px);justify-content:center;gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.host-bar{display:grid;grid-template-columns:repeat(auto-fit,112px);justify-content:center;gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 /* Width comes from the grid track above, so no flex/max-width here — a lone host on
    the last row is one 110px track wide, it cannot stretch to fill the bar. */
 .host-btn{padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:11px;font-weight:500;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .15s;overflow:hidden}
