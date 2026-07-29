@@ -36,7 +36,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .status-text{font-size:13px;color:var(--muted)}
 .status-text.on{color:var(--accent)}
 .dev-name{font-size:13px;color:var(--name);margin-left:4px;font-weight:500}
-.toolbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+/* flex-basis:100% gives this its own line rather than letting it wrap onto one only
+   when it runs out of room — as the only item on that line, the parent's
+   space-between would park it left and pile every leftover pixel on the right.
+   Owning the line makes justify-content:center meaningful, so the far-left and
+   far-right gaps match the host bar below. Drop the flex line to go back to a
+   one-line toolbar on wide screens, at the cost of that lopsided gap. */
+.toolbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1 1 100%;justify-content:center}
 .zoom-controls{display:flex;align-items:center;gap:4px}
 .zoom-btn,.theme-btn{width:30px;height:30px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:17px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
 .zoom-btn:active,.theme-btn:active{background:var(--active);color:#fff}
@@ -128,14 +134,16 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rpt-times{display:flex;flex-wrap:wrap;gap:6px 16px;margin:8px 0}
 .rpt-times label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg)}
 .rpt-times input{width:70px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg);font-size:12px}
-/* justify-content:center is what keeps the gap at the far left equal to the one at
-   the far right. The buttons are width-capped below, so a row can never absorb its
-   leftover width — without centring, all of that remainder piles up on the right. */
-.host-bar{display:flex;justify-content:center;gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;flex-wrap:wrap;overflow:hidden}
-/* max-width is what stops a lone host on a wrapped row from growing to the full
-   width of the bar. flex-grow still lets several share a row and shrink to fit.
-   It is also what leaves the leftover for the centring above to split evenly. */
-.host-btn{flex:1 0 110px;max-width:110px;padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:11px;font-weight:500;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .15s;overflow:hidden}
+/* Grid, not flex, and deliberately so: justify-content centres the block of columns
+   as a whole, which makes the far-left and far-right gaps equal, while a short final
+   row still fills from the left. Flexbox centres every line including the last, so a
+   lone wrapped host would float in the middle. auto-fit (not auto-fill) collapses the
+   empty tracks, otherwise they would count toward the centring and shove hosts left.
+   The 110px here is the button width — it is the one knob for resizing them. */
+.host-bar{display:grid;grid-template-columns:repeat(auto-fit,110px);justify-content:center;gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+/* Width comes from the grid track above, so no flex/max-width here — a lone host on
+   the last row is one 110px track wide, it cannot stretch to fill the bar. */
+.host-btn{padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:11px;font-weight:500;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .15s;overflow:hidden}
 .host-btn.active{background:var(--active);color:#fff;border-color:var(--active)}
 .host-btn.occupied{border-color:var(--accent)}
 .host-btn .slot-label{font-size:11px;color:var(--fg);display:block}
