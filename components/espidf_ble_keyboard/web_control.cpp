@@ -88,6 +88,16 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .macro-form select{flex:0 1 auto;min-width:100px;max-width:150px}
 /* The replacement action is the field that actually needs room on this row. */
 #ov-act{flex:3}
+/* The host picker is the name of what this whole card acts on, so it overrides
+   the 150px select cap and takes every pixel Forget Host leaves on its row.
+   Widen it further by shrinking #ov-forget's fixed width, not by touching this. */
+#ov-slot{flex:1 1 auto;max-width:none}
+/* Fixed width (flex:0 0 <w>) so the button neither grows with the row nor
+   shrinks when its label swaps to "Confirm?" mid-interaction. Change the 110px
+   to resize it — that single number is the whole knob. Styled by id because
+   .macro-form button would otherwise win on specificity and paint it accent. */
+#ov-forget{flex:0 0 110px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:#c44;font-size:12px;font-weight:600;cursor:pointer;touch-action:manipulation;transition:background .15s;white-space:nowrap}
+#ov-forget:active{background:#c44;color:#fff}
 .macro-form button{padding:6px 12px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 .macro-form button:active{opacity:.8}
 .macro-form .cancel{background:var(--muted)}
@@ -120,18 +130,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rpt-times input{width:70px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg);font-size:12px}
 .host-bar{display:flex;gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;flex-wrap:wrap;overflow:hidden}
 /* max-width is what stops a lone host on a wrapped row from growing to the full
-   width of the bar. flex-grow still lets several share a row and shrink to fit,
-   so a row of hosts plus Forget Host stays on one line. */
+   width of the bar. flex-grow still lets several share a row and shrink to fit. */
 .host-btn{flex:1 0 110px;max-width:110px;padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:11px;font-weight:500;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .15s;overflow:hidden}
 .host-btn.active{background:var(--active);color:#fff;border-color:var(--active)}
 .host-btn.occupied{border-color:var(--accent)}
 .host-btn .slot-label{font-size:11px;color:var(--fg);display:block}
 .host-btn.active .slot-label{color:rgba(255,255,255,.7)}
-/* Fixed width (flex:0 0 <w>) so the button neither grows with the row nor
-   shrinks when its label swaps to "Confirm?" mid-interaction. Change the 100px
-   to resize it — that single number is the whole knob. */
-.forget-btn{flex:0 0 110px;padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:#c44;font-size:11px;font-weight:600;cursor:pointer;touch-action:manipulation;transition:background .15s;white-space:nowrap}
-.forget-btn:active{background:#c44;color:#fff}
 .section-toggles{display:flex;gap:4px;align-items:center;flex-wrap:wrap;touch-action:none}
 .toggle-btn{padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--name);font-size:11px;font-weight:500;cursor:pointer;touch-action:manipulation;transition:background .15s,color .15s;user-select:none;-webkit-user-select:none}
 .toggle-btn.on{background:var(--active);color:#fff;border-color:var(--active)}
@@ -465,7 +469,8 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div id="bk-status" style="font-size:11px;color:var(--muted);margin-bottom:8px"></div>
 <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Remap a <strong>named</strong> action for one host, so the same button suits each machine &mdash; e.g. <code>record</code> &rarr; <code>combo:0x0C:0x15</code> (Game Bar) on a Windows host, while a TV host keeps HID Record. Saved per host; YAML rows come from your config and are restored when you delete the override on top.</div>
 <div class="macro-form" style="margin-top:0;margin-bottom:8px">
-<select id="ov-slot" style="flex:1 1 100%"></select>
+<select id="ov-slot"></select>
+<button id="ov-forget" title="Remove the BLE bond for the selected host slot and clear its stored address.&#10;Disconnects it if it is the active host.&#10;&#10;Tap once to arm, tap again to confirm.">Forget Host</button>
 </div>
 <div id="ov-list"><span class="prog-empty">Loading...</span></div>
 <div class="macro-form">
@@ -590,24 +595,6 @@ setInterval(pollStatus,3000);
         },'active');
         bar.appendChild(b);
       });
-      const fb=document.createElement('button');
-      fb.className='forget-btn';
-      fb.textContent='Forget Host';
-      let confirmPending=false,confirmTimer=null;
-      fb.addEventListener('click',()=>{
-        if(!confirmPending){
-          confirmPending=true;
-          fb.textContent='Confirm?';
-          fb.style.background='#c44';fb.style.color='#fff';
-          confirmTimer=setTimeout(()=>{confirmPending=false;fb.textContent='Forget Host';fb.style.background='';fb.style.color=''},3000);
-        }else{
-          clearTimeout(confirmTimer);confirmPending=false;
-          fb.textContent='Forget Host';fb.style.background='';fb.style.color='';
-          api('forget_host',{slot:d.active});
-          setTimeout(loadHosts,1000);
-        }
-      });
-      bar.appendChild(fb);
     }).catch(()=>{bar.style.display='none'});
   }
   loadHosts();
@@ -849,6 +836,7 @@ function appendStep(el,val){
   const actIn=document.getElementById('ov-act');
   const saveBtn=document.getElementById('ov-save');
   const preset=document.getElementById('ov-preset');
+  const forgetBtn=document.getElementById('ov-forget');
   if(!slotSel)return;
   let slot=null;  // null until the first load picks the active slot
 
@@ -943,8 +931,34 @@ function appendStep(el,val){
     }).catch(()=>{list.innerHTML='<span class="prog-empty">Error loading</span>'});
   }
 
+  // ── Forget host ──
+  // Sits beside the slot picker and acts on whatever it shows, so a host that
+  // isn't the active one can be forgotten too. Two taps rather than confirm():
+  // an accidental brush can't drop a bond, and the second tap stays on the page.
+  let forgetArmed=false,forgetTimer=null;
+  function resetForget(){
+    clearTimeout(forgetTimer);forgetArmed=false;
+    forgetBtn.textContent='Forget Host';forgetBtn.style.background='';forgetBtn.style.color='';
+  }
+  if(forgetBtn)forgetBtn.addEventListener('click',()=>{
+    if(!forgetArmed){
+      forgetArmed=true;
+      forgetBtn.textContent='Confirm?';
+      forgetBtn.style.background='#c44';forgetBtn.style.color='#fff';
+      forgetTimer=setTimeout(resetForget,3000);
+    }else{
+      resetForget();
+      api('forget_host',{slot:slot});
+      // Give the bond removal a moment, then repaint the picker — the slot's
+      // name and (active) marker both move when the active host is forgotten.
+      setTimeout(()=>loadSlots().then(load),1000);
+    }
+  });
+
   slotSel.addEventListener('change',()=>{
     slot=parseInt(slotSel.value);
+    // An armed confirm belongs to the slot it was armed on, never the new one.
+    if(forgetBtn)resetForget();
     load();
     if(hidPanel&&hidPanel.classList.contains('open'))loadHidden();
     if(rptPanel&&rptPanel.classList.contains('open'))loadRepeat();
