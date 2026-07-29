@@ -39,10 +39,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 /* flex-basis:100% gives this its own line rather than letting it wrap onto one only
    when it runs out of room — as the only item on that line, the parent's
    space-between would park it left and pile every leftover pixel on the right.
-   Owning the line makes justify-content:center meaningful, so the far-left and
-   far-right gaps match the host bar below. Drop the flex line to go back to a
-   one-line toolbar on wide screens, at the cost of that lopsided gap. */
-.toolbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1 1 100%;justify-content:center}
+   Owning the line is also what gives the toggle grid below a full width to divide, so
+   this row starts and ends on the same 10px card padding as the keyboard keys and the
+   touchpad. space-between then puts the zoom controls and the theme button on opposite
+   edges of the line they wrap onto. Drop the flex line to go back to a one-line toolbar
+   on wide screens, at the cost of that lopsided gap. */
+.toolbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1 1 100%;justify-content:space-between}
 .zoom-controls{display:flex;align-items:center;gap:4px}
 .zoom-btn,.theme-btn{width:30px;height:30px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:17px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
 .zoom-btn:active,.theme-btn:active{background:var(--active);color:#fff}
@@ -134,21 +136,31 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rpt-times{display:flex;flex-wrap:wrap;gap:6px 16px;margin:8px 0}
 .rpt-times label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg)}
 .rpt-times input{width:70px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg);font-size:12px}
-/* Grid, not flex, and deliberately so: justify-content centres the block of columns
-   as a whole, which makes the far-left and far-right gaps equal, while a short final
-   row still fills from the left. Flexbox centres every line including the last, so a
-   lone wrapped host would float in the middle. auto-fit (not auto-fill) collapses the
-   empty tracks, otherwise they would count toward the centring and shove hosts left.
-   The 110px here is the button width — it is the one knob for resizing them. */
-.host-bar{display:grid;grid-template-columns:repeat(auto-fit,112px);justify-content:center;gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+/* Grid, not flex, and deliberately so. Five fixed 1fr columns: the buttons divide the
+   bar's full width between them, so a full row starts and ends on the same 10px padding
+   as the keyboard keys and the touchpad, with no leftover piling up at either end. The
+   5 is the whole knob — change it to fit more or fewer per line.
+   minmax(0,1fr), not a bare 1fr, because 1fr means minmax(auto,1fr) and refuses to
+   shrink below the widest MAC address; on a narrow phone that would push the row wider
+   than the bar. The 0 lets tracks shrink and .host-btn's overflow:hidden clips instead.
+   A short final row leaves its buttons one track wide, left-aligned under the row
+   above — grid places them in the first columns rather than stretching them. */
+.host-bar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 /* Width comes from the grid track above, so no flex/max-width here — a lone host on
-   the last row is one 110px track wide, it cannot stretch to fill the bar. */
+   the last row is one track wide, it cannot stretch to fill the bar. */
 .host-btn{padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:11px;font-weight:500;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .15s;overflow:hidden}
 .host-btn.active{background:var(--active);color:#fff;border-color:var(--active)}
 .host-btn.occupied{border-color:var(--accent)}
 .host-btn .slot-label{font-size:11px;color:var(--fg);display:block}
 .host-btn.active .slot-label{color:rgba(255,255,255,.7)}
-.section-toggles{display:flex;gap:4px;align-items:center;flex-wrap:wrap;touch-action:none}
+/* Five 1fr columns with the host bar's 6px gap, so these line up with the host buttons
+   one card below rather than merely being near them. flex:1 1 100% claims the whole
+   line, which is what leaves the row full-width for the columns to divide; the zoom and
+   theme controls wrap to the line beneath. No align-items, so the default stretch keeps
+   a row's buttons equal height when "Host Actions" wraps to two lines on a narrow
+   screen. Drag-to-reorder is unaffected: it hit-tests rectangles on both axes and
+   reorders DOM nodes, neither of which cares that this is a grid. */
+.section-toggles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;flex:1 1 100%;touch-action:none}
 .toggle-btn{padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--name);font-size:11px;font-weight:500;cursor:pointer;touch-action:manipulation;transition:background .15s,color .15s;user-select:none;-webkit-user-select:none}
 .toggle-btn.on{background:var(--active);color:#fff;border-color:var(--active)}
 .toggle-btn.dragging{opacity:.5}
