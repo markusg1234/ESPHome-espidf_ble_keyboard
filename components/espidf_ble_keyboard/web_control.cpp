@@ -36,15 +36,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .status-text{font-size:13px;color:var(--muted)}
 .status-text.on{color:var(--accent)}
 .dev-name{font-size:13px;color:var(--name);margin-left:4px;font-weight:500}
-/* flex-basis:100% gives this its own line rather than letting it wrap onto one only
-   when it runs out of room — as the only item on that line, the parent's
-   space-between would park it left and pile every leftover pixel on the right.
-   Owning the line is also what gives the toggle grid below a full width to divide, so
-   this row starts and ends on the same 10px card padding as the keyboard keys and the
-   touchpad. space-between then puts the zoom controls and the theme button on opposite
-   edges of the line they wrap onto. Drop the flex line to go back to a one-line toolbar
-   on wide screens, at the cost of that lopsided gap. */
-.toolbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1 1 100%;justify-content:space-between}
+.toolbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .zoom-controls{display:flex;align-items:center;gap:4px}
 .zoom-btn,.theme-btn{width:30px;height:30px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:17px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
 .zoom-btn:active,.theme-btn:active{background:var(--active);color:#fff}
@@ -153,14 +145,9 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .host-btn.occupied{border-color:var(--accent)}
 .host-btn .slot-label{font-size:11px;color:var(--fg);display:block}
 .host-btn.active .slot-label{color:rgba(255,255,255,.7)}
-/* Five 1fr columns with the host bar's 6px gap, so these line up with the host buttons
-   one card below rather than merely being near them. flex:1 1 100% claims the whole
-   line, which is what leaves the row full-width for the columns to divide; the zoom and
-   theme controls wrap to the line beneath. No align-items, so the default stretch keeps
-   a row's buttons equal height when "Host Actions" wraps to two lines on a narrow
-   screen. Drag-to-reorder is unaffected: it hit-tests rectangles on both axes and
-   reorders DOM nodes, neither of which cares that this is a grid. */
-.section-toggles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;flex:1 1 100%;touch-action:none}
+/* Deliberately NOT the host bar's 5-column grid: these are content-width labels, and
+   forcing them into equal columns stretches short ones like Finder into slabs. */
+.section-toggles{display:flex;gap:4px;align-items:center;flex-wrap:wrap;touch-action:none}
 .toggle-btn{padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--name);font-size:11px;font-weight:500;cursor:pointer;touch-action:manipulation;transition:background .15s,color .15s;user-select:none;-webkit-user-select:none}
 .toggle-btn.on{background:var(--active);color:#fff;border-color:var(--active)}
 .toggle-btn.dragging{opacity:.5}
