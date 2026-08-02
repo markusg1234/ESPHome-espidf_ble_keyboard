@@ -515,6 +515,7 @@ class BleKeyboardCard extends HTMLElement {
     style.textContent = `
       :host {
         display: block;
+        height: 100%;
       }
       .card {
         background: var(--ha-card-background, var(--card-background-color, #fff));
@@ -524,6 +525,10 @@ class BleKeyboardCard extends HTMLElement {
         color: var(--primary-text-color);
         user-select: none;
         -webkit-user-select: none;
+        box-sizing: border-box;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
       }
       .header {
         font-size: 16px;
@@ -532,6 +537,7 @@ class BleKeyboardCard extends HTMLElement {
         display: flex;
         align-items: center;
         gap: 8px;
+        flex: 0 0 auto;
       }
       .header svg {
         width: 20px;
@@ -543,6 +549,8 @@ class BleKeyboardCard extends HTMLElement {
         display: flex;
         gap: 3px;
         margin-bottom: 3px;
+        flex: 1 1 auto;
+        min-height: 0;
       }
       .kb-row:last-child {
         margin-bottom: 0;
@@ -550,7 +558,9 @@ class BleKeyboardCard extends HTMLElement {
       .key {
         flex: 1;
         min-width: 0;
-        padding: 10px 2px;
+        padding: 0 2px;
+        min-height: 34px;
+        box-sizing: border-box;
         border: 1px solid var(--divider-color, #e0e0e0);
         border-radius: 6px;
         background: var(--secondary-background-color, #f0f0f0);
@@ -595,7 +605,8 @@ class BleKeyboardCard extends HTMLElement {
       }
       .key-fkey {
         font-size: 11px;
-        padding: 6px 2px;
+        padding: 0 2px;
+        min-height: 26px;
       }
       .key.kb-l-top {
         border-bottom-left-radius: 0;
@@ -1002,6 +1013,20 @@ class BleKeyboardCard extends HTMLElement {
 
   getCardSize() {
     return this._config && this._config.show_fkeys !== false ? 6 : 5;
+  }
+
+  // Sections-view sizing: one grid row is 56px with an 8px gap, so n rows
+  // give 64n-8 px. Natural height is ~271px with F-keys (5 rows), ~242px
+  // without (4 rows); the key rows flex to absorb any extra height.
+  getGridOptions() {
+    const fkeys = this._config && this._config.show_fkeys !== false;
+    return {
+      columns: 12,
+      min_columns: 6,
+      rows: 5,
+      min_rows: fkeys ? 5 : 4,
+      max_rows: 8,
+    };
   }
 
   // Enables the dashboard's visual editor; YAML editing is unaffected.

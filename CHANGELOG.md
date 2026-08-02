@@ -6,6 +6,12 @@ web control page shows the matching version badge.
 
 ## Unreleased
 
+### Added
+- **All three Lovelace cards support resizing in sections dashboards**, with proper
+  default sizes and min/max ranges. The keyboard's key rows and the mouse touchpad
+  stretch to fill the chosen height; the remote reports its true size, tracking
+  `show_numpad`/`show_color`/`show_apps`. Masonry dashboards render as before.
+
 ### Changed
 - **Forget Host moved into the Host Actions card**, on the same row as the host picker, and
   it now forgets **the slot the picker shows** rather than always the active host — so a host

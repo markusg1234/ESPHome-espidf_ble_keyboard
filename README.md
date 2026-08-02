@@ -992,6 +992,10 @@ The three Lovelace cards (mouse, keyboard, media remote) can be installed and ke
 
 HACS registers the dashboard resource for you — there's no need to add anything under *Settings → Dashboards → Resources*. When a new version is released, HACS offers the update in the usual way.
 
+In a **sections** dashboard, all three cards support the resize handles and the card editor's **Layout** tab: each declares its proper default size and a sensible min/max range, and the keyboard's key rows and the mouse touchpad stretch to fill whatever height you choose. Masonry dashboards are unaffected.
+
+> **Unreleased — `main` only.** In **v1.6.0 and earlier** the cards don't declare grid sizes, so sections-view resizing warns and defaults poorly.
+
 > **HACS installs the cards only — not the firmware.** There is no HACS category for ESPHome external components, so the `espidf_ble_keyboard` component is still added to your device YAML with `external_components:` (see [Usage Example](#usage-example)) and updated by re-flashing the device. A HACS update for this repository updates the dashboard cards and nothing else.
 
 Prefer not to use HACS? Every card section below also lists the manual copy-to-`www` steps, and the card files live in [`dist/`](dist/).

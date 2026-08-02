@@ -678,8 +678,35 @@ class BleRemoteCard extends HTMLElement {
     this._hass.callService('esphome', `${this._config.device}_run_action`, { action });
   }
 
+  // Natural pixel height for the current config. Measured: header ~36,
+  // top row 64, d-pad ~172, vol/ch ~132, divider 25, media row 58,
+  // padding 32 -> ~540 base; optional sections add their own blocks.
+  _naturalHeightPx() {
+    const c = this._config || {};
+    let px = 540;
+    if (c.show_color === true) px += 70;
+    if (c.show_numpad === true) px += 250;
+    if (c.show_apps !== false) px += 63;
+    return px;
+  }
+
   getCardSize() {
-    return 6;
+    return Math.ceil(this._naturalHeightPx() / 50);
+  }
+
+  // Sections-view sizing: one grid row is 56px with an 8px gap, so n rows
+  // give 64n-8 px. The buttons are fixed-size, so the card doesn't stretch;
+  // min_rows leaves room to size down for hosts whose hidden_buttons sensor
+  // collapses whole sections (.card's overflow:hidden clips any undershoot).
+  getGridOptions() {
+    const rows = Math.ceil((this._naturalHeightPx() + 8) / 64);
+    return {
+      columns: 12,
+      min_columns: 9,
+      rows,
+      min_rows: Math.max(6, rows - 3),
+      max_rows: rows + 2,
+    };
   }
 
   // Enables the dashboard's visual editor instead of "Visual editor is not

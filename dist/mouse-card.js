@@ -104,6 +104,7 @@ class BleMouseCard extends HTMLElement {
       <style>
         :host {
           display: block;
+          height: 100%;
         }
         .card {
           background: var(--ha-card-background, var(--card-background-color, #fff));
@@ -113,6 +114,10 @@ class BleMouseCard extends HTMLElement {
           color: var(--primary-text-color);
           user-select: none;
           -webkit-user-select: none;
+          box-sizing: border-box;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
         }
         .header {
           font-size: 16px;
@@ -121,6 +126,7 @@ class BleMouseCard extends HTMLElement {
           display: flex;
           align-items: center;
           gap: 8px;
+          flex: 0 0 auto;
         }
         .header svg {
           width: 20px;
@@ -173,7 +179,11 @@ class BleMouseCard extends HTMLElement {
         }
         .touchpad {
           width: 100%;
+          /* aspect-ratio sets the natural (masonry) height; in sections view
+             the imposed card height makes flex grow/shrink the pad instead. */
           aspect-ratio: 16/9;
+          flex: 1 1 auto;
+          min-height: 60px;
           background: var(--secondary-background-color, #f0f0f0);
           border-radius: 12px;
           border: 2px solid var(--divider-color, #e0e0e0);
@@ -204,6 +214,7 @@ class BleMouseCard extends HTMLElement {
           grid-template-columns: 1fr 0.7fr 1fr;
           gap: 8px;
           margin-top: 12px;
+          flex: 0 0 auto;
         }
         .mouse-btn {
           padding: 14px 0;
@@ -233,6 +244,7 @@ class BleMouseCard extends HTMLElement {
           grid-template-columns: 1fr 1fr;
           gap: 8px;
           margin-top: 8px;
+          flex: 0 0 auto;
         }
         .scroll-btn {
           padding: 10px 0;
@@ -624,8 +636,23 @@ class BleMouseCard extends HTMLElement {
     }
   }
 
+  // The 16:9 touchpad plus ~176px of chrome is ~400px in a typical
+  // masonry column (1 unit = ~50px).
   getCardSize() {
-    return 4;
+    return 8;
+  }
+
+  // Sections-view sizing: one grid row is 56px with an 8px gap, so n rows
+  // give 64n-8 px. Fixed chrome (header + button rows) is ~176px; the
+  // touchpad flexes to fill the rest, so any height from 4 rows up works.
+  getGridOptions() {
+    return {
+      columns: 6,
+      min_columns: 4,
+      rows: 5,
+      min_rows: 4,
+      max_rows: 12,
+    };
   }
 
   // Enables the dashboard's visual editor; YAML editing is unaffected.
