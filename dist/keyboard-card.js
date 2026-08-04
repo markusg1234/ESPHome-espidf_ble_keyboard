@@ -605,9 +605,12 @@ class BleKeyboardCard extends HTMLElement {
       }
       .key {
         flex: 1;
-        /* No min-width:0 — a key must not be squeezed below its own label, or
-           the labels clip to "Bk" and "Shi" and the row stops contributing a
-           real minimum for the block width above. */
+        /* A key must not be squeezed below its own label, or wide ones clip to
+           "Shift R" -> "Shift" and the row stops contributing a real minimum for
+           the block width above. This has to be spelled out: the automatic
+           minimum a flex item would otherwise get is forced to zero by the
+           overflow: hidden below, so leaving min-width off achieves nothing. */
+        min-width: min-content;
         padding: 0 2px;
         min-height: 34px;
         box-sizing: border-box;
