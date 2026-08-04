@@ -567,7 +567,9 @@ espidf_ble_keyboard:
             - logger.log: "My phone is nearby"
 ```
 
-Where the host supplied an identity key when pairing, this is its **identity address** rather than the address it happened to connect with. That matters on Android and iOS, which connect using a private address that rotates roughly every 15 minutes: the identity address does not rotate, so a comparison like the one above keeps working. Hosts with a fixed address — Windows PCs, most TVs — report the same value either way, matching what the web remote shows for the slot.
+Where the host supplied an identity key when pairing, this is its **identity address** rather than the address it happened to connect with. That matters on Android and iOS, which connect using a private address that rotates roughly every 15 minutes: the identity address does not rotate, so a comparison like the one above keeps working. Hosts with a fixed address — Windows PCs, most TVs — report the same value either way.
+
+The web remote's host buttons and the cards' MAC display show this same identity address, so every place an address appears agrees with the sensor and with what the phone reports for itself. A backup still records the address the host connected with, since that is what restoring a slot needs.
 
 The value is only as stable as the bond. Unpair and pair again and a phone may present a different identity, so re-check the sensor after re-pairing rather than assuming the old value still holds. Treat this as identification, not authentication — it tells one device from another, but it is not proof against a device that deliberately imitates one.
 

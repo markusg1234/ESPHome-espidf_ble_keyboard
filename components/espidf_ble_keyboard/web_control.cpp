@@ -613,7 +613,9 @@ setInterval(pollStatus,3000);
       d.slots.forEach(s=>{
         const b=document.createElement('button');
         b.className='host-btn'+(s.slot===d.active?' active':'')+(s.occupied?' occupied':'');
-        b.innerHTML='<span class="slot-label">'+(s.name||('Host '+(s.slot+1)))+'</span>'+(s.occupied?s.addr:'Empty');
+        // Prefer the stable identity so this matches the host MAC sensor and the
+        // address the phone shows for itself; s.addr rotates on Android.
+        b.innerHTML='<span class="slot-label">'+(s.name||('Host '+(s.slot+1)))+'</span>'+(s.occupied?(s.identity||s.addr):'Empty');
         onTap(b,()=>{
           api('switch_host',{slot:s.slot});
           bar.querySelectorAll('.host-btn').forEach(x=>x.classList.remove('active'));
@@ -2385,12 +2387,25 @@ class BleKbWebHandler : public AsyncWebHandler {
       for (uint8_t s = 0; s < kb_->host_slots(); s++) {
         const auto &h = kb_->get_host_slot(s);
         if (!h.occupied) continue;
-        char buf[128];
+        // `addr` is the address the host connected with, which is what restoring
+        // a slot needs. For a phone that rotates its address it is not what the
+        // user should be shown, so send the stable identity alongside when the
+        // bond carries one — the UI prefers it, and it matches the host MAC
+        // sensor. Omitted when it cannot be resolved, and the UI falls back.
+        char id_str[34] = "";
+        esp_bd_addr_t identity;
+        if (kb_->peer_identity_addr(h.addr, identity)) {
+          char id_addr[18];
+          format_bd_addr(identity, id_addr);
+          snprintf(id_str, sizeof(id_str), ",\"identity\":\"%s\"", id_addr);
+        }
+        char buf[192];
         snprintf(buf, sizeof(buf),
-                 "%s{\"slot\":%u,\"addr\":\"%02X:%02X:%02X:%02X:%02X:%02X\",\"type\":%u,\"bonded\":%s}",
+                 "%s{\"slot\":%u,\"addr\":\"%02X:%02X:%02X:%02X:%02X:%02X\",\"type\":%u,\"bonded\":%s%s}",
                  first_host ? "" : ",", (unsigned) s,
                  h.addr[0], h.addr[1], h.addr[2], h.addr[3], h.addr[4], h.addr[5],
-                 (unsigned) h.addr_type, kb_->host_slot_bonded(s) ? "true" : "false");
+                 (unsigned) h.addr_type, kb_->host_slot_bonded(s) ? "true" : "false",
+                 id_str);
         first_host = false;
         json += buf;
       }

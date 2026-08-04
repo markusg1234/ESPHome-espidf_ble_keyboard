@@ -1066,7 +1066,11 @@ class BleKeyboardCard extends HTMLElement {
     const showAddr = this._config.show_mac && this._hostDataAvailable;
     this._hostAddrEl.style.display = showAddr ? '' : 'none';
     if (showAddr) {
-      this._hostAddrEl.textContent = (apiSlot && apiSlot.occupied && apiSlot.addr) ? apiSlot.addr : 'Empty';
+      // identity is the address the host keeps across reconnects and is what the
+      // host MAC sensor publishes; addr is what it happened to connect with and
+      // rotates on Android. Prefer identity, fall back when it can't be resolved.
+      const addr = apiSlot && apiSlot.occupied && (apiSlot.identity || apiSlot.addr);
+      this._hostAddrEl.textContent = addr || 'Empty';
     }
   }
 
