@@ -494,7 +494,17 @@ class BleKeyboardCard extends HTMLElement {
       active_host_entity: config.active_host_entity || null,
       show_mac: config.show_mac !== false,
       host_url: config.host_url || null,
+      zoom: this._parseZoom(config.zoom),
     };
+    // Read by the .zoom wrapper. Set on the host so it applies whether or not
+    // the card has rendered yet — custom properties inherit into shadow DOM.
+    this.style.setProperty('--kb-zoom', this._config.zoom);
+  }
+
+  // Anything unparseable falls back to 1 rather than collapsing the card.
+  _parseZoom(value) {
+    const z = parseFloat(value);
+    return Number.isFinite(z) ? Math.min(Math.max(z, 0.25), 3) : 1;
   }
 
   _initialize() {
@@ -529,6 +539,33 @@ class BleKeyboardCard extends HTMLElement {
         height: 100%;
         display: flex;
         flex-direction: column;
+        /* The key rows stretch to fill a taller card, but the keys have a
+           minimum height — squeeze the card below that, or zoom in past what
+           the width can hold, and this scrolls rather than letting the keyboard
+           spill over its neighbours. */
+        overflow: auto;
+      }
+      /* zoom rather than a transform, because it affects layout: the card's
+         natural height tracks the zoom, so auto height still fits exactly.
+         Stretching as a flex item is what keeps the key rows filling a taller
+         card at any zoom. */
+      .zoom {
+        zoom: var(--kb-zoom, 1);
+        display: flex;
+        flex-direction: column;
+        flex: 0 0 auto;
+        /* Inside a zoomed element, 100% is the card's width divided by the
+           zoom, so a flex:1 key would come out the same size on screen at every
+           zoom — only the font would change. Multiplying back by the zoom pins
+           the layout to the card's unzoomed width, so every length scales by
+           exactly the zoom factor in both directions. It has to be an exact
+           width rather than a min-width: a floor does nothing below zoom 1,
+           which
+           left small zooms full-width with shrunken text. Auto margins centre
+           the result, and collapse to zero when it overflows, so nothing is
+           pushed out of scroll range. */
+        width: calc(100% * var(--kb-zoom, 1));
+        margin-inline: auto;
       }
       .header {
         font-size: 16px;
@@ -549,8 +586,10 @@ class BleKeyboardCard extends HTMLElement {
         display: flex;
         gap: 3px;
         margin-bottom: 3px;
-        flex: 1 1 auto;
-        min-height: 0;
+        /* Deliberately not stretching to fill a taller card: that grew the keys
+           vertically without growing them sideways, so the zoom no longer kept
+           its proportions. Height comes from the keys, scaled by the zoom. */
+        flex: 0 0 auto;
       }
       .kb-row:last-child {
         margin-bottom: 0;
@@ -690,6 +729,12 @@ class BleKeyboardCard extends HTMLElement {
     const card = document.createElement('div');
     card.className = 'card';
 
+    // Everything sits inside the zoom wrapper; the card itself must stay
+    // unzoomed so its height keeps matching the slot the section gives it.
+    const zoom = document.createElement('div');
+    zoom.className = 'zoom';
+    card.appendChild(zoom);
+
     // Header
     const header = document.createElement('div');
     header.className = 'header';
@@ -742,7 +787,7 @@ class BleKeyboardCard extends HTMLElement {
       this._startHostPolling();
     }
 
-    card.appendChild(header);
+    zoom.appendChild(header);
     // One device-registry lookup serves two purposes: the friendly name (when no
     // title was configured) and the ESP's own URL, which HA fills in as
     // configuration_url because web_control requires the web_server component.
@@ -805,7 +850,7 @@ class BleKeyboardCard extends HTMLElement {
         rowDiv.appendChild(btn);
       });
 
-      card.appendChild(rowDiv);
+      zoom.appendChild(rowDiv);
     });
 
     shadow.appendChild(style);
@@ -1015,17 +1060,23 @@ class BleKeyboardCard extends HTMLElement {
     return this._config && this._config.show_fkeys !== false ? 6 : 5;
   }
 
-  // Sections-view sizing: one grid row is 56px with an 8px gap, so n rows
-  // give 64n-8 px. Natural height is ~271px with F-keys (5 rows), ~242px
-  // without (4 rows); the key rows flex to absorb any extra height.
+  // Sections-view sizing. 'auto' sizes the section to the keyboard's natural
+  // height, the way it laid out before it declared any grid options; the key
+  // rows still flex, so a taller size just grows the keys and a shorter one
+  // scrolls. One grid row is 56px with an 8px gap, so n rows give 64n-8 px:
+  // natural height is ~271px with F-keys, ~242px without.
+  //
+  // The bounds are left wide open — 1-12 columns, and 1-8 rows, 8 being as far
+  // as HA's height slider goes. max_rows is deliberately absent: the slider
+  // stops at 8 either way (rowMax falls back to the size picker's own `rows`),
+  // but with no bound declared computeCardGridSize() applies no upper clamp, so
+  // `grid_options: {rows: N}` in the YAML editor can go taller.
   getGridOptions() {
-    const fkeys = this._config && this._config.show_fkeys !== false;
     return {
       columns: 12,
-      min_columns: 6,
-      rows: 5,
-      min_rows: fkeys ? 5 : 4,
-      max_rows: 8,
+      min_columns: 1,
+      rows: 'auto',
+      min_rows: 1,
     };
   }
 
@@ -1052,6 +1103,7 @@ customElements.define('ble-keyboard-card', BleKeyboardCard);
 const KB_EDITOR_SCHEMA = [
   { name: 'device', required: true, selector: { text: {} } },
   { name: 'name', selector: { text: {} } },
+  { name: 'zoom', selector: { number: { min: 0.25, max: 3, step: 0.05, mode: 'box' } } },
   { name: 'layout', selector: { select: { options: [
     { value: 'us', label: 'English (US)' },
     { value: 'uk', label: 'English (UK)' },
@@ -1069,6 +1121,7 @@ const KB_EDITOR_SCHEMA = [
 const KB_EDITOR_LABELS = {
   device: 'ESPHome device name',
   name: 'Card title (optional)',
+  zoom: 'Zoom (1 = normal, 0.5 = half, 2 = double)',
   layout: 'Keyboard layout',
   show_fkeys: 'Show function key row',
   host_slots: 'Host switcher (needs 2+; 0 = hide)',
@@ -1080,7 +1133,7 @@ const KB_EDITOR_LABELS = {
 
 class BleKeyboardCardEditor extends HTMLElement {
   setConfig(config) {
-    this._config = { layout: 'us', show_fkeys: true, host_slots: 0, show_mac: true, ...config };
+    this._config = { layout: 'us', show_fkeys: true, host_slots: 0, show_mac: true, zoom: 1, ...config };
     // host_names is a YAML list but edits as one comma-separated field; show it
     // as text here and turn it back into a list in _emit().
     if (Array.isArray(this._config.host_names)) {

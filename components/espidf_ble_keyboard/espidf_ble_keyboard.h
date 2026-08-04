@@ -12,6 +12,7 @@
 #include "esphome/components/text/text.h"
 #endif
 #include <atomic>
+#include <cstring>
 #include <functional>
 #include <map>
 #include <string>
@@ -34,6 +35,9 @@ namespace espidf_ble_keyboard {
 
 // Maximum number of host slots for multi-host switching
 static const uint8_t MAX_HOST_SLOTS = 10;
+
+/// Render a BLE address as AA:BB:CC:DD:EE:FF. `out` must hold 18 bytes.
+void format_bd_addr(const esp_bd_addr_t addr, char out[18]);
 
 // ── Keyboard layout abstraction ──────────────────────────────────────────────
 struct HidKeyMapping {
@@ -331,6 +335,24 @@ class EspidfBleKeyboard : public Component
   /// host that then refuses encryption, so the UI must surface the difference.
   bool host_slot_bonded(uint8_t slot) const;
 
+  /// Resolve a peer's stable identity address. Android connects with a resolvable
+  /// private address that rotates every ~15 minutes; the identity address it hands
+  /// over at bonding does not. Matches `addr` against both the bonded connection
+  /// address and the stored identity, so it works whichever one the caller holds.
+  /// False when the peer is not bonded or sent no ID key — `out` is left alone.
+  bool peer_identity_addr(const esp_bd_addr_t addr, esp_bd_addr_t &out) const;
+
+  /// Slot holding this peer, compared by identity so a rotated address still
+  /// matches, falling back to the raw address when no identity is available.
+  /// -1 when no slot holds it.
+  int8_t find_slot_for_peer(const esp_bd_addr_t addr) const;
+
+  /// True when this slot's owner can be told apart from any other device. False
+  /// means its stored address rotated beyond what we can resolve, so a returning
+  /// owner would be indistinguishable from a stranger — such a slot must not be
+  /// defended, or the owner gets locked out of it.
+  bool host_slot_identifiable(uint8_t slot) const;
+
   void set_host_slot_passkey(uint8_t slot, uint32_t passkey, bool secure_connections) {
     if (slot < MAX_HOST_SLOTS) {
       host_slot_configs_[slot].has_passkey = true;
@@ -374,6 +396,14 @@ class EspidfBleKeyboard : public Component
     publish_hidden_();
   }
 
+  // Connected-host address text sensor — lets an automation tell *which* host it
+  // is talking to, which the active-host slot number cannot do on its own.
+  void set_host_mac_sensor(text_sensor::TextSensor *sensor) {
+    host_mac_sensor_ = sensor;
+    publish_host_mac_();
+  }
+  void queue_host_mac_update() { pending_host_mac_update_.store(true); }
+
   // RSSI sensor
   void set_rssi_sensor(sensor::Sensor *sensor) { rssi_sensor_ = sensor; }
   void set_rssi_update_interval(uint32_t ms) { rssi_update_interval_ms_ = ms; }
@@ -381,10 +411,19 @@ class EspidfBleKeyboard : public Component
   void add_rssi_above_callback(std::function<void(int8_t)> cb) { rssi_above_callbacks_.push_back(std::move(cb)); }
   void add_rssi_below_callback(std::function<void(int8_t)> cb) { rssi_below_callbacks_.push_back(std::move(cb)); }
 
+  /// Turn away a peer that bonded while the active slot was already taken. Called
+  /// from the GAP handler; the disconnect and bond removal happen in loop().
+  void queue_host_reject(const esp_bd_addr_t addr, uint8_t slot) {
+    memcpy(reject_addr_, addr, sizeof(esp_bd_addr_t));
+    reject_slot_ = slot;
+    pending_host_reject_.store(true);
+  }
+
   // Peer address and RSSI state — public so static GAP/GATTS handlers can access them directly
   esp_bd_addr_t peer_addr_{};
   sensor::Sensor *active_host_sensor_{nullptr};
   text_sensor::TextSensor *hidden_sensor_{nullptr};
+  text_sensor::TextSensor *host_mac_sensor_{nullptr};
   sensor::Sensor *rssi_sensor_{nullptr};
   bool rssi_pending_{false};
   std::atomic<bool> pending_rssi_nan_{false};
@@ -424,6 +463,14 @@ class EspidfBleKeyboard : public Component
   bool is_paired_{false};
   std::atomic<bool> pending_paired_update_{false};
   std::atomic<bool> pending_paired_state_{false};
+  // Host address publish + intruder rejection, both deferred out of the GAP
+  // handler into loop() like every other state change here.
+  std::atomic<bool> pending_host_mac_update_{false};
+  std::atomic<bool> pending_host_reject_{false};
+  esp_bd_addr_t reject_addr_{};
+  uint8_t reject_slot_{0};
+  void publish_host_mac_();
+  void reject_host_();
   binary_sensor::BinarySensor *paired_binary_sensor_{nullptr};
   std::atomic<bool> pending_led_update_{false};
   std::atomic<uint8_t> pending_led_value_{0};

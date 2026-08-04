@@ -100,7 +100,17 @@ class BleRemoteCard extends HTMLElement {
       active_host_entity: config.active_host_entity || null,
       show_mac: config.show_mac !== false,
       host_url: config.host_url || null,
+      zoom: this._parseZoom(config.zoom),
     };
+    // Read by the .zoom wrapper. Set on the host so it applies whether or not
+    // the card has rendered yet — custom properties inherit into shadow DOM.
+    this.style.setProperty('--remote-zoom', this._config.zoom);
+  }
+
+  // Anything unparseable falls back to 1 rather than collapsing the card.
+  _parseZoom(value) {
+    const z = parseFloat(value);
+    return Number.isFinite(z) ? Math.min(Math.max(z, 0.25), 3) : 1;
   }
 
   // Hide the buttons the active host has no use for. Driven by the text sensor,
@@ -139,13 +149,39 @@ class BleRemoteCard extends HTMLElement {
     const shadow = this.attachShadow({ mode: 'open' });
     shadow.innerHTML = `
       <style>
-        :host { display: block; }
+        /* height:100% fills the slot when a row count is set, so the card
+           background reaches the bottom instead of stopping short of it;
+           against an auto-height section it resolves back to the content. */
+        :host { display: block; height: 100%; }
         .card {
           background: var(--ha-card-background, var(--card-background-color, #fff));
           border-radius: var(--ha-card-border-radius, 12px);
           box-shadow: var(--ha-card-box-shadow, 0 2px 6px rgba(0,0,0,.15));
           padding: 16px;
-          overflow: hidden;
+          box-sizing: border-box;
+          height: 100%;
+          /* The Layout tab tops out at 8 rows, well under the ~13 this card
+             needs with every section on, so a chosen height simply scrolls
+             rather than shrinking the buttons. Auto height sizes the card to
+             its content exactly, so no scrollbar appears there. */
+          overflow: auto;
+        }
+
+        /* The zoom property is used rather than a transform because it affects
+           layout: the card's natural height tracks the zoom, so auto height
+           still fits exactly and a shorter card still scrolls. Zooming past
+           ~1.1 makes the widest row (the media row) exceed a 500px section,
+           which is why the card scrolls both ways. */
+        .zoom {
+          zoom: var(--remote-zoom, 1);
+          /* Pins the layout to the card's unzoomed width, so the rows have as
+             much room as at zoom 1 and the buttons aren't flex-shrunk narrower
+             than they are tall — without this the 52px circles come out as
+             ellipses once zoomed. Auto margins centre the result, and collapse
+             to zero when it overflows, so nothing is pushed out of scroll
+             range. At zoom 1 this is plain 100%. */
+          width: calc(100% * var(--remote-zoom, 1));
+          margin-inline: auto;
         }
         .header {
           display: flex; align-items: center; gap: 8px;
@@ -173,7 +209,11 @@ class BleRemoteCard extends HTMLElement {
         /* Button grid sections */
         .section { margin-bottom: 12px; }
         .section:last-child { margin-bottom: 0; }
-        .row { display: flex; justify-content: center; gap: 8px; margin-bottom: 8px; }
+        /* "safe center" centres as usual but falls back to start-alignment once
+           a row is wider than the card — zoomed in, plain centring pushes the
+           left half out past scrollLeft 0, where it can't be scrolled to. The
+           plain rule stays first as a fallback for browsers without "safe". */
+        .row { display: flex; justify-content: center; justify-content: safe center; gap: 8px; margin-bottom: 8px; }
         .row:last-child { margin-bottom: 0; }
 
         /* Standard round button */
@@ -210,7 +250,7 @@ class BleRemoteCard extends HTMLElement {
         .btn.blue { background: #1e88e5; color: #fff; border: none; width: 44px; height: 44px; }
 
         /* D-pad */
-        .dpad { display: grid; grid-template-columns: 52px 52px 52px; grid-template-rows: 52px 52px 52px; gap: 4px; justify-content: center; margin: 8px 0; }
+        .dpad { display: grid; grid-template-columns: 52px 52px 52px; grid-template-rows: 52px 52px 52px; gap: 4px; justify-content: center; justify-content: safe center; margin: 8px 0; }
         .dpad .btn { border-radius: 12px; }
         .dpad .center { background: var(--primary-color, #03a9f4); color: #fff; border-color: var(--primary-color, #03a9f4); font-size: 11px; font-weight: 700; border-radius: 50%; }
         .dpad .center:active { background: var(--accent-color, #ff9800); }
@@ -220,25 +260,37 @@ class BleRemoteCard extends HTMLElement {
         .btn.wide { width: auto; border-radius: 26px; padding: 0 18px; font-size: 12px; }
 
         /* Volume/channel strip */
-        .strip { display: flex; align-items: center; justify-content: center; gap: 16px; }
+        .strip { display: flex; align-items: center; justify-content: center; justify-content: safe center; gap: 16px; }
         .strip-group { display: flex; flex-direction: column; align-items: center; gap: 4px; }
         .strip-label { font-size: 10px; color: var(--secondary-text-color, #888); font-weight: 600; text-transform: uppercase; }
 
         /* Media controls */
-        .media-row { display: flex; justify-content: center; gap: 10px; }
+        .media-row { display: flex; justify-content: center; justify-content: safe center; gap: 10px; }
         .btn.media { width: 46px; height: 46px; }
 
         /* Number pad */
-        .numpad { display: grid; grid-template-columns: repeat(3, 52px); gap: 6px; justify-content: center; }
+        .numpad { display: grid; grid-template-columns: repeat(3, 52px); gap: 6px; justify-content: center; justify-content: safe center; }
 
         /* App row */
-        .app-row { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+        .app-row { display: flex; justify-content: center; justify-content: safe center; gap: 8px; flex-wrap: wrap; }
         .btn.app { width: auto; border-radius: 26px; padding: 0 14px; height: 38px; font-size: 11px; }
 
         /* Divider */
         .divider { height: 1px; background: var(--divider-color, #e0e0e0); margin: 12px 0; }
+
+        /* The buttons are a fixed size, so past ~430px the card would just add
+           whitespace either side of them. Cap the content and centre it instead,
+           the way the built-in thermostat card constrains its dial. Sections cap
+           at 500px, so this only bites in panel view or a wide masonry column. */
+        .header, .section, .divider {
+          max-width: 460px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+
       </style>
       <div class="card">
+        <div class="zoom">
         <div class="header">
           <svg viewBox="0 0 24 24"><path d="M18 7V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v3H2v15h20V7h-4zM8 4h8v3H8V4zm10 16H6V9h12v11zm-6-7c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
           <span class="header-name">${this._config.name || 'Media Remote'}</span>
@@ -373,6 +425,7 @@ class BleRemoteCard extends HTMLElement {
         <div class="section" id="app-section" style="display:none">
           <div class="divider"></div>
           <div class="app-row" id="app-row"></div>
+        </div>
         </div>
       </div>
     `;
@@ -678,14 +731,18 @@ class BleRemoteCard extends HTMLElement {
     this._hass.callService('esphome', `${this._config.device}_run_action`, { action });
   }
 
-  // Natural pixel height for the current config. Measured: header ~36,
-  // top row 64, d-pad ~172, vol/ch ~132, divider 25, media row 58,
-  // padding 32 -> ~540 base; optional sections add their own blocks.
+  // Natural pixel height of the card. Prefer measuring the rendered DOM —
+  // the estimate below can't see a header or app row that wrapped to two
+  // lines, or sections a host's hidden_buttons sensor collapsed.
+  // Fallback constants match a headless render (all-on = 891px) plus ~30px
+  // of font/wrap slack, giving the same row counts as live measurement.
   _naturalHeightPx() {
+    const el = this.shadowRoot && this.shadowRoot.querySelector('.card');
+    if (el && el.scrollHeight > 0) return el.scrollHeight;
     const c = this._config || {};
     let px = 540;
-    if (c.show_color === true) px += 70;
-    if (c.show_numpad === true) px += 250;
+    if (c.show_color === true) px += 69;
+    if (c.show_numpad === true) px += 251;
     if (c.show_apps !== false) px += 63;
     return px;
   }
@@ -694,18 +751,30 @@ class BleRemoteCard extends HTMLElement {
     return Math.ceil(this._naturalHeightPx() / 50);
   }
 
-  // Sections-view sizing: one grid row is 56px with an 8px gap, so n rows
-  // give 64n-8 px. The buttons are fixed-size, so the card doesn't stretch;
-  // min_rows leaves room to size down for hosts whose hidden_buttons sensor
-  // collapses whole sections (.card's overflow:hidden clips any undershoot).
+  // Sections-view sizing. 'auto' sizes the section to the content, which also
+  // keeps it right when a host's hidden_buttons sensor collapses a section or
+  // the app row wraps in a narrow card.
+  //
+  // The bounds are left wide open — 1-12 columns, and 1-8 rows. 8 is as far as
+  // HA's height slider goes: the editor never sets the size picker's `rows`
+  // property, so its row window stays at the default 8, and a bound outside
+  // that puts the slider handle off its own track and stops it responding.
+  //
+  // Every height the slider can reach is shorter than this card needs (~13 rows
+  // with every section on), so picking one scrolls the card. Use the `zoom`
+  // option to make the whole remote fit instead — zoom 0.55 brings it down to
+  // about 8 rows.
+  //
+  // max_rows is left off deliberately: the slider stops at 8 either way (rowMax
+  // falls back to the picker's `rows`), but with no bound declared
+  // computeCardGridSize() applies no upper clamp, so a taller card can still be
+  // set as `grid_options: {rows: N}` in the YAML editor.
   getGridOptions() {
-    const rows = Math.ceil((this._naturalHeightPx() + 8) / 64);
     return {
       columns: 12,
-      min_columns: 9,
-      rows,
-      min_rows: Math.max(6, rows - 3),
-      max_rows: rows + 2,
+      min_columns: 1,
+      rows: 'auto',
+      min_rows: 1,
     };
   }
 
@@ -731,6 +800,7 @@ customElements.define('ble-remote-card', BleRemoteCard);
 const REMOTE_EDITOR_SCHEMA = [
   { name: 'device', required: true, selector: { text: {} } },
   { name: 'name', selector: { text: {} } },
+  { name: 'zoom', selector: { number: { min: 0.25, max: 3, step: 0.05, mode: 'box' } } },
   { name: 'show_numpad', selector: { boolean: {} } },
   { name: 'show_apps', selector: { boolean: {} } },
   { name: 'show_color', selector: { boolean: {} } },
@@ -745,6 +815,7 @@ const REMOTE_EDITOR_SCHEMA = [
 const REMOTE_EDITOR_LABELS = {
   device: 'ESPHome device name',
   name: 'Card title (optional)',
+  zoom: 'Zoom (1 = normal, 0.5 = half, 2 = double)',
   show_numpad: 'Show number pad',
   show_apps: 'Show app launcher row',
   show_color: 'Show colour buttons',
@@ -767,6 +838,7 @@ class BleRemoteCardEditor extends HTMLElement {
       show_color: false,
       host_slots: 0,
       show_mac: true,
+      zoom: 1,
       ...config,
     };
     // host_names is a YAML list but edits as one comma-separated field; show it

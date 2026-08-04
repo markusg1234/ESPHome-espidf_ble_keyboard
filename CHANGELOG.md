@@ -7,12 +7,32 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Added
-- **All three Lovelace cards support resizing in sections dashboards**, with proper
-  default sizes and min/max ranges. The keyboard's key rows and the mouse touchpad
-  stretch to fill the chosen height; the remote reports its true size, tracking
-  `show_numpad`/`show_color`/`show_apps`. Masonry dashboards render as before.
+- **A text sensor for the connected host's Bluetooth address**, so an automation can act on
+  which machine is connected rather than just which slot is active. It reports the host's
+  stable identity where one was exchanged at pairing, so it keeps working on phones, whose
+  connection address rotates every few minutes. Hosts with a fixed address report that
+  address unchanged.
+- **A bonded host slot now belongs to its host until you forget it.** A different device that
+  pairs while that slot is active is disconnected and its bond removed, instead of quietly
+  taking the slot over — which mattered most on Android, where pairing has no PIN and nothing
+  stopped the last device to pair from claiming the slot. Your own host is matched by identity,
+  so it is still let back in after its address rotates or you re-pair it.
+- **A `zoom` option on all three cards**, in the visual editor's Config tab (0.25–3, default
+  1). It scales the whole card — buttons, text and spacing together — so you can shrink one
+  to fit a smaller space or enlarge it for a wall tablet. The card's height follows the zoom,
+  so `zoom: 0.55` brings the full media remote down to about 8 rows, which is as short as
+  HA's height slider goes. Everything scales by the same factor in both directions, so the
+  buttons keep their shape at any zoom, and a zoomed-in card scrolls rather than squashing.
+- **All three Lovelace cards support resizing in sections dashboards.** They keep their
+  natural size by default, as before — but the Layout tab now offers sensible width and
+  height ranges (1–12 columns, 1–8 rows) instead of warning that the card can't be resized.
+  Cards keep their proportions at whatever size you pick and scroll if the card is smaller
+  than they are; use `zoom` to change how big the controls actually are.
 
 ### Changed
+- **The media remote's buttons stay centred in a 460px column on wide cards**, instead of
+  spreading out with the power button stranded at the far edge. Only visible in panel view
+  or a wide masonry column; sections cap at 500px, so they look unchanged.
 - **Forget Host moved into the Host Actions card**, on the same row as the host picker, and
   it now forgets **the slot the picker shows** rather than always the active host — so a host
   that isn't currently connected can be forgotten too. The host bar at the top is host buttons

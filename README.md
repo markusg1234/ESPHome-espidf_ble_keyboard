@@ -17,6 +17,8 @@ This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low
 * **Mouse Control:** Left, right, and middle click, cursor movement, and scroll wheel via HID mouse reports.
 * **Custom Text Input:** Send any text typed in Home Assistant directly to the paired host device.
 * **RSSI Sensor:** Read the signal strength (dBm) of the connected host on a configurable interval. Supports proximity-based automations via `on_rssi_above` / `on_rssi_below`.
+* **Host MAC Sensor:** Expose the Bluetooth address of the connected host, so automations can act on *which* machine is connected. Reports the stable identity address, so it holds even on Android and iOS where the connection address rotates.
+* **Bonded Slot Protection:** A host slot belongs to its host until you forget it. A stranger that pairs while a bonded slot is active is refused and its bond removed, instead of quietly taking the slot over.
 * **Keyboard LED Feedback:** Expose host-side Num Lock, Caps Lock, and Scroll Lock LED state as ESPHome binary sensors. Updated whenever the host writes a HID output report.
 
 📖 [Keycode Reference](docs/keycodes.md) · [🌐 View Web Page](https://markusg1234.github.io/ESPHome-espidf_ble_keyboard)
@@ -518,11 +520,15 @@ espidf_ble_keyboard:
 
 ### `text_sensor` (Platform: `espidf_ble_keyboard`)
 
-Optional. Publishes the active host's hidden remote buttons so the [Media Remote Card](#media-remote-card-for-home-assistant) can mirror the web remote's [per-host button removal](#removing-remote-buttons-per-host). Without it the card simply shows every button; the web remote does not need it either way.
+Optional. Two types are available.
 
 * **keyboard_id** (Required, ID): The ID of the `espidf_ble_keyboard` component.
-* **type** (Optional, string): `hidden_buttons` (the default and only type).
+* **type** (Optional, string): `hidden_buttons` (default) or `host_mac`.
 * **name** (Optional, string): Friendly entity name shown in Home Assistant.
+
+#### Hidden buttons
+
+Publishes the active host's hidden remote buttons so the [Media Remote Card](#media-remote-card-for-home-assistant) can mirror the web remote's [per-host button removal](#removing-remote-buttons-per-host). Without it the card simply shows every button; the web remote does not need it either way.
 
 ```yaml
 text_sensor:
@@ -534,7 +540,38 @@ text_sensor:
 
 The state is a comma-separated list of action names — `record,app_calc,color_red` — or empty when the active host hides nothing. It republishes when you save in the Host Actions card and whenever the host is switched.
 
-> ESPHome text sensors appear in Home Assistant under the **`sensor.`** domain, not `text_sensor.`. With the YAML above the entity is `sensor.<device>_hidden_buttons`, which is exactly what the card auto-detects. If you give it a different `name`, set `hidden_entity:` on the card to match.
+#### Host MAC
+
+Publishes the Bluetooth address of the connected host, so an automation can tell *which* machine it is talking to. The [active host sensor](#active-host-sensor) only reports the slot number, which is not the same thing — see [protecting a bonded host slot](#protecting-a-bonded-host-slot).
+
+```yaml
+text_sensor:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: host_mac
+    name: "Host MAC"
+```
+
+The state is `AA:BB:CC:DD:EE:FF`, or empty while nothing is connected. Use it to gate an automation on a specific machine:
+
+```yaml
+espidf_ble_keyboard:
+  id: my_keyboard
+  on_rssi_above:
+    threshold: -65
+    then:
+      - if:
+          condition:
+            lambda: 'return id(host_mac).state == "04:CB:01:07:D2:24";'
+          then:
+            - logger.log: "My phone is nearby"
+```
+
+Where the host supplied an identity key when pairing, this is its **identity address** rather than the address it happened to connect with. That matters on Android and iOS, which connect using a private address that rotates roughly every 15 minutes: the identity address does not rotate, so a comparison like the one above keeps working. Hosts with a fixed address — Windows PCs, most TVs — report the same value either way, matching what the web remote shows for the slot.
+
+The value is only as stable as the bond. Unpair and pair again and a phone may present a different identity, so re-check the sensor after re-pairing rather than assuming the old value still holds. Treat this as identification, not authentication — it tells one device from another, but it is not proof against a device that deliberately imitates one.
+
+> ESPHome text sensors appear in Home Assistant under the **`sensor.`** domain, not `text_sensor.`. With the YAML above the entities are `sensor.<device>_hidden_buttons` and `sensor.<device>_host_mac`. The hidden-buttons name is what the card auto-detects; if you give it a different `name`, set `hidden_entity:` on the card to match.
 
 ---
 
@@ -727,6 +764,19 @@ button:
 ```
 
 String action format is also supported: `"switch_host:0"`, `"forget_host:2"`.
+
+### Protecting a Bonded Host Slot
+
+Once a slot is bonded to a host, only that host can hold it. A different device that pairs while that slot is active is turned away: its bond is removed, it is disconnected, and the slot keeps its original host. To hand a slot to a different machine, forget it first.
+
+This matters most on Android, which [cannot use a passkey with a BLE HID keyboard](#pairing-with-android) — pairing is unauthenticated, so anyone who scans for Bluetooth devices can attempt to pair. Without this, whoever paired last took over the active slot, and any automation keyed on the [active host sensor](#active-host-sensor) would have been none the wiser, because the slot number does not change when the device behind it does.
+
+A few things worth knowing:
+
+* **The refusal happens just after pairing, not instead of it.** The other device briefly shows as paired on its own screen before being dropped. That is expected — it is only at that point that the keyboard learns who connected. It ends up with no usable bond and cannot reconnect.
+* **Your own host is not locked out.** Hosts are matched by identity, so a phone returning on a rotated address, or re-pairing after you unpaired it, is recognised as the slot's owner and let straight back in. No forget needed.
+* **A slot with no live bond is still free to take.** After restoring a backup, or after a stale bond is cleared, the slot holds an address but no pairing keys — it accepts a new host as before, since refusing would leave no way back in.
+* **Rejections are logged.** A warning naming the refused address and the slot it tried to take is the only notification you get, so check the logs if a device unexpectedly will not pair.
 
 ### Host Switching from Home Assistant
 
@@ -992,7 +1042,7 @@ The three Lovelace cards (mouse, keyboard, media remote) can be installed and ke
 
 HACS registers the dashboard resource for you — there's no need to add anything under *Settings → Dashboards → Resources*. When a new version is released, HACS offers the update in the usual way.
 
-In a **sections** dashboard, all three cards support the resize handles and the card editor's **Layout** tab: each declares its proper default size and a sensible min/max range, and the keyboard's key rows and the mouse touchpad stretch to fill whatever height you choose. Masonry dashboards are unaffected.
+In a **sections** dashboard, all three cards support the resize handles and the card editor's **Layout** tab. Each keeps its natural height by default and offers a sensible width and height range; each keeps its proportions at whatever size you pick and scrolls if the card is smaller than the controls need — use the `zoom` option to change how big those controls are. HA's height slider stops at 8 rows, which is shorter than the media remote needs with every section on, so set `grid_options: {rows: N}` in the card's YAML if you want it taller than that. Masonry dashboards are unaffected.
 
 > **Unreleased — `main` only.** In **v1.6.0 and earlier** the cards don't declare grid sizes, so sections-view resizing warns and defaults poorly.
 
@@ -1107,6 +1157,7 @@ Example with all optional overrides:
 type: custom:ble-mouse-card
 device: bluetooth_keyboard
 name: Living Room Mouse       # card title (auto-detected from HA if omitted)
+zoom: 1                       # scale the whole card (default: 1)
 sensitivity: 2.0              # base cursor speed (default: 1.5)
 mouse_acceleration: 0.2       # speed-based acceleration factor (default: 0.15)
 mouse_max_speed: 6.0          # max sensitivity cap (default: 4.5)
@@ -1125,6 +1176,7 @@ Optional configuration:
 | Option | Default | Description |
 |---|---|---|
 | `name` | Auto from HA | Card title. Auto-detected from HA device registry if omitted. |
+| `zoom` | `1` | Scales the whole card — touchpad, buttons and text together. `0.25`–`3`; values outside that are clamped. The card's height follows the zoom, and everything scales by the same factor in both directions so the controls keep their shape. |
 | `sensitivity` | `1.5` | Base cursor speed multiplier. |
 | `mouse_acceleration` | `0.15` | Speed-based acceleration factor. Higher = more acceleration on fast swipes. |
 | `mouse_max_speed` | `4.5` | Maximum sensitivity cap. Limits how fast the cursor can move. |
@@ -1498,6 +1550,7 @@ Example with all optional overrides:
 type: custom:ble-keyboard-card
 device: bluetooth_keyboard
 name: Living Room Keyboard    # card title (auto-detected from HA if omitted)
+zoom: 1                       # scale the whole card (default: 1)
 show_fkeys: true             # hide F1-F12 row (default: true)
 layout: us                    # us (default), uk, de, or be — match the ESP's keyboard_layout
 host_slots: 4                 # show host switcher (default: 0 = hidden)
@@ -1523,6 +1576,7 @@ Optional configuration:
 | Option | Default | Description |
 |---|---|---|
 | `name` | Auto from HA | Card title. Auto-detected from HA device registry if omitted. |
+| `zoom` | `1` | Scales the whole card — keys, labels and spacing together. `0.25`–`3`; values outside that are clamped. The card's height follows the zoom, and everything scales by the same factor in both directions so the keys keep their shape. |
 | `show_fkeys` | `true` | Show the F1–F12 function key row. |
 | `layout` | `us` | Keyboard layout for the on-screen card: `us`, `uk`, `de`, or `be`. UK draws the ISO shape (extra `\|` key, `£` on Shift+3); DE draws QWERTZ (Y/Z swapped, `ü`/`ö`/`ä`/`ß` keys, German modifier labels); BE draws AZERTY (A↔Q and Z↔W swapped, `M` on home row, `é è à ç ù` on the digit row). Set this to match the ESP's `keyboard_layout` option so the visual matches what gets typed. |
 | `host_slots` | `0` | Number of host slots. Set to match your `host_slots` config to show a [host switcher](#host-switcher-on-the-cards) in the header. Needs at least `2` — `0` or `1` hides it. |
@@ -1605,6 +1659,7 @@ Example with all optional overrides:
 type: custom:ble-remote-card
 device: bluetooth_keyboard
 name: Living Room Remote      # card title (auto-detected from HA if omitted)
+zoom: 1                       # scale the whole remote (default: 1)
 show_numpad: true             # show number pad (default: false)
 show_apps: true               # show app launch row (default: true)
 show_color: true              # show color buttons (default: false)
@@ -1621,6 +1676,7 @@ Optional configuration:
 | Option | Default | Description |
 |---|---|---|
 | `name` | Auto from HA | Card title. Auto-detected from HA device registry if omitted. |
+| `zoom` | `1` | Scales the whole remote — buttons, text and spacing together. `0.25`–`3`; values outside that are clamped. The card's height follows the zoom, so `0.55` fits the full remote into roughly 8 grid rows, the shortest HA's height slider offers. Zooming past about `1.1` makes the remote wider than a 500px section, and the card scrolls sideways. |
 | `show_numpad` | `false` | Show a number pad (0–9) for channel entry or PIN input. |
 | `show_apps` | `true` | Show app launch buttons (Explorer, Browser, Email, Calc, Search). |
 | `show_color` | `false` | Show red/green/yellow/blue color buttons (mapped to F1–F4). |

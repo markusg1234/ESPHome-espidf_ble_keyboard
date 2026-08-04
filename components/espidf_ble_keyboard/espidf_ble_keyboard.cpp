@@ -427,24 +427,35 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
                 ESP_LOGI(TAG, "GAP: Pairing Successful");
                 if (s_instance) {
                     s_instance->queue_paired_state(true);
-                    // Check if this host is already in a known slot
-                    bool already_known = false;
-                    for (uint8_t i = 0; i < MAX_HOST_SLOTS; i++) {
-                        auto &hs = s_instance->get_host_slot(i);
-                        if (hs.occupied && memcmp(hs.addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t)) == 0) {
-                            already_known = true;
-                            ESP_LOGI(TAG, "Reconnected host already in slot %u", i);
-                            break;
+                    // Matched by identity, so a phone that reconnected on a fresh
+                    // resolvable address is still recognised as the slot's owner.
+                    int8_t known = s_instance->find_slot_for_peer(param->ble_security.auth_cmpl.bd_addr);
+                    if (known >= 0) {
+                        ESP_LOGI(TAG, "Reconnected host already in slot %d", known);
+                    } else {
+                        uint8_t slot = s_instance->active_host_slot();
+                        // A bonded slot belongs to its host until it is forgotten.
+                        // An unoccupied slot, or one holding an address whose bond
+                        // is gone (restored backup, cleared stale bond), is free to
+                        // take — refusing those would strand the owner. So is one we
+                        // can no longer identify, where the owner returning on a
+                        // rotated address looks exactly like a stranger.
+                        if (s_instance->get_host_slot(slot).occupied && s_instance->host_slot_bonded(slot) &&
+                            s_instance->host_slot_identifiable(slot)) {
+                            s_instance->queue_host_reject(param->ble_security.auth_cmpl.bd_addr, slot);
+                        } else {
+                            // New host — assign to the active slot
+                            s_instance->assign_host_slot_(
+                                slot,
+                                param->ble_security.auth_cmpl.bd_addr,
+                                (esp_ble_addr_type_t) param->ble_security.auth_cmpl.addr_type);
+                            s_instance->save_host_slots_();
                         }
                     }
-                    if (!already_known) {
-                        // New host — assign to the active slot
-                        s_instance->assign_host_slot_(
-                            s_instance->active_host_slot(),
-                            param->ble_security.auth_cmpl.bd_addr,
-                            (esp_ble_addr_type_t) param->ble_security.auth_cmpl.addr_type);
-                        s_instance->save_host_slots_();
-                    }
+                    // Identity is only available once keys have been exchanged, so
+                    // the address published at connect time may have been the
+                    // rotating one — republish now that it can be resolved.
+                    s_instance->queue_host_mac_update();
                 }
             } else {
                 uint8_t fail_reason = param->ble_security.auth_cmpl.fail_reason;
@@ -734,6 +745,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             if (s_instance) {
                 s_instance->set_connected(true, param->connect.conn_id);
                 memcpy(s_instance->peer_addr_, param->connect.remote_bda, sizeof(esp_bd_addr_t));
+                s_instance->queue_host_mac_update();
             }
             proto_mode_val = 0x01;
             report_ccc_val = 0;
@@ -783,6 +795,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
                 s_instance->queue_paired_state(false);
                 s_instance->rssi_pending_ = false;
                 s_instance->pending_rssi_nan_ = true;
+                s_instance->queue_host_mac_update();
             }
             proto_mode_val = 0x01;
             report_ccc_val = 0;
@@ -916,6 +929,72 @@ bool EspidfBleKeyboard::host_slot_bonded(uint8_t slot) const {
             return true;
     }
     return false;
+}
+
+void format_bd_addr(const esp_bd_addr_t addr, char out[18]) {
+    snprintf(out, 18, "%02X:%02X:%02X:%02X:%02X:%02X",
+             addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+}
+
+bool EspidfBleKeyboard::peer_identity_addr(const esp_bd_addr_t addr, esp_bd_addr_t &out) const {
+    int dev_num = esp_ble_get_bond_device_num();
+    if (dev_num <= 0) return false;
+    std::vector<esp_ble_bond_dev_t> bonded(static_cast<size_t>(dev_num));
+    int query_num = dev_num;
+    if (esp_ble_get_bond_device_list(&query_num, bonded.data()) != ESP_OK) return false;
+
+    for (int i = 0; i < query_num; i++) {
+        const auto &dev = bonded[static_cast<size_t>(i)];
+        // A peer sends its ID key only if it distributed one. Without it there is
+        // no stable address to report — say so rather than hand back six zeroes.
+        if ((dev.bond_key.key_mask & ESP_BLE_ID_KEY_MASK) == 0) continue;
+        bool identity_set = false;
+        for (int b = 0; b < 6; b++) {
+            if (dev.bond_key.pid_key.static_addr[b] != 0) { identity_set = true; break; }
+        }
+        if (!identity_set) continue;
+        // Match either way round: callers hold the connection address at connect
+        // time, but a stored slot may already have been matched to the identity.
+        if (memcmp(dev.bd_addr, addr, sizeof(esp_bd_addr_t)) == 0 ||
+            memcmp(dev.bond_key.pid_key.static_addr, addr, sizeof(esp_bd_addr_t)) == 0) {
+            memcpy(out, dev.bond_key.pid_key.static_addr, sizeof(esp_bd_addr_t));
+            return true;
+        }
+    }
+    return false;
+}
+
+int8_t EspidfBleKeyboard::find_slot_for_peer(const esp_bd_addr_t addr) const {
+    esp_bd_addr_t peer_id;
+    bool have_peer_id = peer_identity_addr(addr, peer_id);
+
+    for (uint8_t i = 0; i < MAX_HOST_SLOTS; i++) {
+        if (!hosts_[i].occupied) continue;
+        // Raw match first — it is free, and covers every host that uses a public
+        // address as well as a slot whose stored address has not rotated yet.
+        if (memcmp(hosts_[i].addr, addr, sizeof(esp_bd_addr_t)) == 0) return (int8_t) i;
+        if (!have_peer_id) continue;
+        // The slot may already hold the identity itself, if that is what the stack
+        // reported when it was assigned.
+        if (memcmp(hosts_[i].addr, peer_id, sizeof(esp_bd_addr_t)) == 0) return (int8_t) i;
+        // Otherwise compare identities, so a phone that came back on a fresh
+        // resolvable address is still recognised as the host that owns the slot.
+        esp_bd_addr_t slot_id;
+        if (peer_identity_addr(hosts_[i].addr, slot_id) &&
+            memcmp(slot_id, peer_id, sizeof(esp_bd_addr_t)) == 0)
+            return (int8_t) i;
+    }
+    return -1;
+}
+
+bool EspidfBleKeyboard::host_slot_identifiable(uint8_t slot) const {
+    if (slot >= MAX_HOST_SLOTS || !hosts_[slot].occupied) return false;
+    // A fixed address is its own identity — anything that does not match it is a
+    // different device, full stop. Same RPA test as the advertising path uses.
+    if ((hosts_[slot].addr[0] >> 6) != 0x01) return true;
+    // A rotating one is only meaningful while it still resolves back to an identity.
+    esp_bd_addr_t id;
+    return peer_identity_addr(hosts_[slot].addr, id);
 }
 
 void EspidfBleKeyboard::save_host_slots_() {
@@ -1125,6 +1204,47 @@ void EspidfBleKeyboard::publish_hidden_() {
                  (unsigned) active_slot_, kept);
     }
     hidden_sensor_->publish_state(csv);
+}
+
+void EspidfBleKeyboard::publish_host_mac_() {
+    if (host_mac_sensor_ == nullptr) return;
+    if (!is_connected_) {
+        host_mac_sensor_->publish_state("");
+        return;
+    }
+
+    char addr_str[18];
+    esp_bd_addr_t identity;
+    if (peer_identity_addr(peer_addr_, identity)) {
+        format_bd_addr(identity, addr_str);
+        if (memcmp(identity, peer_addr_, sizeof(esp_bd_addr_t)) != 0) {
+            // Worth a log line: this is the Android case, and it is the only place
+            // the rotating address and the stable one can be seen side by side.
+            char conn_str[18];
+            format_bd_addr(peer_addr_, conn_str);
+            ESP_LOGD(TAG, "Host identity %s (connected as %s)", addr_str, conn_str);
+        }
+    } else {
+        // Not bonded yet, or the host distributed no ID key. The connection
+        // address is all there is — fine for a host with a fixed address, and it
+        // will be replaced once pairing completes.
+        format_bd_addr(peer_addr_, addr_str);
+    }
+    host_mac_sensor_->publish_state(addr_str);
+}
+
+void EspidfBleKeyboard::reject_host_() {
+    char addr_str[18];
+    format_bd_addr(reject_addr_, addr_str);
+    ESP_LOGW(TAG, "Refused %s: host slot %u is already bonded. Forget the host first to pair a "
+                  "different device there.", addr_str, reject_slot_);
+    // Removes this peer's bond only — the slot owner's bond is a separate entry.
+    esp_ble_remove_bond_device(reject_addr_);
+    if (is_connected_) esp_ble_gatts_close(s_gatts_if, conn_id_);
+    // The close is asynchronous, so is_connected_ is still true this pass. Drop the
+    // publish that pairing queued rather than announce a host we just refused; the
+    // disconnect will queue its own and the sensor clears then.
+    pending_host_mac_update_.store(false);
 }
 
 void EspidfBleKeyboard::load_hidden_() {
@@ -1627,6 +1747,14 @@ void EspidfBleKeyboard::loop() {
     }
     if (pending_rssi_update_.exchange(false)) {
         update_rssi(pending_rssi_value_.load());
+    }
+    // Must run before the publish below — it withdraws the queued update so a
+    // refused device is never announced as the connected host.
+    if (pending_host_reject_.exchange(false)) {
+        reject_host_();
+    }
+    if (pending_host_mac_update_.exchange(false)) {
+        publish_host_mac_();
     }
 
     if (is_connected_) {

@@ -92,7 +92,17 @@ class BleMouseCard extends HTMLElement {
       active_host_entity: config.active_host_entity || null,
       show_mac: config.show_mac !== false,
       host_url: config.host_url || null,
+      zoom: this._parseZoom(config.zoom),
     };
+    // Read by the .zoom wrapper. Set on the host so it applies whether or not
+    // the card has rendered yet — custom properties inherit into shadow DOM.
+    this.style.setProperty('--mouse-zoom', this._config.zoom);
+  }
+
+  // Anything unparseable falls back to 1 rather than collapsing the card.
+  _parseZoom(value) {
+    const z = parseFloat(value);
+    return Number.isFinite(z) ? Math.min(Math.max(z, 0.25), 3) : 1;
   }
 
   _initialize() {
@@ -118,6 +128,33 @@ class BleMouseCard extends HTMLElement {
           height: 100%;
           display: flex;
           flex-direction: column;
+          /* The touchpad stretches to fill a taller card, but stops at its
+             minimum height — squeeze the card below that, or zoom in past what
+             the width can hold, and this scrolls rather than letting anything
+             spill over the card's edge. */
+          overflow: auto;
+        }
+        /* zoom rather than a transform, because it affects layout: the card's
+           natural height tracks the zoom, so auto height still fits exactly.
+           Stretching as a flex item is what keeps the touchpad filling a taller
+           card at any zoom. */
+        .zoom {
+          zoom: var(--mouse-zoom, 1);
+          display: flex;
+          flex-direction: column;
+          flex: 0 0 auto;
+          /* Inside a zoomed element, 100% is the card's width divided by the
+             zoom, so a width:100% touchpad would come out the same size on
+             screen at every zoom — only the font would change. Multiplying back
+             by the zoom pins the layout to the card's unzoomed width, so every
+             length scales by exactly the zoom factor in both directions. It has
+             to be an exact width rather than a min-width: a floor does nothing
+             below zoom 1, which left small zooms full-width with shrunken text.
+             Auto
+             margins centre the result, and collapse to zero when it overflows,
+             so nothing is pushed out of scroll range. */
+          width: calc(100% * var(--mouse-zoom, 1));
+          margin-inline: auto;
         }
         .header {
           font-size: 16px;
@@ -179,10 +216,15 @@ class BleMouseCard extends HTMLElement {
         }
         .touchpad {
           width: 100%;
-          /* aspect-ratio sets the natural (masonry) height; in sections view
-             the imposed card height makes flex grow/shrink the pad instead. */
+          /* Without this the 2px border sits outside the 100%, making the pad
+             4px wider than the card and tripping a horizontal scrollbar. */
+          box-sizing: border-box;
+          /* aspect-ratio is what fixes the pad's height. It deliberately does
+             not stretch to fill a taller card: doing so changed its height
+             without changing its width, which threw the shape off — at 8 rows
+             and zoom 2 the pad came out 5.35:1 instead of 16:9. */
           aspect-ratio: 16/9;
-          flex: 1 1 auto;
+          flex: 0 0 auto;
           min-height: 60px;
           background: var(--secondary-background-color, #f0f0f0);
           border-radius: 12px;
@@ -265,6 +307,7 @@ class BleMouseCard extends HTMLElement {
         }
       </style>
       <div class="card">
+        <div class="zoom">
         <div class="header">
           <svg viewBox="0 0 24 24"><path d="M11 1.5v8.5l4 4.5h3.5l-2-2.5L20 8.5 14 5.5V1.5l-3 0zm-1 0L7 1.5v4L3.5 8.5 7 12l-2 2.5H8.5l4-4.5V1.5z" opacity="0"/><path d="M12 2C8.14 2 5 5.14 5 9v6c0 3.86 3.14 7 7 7s7-3.14 7-7V9c0-3.86-3.14-7-7-7zm0 2c2.76 0 5 2.24 5 5v2h-4V5h-2v6H7V9c0-2.76 2.24-5 5-5z"/></svg>
           <span class="header-name">${this._config.name || 'Mouse Control'}</span>
@@ -286,6 +329,7 @@ class BleMouseCard extends HTMLElement {
         <div class="scroll-row">
           <button class="scroll-btn" id="scroll-up">&#9650; Scroll Up</button>
           <button class="scroll-btn" id="scroll-down">&#9660; Scroll Down</button>
+        </div>
         </div>
       </div>
     `;
@@ -642,16 +686,23 @@ class BleMouseCard extends HTMLElement {
     return 8;
   }
 
-  // Sections-view sizing: one grid row is 56px with an 8px gap, so n rows
-  // give 64n-8 px. Fixed chrome (header + button rows) is ~176px; the
-  // touchpad flexes to fill the rest, so any height from 4 rows up works.
+  // Sections-view sizing. 'auto' keeps the 16:9 touchpad at its natural
+  // height, as it laid out before it declared any grid options; pick a row
+  // count instead and the touchpad flexes to fill it, or scrolls if the card
+  // is shorter than the ~176px of header and buttons around it.
+  //
+  // Half width by default, since a touchpad pairs well beside another card,
+  // but the bounds are left wide open — 1-12 columns, and 1-8 rows, 8 being as
+  // far as HA's height slider goes. max_rows is deliberately absent: the slider
+  // stops at 8 either way (rowMax falls back to the size picker's own `rows`),
+  // but with no bound declared computeCardGridSize() applies no upper clamp, so
+  // `grid_options: {rows: N}` in the YAML editor can go taller.
   getGridOptions() {
     return {
       columns: 6,
-      min_columns: 4,
-      rows: 5,
-      min_rows: 4,
-      max_rows: 12,
+      min_columns: 1,
+      rows: 'auto',
+      min_rows: 1,
     };
   }
 
@@ -678,6 +729,7 @@ customElements.define('ble-mouse-card', BleMouseCard);
 const MOUSE_EDITOR_SCHEMA = [
   { name: 'device', required: true, selector: { text: {} } },
   { name: 'name', selector: { text: {} } },
+  { name: 'zoom', selector: { number: { min: 0.25, max: 3, step: 0.05, mode: 'box' } } },
   { name: 'sensitivity', selector: { number: { min: 0.1, max: 10, step: 0.1, mode: 'box' } } },
   { name: 'mouse_acceleration', selector: { number: { min: 0, max: 2, step: 0.05, mode: 'box' } } },
   { name: 'mouse_max_speed', selector: { number: { min: 0.5, max: 20, step: 0.5, mode: 'box' } } },
@@ -693,6 +745,7 @@ const MOUSE_EDITOR_SCHEMA = [
 const MOUSE_EDITOR_LABELS = {
   device: 'ESPHome device name',
   name: 'Card title (optional)',
+  zoom: 'Zoom (1 = normal, 0.5 = half, 2 = double)',
   sensitivity: 'Pointer sensitivity',
   mouse_acceleration: 'Acceleration',
   mouse_max_speed: 'Max speed multiplier',
@@ -715,6 +768,7 @@ class BleMouseCardEditor extends HTMLElement {
       tap_to_click: true,
       host_slots: 0,
       show_mac: true,
+      zoom: 1,
       ...config,
     };
     // host_names is a YAML list but edits as one comma-separated field; show it
