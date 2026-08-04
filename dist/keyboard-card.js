@@ -565,6 +565,15 @@ class BleKeyboardCard extends HTMLElement {
            the result, and collapse to zero when it overflows, so nothing is
            pushed out of scroll range. */
         width: calc(100% * var(--kb-zoom, 1));
+        /* Floor the block at the width its contents actually need, so every part
+           of the card shares one width and the whole thing scrolls together.
+           Without it the header (which cannot shrink) sets the scroll range while
+           the key rows track the narrower visible width, so scrolling revealed a
+           squashed keyboard instead of a full-size one. This is a content floor,
+           not zoom scaling: the width above still does the zoom pinning, and
+           min-content is measured inside the zoomed box so it scales too.
+           Shrinking the card to fit a small slot is what the zoom option is for. */
+        min-width: min-content;
         margin-inline: auto;
       }
       .header {
@@ -596,7 +605,9 @@ class BleKeyboardCard extends HTMLElement {
       }
       .key {
         flex: 1;
-        min-width: 0;
+        /* No min-width:0 — a key must not be squeezed below its own label, or
+           the labels clip to "Bk" and "Shi" and the row stops contributing a
+           real minimum for the block width above. */
         padding: 0 2px;
         min-height: 34px;
         box-sizing: border-box;

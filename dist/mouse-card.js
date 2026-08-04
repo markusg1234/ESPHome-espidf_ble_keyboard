@@ -154,6 +154,16 @@ class BleMouseCard extends HTMLElement {
              margins centre the result, and collapse to zero when it overflows,
              so nothing is pushed out of scroll range. */
           width: calc(100% * var(--mouse-zoom, 1));
+          /* Floor the block at the width its contents actually need, so every
+             part of the card shares one width and the whole thing scrolls
+             together. Without it the header and the button grids (which cannot
+             shrink) set the scroll range while the touchpad tracked the narrower
+             visible width, so it stopped short of the scrolled area. This is a
+             content floor, not zoom scaling: the width above still does the zoom
+             pinning, and min-content is measured inside the zoomed box so it
+             scales too. Shrinking the card to fit a small slot is what the zoom
+             option is for. */
+          min-width: min-content;
           margin-inline: auto;
         }
         .header {

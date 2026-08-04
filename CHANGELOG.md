@@ -28,6 +28,11 @@ web control page shows the matching version badge.
   height ranges (1–12 columns, 1–8 rows) instead of warning that the card can't be resized.
   Cards keep their proportions at whatever size you pick and scroll if the card is smaller
   than they are; use `zoom` to change how big the controls actually are.
+- **The mouse and keyboard cards scroll as one piece when narrowed.** Previously only the
+  title row kept its full width while the keys and the touchpad shrank to whatever was
+  visible, so scrolling sideways dragged a squashed keyboard out of view and clipped key
+  labels. Every part of the card now shares the same width and scrolls together, at full
+  size. To actually make a card smaller rather than scroll it, lower its zoom.
 
 ### Changed
 - **The media remote's buttons stay centred in a 460px column on wide cards**, instead of
