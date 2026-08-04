@@ -12,7 +12,9 @@ web control page shows the matching version badge.
   stable identity where one was exchanged at pairing, so it keeps working on phones, whose
   connection address rotates every few minutes. Hosts with a fixed address report that
   address unchanged. The web remote's host buttons and the cards show the same address, so
-  a phone no longer appears under one address in the web UI and another in the sensor.
+  a phone no longer appears under one address in the web UI and another in the sensor. Each
+  host slot remembers its identity the next time that host connects, so an existing pairing
+  starts showing the right address on its own — there is no need to pair it again.
 - **A bonded host slot now belongs to its host until you forget it.** A different device that
   pairs while that slot is active is disconnected and its bond removed, instead of quietly
   taking the slot over — which mattered most on Android, where pairing has no PIN and nothing

@@ -324,6 +324,14 @@ class EspidfBleKeyboard : public Component
     bool occupied{false};
     esp_bd_addr_t addr{};
     esp_ble_addr_type_t addr_type{BLE_ADDR_TYPE_PUBLIC};
+    /// The host's stable identity, remembered the first time it can be resolved.
+    /// `addr` is only the address it happened to connect with: a phone rotates
+    /// that, and once it has, the bond table no longer holds an entry under the
+    /// old value, so it can never be resolved again. Recording it while the host
+    /// is connected is the only way the identity survives that rotation.
+    /// Display and slot matching use this; advertising still uses `addr`.
+    esp_bd_addr_t identity{};
+    bool has_identity{false};
     std::string name;  // friendly label
   };
   const HostSlot &get_host_slot(uint8_t slot) const { return hosts_[slot]; }
@@ -470,6 +478,7 @@ class EspidfBleKeyboard : public Component
   esp_bd_addr_t reject_addr_{};
   uint8_t reject_slot_{0};
   void publish_host_mac_();
+  void remember_host_identity_();
   void reject_host_();
   binary_sensor::BinarySensor *paired_binary_sensor_{nullptr};
   std::atomic<bool> pending_led_update_{false};

@@ -571,6 +571,8 @@ Where the host supplied an identity key when pairing, this is its **identity add
 
 The web remote's host buttons and the cards' MAC display show this same identity address, so every place an address appears agrees with the sensor and with what the phone reports for itself. A backup still records the address the host connected with, since that is what restoring a slot needs.
 
+Each slot learns its host's identity the next time that host connects, and remembers it from then on. A host paired before this existed keeps showing its old address until it next connects — you do not need to pair it again. This matters because the identity can only be looked up while the host is connected: once a phone has rotated away from the address its slot was recorded under, nothing can map that slot back on its own.
+
 The value is only as stable as the bond. Unpair and pair again and a phone may present a different identity, so re-check the sensor after re-pairing rather than assuming the old value still holds. Treat this as identification, not authentication — it tells one device from another, but it is not proof against a device that deliberately imitates one.
 
 > ESPHome text sensors appear in Home Assistant under the **`sensor.`** domain, not `text_sensor.`. With the YAML above the entities are `sensor.<device>_hidden_buttons` and `sensor.<device>_host_mac`. The hidden-buttons name is what the card auto-detects; if you give it a different `name`, set `hidden_entity:` on the card to match.

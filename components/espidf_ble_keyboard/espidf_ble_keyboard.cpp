@@ -901,6 +901,10 @@ void EspidfBleKeyboard::load_host_slots_() {
                 if (nvs_get_u8(handle, key, &addr_type) == ESP_OK) {
                     hosts_[i].addr_type = (esp_ble_addr_type_t) addr_type;
                 }
+                snprintf(key, sizeof(key), "host%u_id", i);
+                size_t id_len = sizeof(esp_bd_addr_t);
+                hosts_[i].has_identity =
+                    nvs_get_blob(handle, key, hosts_[i].identity, &id_len) == ESP_OK;
                 ESP_LOGI(TAG, "Loaded host slot %u: %02X:%02X:%02X:%02X:%02X:%02X", i,
                          hosts_[i].addr[0], hosts_[i].addr[1], hosts_[i].addr[2],
                          hosts_[i].addr[3], hosts_[i].addr[4], hosts_[i].addr[5]);
@@ -974,7 +978,12 @@ int8_t EspidfBleKeyboard::find_slot_for_peer(const esp_bd_addr_t addr) const {
         // address as well as a slot whose stored address has not rotated yet.
         if (memcmp(hosts_[i].addr, addr, sizeof(esp_bd_addr_t)) == 0) return (int8_t) i;
         if (!have_peer_id) continue;
-        // The slot may already hold the identity itself, if that is what the stack
+        // The identity we remembered for this slot is the reliable comparison:
+        // it is the one value that does not go stale when the host rotates.
+        if (hosts_[i].has_identity &&
+            memcmp(hosts_[i].identity, peer_id, sizeof(esp_bd_addr_t)) == 0)
+            return (int8_t) i;
+        // The slot may also hold the identity itself, if that is what the stack
         // reported when it was assigned.
         if (memcmp(hosts_[i].addr, peer_id, sizeof(esp_bd_addr_t)) == 0) return (int8_t) i;
         // Otherwise compare identities, so a phone that came back on a fresh
@@ -989,6 +998,8 @@ int8_t EspidfBleKeyboard::find_slot_for_peer(const esp_bd_addr_t addr) const {
 
 bool EspidfBleKeyboard::host_slot_identifiable(uint8_t slot) const {
     if (slot >= MAX_HOST_SLOTS || !hosts_[slot].occupied) return false;
+    // A remembered identity is the strongest case: it cannot go stale.
+    if (hosts_[slot].has_identity) return true;
     // A fixed address is its own identity — anything that does not match it is a
     // different device, full stop. Same RPA test as the advertising path uses.
     if ((hosts_[slot].addr[0] >> 6) != 0x01) return true;
@@ -1009,12 +1020,20 @@ void EspidfBleKeyboard::save_host_slots_() {
             nvs_set_blob(handle, key, hosts_[i].addr, sizeof(esp_bd_addr_t));
             snprintf(key, sizeof(key), "host%u_type", i);
             nvs_set_u8(handle, key, (uint8_t) hosts_[i].addr_type);
+            snprintf(key, sizeof(key), "host%u_id", i);
+            if (hosts_[i].has_identity) {
+                nvs_set_blob(handle, key, hosts_[i].identity, sizeof(esp_bd_addr_t));
+            } else {
+                nvs_erase_key(handle, key);
+            }
             count = i + 1;
         } else {
             // Erase stale entries
             snprintf(key, sizeof(key), "host%u_addr", i);
             nvs_erase_key(handle, key);
             snprintf(key, sizeof(key), "host%u_type", i);
+            nvs_erase_key(handle, key);
+            snprintf(key, sizeof(key), "host%u_id", i);
             nvs_erase_key(handle, key);
         }
     }
@@ -1231,6 +1250,34 @@ void EspidfBleKeyboard::publish_host_mac_() {
         format_bd_addr(peer_addr_, addr_str);
     }
     host_mac_sensor_->publish_state(addr_str);
+}
+
+void EspidfBleKeyboard::remember_host_identity_() {
+    if (!is_connected_) return;
+    // Only resolvable while the host is connected: the bond table is keyed on the
+    // address in use, so once a phone rotates away from the one the slot stored,
+    // nothing can map that slot back to an identity. Catching it here is what
+    // makes the address survive the rotation.
+    esp_bd_addr_t identity;
+    if (!peer_identity_addr(peer_addr_, identity)) return;
+
+    int8_t slot = find_slot_for_peer(peer_addr_);
+    // A connected peer belongs to the slot that was advertising for it, which is
+    // the fallback when its stored address has already gone stale.
+    if (slot < 0) slot = (int8_t) active_slot_;
+    if (slot < 0 || slot >= (int8_t) MAX_HOST_SLOTS || !hosts_[slot].occupied) return;
+
+    if (hosts_[slot].has_identity &&
+        memcmp(hosts_[slot].identity, identity, sizeof(esp_bd_addr_t)) == 0)
+        return;  // unchanged — don't churn NVS on every connect
+
+    memcpy(hosts_[slot].identity, identity, sizeof(esp_bd_addr_t));
+    hosts_[slot].has_identity = true;
+    save_host_slots_();
+
+    char id_str[18];
+    format_bd_addr(identity, id_str);
+    ESP_LOGI(TAG, "Host slot %d identity recorded: %s", (int) slot, id_str);
 }
 
 void EspidfBleKeyboard::reject_host_() {
@@ -1522,11 +1569,25 @@ void EspidfBleKeyboard::assign_host_slot_(uint8_t slot, const esp_bd_addr_t addr
     for (uint8_t i = 0; i < MAX_HOST_SLOTS; i++) {
         if (hosts_[i].occupied && memcmp(hosts_[i].addr, addr, sizeof(esp_bd_addr_t)) == 0) {
             if (i == slot) return;  // Already in the right slot
-            // Move from old slot to new slot
+            // Move from old slot to new slot, identity included — it describes
+            // the host, not the seat it sits in.
+            hosts_[slot].has_identity = hosts_[i].has_identity;
+            memcpy(hosts_[slot].identity, hosts_[i].identity, sizeof(esp_bd_addr_t));
             hosts_[i].occupied = false;
-            break;
+            hosts_[i].has_identity = false;
+            memset(hosts_[i].identity, 0, sizeof(esp_bd_addr_t));
+            memcpy(hosts_[slot].addr, addr, sizeof(esp_bd_addr_t));
+            hosts_[slot].addr_type = addr_type;
+            hosts_[slot].occupied = true;
+            ESP_LOGI(TAG, "Host slot %u assigned: %02X:%02X:%02X:%02X:%02X:%02X", slot,
+                     addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+            return;
         }
     }
+    // A different host taking this slot: drop the previous occupant's identity,
+    // or the slot would report a machine that no longer owns it.
+    hosts_[slot].has_identity = false;
+    memset(hosts_[slot].identity, 0, sizeof(esp_bd_addr_t));
     memcpy(hosts_[slot].addr, addr, sizeof(esp_bd_addr_t));
     hosts_[slot].addr_type = addr_type;
     hosts_[slot].occupied = true;
@@ -1597,6 +1658,8 @@ void EspidfBleKeyboard::forget_host(uint8_t slot) {
     // Clear the slot
     hosts_[slot].occupied = false;
     memset(hosts_[slot].addr, 0, sizeof(esp_bd_addr_t));
+    hosts_[slot].has_identity = false;
+    memset(hosts_[slot].identity, 0, sizeof(esp_bd_addr_t));
     hosts_[slot].name.clear();
 
     save_host_slots_();
@@ -1754,6 +1817,9 @@ void EspidfBleKeyboard::loop() {
         reject_host_();
     }
     if (pending_host_mac_update_.exchange(false)) {
+        // Record before publishing, and outside publish_host_mac_ itself, so the
+        // slot still learns its host's identity on a device with no MAC sensor.
+        remember_host_identity_();
         publish_host_mac_();
     }
 
