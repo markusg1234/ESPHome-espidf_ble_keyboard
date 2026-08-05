@@ -7,12 +7,16 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Added
-- **Push-to-talk: a key can now be held down on the host for as long as a button is held.**
-  Previously every keypress reached the host as a short tap however long the button was
-  held. Pick it per physical key with the new hold and release automation actions, or per
-  remote button per host in the web UI's new Press and hold panel. Other keys keep working
-  while one is held, and `max_key_hold_ms` optionally releases a key whose release never
-  arrived.
+- **Press and hold: a key now stays down on the host for as long as the button is held.**
+  Every keypress used to arrive as a short tap however long the button was held, so
+  push-to-talk was impossible. Set it per physical key with the new hold and release
+  automation actions, or per remote button per host in the new Press and hold panel; the
+  Media Remote card needs the new `hold_buttons` sensor. `max_key_hold_ms` guards against
+  a release that never arrives.
+- **The Media Remote card now follows the per-host hold-to-repeat settings**, via a new
+  `repeat_buttons` text sensor. It previously repeated volume and channel only, at a fixed
+  speed, ignoring whatever Host Actions said — so a host set to repeat the D-pad did so on
+  the web remote but not the card.
 - **A text sensor for the connected host's Bluetooth address**, so an automation can act on
   which machine is connected rather than just which slot is active. It reports the host's
   stable identity where one was exchanged at pairing, so it keeps working on phones, whose
@@ -42,6 +46,11 @@ web control page shows the matching version badge.
   visible, so scrolling sideways dragged a squashed keyboard out of view and clipped key
   labels. Every part of the card now shares the same width and scrolls together, at full
   size. To actually make a card smaller rather than scroll it, lower its zoom.
+
+### Fixed
+- **The hidden-buttons sensor was empty until the first host switch.** It published before
+  the saved lists were read from flash and never again, so a card starting up was told the
+  host hid nothing. The new hold and repeat sensors publish on the same path.
 
 ### Changed
 - **The media remote's buttons stay centred in a 460px column on wide cards**, instead of

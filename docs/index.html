@@ -483,6 +483,10 @@
       <tr><td><code>"color_red"</code> / <code>"color_green"</code> / <code>"color_yellow"</code> / <code>"color_blue"</code></td><td class="desc">Coloured remote keys — F1–F4.</td></tr>
       <tr><td><code>"app_explorer"</code> / <code>"app_browser"</code> / <code>"app_email"</code> / <code>"app_calc"</code></td><td class="desc">App launch keys (<code>0x0194</code>, <code>0x0223</code>, <code>0x018A</code>, <code>0x0192</code>).</td></tr>
       <tr><td><code>"consumer:0x0192"</code></td><td class="desc">Send any HID consumer control code — open apps, control brightness and more. See keycode reference.</td></tr>
+      <tr><td><code>"key_hold:0x00:0x3A"</code></td><td class="desc">Press <strong>and hold</strong> a key until <code>release</code> — the host sees it held down, not tapped, which is what push-to-talk needs. Same format as <code>combo:</code>; a keycode of <code>0x00</code> holds the modifier alone.</td></tr>
+      <tr><td><code>"consumer_hold:0x00E9"</code></td><td class="desc">Hold a consumer usage. Only one at a time — that report carries a single usage.</td></tr>
+      <tr><td><code>"hold:&lt;action&gt;"</code></td><td class="desc">Hold whatever the action resolves to: <code>combo:</code>, <code>consumer:</code>, a mouse click, or a named action including one remapped per host. Anything that can't be held runs once instead.</td></tr>
+      <tr><td><code>"release"</code></td><td class="desc">Release everything held — keys, consumer usage and mouse buttons. <code>key_release</code> is an alias.</td></tr>
       <tr><td><code>"left_click"</code></td><td class="desc">Mouse left click.</td></tr>
       <tr><td><code>"right_click"</code></td><td class="desc">Mouse right click.</td></tr>
       <tr><td><code>"middle_click"</code></td><td class="desc">Mouse middle click.</td></tr>

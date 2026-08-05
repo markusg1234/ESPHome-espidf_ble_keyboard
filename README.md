@@ -10,7 +10,7 @@ This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low
 * **Key Combos:** Send any modifier + key combination using hex keycodes (e.g. Win+R, Ctrl+C).
 * **String Typing:** Type any string directly. The active **keyboard layout** (`us`, `uk`, `de`, `be`) controls how each character is mapped to HID keycodes. UK adds `£`, `¬`, `€`; DE adds `ä`, `ö`, `ü`, `ß`, `€`, `§`, `°`; BE adds `é`, `è`, `à`, `ç`, `ù`, `€`, `£`, `²`, `§`, `µ` plus dead-key sequences (`â ê î ô û ä ë ï ö ü` + uppercase) via UTF-8.
 * **Keyboard Layouts:** Choose `us` (default), `uk`, `de`, or `be` in YAML, or switch live from the web UI (persisted to NVS). Layout is fully extensible — see [Keyboard layouts](#keyboard-layouts).
-* **Push-to-talk:** Hold a key down on the host for as long as a physical button is held, instead of sending a tap — per key, and per button per host on the web remote. See [Push-to-talk](#push-to-talk).
+* **Press and hold (push-to-talk):** Hold a key down on the host for as long as a physical button is held, instead of sending a tap — per key, and per button per host on the web remote. See [Press and hold](#press-and-hold-push-to-talk).
 * **Pre-defined Actions:** Built-in helpers for `ctrl_alt_del`, `sleep`, `hibernate` and `shutdown`.
 * **Media Keys:** Control volume, playback, mute and more via HID consumer control.
 * **Power Button:** Native HID power/sleep signals — no Run dialog, clean OS-level control.
@@ -293,7 +293,7 @@ binary_sensor:
 * **id** (Required, ID): The ID used to link buttons or automations to this keyboard.
 * **device_name** (Optional, string): The BLE device name advertised during pairing. Defaults to `ESP32 BLE KB`. Maximum 29 characters.
 * **key_delay_ms** (Optional, int): Total delay per character when typing strings, in milliseconds. Split evenly between key-down and key-up. Defaults to `80`. Increase if characters are being dropped on slow BLE connections.
-* **max_key_hold_ms** (Optional, int): Safety net for a held key whose release never arrives — a browser tab closed mid-press, or an `on_release` that didn't fire. After this many milliseconds the device releases everything it is holding, including a held mouse button. Defaults to `0` (never auto-release); otherwise 100–600000. See [Push-to-talk](#push-to-talk).
+* **max_key_hold_ms** (Optional, int): Safety net for a held key whose release never arrives — a browser tab closed mid-press, or an `on_release` that didn't fire. After this many milliseconds the device releases everything it is holding, including a held mouse button. Defaults to `0` (never auto-release); otherwise 100–600000. See [Press and hold](#press-and-hold-push-to-talk).
 * **passkey** (Optional, int): A 6-digit static PIN (000000–999999). If set, the device uses static passkey pairing (legacy MITM bond) and requires this PIN during initial pairing.
 * **passkey_mode** (Optional, string): Passkey security mode. `legacy` (default) uses legacy MITM bonding — tested and recommended for Windows. `secure_connections` uses LE Secure Connections MITM bonding — required for iOS passkey pairing (legacy mode does not work on iOS). Android does not support passkey pairing with BLE HID keyboards.
 * **web_control** (Optional, bool): Enable a built-in web control page with keyboard and mouse UI at `http://<device-ip>/ble_keyboard`. Requires the `web_server` component. Defaults to `false`.
@@ -495,7 +495,7 @@ espidf_ble_keyboard:
 | `"middle_click_hold"` | Press and hold the middle button. |
 | `"mouse_hold:0x01"` | Press and hold with a button mask (same masks as `mouse_click`). |
 | `"mouse_release"` | Release all held mouse buttons. A normal click also releases them. |
-| `"key_hold:0x00:0x3A"` | Press **and hold** a key until `release` — the host sees it held down, not tapped. Format matches `combo:`. A keycode of `0x00` holds the modifier alone (e.g. `key_hold:0x01:0x00` holds Ctrl). See [Push-to-talk](#push-to-talk). |
+| `"key_hold:0x00:0x3A"` | Press **and hold** a key until `release` — the host sees it held down, not tapped. Format matches `combo:`. A keycode of `0x00` holds the modifier alone (e.g. `key_hold:0x01:0x00` holds Ctrl). See [Press and hold](#press-and-hold-push-to-talk). |
 | `"consumer_hold:0x00E9"` | Hold a consumer usage. Only one can be held at a time — the report has a single usage field. |
 | `"hold:<action>"` | Hold whatever `<action>` is: `combo:`, `consumer:`, a mouse click, or a named action including one remapped by [`actions:`](#host-actions-per-host-overrides). Anything that can't be held (text, macros, `switch_host:`) runs once instead. |
 | `"release"` | Release everything held — keys, consumer usage and mouse buttons. `key_release` is an alias. |
@@ -526,10 +526,10 @@ espidf_ble_keyboard:
 
 ### `text_sensor` (Platform: `espidf_ble_keyboard`)
 
-Optional. Two types are available.
+Optional. Four types are available.
 
 * **keyboard_id** (Required, ID): The ID of the `espidf_ble_keyboard` component.
-* **type** (Optional, string): `hidden_buttons` (default) or `host_mac`.
+* **type** (Optional, string): `hidden_buttons` (default), `host_mac`, `hold_buttons` or `repeat_buttons`.
 * **name** (Optional, string): Friendly entity name shown in Home Assistant.
 
 #### Hidden buttons
@@ -545,6 +545,34 @@ text_sensor:
 ```
 
 The state is a comma-separated list of action names — `record,app_calc,color_red` — or empty when the active host hides nothing. It republishes when you save in the Host Actions card and whenever the host is switched.
+
+#### Press-and-hold buttons
+
+Publishes the active host's [Press and hold](#press-and-hold-per-host) list, so the Media Remote Card holds those buttons down instead of tapping them. **Without it the card cannot do push-to-talk at all** — it has no other way to learn the per-host choice, because a dashboard served over https can't fetch the device's REST API.
+
+```yaml
+text_sensor:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: hold_buttons
+    name: "Hold Buttons"
+```
+
+Same format as the hidden list: `volume_up,ok`, or empty when nothing holds on this host.
+
+#### Hold-to-repeat config
+
+Publishes the active host's [Hold to repeat](#hold-to-repeat-per-host) settings, so the card repeats the same buttons at the same speed as the web remote. **Without it the card falls back to repeating volume and channel only**, ignoring whatever Host Actions says.
+
+```yaml
+text_sensor:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: repeat_buttons
+    name: "Repeat Buttons"
+```
+
+The state is `<delay>,<rate>,name,name` — `400,180,volume_up,volume_down` — or empty when this host was never configured, which tells the card to keep its own defaults. A host configured to repeat nothing publishes just `400,180`.
 
 #### Host MAC
 
@@ -581,7 +609,7 @@ Each slot learns its host's identity the next time that host connects, and remem
 
 The value is only as stable as the bond. Unpair and pair again and a phone may present a different identity, so re-check the sensor after re-pairing rather than assuming the old value still holds. Treat this as identification, not authentication — it tells one device from another, but it is not proof against a device that deliberately imitates one.
 
-> ESPHome text sensors appear in Home Assistant under the **`sensor.`** domain, not `text_sensor.`. With the YAML above the entities are `sensor.<device>_hidden_buttons` and `sensor.<device>_host_mac`. The hidden-buttons name is what the card auto-detects; if you give it a different `name`, set `hidden_entity:` on the card to match.
+> ESPHome text sensors appear in Home Assistant under the **`sensor.`** domain, not `text_sensor.`. With the YAML above the entities are `sensor.<device>_hidden_buttons`, `sensor.<device>_hold_buttons`, `sensor.<device>_repeat_buttons` and `sensor.<device>_host_mac`. Those names are what the cards auto-detect; if you give one a different `name`, set the matching `hidden_entity:` / `hold_entity:` / `repeat_entity:` on the card.
 
 ---
 
@@ -908,7 +936,7 @@ Values outside those ranges are clamped rather than rejected. The 50 ms floor is
 
 Each repeat is a normal press, so per-host overrides apply to it. One consequence worth knowing: if a button is overridden to something that already loops, such as `repeat:3:volume_up`, holding it multiplies the two.
 
-Settings are stored per host on the device (max 40 buttons per slot), not in the browser, so they follow the host rather than the phone that set them, and they are included in [Backup and restore](#backup-and-restore). This panel drives the **web remote only** — the Home Assistant card has its own fixed hold-to-repeat on volume and channel.
+Settings are stored per host on the device (max 40 buttons per slot), not in the browser, so they follow the host rather than the phone that set them, and they are included in [Backup and restore](#backup-and-restore). The Home Assistant [Media Remote Card](#media-remote-card-for-home-assistant) follows the same settings if you add the [`repeat_buttons` text sensor](#hold-to-repeat-config); without it that card repeats volume and channel only.
 
 A button set to **Press and hold** below cannot also repeat: holding and repeating are the same gesture, so each panel greys out what the other has taken.
 
@@ -916,7 +944,7 @@ A button set to **Press and hold** below cannot also repeat: holding and repeati
 
 Open **Press and hold** in the Host Actions card and tick the buttons that should stay **held down** on the host for as long as you hold them on the web remote, instead of sending a tap — what push-to-talk needs. Stored per host slot (max 40 buttons), so the PC running the voice app can hold while a TV slot keeps tapping, and included in [Backup and restore](#backup-and-restore).
 
-Nothing holds by default. See [Push-to-talk](#push-to-talk) for the physical-button equivalent, the action strings, and `max_key_hold_ms`.
+Nothing holds by default. The Home Assistant [Media Remote Card](#media-remote-card-for-home-assistant) honours the same list once the [`hold_buttons` text sensor](#press-and-hold-buttons) is added — it is the only way that card can learn the choice. See [Press and hold](#press-and-hold-push-to-talk) for the physical-button equivalent, the action strings, and `max_key_hold_ms`.
 
 ### Action Reference
 
@@ -1705,6 +1733,8 @@ Optional configuration:
 | `show_apps` | `true` | Show app launch buttons (Explorer, Browser, Email, Calc, Search). |
 | `show_color` | `false` | Show red/green/yellow/blue color buttons (mapped to F1–F4). |
 | `hidden_entity` | `sensor.<device>_hidden_buttons` | Text sensor carrying the active host's hidden buttons, so the card mirrors the web remote's [per-host hiding](#removing-remote-buttons-per-host). Optional — without the entity every button is shown. |
+| `hold_entity` | `sensor.<device>_hold_buttons` | Text sensor carrying the active host's [Press and hold](#press-and-hold-per-host) buttons. Required for push-to-talk on the card — without it no button holds. |
+| `repeat_entity` | `sensor.<device>_repeat_buttons` | Text sensor carrying the active host's [Hold to repeat](#hold-to-repeat-per-host) config. Without it the card repeats volume and channel only, at 400/180 ms. |
 | `host_slots` | `0` | Number of host slots. Set to match your `host_slots` config to show a [host switcher](#host-switcher-on-the-cards) in the header. Needs at least `2` — `0` or `1` hides it. |
 | `host_names` | `[]` | List of custom names for each host slot (e.g., `["TV", "Phone"]`). Index 0 = slot 0. Falls back to `switch_host` button names from the ESP32, then "Host N". |
 | `active_host_entity` | Auto | Entity ID of the [active host sensor](#active-host-sensor). Auto-detected by name pattern (`sensor.*_active_host`). Set explicitly if auto-detection fails. |
@@ -1882,7 +1912,7 @@ data:
 
 ---
 
-## Push-to-talk
+## Press and hold (push-to-talk)
 
 Normally every key this component sends is a **tap**: key down, brief pause, key up. That is wrong for push-to-talk — Discord, Teams, TeamSpeak and games need the key held down for exactly as long as you hold the physical button. `key_hold` sends the key down and leaves it there until `key_release`.
 
@@ -1926,6 +1956,8 @@ The same thing works from a lambda or any action string source (`run_action`, ma
 ### From the web remote
 
 Open **Host Actions → Press and hold** and tick the remote buttons that should stay down while held on that host, rather than sending a tap. It is stored per host slot, so a PC used for voice chat can hold while a TV slot does not.
+
+The same list drives the Home Assistant Media Remote card, provided the `hold_buttons` text sensor is configured — see [Press-and-hold buttons](#press-and-hold-buttons). The card reaches the device through Home Assistant, so a lost release is likelier there than on the web page; `max_key_hold_ms` is worth setting if you use push-to-talk from a dashboard.
 
 A button set to **Hold to repeat** cannot also be set to hold, and vice versa — both claim the same gesture, so each panel greys out the buttons the other has taken.
 

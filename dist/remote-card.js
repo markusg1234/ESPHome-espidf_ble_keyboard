@@ -27,6 +27,8 @@
  *   # show_apps: true              # show app launch row (default true)
  *   # show_color: true             # show color buttons (default false)
  *   # hidden_entity: sensor.x_hidden_buttons   # override the auto-detected id
+ *   # hold_entity: sensor.x_hold_buttons       # per-host press-and-hold list
+ *   # repeat_entity: sensor.x_repeat_buttons   # per-host hold-to-repeat config
  *   # host_slots: 4                # show host switcher (needs >1; default 0 = hidden)
  *   # host_names:                   # custom names for each host slot (optional)
  *   #   - TV
@@ -61,6 +63,7 @@ class BleRemoteCard extends HTMLElement {
       this._initialize();
     }
     this._applyHidden();
+    this._applyHoldAndRepeat();
     // Track active host changes via HA sensor entity. The firmware publishes to
     // this sensor on every switch_host() path — HA service, the device's own web
     // UI, a physical button — so every card following it stays in step with the
@@ -95,6 +98,12 @@ class BleRemoteCard extends HTMLElement {
       // card mirrors the web remote's per-host hiding. Absent entity = show all.
       hidden_entity: config.hidden_entity ||
         `sensor.${config.device.replace(/-/g, '_')}_hidden_buttons`,
+      // The other two per-host lists from Host Actions. Absent entity = the
+      // card's own defaults: nothing holds, and volume/channel repeat.
+      hold_entity: config.hold_entity ||
+        `sensor.${config.device.replace(/-/g, '_')}_hold_buttons`,
+      repeat_entity: config.repeat_entity ||
+        `sensor.${config.device.replace(/-/g, '_')}_repeat_buttons`,
       host_slots: config.host_slots || 0,
       host_names: config.host_names || [],
       active_host_entity: config.active_host_entity || null,
@@ -102,6 +111,14 @@ class BleRemoteCard extends HTMLElement {
       host_url: config.host_url || null,
       zoom: this._parseZoom(config.zoom),
     };
+    // Per-host behaviour defaults, in place before the first hass update so a
+    // press that beats the sensor read is an ordinary tap rather than a crash.
+    // null repeat set = "use the card's own defaults", see _repeats().
+    this._holdSet = [];
+    this._repeatSet = null;
+    this._repeatDelay = 400;
+    this._repeatRate = 180;
+    this._heldEl = null;
     // Read by the .zoom wrapper. Set on the host so it applies whether or not
     // the card has rendered yet — custom properties inherit into shadow DOM.
     this.style.setProperty('--remote-zoom', this._config.zoom);
@@ -111,6 +128,66 @@ class BleRemoteCard extends HTMLElement {
   _parseZoom(value) {
     const z = parseFloat(value);
     return Number.isFinite(z) ? Math.min(Math.max(z, 0.25), 3) : 1;
+  }
+
+  // Read the active host's press-and-hold and hold-to-repeat lists, both set in
+  // the web UI's Host Actions card and published as text sensors. Like
+  // _applyHidden this follows a host switch with no dashboard reload.
+  //
+  // The handlers read these at press time rather than at bind time, so a host
+  // switch mid-session changes what the next press does without rewiring.
+  _applyHoldAndRepeat() {
+    if (!this._hass) return;
+    const read = (entity) => {
+      const ent = this._hass.states[entity];
+      return ent && typeof ent.state === 'string' &&
+             ent.state !== 'unknown' && ent.state !== 'unavailable' ? ent.state : '';
+    };
+
+    const rawHold = read(this._config.hold_entity);
+    if (rawHold !== this._lastHold) {
+      this._lastHold = rawHold;
+      this._holdSet = rawHold ? rawHold.split(',').map(s => s.trim()).filter(Boolean) : [];
+      this._endHold();   // whatever is held belonged to the old set
+    }
+
+    // "<delay>,<rate>,name,name". Empty means this host was never configured,
+    // which is the cue to keep the card's own defaults rather than to repeat
+    // nothing — a configured-but-empty host sends just "<delay>,<rate>".
+    const rawRepeat = read(this._config.repeat_entity);
+    if (rawRepeat !== this._lastRepeat) {
+      this._lastRepeat = rawRepeat;
+      if (!rawRepeat) {
+        this._repeatSet = null;
+        this._repeatDelay = 400;
+        this._repeatRate = 180;
+      } else {
+        const parts = rawRepeat.split(',').map(s => s.trim());
+        const delay = parseInt(parts[0], 10);
+        const rate = parseInt(parts[1], 10);
+        this._repeatDelay = Number.isFinite(delay) ? delay : 400;
+        this._repeatRate = Number.isFinite(rate) ? rate : 180;
+        this._repeatSet = parts.slice(2).filter(Boolean);
+      }
+    }
+  }
+
+  // True if this action should repeat while held on this host. With no sensor
+  // the card falls back to the four buttons it has always repeated.
+  _repeats(action) {
+    return this._repeatSet
+      ? this._repeatSet.includes(action)
+      : ['volume_up', 'volume_down', 'channel_up', 'channel_down'].includes(action);
+  }
+
+  // Ends the current hold, once, however the press ended. Also the safety net
+  // for a card removed from the DOM or a tab hidden mid-press — a release lost
+  // in transit leaves the key down on the host until max_key_hold_ms.
+  _endHold() {
+    if (!this._heldEl) return;
+    this._heldEl.classList.remove('held');
+    this._heldEl = null;
+    this._runAction('release');
   }
 
   // Hide the buttons the active host has no use for. Driven by the text sensor,
@@ -232,6 +309,12 @@ class BleRemoteCard extends HTMLElement {
         .btn:active, .btn.p {
           background: var(--primary-color, #03a9f4);
           color: #fff; transform: scale(0.93);
+        }
+        /* Currently held down on the host (press and hold). Stays lit for the
+           whole press, unlike .p which is a 150ms tap flash. */
+        .btn.held {
+          background: var(--primary-color, #03a9f4);
+          color: #fff;
         }
         .btn svg { width: 22px; height: 22px; fill: currentColor; pointer-events: none; }
 
@@ -578,11 +661,19 @@ class BleRemoteCard extends HTMLElement {
     if (this._initialized && this._config && this._config.host_slots > 1) {
       this._startHostPolling();
     }
+    // A hidden tab or a switched-away dashboard never delivers pointerup, and a
+    // key left down on the host is worse than a press cut short.
+    this._onHide = () => { if (document.hidden) this._endHold(); };
+    document.addEventListener('visibilitychange', this._onHide);
+    window.addEventListener('blur', this._boundEndHold = () => this._endHold());
   }
 
   disconnectedCallback() {
     clearInterval(this._hostPollInterval);
     this._hostPollInterval = null;
+    document.removeEventListener('visibilitychange', this._onHide);
+    window.removeEventListener('blur', this._boundEndHold);
+    this._endHold();   // the card is going away mid-press
   }
 
   // Resolves the ESP's base URL: an explicit host_url wins, otherwise the
@@ -695,31 +786,48 @@ class BleRemoteCard extends HTMLElement {
     // Kept so _applyHidden can map a hidden action name back to its button id.
     this._actionMap = actions;
 
+    // Every button gets the same wiring, because which of the three behaviours
+    // it has — tap, repeat while held, or stay down while held — is a per-host
+    // setting that can change under it. The old code decided at bind time and
+    // hardcoded four buttons, so the Host Actions choice never reached here.
     for (const [id, action] of Object.entries(actions)) {
       const el = shadow.getElementById(id);
       if (!el) continue;
 
-      // Support hold-to-repeat for volume and channel
-      if (['vol_up', 'vol_dn', 'pg_up', 'pg_dn'].includes(id)) {
-        let interval = null;
-        const start = (e) => {
-          e.preventDefault();
-          this._press(el);
-          this._runAction(action);
-          interval = setInterval(() => this._runAction(action), 180);
-        };
-        const stop = () => { if (interval) { clearInterval(interval); interval = null; } };
-        el.addEventListener('pointerdown', start);
-        el.addEventListener('pointerup', stop);
-        el.addEventListener('pointerleave', stop);
-        el.addEventListener('pointercancel', stop);
-      } else {
-        el.addEventListener('pointerdown', (e) => {
-          e.preventDefault();
-          this._press(el);
-          this._runAction(action);
-        });
-      }
+      let interval = null;
+      let timer = null;
+      const stopRepeat = () => {
+        if (interval) { clearInterval(interval); interval = null; }
+        if (timer) { clearTimeout(timer); timer = null; }
+      };
+      const end = () => { stopRepeat(); if (this._heldEl === el) this._endHold(); };
+
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        this._press(el);
+
+        // Hold wins, and goes down immediately — a push-to-talk button that
+        // only engages after a threshold clips the first word.
+        if (this._holdSet.includes(action)) {
+          this._endHold();          // only one hold at a time
+          this._heldEl = el;
+          el.classList.add('held');
+          this._runAction('hold:' + action);
+          return;
+        }
+
+        this._runAction(action);
+        if (!this._repeats(action)) return;
+        // The first repeat waits out the configured delay, so a quick tap
+        // stays one press. Matches the web remote's timing for this host.
+        timer = setTimeout(() => {
+          timer = null;
+          interval = setInterval(() => this._runAction(action), this._repeatRate);
+        }, this._repeatDelay);
+      });
+      el.addEventListener('pointerup', end);
+      el.addEventListener('pointerleave', end);
+      el.addEventListener('pointercancel', end);
     }
   }
 
@@ -809,6 +917,8 @@ const REMOTE_EDITOR_SCHEMA = [
   { name: 'show_apps', selector: { boolean: {} } },
   { name: 'show_color', selector: { boolean: {} } },
   { name: 'hidden_entity', selector: { entity: { domain: 'sensor' } } },
+  { name: 'hold_entity', selector: { entity: { domain: 'sensor' } } },
+  { name: 'repeat_entity', selector: { entity: { domain: 'sensor' } } },
   { name: 'host_slots', selector: { number: { min: 0, max: 10, step: 1, mode: 'box' } } },
   { name: 'host_names', selector: { text: {} } },
   { name: 'active_host_entity', selector: { entity: { domain: 'sensor' } } },
@@ -824,6 +934,8 @@ const REMOTE_EDITOR_LABELS = {
   show_apps: 'Show app launcher row',
   show_color: 'Show colour buttons',
   hidden_entity: 'Hidden-buttons sensor (optional)',
+  hold_entity: 'Press-and-hold sensor (optional)',
+  repeat_entity: 'Hold-to-repeat sensor (optional)',
   host_slots: 'Host switcher (needs 2+; 0 = hide)',
   host_names: 'Host names, comma-separated (optional)',
   active_host_entity: 'Active-host sensor (optional)',

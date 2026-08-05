@@ -1367,6 +1367,48 @@ std::string EspidfBleKeyboard::hold_repeat_conflict(uint8_t slot,
     return "";
 }
 
+std::string EspidfBleKeyboard::hold_csv(uint8_t slot) const {
+    if (slot >= MAX_HOST_SLOTS) return "";
+    std::string csv;
+    for (size_t i = 0; i < hold_[slot].size(); i++) {
+        if (i > 0) csv += ",";
+        csv += hold_[slot][i];
+    }
+    return csv;
+}
+
+// Home Assistant rejects state strings over 255 chars. Truncating on a name
+// boundary keeps every name the card does receive usable — a half name would
+// just be a button that mysteriously doesn't hold.
+static std::string clamp_csv_for_sensor(const char *what, unsigned slot, std::string csv) {
+    if (csv.size() <= 255) return csv;
+    size_t cut = csv.rfind(',', 255);
+    csv = (cut == std::string::npos) ? "" : csv.substr(0, cut);
+    ESP_LOGW(TAG, "%s for host %u exceeds the 255-char sensor limit — truncated", what, slot);
+    return csv;
+}
+
+void EspidfBleKeyboard::publish_hold_() {
+    if (hold_sensor_ == nullptr) return;
+    hold_sensor_->publish_state(
+        clamp_csv_for_sensor("Hold list", active_slot_, hold_csv(active_slot_)));
+}
+
+void EspidfBleKeyboard::publish_repeat_() {
+    if (repeat_sensor_ == nullptr) return;
+    const RepeatCfg &r = repeat_[active_slot_];
+    // Empty = never configured, which is the card's cue to keep its own
+    // defaults — distinct from a configured-but-empty list ("<delay>,<rate>"
+    // with no names), which means nothing repeats on this host.
+    if (!r.set) {
+        repeat_sensor_->publish_state("");
+        return;
+    }
+    std::string csv = std::to_string(r.delay) + "," + std::to_string(r.rate);
+    for (const auto &n : r.names) csv += "," + n;
+    repeat_sensor_->publish_state(clamp_csv_for_sensor("Repeat list", active_slot_, csv));
+}
+
 bool EspidfBleKeyboard::set_hold(uint8_t slot, const std::vector<std::string> &names) {
     if (slot >= MAX_HOST_SLOTS || names.size() > MAX_HOLD) return false;
     for (const auto &n : names) {
@@ -1375,6 +1417,7 @@ bool EspidfBleKeyboard::set_hold(uint8_t slot, const std::vector<std::string> &n
     if (!hold_repeat_conflict(slot, names, true).empty()) return false;
     hold_[slot] = names;
     save_hold_(slot);
+    if (slot == active_slot_) publish_hold_();
     ESP_LOGI(TAG, "Hold-to-send for host %u: %u button(s)",
              (unsigned) slot, (unsigned) names.size());
     return true;
@@ -1473,6 +1516,7 @@ bool EspidfBleKeyboard::set_repeat(uint8_t slot, uint16_t delay, uint16_t rate,
     repeat_[slot].rate = rate;
     repeat_[slot].names = names;
     save_repeat_(slot);
+    if (slot == active_slot_) publish_repeat_();
     ESP_LOGI(TAG, "Repeat for host %u: %u button(s), %ums then every %ums",
              (unsigned) slot, (unsigned) names.size(), (unsigned) delay, (unsigned) rate);
     return true;
@@ -1482,6 +1526,7 @@ void EspidfBleKeyboard::clear_repeat(uint8_t slot) {
     if (slot >= MAX_HOST_SLOTS) return;
     repeat_[slot] = RepeatCfg{};
     save_repeat_(slot);  // .set is false now, so this erases the key
+    if (slot == active_slot_) publish_repeat_();
     ESP_LOGI(TAG, "Repeat for host %u reset to defaults", (unsigned) slot);
 }
 
@@ -1702,7 +1747,10 @@ void EspidfBleKeyboard::switch_host(uint8_t slot) {
     save_host_slots_();
     if (active_host_sensor_ != nullptr)
         active_host_sensor_->publish_state(slot);
-    publish_hidden_();  // the new host may hide a different set of buttons
+    // The new host may hide, hold and repeat a different set of buttons.
+    publish_hidden_();
+    publish_hold_();
+    publish_repeat_();
 
     // Re-apply security params for the new slot's passkey config
     bool slot_has_pk; uint32_t slot_pk; bool slot_sc;
@@ -1835,6 +1883,14 @@ void EspidfBleKeyboard::setup() {
     load_hidden_();
     load_repeat_();
     load_hold_();
+    // Publish after loading, not just when the sensors are attached: the
+    // set_*_sensor() calls run at registration, which is before this setup()
+    // reads NVS, so their initial publish always described an empty list. Until
+    // the first host switch the cards were told this host hides/holds/repeats
+    // nothing, whatever Host Actions actually said.
+    publish_hidden_();
+    publish_repeat_();
+    publish_hold_();
     // Apply YAML default if no setter ran (defensive), then let NVS override.
     if (active_layout_ == nullptr) active_layout_ = default_layout();
     load_layout_();

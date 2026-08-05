@@ -292,6 +292,8 @@ class EspidfBleKeyboard : public Component
   /// same gesture, so one button cannot be in both.
   std::string hold_repeat_conflict(uint8_t slot, const std::vector<std::string> &names,
                                    bool checking_hold) const;
+  /// The active slot's hold list as a comma-separated string, for the text sensor.
+  std::string hold_csv(uint8_t slot) const;
 
   /// Execute an action string (combo:, consumer:, named actions, or literal text).
   /// Used by buttons, macros, web API, and YAML automations.
@@ -443,6 +445,25 @@ class EspidfBleKeyboard : public Component
     publish_hidden_();
   }
 
+  // Press-and-hold buttons for the active host, published the same way — the
+  // Lovelace remote card reads it to know which of its buttons should hold
+  // rather than tap. The card can't read the device's REST API reliably (HA
+  // over https blocks the mixed-content fetch), so this is how the Host Actions
+  // choice reaches it.
+  void set_hold_sensor(text_sensor::TextSensor *sensor) {
+    hold_sensor_ = sensor;
+    publish_hold_();
+  }
+
+  // Same idea for the repeat set, in the NVS format "<delay>,<rate>,name,name".
+  // Empty means this host was never configured, so the card keeps its own
+  // defaults. Without this the card can only repeat its four hardcoded buttons
+  // and silently ignores whatever Host Actions says.
+  void set_repeat_sensor(text_sensor::TextSensor *sensor) {
+    repeat_sensor_ = sensor;
+    publish_repeat_();
+  }
+
   // Connected-host address text sensor — lets an automation tell *which* host it
   // is talking to, which the active-host slot number cannot do on its own.
   void set_host_mac_sensor(text_sensor::TextSensor *sensor) {
@@ -470,6 +491,8 @@ class EspidfBleKeyboard : public Component
   esp_bd_addr_t peer_addr_{};
   sensor::Sensor *active_host_sensor_{nullptr};
   text_sensor::TextSensor *hidden_sensor_{nullptr};
+  text_sensor::TextSensor *hold_sensor_{nullptr};
+  text_sensor::TextSensor *repeat_sensor_{nullptr};
   text_sensor::TextSensor *host_mac_sensor_{nullptr};
   sensor::Sensor *rssi_sensor_{nullptr};
   bool rssi_pending_{false};
@@ -583,11 +606,13 @@ class EspidfBleKeyboard : public Component
   RepeatCfg repeat_[MAX_HOST_SLOTS];
   void load_repeat_();
   void save_repeat_(uint8_t slot);
+  void publish_repeat_();  // push the active slot's config to the text sensor
 
   // Per-host press-and-hold (NVS key "hld<slot>", comma-separated names).
   std::vector<std::string> hold_[MAX_HOST_SLOTS];
   void load_hold_();
   void save_hold_(uint8_t slot);
+  void publish_hold_();  // push the active slot's list to the text sensor
 
   // Multi-host state
   uint8_t host_slots_{MAX_HOST_SLOTS};
