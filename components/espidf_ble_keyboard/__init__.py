@@ -14,6 +14,7 @@ AUTO_LOAD = ["sensor", "binary_sensor", "button", "text", "text_sensor"]
 # Define configuration keys
 CONF_DEVICE_NAME = "device_name"
 CONF_KEY_DELAY_MS = "key_delay_ms"
+CONF_MAX_KEY_HOLD_MS = "max_key_hold_ms"
 CONF_PASSKEY = "passkey"
 CONF_PASSKEY_MODE = "passkey_mode"
 CONF_WEB_CONTROL = "web_control"
@@ -60,6 +61,64 @@ RssiBelowTrigger = espidf_ble_keyboard_ns.class_("RssiBelowTrigger", automation.
 CONF_ON_RSSI_ABOVE = "on_rssi_above"
 CONF_ON_RSSI_BELOW = "on_rssi_below"
 CONF_THRESHOLD = "threshold"
+
+# Press-and-hold actions. A `button` entity can't drive these — it has a press
+# and no release — so they are meant for a binary_sensor's on_press/on_release,
+# which is what a physical push-to-talk key needs.
+KeyHoldAction = espidf_ble_keyboard_ns.class_("KeyHoldAction", automation.Action)
+HoldActionAction = espidf_ble_keyboard_ns.class_("HoldActionAction", automation.Action)
+KeyReleaseAction = espidf_ble_keyboard_ns.class_("KeyReleaseAction", automation.Action)
+
+CONF_MODIFIER = "modifier"
+CONF_KEY = "key"
+CONF_ACTION = "action"
+
+
+@automation.register_action(
+    "espidf_ble_keyboard.key_hold",
+    KeyHoldAction,
+    cv.Schema({
+        cv.GenerateID(): cv.use_id(EspidfBleKeyboard),
+        cv.Optional(CONF_MODIFIER, default=0): cv.templatable(cv.hex_uint8_t),
+        cv.Optional(CONF_KEY, default=0): cv.templatable(cv.hex_uint8_t),
+    }),
+    # All three send their HID report and return — nothing is deferred to a
+    # callback, timer or loop(), so play_next_() runs before play() returns.
+    synchronous=True,
+)
+async def key_hold_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    cg.add(var.set_modifier(await cg.templatable(config[CONF_MODIFIER], args, cg.uint8)))
+    cg.add(var.set_key(await cg.templatable(config[CONF_KEY], args, cg.uint8)))
+    return var
+
+
+@automation.register_action(
+    "espidf_ble_keyboard.hold_action",
+    HoldActionAction,
+    cv.Schema({
+        cv.GenerateID(): cv.use_id(EspidfBleKeyboard),
+        cv.Required(CONF_ACTION): cv.templatable(cv.string_strict),
+    }),
+    synchronous=True,
+)
+async def hold_action_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    cg.add(var.set_action(await cg.templatable(config[CONF_ACTION], args, cg.std_string)))
+    return var
+
+
+@automation.register_action(
+    "espidf_ble_keyboard.key_release",
+    KeyReleaseAction,
+    cv.Schema({cv.GenerateID(): cv.use_id(EspidfBleKeyboard)}),
+    synchronous=True,
+)
+async def key_release_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 def _web_control_schema(config):
@@ -132,6 +191,15 @@ HOST_SCHEMA = cv.Schema({
     ),
 })
 
+def _validate_max_key_hold(value):
+    """0 disables the auto-release; anything else must be long enough to be a
+    deliberate hold rather than a value that fights the press itself."""
+    value = cv.positive_int(value)
+    if value == 0:
+        return value
+    return cv.int_range(min=100, max=600000)(value)
+
+
 def _api_services_final_validate(config):
     """api_services needs the api component, and register_service() only compiles
     (and user_services.cpp is only built) with `api: custom_services: true` on
@@ -156,6 +224,10 @@ CONFIG_SCHEMA = cv.All(
         cv.GenerateID(): cv.declare_id(EspidfBleKeyboard),
         cv.Optional(CONF_DEVICE_NAME, default="ESP32 BLE KB"): cv.All(cv.string, cv.Length(max=29)),
         cv.Optional(CONF_KEY_DELAY_MS, default=80): cv.int_range(min=2, max=10000),
+        # Safety net for a hold whose release never arrives. 0 (the default)
+        # means a held key stays down until something releases it — a
+        # push-to-talk key has no natural maximum, so nothing is imposed.
+        cv.Optional(CONF_MAX_KEY_HOLD_MS, default=0): _validate_max_key_hold,
         cv.Optional(CONF_PASSKEY): cv.int_range(min=0, max=999999),
         cv.Optional(CONF_PASSKEY_MODE, default=PASSKEY_MODE_LEGACY): cv.one_of(
             PASSKEY_MODE_LEGACY,
@@ -204,6 +276,7 @@ async def to_code(config):
 
     cg.add(var.set_device_name(config[CONF_DEVICE_NAME]))
     cg.add(var.set_key_delay_ms(config[CONF_KEY_DELAY_MS]))
+    cg.add(var.set_max_key_hold_ms(config[CONF_MAX_KEY_HOLD_MS]))
 
     if CONF_PASSKEY in config:
         cg.add(var.set_passkey(config[CONF_PASSKEY]))

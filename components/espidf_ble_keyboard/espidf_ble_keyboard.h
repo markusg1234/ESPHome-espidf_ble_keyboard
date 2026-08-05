@@ -96,6 +96,18 @@ class EspidfBleKeyboard : public Component
   void send_mouse_click_start(uint8_t buttons);
   void send_mouse_click_release();
   void send_mouse_click(uint8_t buttons);
+  // Press-and-hold, the keyboard/consumer counterpart of send_mouse_click_start.
+  // The key stays down on the host until release_held() — that is what makes
+  // push-to-talk possible; every other keyboard path here taps and releases.
+  void key_hold(uint8_t modifiers, uint8_t keycode);
+  void consumer_hold(uint16_t usage);
+  /// Release everything currently held — keys, consumer usage and mouse buttons.
+  void release_held();
+  bool has_held() const { return held_modifiers_ != 0 || held_key_count_() > 0 ||
+                                 held_consumer_ != 0 || held_mouse_buttons_ != 0; }
+  /// Hold whatever `action` resolves to. False if it isn't something that can be
+  /// held (text, macros, host switching…), leaving the caller to run it normally.
+  bool hold_action(const std::string &action);
   void send_mouse_move(int8_t x, int8_t y);
   void send_mouse_scroll(int8_t wheel);
   // Absolute pointer: x/y in 0..32767 (host maps onto the screen). Tracks the
@@ -120,6 +132,12 @@ class EspidfBleKeyboard : public Component
 
   void set_key_delay_ms(uint32_t ms) { key_delay_ms_ = ms; }
   uint32_t key_delay_ms() const { return key_delay_ms_; }
+
+  // Safety net for a hold whose release never arrives (browser closed mid-press,
+  // a lost on_release). 0 = off: a held key then stays down until something
+  // releases it, the host disconnects, or the slot changes.
+  void set_max_key_hold_ms(uint32_t ms) { max_key_hold_ms_ = ms; }
+  uint32_t max_key_hold_ms() const { return max_key_hold_ms_; }
 
   void set_web_control(bool enabled) { web_control_enabled_ = enabled; }
   void set_api_services(bool enabled) { api_services_enabled_ = enabled; }
@@ -262,6 +280,19 @@ class EspidfBleKeyboard : public Component
                   const std::vector<std::string> &names);  // replaces the set
   void clear_repeat(uint8_t slot);  // back to the page defaults
 
+  // Per-host hold-to-send (push-to-talk) for the web remote. Unlike the repeat
+  // list above this one does reach the device: the browser sends a hold on
+  // pointerdown and a release on pointerup, so the key stays down on the host
+  // for exactly as long as the button is held.
+  static const uint8_t MAX_HOLD = 40;
+  const std::vector<std::string> &get_hold(uint8_t slot) const { return hold_[slot]; }
+  bool set_hold(uint8_t slot, const std::vector<std::string> &names);  // replaces the set
+  /// The button in `names` that is already in the other per-host list for this
+  /// slot, or an empty string. Hold-while-held and repeat-while-held are the
+  /// same gesture, so one button cannot be in both.
+  std::string hold_repeat_conflict(uint8_t slot, const std::vector<std::string> &names,
+                                   bool checking_hold) const;
+
   /// Execute an action string (combo:, consumer:, named actions, or literal text).
   /// Used by buttons, macros, web API, and YAML automations.
   void execute_action(const std::string &action);
@@ -303,7 +334,15 @@ class EspidfBleKeyboard : public Component
   void set_connected(bool connected, uint16_t conn_id) {
     is_connected_ = connected;
     conn_id_ = conn_id;
-    if (!connected) held_mouse_buttons_ = 0;
+    // Drop held state rather than releasing it: the link is already gone, so no
+    // report would reach the host anyway, and a host releases everything itself
+    // when a HID device disconnects.
+    if (!connected) {
+      held_mouse_buttons_ = 0;
+      held_modifiers_ = 0;
+      memset(held_keys_, 0, sizeof(held_keys_));
+      held_consumer_ = 0;
+    }
   }
   bool is_connected() const { return is_connected_; }
   uint16_t conn_id() const { return conn_id_; }
@@ -545,6 +584,11 @@ class EspidfBleKeyboard : public Component
   void load_repeat_();
   void save_repeat_(uint8_t slot);
 
+  // Per-host hold-to-send (NVS key "hld<slot>", comma-separated names).
+  std::vector<std::string> hold_[MAX_HOST_SLOTS];
+  void load_hold_();
+  void save_hold_(uint8_t slot);
+
   // Multi-host state
   uint8_t host_slots_{MAX_HOST_SLOTS};
   uint8_t active_slot_{0};
@@ -593,6 +637,25 @@ class EspidfBleKeyboard : public Component
   uint32_t last_mouse_click_ms_{0};
   uint8_t last_mouse_click_{0};
   uint8_t held_mouse_buttons_{0};
+
+  // Held-key state. Every keyboard report is built from this plus the transient
+  // key being tapped (send_kb_report_), so typing or pressing another key while
+  // something is held doesn't knock the held key back up.
+  uint8_t held_modifiers_{0};
+  uint8_t held_keys_[6]{};       // the boot report carries at most 6 keycodes
+  uint16_t held_consumer_{0};    // only one: the consumer report has one usage field
+  uint32_t hold_start_ms_{0};    // when the first of the current holds went down
+  uint32_t max_key_hold_ms_{0};  // 0 = no auto-release
+  uint8_t held_key_count_() const {
+    uint8_t n = 0;
+    for (uint8_t k : held_keys_) if (k != 0) n++;
+    return n;
+  }
+  /// Send an 8-byte keyboard report holding everything in held_* plus one
+  /// transient modifier/keycode. (0, 0) is the "key up" of a tap: it drops the
+  /// transient key and leaves the held ones down. Returns what the BLE stack
+  /// said, so the typing state machine can retry a full queue next loop().
+  esp_err_t send_kb_report_(uint8_t extra_mod, uint8_t extra_key);
 #ifdef USE_TEXT
   std::vector<text::Text *> custom_texts_;
 #endif

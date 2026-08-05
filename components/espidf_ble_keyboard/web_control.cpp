@@ -173,6 +173,8 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-btn svg{width:20px;height:20px;fill:currentColor;pointer-events:none}
 .rmt-btn.power{background:#c62828;color:#fff;border-color:#c62828}
 .rmt-btn.power:active,.rmt-btn.power.p{background:#e53935}
+/* Currently held down on the host (hold to send). Icons use currentColor. */
+.rmt-btn.held{background:var(--accent);color:#fff;border-color:var(--accent)}
 .rmt-dpad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:4px;justify-content:center;margin:8px 0}
 .rmt-dpad .rmt-btn{border-radius:12px}
 .rmt-dpad .center{background:var(--active);color:#fff;border-color:var(--active);font-size:11px;font-weight:700;border-radius:50%}
@@ -535,6 +537,14 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="macro-form"><button id="rpt-save">Save repeat</button><button id="rpt-all" class="cancel">All</button><button id="rpt-none" class="cancel">None</button><button id="rpt-reset" class="cancel">Reset</button></div>
 </div>
 </div>
+<div class="hid-panel" id="hld-panel">
+<button class="hid-toggle" id="hld-toggle">Hold to send &#9662;</button>
+<div class="hid-body" id="hld-body">
+<div style="font-size:12px;color:var(--muted);margin:6px 0">Tick a button to keep it <strong>held down</strong> on this host for as long as you hold it here, instead of sending a quick tap &mdash; what push-to-talk needs. Saved per host. A button already set to repeat is greyed out: repeating and holding are the same gesture, so a button can only do one of them.</div>
+<div id="hld-list"></div>
+<div class="macro-form"><button id="hld-save">Save hold</button><button id="hld-none" class="cancel">None</button></div>
+</div>
+</div>
 </div>
 </div>
 
@@ -607,6 +617,7 @@ setInterval(pollStatus,3000);
       // changed.
       if(window.applyHidden)window.applyHidden(false);
       if(window.applyRepeat)window.applyRepeat(false);
+      if(window.applyHold)window.applyHold(false);
       if(!d.slots||d.slots.length<=1){bar.style.display='none';return}
       bar.style.display='';
       bar.innerHTML='';
@@ -989,6 +1000,7 @@ function appendStep(el,val){
     load();
     if(hidPanel&&hidPanel.classList.contains('open'))loadHidden();
     if(rptPanel&&rptPanel.classList.contains('open'))loadRepeat();
+    if(hldPanel&&hldPanel.classList.contains('open'))loadHold();
   });
 
   saveBtn.addEventListener('click',()=>{
@@ -1026,9 +1038,11 @@ function appendStep(el,val){
   }
   const GROUP_NAMES=['Power &amp; navigation','D-pad','Volume &amp; channel','Media','Colours','Apps'];
 
-  // Shared by both per-host panels: same button list, same grouping — only what
-  // a tick means differs, so the caller supplies that as a predicate.
-  function buildCheckGrid(host,isChecked){
+  // Shared by all three per-host panels: same button list, same grouping — only
+  // what a tick means differs, so the caller supplies that as a predicate.
+  // `blocked` optionally returns a reason string for a button that must not be
+  // ticked here (repeat and hold claim the same gesture), which greys it out.
+  function buildCheckGrid(host,isChecked,blocked){
     const btns=remoteButtons();
     host.innerHTML='';
     const groups={};
@@ -1049,6 +1063,8 @@ function appendStep(el,val){
         cb.type='checkbox';
         cb.dataset.action=b.action;
         cb.checked=isChecked(b);
+        const why=blocked?blocked(b):'';
+        if(why){cb.disabled=true;cb.checked=false;lab.title=why;lab.style.opacity='.45'}
         lab.appendChild(cb);
         lab.appendChild(document.createTextNode(b.label));
         items.appendChild(lab);
@@ -1096,13 +1112,18 @@ function appendStep(el,val){
   const rptDelayIn=document.getElementById('rpt-delay');
   const rptRateIn=document.getElementById('rpt-rate');
 
+  // Both fetches: /hold carries this slot's hold set, which is what the repeat
+  // grid greys out (and the reverse in loadHold below).
   function loadRepeat(){
     if(!rptList)return Promise.resolve();
-    return fetch('/api/ble_keyboard/repeat?'+new URLSearchParams({slot:slot}))
-      .then(r=>r.json()).then(d=>{
+    return Promise.all([
+        fetch('/api/ble_keyboard/repeat?'+new URLSearchParams({slot:slot})).then(r=>r.json()),
+        fetch('/api/ble_keyboard/hold?'+new URLSearchParams({slot:slot})).then(r=>r.json())])
+      .then(([d,h])=>{
         rptDelayIn.value=d.delay;rptRateIn.value=d.rate;
-        const on=d.buttons||[];
-        buildCheckGrid(rptList,b=>d.set?on.indexOf(b.action)>=0:b.rpt);
+        const on=d.buttons||[],held=h.buttons||[];
+        buildCheckGrid(rptList,b=>d.set?on.indexOf(b.action)>=0:b.rpt,
+                       b=>held.indexOf(b.action)>=0?'Set to hold on this host — untick it under "Hold to send" first':'');
       })
       .catch(()=>{rptList.innerHTML='<span class="prog-empty">Error loading</span>'});
   }
@@ -1114,12 +1135,14 @@ function appendStep(el,val){
   });
   const rptAll=document.getElementById('rpt-all');
   const rptNone=document.getElementById('rpt-none');
-  if(rptAll)rptAll.addEventListener('click',()=>rptList.querySelectorAll('input').forEach(c=>c.checked=true));
+  // :not(:disabled) throughout — a greyed-out button belongs to the other panel,
+  // and ticking it here would only earn a 400 from the device.
+  if(rptAll)rptAll.addEventListener('click',()=>rptList.querySelectorAll('input:not(:disabled)').forEach(c=>c.checked=true));
   if(rptNone)rptNone.addEventListener('click',()=>rptList.querySelectorAll('input').forEach(c=>c.checked=false));
 
   const rptSave=document.getElementById('rpt-save');
   if(rptSave)rptSave.addEventListener('click',()=>{
-    const on=[...rptList.querySelectorAll('input')].filter(c=>c.checked).map(c=>c.dataset.action);
+    const on=[...rptList.querySelectorAll('input:not(:disabled)')].filter(c=>c.checked).map(c=>c.dataset.action);
     fetch('/api/ble_keyboard/repeat_set?'+new URLSearchParams({
         slot:slot,delay:rptDelayIn.value,rate:rptRateIn.value,names:on.join(',')}),{method:'POST'})
       .then(r=>{
@@ -1127,6 +1150,7 @@ function appendStep(el,val){
         // Re-read rather than trust the inputs: the device clamps the timings,
         // so the boxes should show what was actually stored.
         if(window.applyRepeat)window.applyRepeat(true);
+        if(hldPanel&&hldPanel.classList.contains('open'))loadHold();
         return loadRepeat();
       });
   });
@@ -1138,6 +1162,48 @@ function appendStep(el,val){
         if(!r.ok)return r.text().then(t=>{alert(t)});
         if(window.applyRepeat)window.applyRepeat(true);
         return loadRepeat();
+      });
+  });
+
+  // ── Hold to send (per host) ──
+  // The only one of the three panels that changes what a press *does* on the
+  // wire: a ticked button is held down for as long as it is held here, instead
+  // of tapped. There is no "All" — holding everything is never what you want,
+  // and each extra hold is one more key that can be left down.
+  const hldPanel=document.getElementById('hld-panel');
+  const hldToggle=document.getElementById('hld-toggle');
+  const hldList=document.getElementById('hld-list');
+
+  function loadHold(){
+    if(!hldList)return Promise.resolve();
+    return fetch('/api/ble_keyboard/hold?'+new URLSearchParams({slot:slot}))
+      .then(r=>r.json()).then(d=>{
+        const on=d.buttons||[],rpt=d.repeat||[];
+        buildCheckGrid(hldList,b=>on.indexOf(b.action)>=0,
+                       b=>rpt.indexOf(b.action)>=0?'Set to repeat on this host — untick it under "Hold to repeat" first':'');
+      })
+      .catch(()=>{hldList.innerHTML='<span class="prog-empty">Error loading</span>'});
+  }
+
+  if(hldToggle)hldToggle.addEventListener('click',()=>{
+    hldPanel.classList.toggle('open');
+    hldToggle.innerHTML='Hold to send '+(hldPanel.classList.contains('open')?'▴':'▾');
+    if(hldPanel.classList.contains('open'))loadHold();
+  });
+  const hldNone=document.getElementById('hld-none');
+  if(hldNone)hldNone.addEventListener('click',()=>hldList.querySelectorAll('input').forEach(c=>c.checked=false));
+
+  const hldSave=document.getElementById('hld-save');
+  if(hldSave)hldSave.addEventListener('click',()=>{
+    const on=[...hldList.querySelectorAll('input:not(:disabled)')].filter(c=>c.checked).map(c=>c.dataset.action);
+    fetch('/api/ble_keyboard/hold_set?'+new URLSearchParams({slot:slot,names:on.join(',')}),{method:'POST'})
+      .then(r=>{
+        if(!r.ok)return r.text().then(t=>{alert(t)});
+        if(window.applyHold)window.applyHold(true);
+        // The repeat grid's greyed-out set just changed, so re-read it if it is
+        // open — otherwise it would offer a button this panel has taken.
+        if(rptPanel&&rptPanel.classList.contains('open'))loadRepeat();
+        return loadHold();
       });
   });
 
@@ -1272,6 +1338,17 @@ function appendStep(el,val){
       }
       return chain;
     }).then(()=>{
+      // Holds are cleared before the repeat pass and written after it: the two
+      // lists reject each other's buttons, so restoring a file that moves a
+      // button from one to the other would otherwise fail on whichever went
+      // first. The file itself can never hold a conflicting pair.
+      let chain=Promise.resolve();
+      for(let s=0;s<slotSel.options.length;s++){
+        const sl=parseInt(slotSel.options[s].value);
+        chain=chain.then(()=>post('hold_set',{slot:sl,names:''}));
+      }
+      return chain;
+    }).then(()=>{
       status('Restoring: hold to repeat...');
       // Same every-slot rule as above, except a slot the file doesn't mention
       // is reset rather than emptied — an empty list is itself a setting here.
@@ -1286,6 +1363,16 @@ function appendStep(el,val){
         }else{
           chain=chain.then(()=>post('repeat_set',{slot:sl,reset:'1'}));
         }
+      }
+      return chain;
+    }).then(()=>{
+      status('Restoring: hold to send...');
+      const hld=d.hold&&typeof d.hold==='object'?d.hold:{};
+      let chain=Promise.resolve();
+      for(let s=0;s<slotSel.options.length;s++){
+        const sl=parseInt(slotSel.options[s].value);
+        const names=Array.isArray(hld[sl])?hld[sl]:(Array.isArray(hld[String(sl)])?hld[String(sl)]:[]);
+        if(names.length)chain=chain.then(()=>post('hold_set',{slot:sl,names:names.join(',')}));
       }
       return chain;
     }).then(()=>{
@@ -1328,6 +1415,7 @@ function appendStep(el,val){
         load();
         if(window.applyHidden)window.applyHidden(true);
         if(window.applyRepeat)window.applyRepeat(true);
+        if(window.applyHold)window.applyHold(true);
       }
     }).catch(e=>status('Restore stopped at "'+e.message+'" — the device is partly restored.',true));
   }
@@ -1675,9 +1763,22 @@ buildKeyboard();
   // markup, so holding works from the moment the page is usable.
   let rptSet=null,rptDelay=400,rptRate=180;
   const repeats=(el,a)=>rptSet?rptSet.indexOf(a)>=0:el.hasAttribute('data-repeat');
+  // Hold-to-send set for the active host. Empty until applyHold() lands — there
+  // is no markup default for this one, because holding a key is never something
+  // to start doing on a host that didn't ask for it.
+  let hldSet=[];
+  const holds=a=>hldSet.indexOf(a)>=0;
 
   let ri=null,rt=null;
   function stopRepeat(){if(ri){clearInterval(ri);ri=null}if(rt){clearTimeout(rt);rt=null}}
+  // Tracks the button currently held down on the host, so the release is sent
+  // exactly once however the press ends (up, cancel, or a flick off the card).
+  let holdEl=null;
+  function endHold(){
+    if(!holdEl)return;
+    holdEl.classList.remove('held');holdEl=null;
+    fetch('/api/ble_keyboard/release',{method:'POST'}).catch(()=>{});
+  }
   // `fired` is what keeps hold and tap from both counting: once the hold timer
   // has sent anything, pointerup must NOT send its usual press on release.
   {let sx,sy,ok,ab,fired=false;
@@ -1685,6 +1786,20 @@ buildKeyboard();
     ab=e.target.closest('.rmt-btn');if(!ab)return;
     sx=e.clientX;sy=e.clientY;ok=true;fired=false;ab.classList.add('p');
     const act=ab.dataset.action;
+    // Hold wins outright: it goes down now, not after a threshold, because a
+    // push-to-talk key that only engages after 400ms clips the first word.
+    // fired=true keeps pointerup from also sending the ordinary press.
+    if(holds(act)){
+      endHold();  // a second finger on another button: only one hold at a time
+      fired=true;holdEl=ab;ab.classList.add('held');
+      const drop=()=>{ab.classList.remove('held');if(holdEl===ab)holdEl=null};
+      fetch('/api/ble_keyboard/hold_action?'+new URLSearchParams({action:act}),{method:'POST'})
+        // 400 means this host remapped it to something unholdable (a macro, a
+        // sequence). Send the ordinary press rather than leaving a dead button.
+        .then(r=>{if(!r.ok){drop();api('press',{action:act})}})
+        .catch(drop);
+      return;
+    }
     if(!repeats(ab,act))return;
     // Nothing is sent until the hold threshold passes, so a tap still fires on
     // release and a drag can still cancel it — both were the point of the
@@ -1699,14 +1814,19 @@ buildKeyboard();
   card.addEventListener('pointerup',()=>{
     if(ab)ab.classList.remove('p');
     if(ok&&ab&&!fired){api('press',{action:ab.dataset.action})}
-    ok=false;ab=null;fired=false;stopRepeat();
+    ok=false;ab=null;fired=false;stopRepeat();endHold();
   });
-  const abort=()=>{if(ab)ab.classList.remove('p');ok=false;ab=null;fired=false;stopRepeat()};
+  const abort=()=>{if(ab)ab.classList.remove('p');ok=false;ab=null;fired=false;stopRepeat();endHold()};
   card.addEventListener('pointercancel',abort);
   // Releasing outside the card never fires pointerup on it, which would strand a
   // running interval hammering the device. The 10px drag cancel usually catches
   // that first; this is the backstop for a fast flick off the edge.
   card.addEventListener('pointerleave',abort);
+  // A tab switch or a locked screen never delivers pointerup, and a key left
+  // down on the host is worse than a press cut short. max_key_hold_ms is the
+  // device-side backstop for the cases even this misses (the tab being killed).
+  window.addEventListener('blur',endHold);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)endHold()});
   }
 
   // ── Per-host hold-to-repeat ──
@@ -1725,6 +1845,21 @@ buildKeyboard();
     }).catch(()=>{});
   };
   window.applyRepeat(true);
+
+  // ── Per-host hold to send ──
+  // Which buttons stay down while held, for this host. Unlike the repeat set
+  // this one has no markup fallback: an unconfigured host holds nothing.
+  let lastHldKey=null;
+  window.applyHold=function(force){
+    fetch('/api/ble_keyboard/hold').then(r=>r.json()).then(d=>{
+      const key=d.slot+':'+(d.buttons||[]).join(',');
+      if(!force&&key===lastHldKey)return;
+      lastHldKey=key;
+      hldSet=d.buttons||[];
+      endHold();  // whatever was held belonged to the old set
+    }).catch(()=>{});
+  };
+  window.applyHold(true);
 
   // ── Per-host hidden buttons ──
   // Hides the buttons this host has no use for, then collapses any container
@@ -2328,6 +2463,33 @@ class BleKbWebHandler : public AsyncWebHandler {
       return;
     }
 
+    if (path == "hold") {
+      int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : kb_->active_host_slot();
+      if (slot < 0 || slot >= kb_->host_slots()) {
+        send_response(400, "text/plain", "Invalid slot");
+        return;
+      }
+      const auto &h = kb_->get_hold((uint8_t) slot);
+      const auto &r = kb_->get_repeat((uint8_t) slot);
+      // The repeat set rides along so the editor can grey out the buttons that
+      // are already spoken for without a second round trip.
+      std::string json = "{\"slot\":" + std::to_string(slot) + ",\"buttons\":[";
+      for (size_t i = 0; i < h.size(); i++) {
+        if (i > 0) json += ",";
+        json += "\"" + json_escape(h[i]) + "\"";
+      }
+      json += "],\"repeat\":[";
+      if (r.set) {
+        for (size_t i = 0; i < r.names.size(); i++) {
+          if (i > 0) json += ",";
+          json += "\"" + json_escape(r.names[i]) + "\"";
+        }
+      }
+      json += "]}";
+      send_response(200, "application/json", json.c_str());
+      return;
+    }
+
     if (path == "backup") {
       // Everything the user can edit at runtime, in one document. Deliberately
       // excludes the passkey and the generated per-slot addresses (device
@@ -2388,6 +2550,20 @@ class BleKbWebHandler : public AsyncWebHandler {
         }
         json += "]}";
       }
+      json += "},\"hold\":{";
+      bool first_hold = true;
+      for (uint8_t s = 0; s < kb_->host_slots(); s++) {
+        const auto &h = kb_->get_hold(s);
+        if (h.empty()) continue;
+        if (!first_hold) json += ",";
+        first_hold = false;
+        json += "\"" + std::to_string(s) + "\":[";
+        for (size_t i = 0; i < h.size(); i++) {
+          if (i > 0) json += ",";
+          json += "\"" + json_escape(h[i]) + "\"";
+        }
+        json += "]";
+      }
       json += "},\"goto_scale\":{";
       bool first_scale = true;
       for (uint8_t s = 0; s < kb_->host_slots(); s++) {
@@ -2446,6 +2622,29 @@ class BleKbWebHandler : public AsyncWebHandler {
 
     } else if (path == "mouse_release") {
       kb_->send_mouse_click_release();
+      send_response(200, "text/plain", "OK");
+
+    } else if (path == "hold_action") {
+      // Press and hold, for as long as the remote's button is held. The paired
+      // "release" below is sent on pointerup; max_key_hold_ms is the backstop
+      // if the browser goes away before it arrives.
+      //
+      // Not "hold": the GET block above claims that name for the per-host set,
+      // and it is matched before the POST-only check, so a POST there would
+      // read back JSON instead of holding anything.
+      if (!request->hasArg("action")) {
+        send_response(400, "text/plain", "Missing action");
+        return;
+      }
+      std::string action = request->arg("action").c_str();
+      if (!kb_->hold_action(action)) {
+        send_response(400, "text/plain", "Action cannot be held");
+        return;
+      }
+      send_response(200, "text/plain", "OK");
+
+    } else if (path == "release") {
+      kb_->release_held();
       send_response(200, "text/plain", "OK");
 
     } else if (path == "mouse_scroll") {
@@ -2644,6 +2843,10 @@ class BleKbWebHandler : public AsyncWebHandler {
         start = end + 1;
         if (!n.empty()) list.push_back(n);
       }
+      // Resolved before the chain so the message can name the button; the setter
+      // makes the same check but only reports pass/fail.
+      std::string clash = (slot >= 0 && slot < kb_->host_slots())
+                              ? kb_->hold_repeat_conflict((uint8_t) slot, list, false) : "";
       if (slot < 0 || slot >= kb_->host_slots()) {
         send_response(400, "text/plain", "Invalid slot");
       } else if (reset) {
@@ -2653,7 +2856,38 @@ class BleKbWebHandler : public AsyncWebHandler {
         send_response(400, "text/plain", "Too many repeat buttons (max 40)");
       } else if (delay < 0 || rate < 0) {
         send_response(400, "text/plain", "Invalid timing");
+      } else if (!clash.empty()) {
+        std::string msg = "\"" + clash + "\" is set to hold on this host — untick it there first";
+        send_response(400, "text/plain", msg.c_str());
       } else if (!kb_->set_repeat((uint8_t) slot, (uint16_t) delay, (uint16_t) rate, list)) {
+        send_response(400, "text/plain", "Invalid button name in list");
+      } else {
+        send_response(200, "text/plain", "OK");
+      }
+
+    } else if (path == "hold_set") {
+      // Replaces the whole hold-to-send set for one slot. Empty clears it.
+      int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : -1;
+      std::string names = request->hasArg("names") ? request->arg("names").c_str() : "";
+      std::vector<std::string> list;
+      size_t start = 0;
+      while (start < names.size()) {
+        size_t end = names.find(',', start);
+        if (end == std::string::npos) end = names.size();
+        std::string n = names.substr(start, end - start);
+        start = end + 1;
+        if (!n.empty()) list.push_back(n);
+      }
+      std::string clash = (slot >= 0 && slot < kb_->host_slots())
+                              ? kb_->hold_repeat_conflict((uint8_t) slot, list, true) : "";
+      if (slot < 0 || slot >= kb_->host_slots()) {
+        send_response(400, "text/plain", "Invalid slot");
+      } else if (list.size() > EspidfBleKeyboard::MAX_HOLD) {
+        send_response(400, "text/plain", "Too many hold buttons (max 40)");
+      } else if (!clash.empty()) {
+        std::string msg = "\"" + clash + "\" is set to repeat on this host — untick it there first";
+        send_response(400, "text/plain", msg.c_str());
+      } else if (!kb_->set_hold((uint8_t) slot, list)) {
         send_response(400, "text/plain", "Invalid button name in list");
       } else {
         send_response(200, "text/plain", "OK");

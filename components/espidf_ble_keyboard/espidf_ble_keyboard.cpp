@@ -1346,6 +1346,96 @@ void EspidfBleKeyboard::save_hidden_(uint8_t slot) {
     nvs_close(handle);
 }
 
+// ── Per-host hold-to-send (NVS-persisted) ─────────────────────────
+//
+// Same shape as the hidden list above (one comma-separated NVS entry per slot,
+// key "hld<slot>"), but this one changes what a press *does*: a button named
+// here is held down on the host for as long as it is held on the remote,
+// instead of being tapped. Stored per host because push-to-talk belongs to the
+// machine running the voice app, not to the phone holding the remote.
+
+std::string EspidfBleKeyboard::hold_repeat_conflict(uint8_t slot,
+                                                    const std::vector<std::string> &names,
+                                                    bool checking_hold) const {
+    if (slot >= MAX_HOST_SLOTS) return "";
+    // A button can only own one meaning of "held": repeating a tap, or staying
+    // down. Whichever list is *not* being written is the one to check against.
+    const std::vector<std::string> &other = checking_hold ? repeat_[slot].names : hold_[slot];
+    if (checking_hold && !repeat_[slot].set) return "";
+    for (const auto &n : names)
+        if (std::find(other.begin(), other.end(), n) != other.end()) return n;
+    return "";
+}
+
+bool EspidfBleKeyboard::set_hold(uint8_t slot, const std::vector<std::string> &names) {
+    if (slot >= MAX_HOST_SLOTS || names.size() > MAX_HOLD) return false;
+    for (const auto &n : names) {
+        if (!valid_override_name(n) || n.find(',') != std::string::npos) return false;
+    }
+    if (!hold_repeat_conflict(slot, names, true).empty()) return false;
+    hold_[slot] = names;
+    save_hold_(slot);
+    ESP_LOGI(TAG, "Hold-to-send for host %u: %u button(s)",
+             (unsigned) slot, (unsigned) names.size());
+    return true;
+}
+
+void EspidfBleKeyboard::load_hold_() {
+    nvs_handle_t handle;
+    if (nvs_open("espidf_ble_kb", NVS_READONLY, &handle) != ESP_OK) return;
+
+    for (uint8_t slot = 0; slot < MAX_HOST_SLOTS; slot++) {
+        char key[12];
+        snprintf(key, sizeof(key), "hld%u", slot);
+
+        size_t len = 0;
+        if (nvs_get_str(handle, key, nullptr, &len) != ESP_OK || len == 0) continue;
+        if (len > MAX_HOLD * 33 + 1) {
+            ESP_LOGW(TAG, "Hold list for slot %u is oversized (%u bytes) — ignoring",
+                     (unsigned) slot, (unsigned) len);
+            continue;
+        }
+
+        std::vector<char> buf(len);
+        if (nvs_get_str(handle, key, buf.data(), &len) != ESP_OK) continue;
+
+        std::string blob(buf.data());
+        size_t start = 0;
+        while (start < blob.size() && hold_[slot].size() < MAX_HOLD) {
+            size_t end = blob.find(',', start);
+            if (end == std::string::npos) end = blob.size();
+            std::string name = blob.substr(start, end - start);
+            start = end + 1;
+            if (valid_override_name(name)) hold_[slot].push_back(name);
+        }
+        if (!hold_[slot].empty())
+            ESP_LOGI(TAG, "Loaded %u hold-to-send button(s) for host %u",
+                     (unsigned) hold_[slot].size(), (unsigned) slot);
+    }
+    nvs_close(handle);
+}
+
+void EspidfBleKeyboard::save_hold_(uint8_t slot) {
+    if (slot >= MAX_HOST_SLOTS) return;
+    nvs_handle_t handle;
+    if (nvs_open("espidf_ble_kb", NVS_READWRITE, &handle) != ESP_OK) return;
+
+    char key[12];
+    snprintf(key, sizeof(key), "hld%u", slot);
+    if (hold_[slot].empty()) {
+        nvs_erase_key(handle, key);
+    } else {
+        std::string blob;
+        for (size_t i = 0; i < hold_[slot].size(); i++) {
+            if (i > 0) blob += ",";
+            blob += hold_[slot][i];
+        }
+        nvs_set_str(handle, key, blob.c_str());
+    }
+    nvs_commit(handle);
+    nvs_close(handle);
+}
+
 // ── Per-host hold-to-repeat (NVS-persisted) ───────────────────────
 //
 // One NVS entry per slot (key "rpt<slot>"), value "<delay>,<rate>" followed by
@@ -1368,6 +1458,9 @@ bool EspidfBleKeyboard::set_repeat(uint8_t slot, uint16_t delay, uint16_t rate,
         // comma is this list's own separator.
         if (!valid_override_name(n) || n.find(',') != std::string::npos) return false;
     }
+    // The other half of the guard in set_hold(): a button that stays down while
+    // held can't also re-fire while held.
+    if (!hold_repeat_conflict(slot, names, false).empty()) return false;
     // Clamped rather than rejected: the bounds exist to keep the repeat usable
     // (see REPEAT_RATE_MIN and the dedup guards), not to police the caller.
     if (delay < REPEAT_DELAY_MIN) delay = REPEAT_DELAY_MIN;
@@ -1601,6 +1694,10 @@ void EspidfBleKeyboard::switch_host(uint8_t slot) {
         return;
     }
 
+    // Let go of anything held before the link to the old host drops, or it is
+    // left holding the key until it notices the disconnect.
+    release_held();
+
     active_slot_ = slot;
     save_host_slots_();
     if (active_host_sensor_ != nullptr)
@@ -1737,6 +1834,7 @@ void EspidfBleKeyboard::setup() {
     load_overrides_();  // all slots, so the web UI can edit an inactive slot
     load_hidden_();
     load_repeat_();
+    load_hold_();
     // Apply YAML default if no setter ran (defensive), then let NVS override.
     if (active_layout_ == nullptr) active_layout_ = default_layout();
     load_layout_();
@@ -1834,6 +1932,15 @@ void EspidfBleKeyboard::loop() {
         }
     }
 
+    // Stuck-key guard: a hold whose release never arrived (browser closed
+    // mid-press, a lost on_release) would otherwise stay down indefinitely.
+    // Off by default — a push-to-talk key has no natural maximum.
+    if (max_key_hold_ms_ > 0 && has_held() && millis() - hold_start_ms_ > max_key_hold_ms_) {
+        ESP_LOGW(TAG, "Held key exceeded max_key_hold_ms (%ums) — releasing",
+                 (unsigned) max_key_hold_ms_);
+        release_held();
+    }
+
     // Non-blocking string typing: one keystroke step per loop() call, paced by timer.
     if (!is_connected_ || type_mutex_ == nullptr) return;
 
@@ -1859,12 +1966,13 @@ void EspidfBleKeyboard::loop() {
 
     if (queue_empty) return;
 
-    uint8_t report[8] = {0};
     uint32_t half_delay = key_delay_ms_ / 2;
 
     if (key_up) {
-        // Send key-up (all zeros). Retry next loop() if BLE stack queue is full.
-        if (send_keyboard_input_report(conn_id_, report, 8) != ESP_OK) return;
+        // Send key-up. Anything being held stays down (send_kb_report_), so
+        // typing while push-to-talk is held doesn't cut the held key.
+        // Retry next loop() if the BLE stack queue is full.
+        if (send_kb_report_(0, 0) != ESP_OK) return;
         xSemaphoreTake(type_mutex_, portMAX_DELAY);
         type_key_up_pending_ = false;
         type_index_++;
@@ -1877,9 +1985,7 @@ void EspidfBleKeyboard::loop() {
     } else {
         // Send key-down for the current keystroke. Layout resolution happened
         // at enqueue time (see send_string), so unmapped chars never reach here.
-        report[0] = mapping.modifier;
-        report[2] = mapping.keycode;
-        if (send_keyboard_input_report(conn_id_, report, 8) != ESP_OK) return;
+        if (send_kb_report_(mapping.modifier, mapping.keycode) != ESP_OK) return;
         xSemaphoreTake(type_mutex_, portMAX_DELAY);
         type_key_up_pending_ = true;
         type_next_ms_ = now + half_delay;
@@ -2177,6 +2283,27 @@ void EspidfBleKeyboard::load_goto_scale_for_host(uint8_t slot) {
     ESP_LOGI(TAG, "Goto scale for host %u: x=%.4f y=%.4f", slot, goto_scale_x_, goto_scale_y_);
 }
 
+// Every keyboard report goes through here so held keys survive whatever else is
+// being typed. `extra_*` is the transient key of a tap; (0, 0) is its key-up,
+// which now means "everything still held, nothing else" rather than "all up".
+esp_err_t EspidfBleKeyboard::send_kb_report_(uint8_t extra_mod, uint8_t extra_key) {
+    uint8_t report[8] = {0};
+    report[0] = held_modifiers_ | extra_mod;
+    uint8_t slot = 2;
+    for (uint8_t k : held_keys_) {
+        if (k == 0 || slot >= 8) continue;
+        report[slot++] = k;
+    }
+    // Skipped when already held: a repeat of the same usage in the array reads
+    // as two keys down, and hosts differ on what that means.
+    if (extra_key != 0 && slot < 8) {
+        bool dup = false;
+        for (uint8_t k : held_keys_) if (k == extra_key) dup = true;
+        if (!dup) report[slot++] = extra_key;
+    }
+    return send_keyboard_input_report(conn_id_, report, 8);
+}
+
 void EspidfBleKeyboard::send_key_combo(uint8_t modifiers, uint8_t keycode) {
     // Dedup: ESPHome API can deliver the same service call twice within ~5ms
     uint32_t now = millis();
@@ -2191,23 +2318,16 @@ void EspidfBleKeyboard::send_key_combo(uint8_t modifiers, uint8_t keycode) {
 
     ESP_LOGD(TAG, "send_key_combo: mod=0x%02X key=0x%02X", modifiers, keycode);
     if (!is_connected_) return;
-    uint8_t report[8] = {0};
-    report[0] = modifiers;
-    report[2] = keycode;
-    send_keyboard_input_report(conn_id_, report, 8);
+    send_kb_report_(modifiers, keycode);
     vTaskDelay(pdMS_TO_TICKS(30));
-    memset(report, 0, 8);
-    send_keyboard_input_report(conn_id_, report, 8);
+    send_kb_report_(0, 0);
 }
 
 void EspidfBleKeyboard::send_ctrl_alt_del() {
     if (!is_connected_) return;
-    uint8_t report[8] = {0};
-    report[0] = 0x05; report[2] = 0x4C;
-    send_keyboard_input_report(conn_id_, report, 8);
+    send_kb_report_(0x05, 0x4C);
     vTaskDelay(pdMS_TO_TICKS(50));
-    memset(report, 0, 8);
-    send_keyboard_input_report(conn_id_, report, 8);
+    send_kb_report_(0, 0);
 }
 
 void EspidfBleKeyboard::send_sleep() {
@@ -2240,10 +2360,81 @@ void EspidfBleKeyboard::send_consumer(uint16_t usage) {
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_consumer_report_handle, 2, report, false);
     esp_ble_gatts_set_attr_value(s_consumer_report_handle, 2, report);
     vTaskDelay(pdMS_TO_TICKS(50));
-    uint8_t release[2] = {0, 0};
+    // The consumer report has a single usage field, so a held usage cannot stay
+    // down *during* another one — it is put back afterwards instead of the zero
+    // release. Unlike the keyboard's 6-key array, this is the best the report
+    // map allows; the host sees a brief interruption of the held usage.
+    uint8_t release[2] = {(uint8_t)(held_consumer_ & 0xFF), (uint8_t)(held_consumer_ >> 8)};
     esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_consumer_report_handle, 2, release, false);
     esp_ble_gatts_set_attr_value(s_consumer_report_handle, 2, release);
     ESP_LOGI(TAG, "Consumer report sent: 0x%04X", usage);
+}
+
+// ── Press and hold (push-to-talk) ─────────────────────────────────
+//
+// The keyboard/consumer counterpart of send_mouse_click_start(): the report goes
+// down and stays down until release_held(). Everything else in this file taps —
+// key down, short delay, key up — which is why a physical button held for five
+// seconds still reached the host as a brief press before this existed.
+
+void EspidfBleKeyboard::key_hold(uint8_t modifiers, uint8_t keycode) {
+    if (!is_connected_) return;
+    if (!has_held()) hold_start_ms_ = millis();
+    held_modifiers_ |= modifiers;
+    // Idempotent: holding an already-held key is a no-op, so a repeated press
+    // event (or the API's double-fire) can't fill the 6-key array with copies.
+    if (keycode != 0) {
+        bool present = false;
+        for (uint8_t k : held_keys_) if (k == keycode) present = true;
+        if (!present) {
+            bool placed = false;
+            for (uint8_t &k : held_keys_) {
+                if (k != 0) continue;
+                k = keycode;
+                placed = true;
+                break;
+            }
+            if (!placed) {
+                ESP_LOGW(TAG, "key_hold: already holding %u keys — 0x%02X ignored",
+                         (unsigned) held_key_count_(), keycode);
+            }
+        }
+    }
+    send_kb_report_(0, 0);
+    ESP_LOGI(TAG, "Key hold: mod=0x%02X key=0x%02X (%u held)", modifiers, keycode,
+             (unsigned) held_key_count_());
+}
+
+void EspidfBleKeyboard::consumer_hold(uint16_t usage) {
+    if (!is_connected_ || usage == 0) return;
+    if (!has_held()) hold_start_ms_ = millis();
+    held_consumer_ = usage;
+    uint8_t report[2] = {(uint8_t)(usage & 0xFF), (uint8_t)(usage >> 8)};
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_consumer_report_handle, 2, report, false);
+    esp_ble_gatts_set_attr_value(s_consumer_report_handle, 2, report);
+    ESP_LOGI(TAG, "Consumer hold: 0x%04X", usage);
+}
+
+void EspidfBleKeyboard::release_held() {
+    bool had_keys = held_modifiers_ != 0 || held_key_count_() > 0;
+    bool had_consumer = held_consumer_ != 0;
+    held_modifiers_ = 0;
+    memset(held_keys_, 0, sizeof(held_keys_));
+    held_consumer_ = 0;
+    if (!is_connected_) {
+        held_mouse_buttons_ = 0;
+        return;
+    }
+    if (had_keys) send_kb_report_(0, 0);
+    if (had_consumer) {
+        uint8_t release[2] = {0, 0};
+        esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, s_consumer_report_handle, 2, release, false);
+        esp_ble_gatts_set_attr_value(s_consumer_report_handle, 2, release);
+    }
+    // Mouse buttons too: "release" means everything this device is holding, and
+    // a hold list can name left_click as readily as a key.
+    if (held_mouse_buttons_ != 0) send_mouse_click_release();
+    if (had_keys || had_consumer) ESP_LOGI(TAG, "Released all held keys");
 }
 
 void EspidfBleKeyboard::send_power() {
@@ -2318,6 +2509,68 @@ bool EspidfBleKeyboard::execute_remote_action_(const std::string &action) {
     }
     return false;
 }
+
+// Hold whatever `action` resolves to, instead of tapping it.
+//
+// Deliberately a separate dispatcher rather than a "hold mode" flag threaded
+// through execute_action(): that one recurses through repeat:, alternate: and
+// the '|' split, and a sequence has no single key to leave down. Only actions
+// that map to one report can be held, and the caller runs the rest normally.
+bool EspidfBleKeyboard::hold_action(const std::string &action) {
+    // A sequence has no single key to leave down. Caught before the parsing
+    // below, which would otherwise match the first step and quietly drop the
+    // rest — better to hand the whole thing back and let it run once.
+    if (action.find('|') != std::string::npos) return false;
+
+    // Parametric forms first and overrides after, the same order execute_action
+    // uses — so `combo:` and `consumer:` always mean exactly what they say and
+    // only bare names are remappable.
+    int a = 0, b = 0;
+    if (sscanf(action.c_str(), "combo:%i:%i", &a, &b) == 2) {
+        key_hold((uint8_t) a, (uint8_t) b);
+        return true;
+    }
+    if (sscanf(action.c_str(), "key_hold:%i:%i", &a, &b) == 2) {
+        key_hold((uint8_t) a, (uint8_t) b);
+        return true;
+    }
+    if (sscanf(action.c_str(), "consumer:%i", &a) == 1 ||
+        sscanf(action.c_str(), "consumer_hold:%i", &a) == 1) {
+        consumer_hold((uint16_t) a);
+        return true;
+    }
+    if (sscanf(action.c_str(), "mouse_click:%i", &a) == 1 ||
+        sscanf(action.c_str(), "mouse_hold:%i", &a) == 1) {
+        send_mouse_click_start((uint8_t) a);
+        return true;
+    }
+    // Per-host override, so holding `record` on a Windows slot holds whatever
+    // that slot remapped it to. Depth 0 only, exactly as in execute_action():
+    // an override naming itself, or a pair naming each other, resolves to the
+    // built-in rather than recursing.
+    if (override_depth_ == 0) {
+        const std::string *ovr = find_override_(active_slot_, action);
+        if (ovr != nullptr) {
+            std::string body = *ovr;
+            override_depth_++;
+            bool held = hold_action(body);
+            override_depth_--;
+            return held;
+        }
+    }
+
+    if (action == "left_click")   { send_mouse_click_start(0x01); return true; }
+    if (action == "right_click")  { send_mouse_click_start(0x02); return true; }
+    if (action == "middle_click") { send_mouse_click_start(0x04); return true; }
+
+    for (const auto &e : NAMED_CONSUMERS) {
+        if (action == e.name) { consumer_hold(e.usage); return true; }
+    }
+    for (const auto &e : NAMED_COMBOS) {
+        if (action == e.name) { key_hold(e.modifier, e.keycode); return true; }
+    }
+    return false;
+}
 void EspidfBleKeyboard::send_volume_up()         { send_consumer(0x00E9); }
 void EspidfBleKeyboard::send_volume_down()       { send_consumer(0x00EA); }
 void EspidfBleKeyboard::send_mute()              { send_consumer(0x00E2); }
@@ -2337,6 +2590,10 @@ void EspidfBleKeyboard::send_mouse_click_start(uint8_t buttons) {
     }
     last_mouse_click_ = buttons;
     last_mouse_click_ms_ = now;
+    // Starts the max_key_hold_ms clock like key_hold does. Without it a drag —
+    // which has_held() counts — would be measured against a stale timestamp and
+    // released the moment the guard next ran.
+    if (!has_held()) hold_start_ms_ = now;
     held_mouse_buttons_ = buttons;
     send_mouse_report_(buttons, 0, 0, 0);
     ESP_LOGI(TAG, "Mouse click start sent: buttons=0x%02X", buttons);
@@ -2595,6 +2852,33 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
             send_mouse_click_start((uint8_t) buttons);
         return;
     }
+    // Press and hold — the key stays down on the host until `release`. This is
+    // what makes push-to-talk work; every other keyboard action here taps.
+    if (action.find("key_hold:") == 0) {
+        int mod = 0, key = 0;
+        if (sscanf(action.c_str(), "key_hold:%i:%i", &mod, &key) == 2)
+            key_hold((uint8_t) mod, (uint8_t) key);
+        return;
+    }
+    if (action.find("consumer_hold:") == 0) {
+        int usage = 0;
+        if (sscanf(action.c_str(), "consumer_hold:%i", &usage) == 1)
+            consumer_hold((uint16_t) usage);
+        return;
+    }
+    // Generic form: hold whatever the body resolves to, including named and
+    // per-host-overridden actions. A body that can't be held still does
+    // something — running it once beats a button that appears dead.
+    if (action.find("hold:") == 0) {
+        std::string body = action.substr(5);
+        while (!body.empty() && body.front() == ' ') body.erase(body.begin());
+        if (body.empty()) return;
+        if (!hold_action(body)) {
+            ESP_LOGW(TAG, "'%s' cannot be held — running it once instead", body.c_str());
+            execute_action(body);
+        }
+        return;
+    }
     if (action.find("mouse_move:") == 0) {
         int x = 0, y = 0;
         if (sscanf(action.c_str(), "mouse_move:%i:%i", &x, &y) == 2)
@@ -2715,6 +2999,10 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
     else if (action == "right_click_hold")  send_mouse_click_start(0x02);
     else if (action == "middle_click_hold") send_mouse_click_start(0x04);
     else if (action == "mouse_release")     send_mouse_click_release();
+    // Ends any hold — keys, consumer usage and mouse buttons. `key_release` is
+    // the name the YAML automation action uses, kept as an alias so both read
+    // naturally next to `key_hold:`.
+    else if (action == "release" || action == "key_release") release_held();
     else if (action == "mouse_abs_save") {
         saved_abs_x_ = cur_abs_x_; saved_abs_y_ = cur_abs_y_; has_saved_abs_ = true;
     }

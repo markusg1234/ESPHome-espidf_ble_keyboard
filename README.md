@@ -10,6 +10,7 @@ This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low
 * **Key Combos:** Send any modifier + key combination using hex keycodes (e.g. Win+R, Ctrl+C).
 * **String Typing:** Type any string directly. The active **keyboard layout** (`us`, `uk`, `de`, `be`) controls how each character is mapped to HID keycodes. UK adds `£`, `¬`, `€`; DE adds `ä`, `ö`, `ü`, `ß`, `€`, `§`, `°`; BE adds `é`, `è`, `à`, `ç`, `ù`, `€`, `£`, `²`, `§`, `µ` plus dead-key sequences (`â ê î ô û ä ë ï ö ü` + uppercase) via UTF-8.
 * **Keyboard Layouts:** Choose `us` (default), `uk`, `de`, or `be` in YAML, or switch live from the web UI (persisted to NVS). Layout is fully extensible — see [Keyboard layouts](#keyboard-layouts).
+* **Push-to-talk:** Hold a key down on the host for as long as a physical button is held, instead of sending a tap — per key, and per button per host on the web remote. See [Push-to-talk](#push-to-talk).
 * **Pre-defined Actions:** Built-in helpers for `ctrl_alt_del`, `sleep`, `hibernate` and `shutdown`.
 * **Media Keys:** Control volume, playback, mute and more via HID consumer control.
 * **Power Button:** Native HID power/sleep signals — no Run dialog, clean OS-level control.
@@ -44,7 +45,7 @@ esphome:
   friendly_name: ${friendly_name}
 
 esp32:
-  board: esp32dev   # Tested with esp32dev and esp32-c6-devkitm-1
+  board: esp32dev   # Tested with esp32dev, esp32-c6-devkitm-1 and ESP32-C3
   framework:
     type: esp-idf
     sdkconfig_options:
@@ -292,6 +293,7 @@ binary_sensor:
 * **id** (Required, ID): The ID used to link buttons or automations to this keyboard.
 * **device_name** (Optional, string): The BLE device name advertised during pairing. Defaults to `ESP32 BLE KB`. Maximum 29 characters.
 * **key_delay_ms** (Optional, int): Total delay per character when typing strings, in milliseconds. Split evenly between key-down and key-up. Defaults to `80`. Increase if characters are being dropped on slow BLE connections.
+* **max_key_hold_ms** (Optional, int): Safety net for a held key whose release never arrives — a browser tab closed mid-press, or an `on_release` that didn't fire. After this many milliseconds the device releases everything it is holding, including a held mouse button. Defaults to `0` (never auto-release); otherwise 100–600000. See [Push-to-talk](#push-to-talk).
 * **passkey** (Optional, int): A 6-digit static PIN (000000–999999). If set, the device uses static passkey pairing (legacy MITM bond) and requires this PIN during initial pairing.
 * **passkey_mode** (Optional, string): Passkey security mode. `legacy` (default) uses legacy MITM bonding — tested and recommended for Windows. `secure_connections` uses LE Secure Connections MITM bonding — required for iOS passkey pairing (legacy mode does not work on iOS). Android does not support passkey pairing with BLE HID keyboards.
 * **web_control** (Optional, bool): Enable a built-in web control page with keyboard and mouse UI at `http://<device-ip>/ble_keyboard`. Requires the `web_server` component. Defaults to `false`.
@@ -493,6 +495,10 @@ espidf_ble_keyboard:
 | `"middle_click_hold"` | Press and hold the middle button. |
 | `"mouse_hold:0x01"` | Press and hold with a button mask (same masks as `mouse_click`). |
 | `"mouse_release"` | Release all held mouse buttons. A normal click also releases them. |
+| `"key_hold:0x00:0x3A"` | Press **and hold** a key until `release` — the host sees it held down, not tapped. Format matches `combo:`. A keycode of `0x00` holds the modifier alone (e.g. `key_hold:0x01:0x00` holds Ctrl). See [Push-to-talk](#push-to-talk). |
+| `"consumer_hold:0x00E9"` | Hold a consumer usage. Only one can be held at a time — the report has a single usage field. |
+| `"hold:<action>"` | Hold whatever `<action>` is: `combo:`, `consumer:`, a mouse click, or a named action including one remapped by [`actions:`](#host-actions-per-host-overrides). Anything that can't be held (text, macros, `switch_host:`) runs once instead. |
+| `"release"` | Release everything held — keys, consumer usage and mouse buttons. `key_release` is an alias. |
 | `"mouse_move:<x>:<y>"` | Move mouse cursor. Values -127 to 127 (relative, pixels). |
 | `"mouse_scroll:<wheel>"` | Scroll mouse wheel. Positive = up, negative = down (-127 to 127). |
 | `"mouse_abs:<x%>:<y%>"` | Move cursor to an **exact** position, percent of screen (0–100, decimals allowed). E.g. `mouse_abs:50:50` = center. See [Absolute mouse positioning](#absolute-mouse-positioning). |
@@ -859,7 +865,7 @@ A dangling reference is flagged: any override row pointing at a macro that no lo
 
 > **Unreleased — `main` only.** In **v1.6.0 and earlier** this button is in the host bar at the top of the page, not in this card, and it always forgets the *active* host.
 
-The same card also hosts the [Backup & Restore](#backup-and-restore) buttons, the [Remote buttons](#removing-remote-buttons-per-host) hiding panel and the [Hold to repeat](#hold-to-repeat-per-host) panel.
+The same card also hosts the [Backup & Restore](#backup-and-restore) buttons, the [Remote buttons](#removing-remote-buttons-per-host) hiding panel, the [Hold to repeat](#hold-to-repeat-per-host) panel and the [Hold to send](#hold-to-send-per-host) panel.
 
 ### Removing Remote Buttons Per Host
 
@@ -903,6 +909,14 @@ Values outside those ranges are clamped rather than rejected. The 50 ms floor is
 Each repeat is a normal press, so per-host overrides apply to it. One consequence worth knowing: if a button is overridden to something that already loops, such as `repeat:3:volume_up`, holding it multiplies the two.
 
 Settings are stored per host on the device (max 40 buttons per slot), not in the browser, so they follow the host rather than the phone that set them, and they are included in [Backup and restore](#backup-and-restore). This panel drives the **web remote only** — the Home Assistant card has its own fixed hold-to-repeat on volume and channel.
+
+A button set to **Hold to send** below cannot also repeat: holding and repeating are the same gesture, so each panel greys out what the other has taken.
+
+### Hold to Send Per Host
+
+Open **Hold to send** in the Host Actions card and tick the buttons that should stay **held down** on the host for as long as you hold them on the web remote, instead of sending a tap — what push-to-talk needs. Stored per host slot (max 40 buttons), so the PC running the voice app can hold while a TV slot keeps tapping, and included in [Backup and restore](#backup-and-restore).
+
+Nothing holds by default. See [Push-to-talk](#push-to-talk) for the physical-button equivalent, the action strings, and `max_key_hold_ms`.
 
 ### Action Reference
 
@@ -1423,6 +1437,7 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 - **Scroll controls** — buttons + mouse wheel on the touchpad
 - **Remote control** — D-pad navigation (Up/Down/Left/Right/Enter), Power, Home, Back, Search, Volume +/-, Mute, media transport including Record, red/green/yellow/blue colour keys (F1–F4), and app launchers (Explorer, Browser, Email, Calc, Search). Every button is a named action, so any of them can be remapped per host — see [Per-host action overrides](#host-actions-per-host-overrides)
 - **Hold to repeat** — the D-pad, volume, channel and scan buttons fire repeatedly while held; which buttons repeat and how fast is set per host — see [Hold to repeat per host](#hold-to-repeat-per-host)
+- **Hold to send** — pick buttons that stay held down on the host while you hold them, per host, for push-to-talk — see [Hold to send per host](#hold-to-send-per-host)
 - **Host Actions** — remap a named action per host slot (e.g. Record → Game Bar on a PC, HID Record on a TV), saved on the device — see [Per-host action overrides](#host-actions-per-host-overrides)
 - **Backup & Restore** — download every runtime setting as a JSON file and re-apply it later or on another board — see [Backup and restore](#backup-and-restore)
 - **Remove buttons per host** — untick the remote buttons a host doesn't need; they disappear for that host only — see [Removing remote buttons per host](#removing-remote-buttons-per-host)
@@ -1447,6 +1462,7 @@ Macros, host actions and `mouse_goto` calibration only exist in the device's NVS
 - Per-host `mouse_goto` calibration
 - Per-host hidden remote buttons
 - Per-host hold-to-repeat settings (a host left on the defaults is simply absent, and restores as "reset to defaults")
+- Per-host hold-to-send buttons
 - Occupied host slots — address, address type, and whether the device still holds a Bluetooth bond for it
 - This browser's interface preferences: theme, zoom, and which sections are shown and in what order
 
@@ -1492,6 +1508,10 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/hidden_set` | POST | `slot`, `names` (comma-separated) | Replace a host's hidden-button set; empty `names` clears it (max 40) |
 | `/api/ble_keyboard/repeat` | GET | `slot` (int, default active) | That host's hold-to-repeat config: `{"slot":N,"set":bool,"delay":400,"rate":180,"buttons":["volume_up"]}`. `set:false` means the host is on the page defaults |
 | `/api/ble_keyboard/repeat_set` | POST | `slot`, `delay`, `rate`, `names` (comma-separated), or `reset=1` | Replace a host's repeat config; empty `names` means nothing repeats, `reset=1` returns it to the defaults. Timings are clamped (delay 100–2000, rate 50–2000) |
+| `/api/ble_keyboard/hold` | GET | `slot` (int, default active) | That host's hold-to-send set, plus its repeat set so a UI can grey out conflicts: `{"slot":N,"buttons":["ok"],"repeat":["volume_up"]}` |
+| `/api/ble_keyboard/hold_set` | POST | `slot`, `names` (comma-separated) | Replace a host's hold-to-send set; empty `names` clears it (max 40). Rejected with `400` if a name is already in that host's repeat set |
+| `/api/ble_keyboard/hold_action` | POST | `action` (string) | Press and hold an action now — `400` if it isn't something that can be held |
+| `/api/ble_keyboard/release` | POST | — | Release everything held: keys, consumer usage and mouse buttons |
 | `/api/ble_keyboard/backup` | GET | — | All runtime settings as JSON: macros, saved overrides, layout, per-host calibration, and occupied host slots (with a `bonded` flag) |
 | `/api/ble_keyboard/goto_scale_slot` | POST | `slot`, `x`, `y` | Write `mouse_goto` calibration for any slot (`goto_scale` only writes the active one) |
 | `/api/ble_keyboard/set_host_slot` | POST | `slot`, `addr`, `type` | Restore a host slot's address. Returns `OK-NOBOND` if the BLE bond is missing, meaning that host must be re-paired |
@@ -1859,6 +1879,61 @@ data:
 | POST | `/api/ble_keyboard/macro_add` | `name`, `action` | Add a new macro (max 16). |
 | POST | `/api/ble_keyboard/macro_update` | `index`, `name`, `action` | Update an existing macro. |
 | POST | `/api/ble_keyboard/macro_delete` | `index` | Delete a macro by index. |
+
+---
+
+## Push-to-talk
+
+Normally every key this component sends is a **tap**: key down, brief pause, key up. That is wrong for push-to-talk — Discord, Teams, TeamSpeak and games need the key held down for exactly as long as you hold the physical button. `key_hold` sends the key down and leaves it there until `key_release`.
+
+Other keys keep working while a key is held: the held key rides along in every keyboard report, so you can type or press other macropad keys mid-transmission without dropping it.
+
+### From a physical button
+
+An ESPHome `button` entity has a press and no release, so a push-to-talk key is wired from a `binary_sensor` instead — the same GPIO or matrix key you already use, with the hold on `on_press` and the release on `on_release`:
+
+```yaml
+binary_sensor:
+  - platform: gpio
+    pin: GPIO4
+    name: "Push to talk"
+    on_press:
+      - espidf_ble_keyboard.key_hold:
+          id: my_keyboard
+          modifier: 0x00
+          key: 0x3A        # F1 — see docs/keycodes.md
+    on_release:
+      - espidf_ble_keyboard.key_release:
+          id: my_keyboard
+
+  # every other key on the macropad is unchanged
+  - platform: gpio
+    pin: GPIO5
+    on_press:
+      - button.press: mute_key
+```
+
+Three automation actions are available:
+
+| Action | Parameters | Description |
+|---|---|---|
+| `espidf_ble_keyboard.key_hold` | `id`, `modifier`, `key` | Hold a key and/or modifier. Both templatable. |
+| `espidf_ble_keyboard.hold_action` | `id`, `action` | Hold anything holdable by name — `consumer:0x00E9`, `volume_up`, `left_click`, or a per-host remapped action. Templatable. |
+| `espidf_ble_keyboard.key_release` | `id` | Release everything held. |
+
+The same thing works from a lambda or any action string source (`run_action`, macros, the REST API): `id(my_keyboard).execute_action("key_hold:0x00:0x3A")` and `"release"`.
+
+### From the web remote
+
+Open **Host Actions → Hold to send** and tick the remote buttons that should stay down while held on that host, rather than sending a tap. It is stored per host slot, so a PC used for voice chat can hold while a TV slot does not.
+
+A button set to **Hold to repeat** cannot also be set to hold, and vice versa — both claim the same gesture, so each panel greys out the buttons the other has taken.
+
+### Keeping keys from sticking
+
+A held key stays down until something releases it. It is released automatically when the host disconnects and when you switch host slots, and the web remote releases on pointer-up, pointer-cancel and when its tab is hidden. For the cases nothing catches — a browser killed mid-press, an `on_release` that never fires — set `max_key_hold_ms` on the component and the device releases on its own after that long. It is off by default, because a push-to-talk key has no natural maximum. Note that it also caps a mouse button held for dragging, since `release` covers those too.
+
+> **Note:** only one **consumer** usage can be held at a time (`consumer_hold`, or holding a named media/remote action) — that HID report carries a single usage. Keyboard keys have no such limit; up to six can be held at once. Sending a different consumer action while one is held interrupts it briefly, then puts it back.
 
 ---
 
