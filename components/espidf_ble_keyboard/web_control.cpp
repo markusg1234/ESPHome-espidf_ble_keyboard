@@ -173,7 +173,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-btn svg{width:20px;height:20px;fill:currentColor;pointer-events:none}
 .rmt-btn.power{background:#c62828;color:#fff;border-color:#c62828}
 .rmt-btn.power:active,.rmt-btn.power.p{background:#e53935}
-/* Currently held down on the host (hold to send). Icons use currentColor. */
+/* Currently held down on the host (press and hold). Icons use currentColor. */
 .rmt-btn.held{background:var(--accent);color:#fff;border-color:var(--accent)}
 .rmt-dpad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:4px;justify-content:center;margin:8px 0}
 .rmt-dpad .rmt-btn{border-radius:12px}
@@ -538,7 +538,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </div>
 </div>
 <div class="hid-panel" id="hld-panel">
-<button class="hid-toggle" id="hld-toggle">Hold to send &#9662;</button>
+<button class="hid-toggle" id="hld-toggle">Press and hold &#9662;</button>
 <div class="hid-body" id="hld-body">
 <div style="font-size:12px;color:var(--muted);margin:6px 0">Tick a button to keep it <strong>held down</strong> on this host for as long as you hold it here, instead of sending a quick tap &mdash; what push-to-talk needs. Saved per host. A button already set to repeat is greyed out: repeating and holding are the same gesture, so a button can only do one of them.</div>
 <div id="hld-list"></div>
@@ -1123,7 +1123,7 @@ function appendStep(el,val){
         rptDelayIn.value=d.delay;rptRateIn.value=d.rate;
         const on=d.buttons||[],held=h.buttons||[];
         buildCheckGrid(rptList,b=>d.set?on.indexOf(b.action)>=0:b.rpt,
-                       b=>held.indexOf(b.action)>=0?'Set to hold on this host — untick it under "Hold to send" first':'');
+                       b=>held.indexOf(b.action)>=0?'Set to hold on this host — untick it under "Press and hold" first':'');
       })
       .catch(()=>{rptList.innerHTML='<span class="prog-empty">Error loading</span>'});
   }
@@ -1165,7 +1165,7 @@ function appendStep(el,val){
       });
   });
 
-  // ── Hold to send (per host) ──
+  // ── Press and hold (per host) ──
   // The only one of the three panels that changes what a press *does* on the
   // wire: a ticked button is held down for as long as it is held here, instead
   // of tapped. There is no "All" — holding everything is never what you want,
@@ -1187,7 +1187,7 @@ function appendStep(el,val){
 
   if(hldToggle)hldToggle.addEventListener('click',()=>{
     hldPanel.classList.toggle('open');
-    hldToggle.innerHTML='Hold to send '+(hldPanel.classList.contains('open')?'▴':'▾');
+    hldToggle.innerHTML='Press and hold '+(hldPanel.classList.contains('open')?'▴':'▾');
     if(hldPanel.classList.contains('open'))loadHold();
   });
   const hldNone=document.getElementById('hld-none');
@@ -1366,7 +1366,7 @@ function appendStep(el,val){
       }
       return chain;
     }).then(()=>{
-      status('Restoring: hold to send...');
+      status('Restoring: press and hold...');
       const hld=d.hold&&typeof d.hold==='object'?d.hold:{};
       let chain=Promise.resolve();
       for(let s=0;s<slotSel.options.length;s++){
@@ -1846,7 +1846,7 @@ buildKeyboard();
   };
   window.applyRepeat(true);
 
-  // ── Per-host hold to send ──
+  // ── Per-host press and hold ──
   // Which buttons stay down while held, for this host. Unlike the repeat set
   // this one has no markup fallback: an unconfigured host holds nothing.
   let lastHldKey=null;
@@ -2866,7 +2866,7 @@ class BleKbWebHandler : public AsyncWebHandler {
       }
 
     } else if (path == "hold_set") {
-      // Replaces the whole hold-to-send set for one slot. Empty clears it.
+      // Replaces the whole press-and-hold set for one slot. Empty clears it.
       int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : -1;
       std::string names = request->hasArg("names") ? request->arg("names").c_str() : "";
       std::vector<std::string> list;

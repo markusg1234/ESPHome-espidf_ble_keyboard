@@ -1346,7 +1346,7 @@ void EspidfBleKeyboard::save_hidden_(uint8_t slot) {
     nvs_close(handle);
 }
 
-// ── Per-host hold-to-send (NVS-persisted) ─────────────────────────
+// ── Per-host press-and-hold (NVS-persisted) ───────────────────────
 //
 // Same shape as the hidden list above (one comma-separated NVS entry per slot,
 // key "hld<slot>"), but this one changes what a press *does*: a button named
@@ -1409,7 +1409,7 @@ void EspidfBleKeyboard::load_hold_() {
             if (valid_override_name(name)) hold_[slot].push_back(name);
         }
         if (!hold_[slot].empty())
-            ESP_LOGI(TAG, "Loaded %u hold-to-send button(s) for host %u",
+            ESP_LOGI(TAG, "Loaded %u press-and-hold button(s) for host %u",
                      (unsigned) hold_[slot].size(), (unsigned) slot);
     }
     nvs_close(handle);

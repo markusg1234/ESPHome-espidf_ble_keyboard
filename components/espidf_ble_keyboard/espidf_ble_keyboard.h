@@ -280,7 +280,7 @@ class EspidfBleKeyboard : public Component
                   const std::vector<std::string> &names);  // replaces the set
   void clear_repeat(uint8_t slot);  // back to the page defaults
 
-  // Per-host hold-to-send (push-to-talk) for the web remote. Unlike the repeat
+  // Per-host press-and-hold (push-to-talk) for the web remote. Unlike the repeat
   // list above this one does reach the device: the browser sends a hold on
   // pointerdown and a release on pointerup, so the key stays down on the host
   // for exactly as long as the button is held.
@@ -584,7 +584,7 @@ class EspidfBleKeyboard : public Component
   void load_repeat_();
   void save_repeat_(uint8_t slot);
 
-  // Per-host hold-to-send (NVS key "hld<slot>", comma-separated names).
+  // Per-host press-and-hold (NVS key "hld<slot>", comma-separated names).
   std::vector<std::string> hold_[MAX_HOST_SLOTS];
   void load_hold_();
   void save_hold_(uint8_t slot);

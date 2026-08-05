@@ -865,7 +865,7 @@ A dangling reference is flagged: any override row pointing at a macro that no lo
 
 > **Unreleased — `main` only.** In **v1.6.0 and earlier** this button is in the host bar at the top of the page, not in this card, and it always forgets the *active* host.
 
-The same card also hosts the [Backup & Restore](#backup-and-restore) buttons, the [Remote buttons](#removing-remote-buttons-per-host) hiding panel, the [Hold to repeat](#hold-to-repeat-per-host) panel and the [Hold to send](#hold-to-send-per-host) panel.
+The same card also hosts the [Backup & Restore](#backup-and-restore) buttons, the [Remote buttons](#removing-remote-buttons-per-host) hiding panel, the [Hold to repeat](#hold-to-repeat-per-host) panel and the [Press and hold](#press-and-hold-per-host) panel.
 
 ### Removing Remote Buttons Per Host
 
@@ -910,11 +910,11 @@ Each repeat is a normal press, so per-host overrides apply to it. One consequenc
 
 Settings are stored per host on the device (max 40 buttons per slot), not in the browser, so they follow the host rather than the phone that set them, and they are included in [Backup and restore](#backup-and-restore). This panel drives the **web remote only** — the Home Assistant card has its own fixed hold-to-repeat on volume and channel.
 
-A button set to **Hold to send** below cannot also repeat: holding and repeating are the same gesture, so each panel greys out what the other has taken.
+A button set to **Press and hold** below cannot also repeat: holding and repeating are the same gesture, so each panel greys out what the other has taken.
 
-### Hold to Send Per Host
+### Press and Hold Per Host
 
-Open **Hold to send** in the Host Actions card and tick the buttons that should stay **held down** on the host for as long as you hold them on the web remote, instead of sending a tap — what push-to-talk needs. Stored per host slot (max 40 buttons), so the PC running the voice app can hold while a TV slot keeps tapping, and included in [Backup and restore](#backup-and-restore).
+Open **Press and hold** in the Host Actions card and tick the buttons that should stay **held down** on the host for as long as you hold them on the web remote, instead of sending a tap — what push-to-talk needs. Stored per host slot (max 40 buttons), so the PC running the voice app can hold while a TV slot keeps tapping, and included in [Backup and restore](#backup-and-restore).
 
 Nothing holds by default. See [Push-to-talk](#push-to-talk) for the physical-button equivalent, the action strings, and `max_key_hold_ms`.
 
@@ -1437,7 +1437,7 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 - **Scroll controls** — buttons + mouse wheel on the touchpad
 - **Remote control** — D-pad navigation (Up/Down/Left/Right/Enter), Power, Home, Back, Search, Volume +/-, Mute, media transport including Record, red/green/yellow/blue colour keys (F1–F4), and app launchers (Explorer, Browser, Email, Calc, Search). Every button is a named action, so any of them can be remapped per host — see [Per-host action overrides](#host-actions-per-host-overrides)
 - **Hold to repeat** — the D-pad, volume, channel and scan buttons fire repeatedly while held; which buttons repeat and how fast is set per host — see [Hold to repeat per host](#hold-to-repeat-per-host)
-- **Hold to send** — pick buttons that stay held down on the host while you hold them, per host, for push-to-talk — see [Hold to send per host](#hold-to-send-per-host)
+- **Press and hold** — pick buttons that stay held down on the host while you hold them, per host, for push-to-talk — see [Press and hold per host](#press-and-hold-per-host)
 - **Host Actions** — remap a named action per host slot (e.g. Record → Game Bar on a PC, HID Record on a TV), saved on the device — see [Per-host action overrides](#host-actions-per-host-overrides)
 - **Backup & Restore** — download every runtime setting as a JSON file and re-apply it later or on another board — see [Backup and restore](#backup-and-restore)
 - **Remove buttons per host** — untick the remote buttons a host doesn't need; they disappear for that host only — see [Removing remote buttons per host](#removing-remote-buttons-per-host)
@@ -1462,7 +1462,7 @@ Macros, host actions and `mouse_goto` calibration only exist in the device's NVS
 - Per-host `mouse_goto` calibration
 - Per-host hidden remote buttons
 - Per-host hold-to-repeat settings (a host left on the defaults is simply absent, and restores as "reset to defaults")
-- Per-host hold-to-send buttons
+- Per-host press-and-hold buttons
 - Occupied host slots — address, address type, and whether the device still holds a Bluetooth bond for it
 - This browser's interface preferences: theme, zoom, and which sections are shown and in what order
 
@@ -1508,8 +1508,8 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/hidden_set` | POST | `slot`, `names` (comma-separated) | Replace a host's hidden-button set; empty `names` clears it (max 40) |
 | `/api/ble_keyboard/repeat` | GET | `slot` (int, default active) | That host's hold-to-repeat config: `{"slot":N,"set":bool,"delay":400,"rate":180,"buttons":["volume_up"]}`. `set:false` means the host is on the page defaults |
 | `/api/ble_keyboard/repeat_set` | POST | `slot`, `delay`, `rate`, `names` (comma-separated), or `reset=1` | Replace a host's repeat config; empty `names` means nothing repeats, `reset=1` returns it to the defaults. Timings are clamped (delay 100–2000, rate 50–2000) |
-| `/api/ble_keyboard/hold` | GET | `slot` (int, default active) | That host's hold-to-send set, plus its repeat set so a UI can grey out conflicts: `{"slot":N,"buttons":["ok"],"repeat":["volume_up"]}` |
-| `/api/ble_keyboard/hold_set` | POST | `slot`, `names` (comma-separated) | Replace a host's hold-to-send set; empty `names` clears it (max 40). Rejected with `400` if a name is already in that host's repeat set |
+| `/api/ble_keyboard/hold` | GET | `slot` (int, default active) | That host's press-and-hold set, plus its repeat set so a UI can grey out conflicts: `{"slot":N,"buttons":["ok"],"repeat":["volume_up"]}` |
+| `/api/ble_keyboard/hold_set` | POST | `slot`, `names` (comma-separated) | Replace a host's press-and-hold set; empty `names` clears it (max 40). Rejected with `400` if a name is already in that host's repeat set |
 | `/api/ble_keyboard/hold_action` | POST | `action` (string) | Press and hold an action now — `400` if it isn't something that can be held |
 | `/api/ble_keyboard/release` | POST | — | Release everything held: keys, consumer usage and mouse buttons |
 | `/api/ble_keyboard/backup` | GET | — | All runtime settings as JSON: macros, saved overrides, layout, per-host calibration, and occupied host slots (with a `bonded` flag) |
@@ -1925,7 +1925,7 @@ The same thing works from a lambda or any action string source (`run_action`, ma
 
 ### From the web remote
 
-Open **Host Actions → Hold to send** and tick the remote buttons that should stay down while held on that host, rather than sending a tap. It is stored per host slot, so a PC used for voice chat can hold while a TV slot does not.
+Open **Host Actions → Press and hold** and tick the remote buttons that should stay down while held on that host, rather than sending a tap. It is stored per host slot, so a PC used for voice chat can hold while a TV slot does not.
 
 A button set to **Hold to repeat** cannot also be set to hold, and vice versa — both claim the same gesture, so each panel greys out the buttons the other has taken.
 

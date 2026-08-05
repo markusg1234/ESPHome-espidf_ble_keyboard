@@ -10,7 +10,7 @@ web control page shows the matching version badge.
 - **Push-to-talk: a key can now be held down on the host for as long as a button is held.**
   Previously every keypress reached the host as a short tap however long the button was
   held. Pick it per physical key with the new hold and release automation actions, or per
-  remote button per host in the web UI's new Hold to send panel. Other keys keep working
+  remote button per host in the web UI's new Press and hold panel. Other keys keep working
   while one is held, and `max_key_hold_ms` optionally releases a key whose release never
   arrived.
 - **A text sensor for the connected host's Bluetooth address**, so an automation can act on
