@@ -518,7 +518,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <button id="ov-save">Save</button>
 </div>
 <div class="hid-panel" id="hid-panel">
-<button class="hid-toggle" id="hid-toggle">Remote buttons &#9662;</button>
+<button class="hid-toggle" id="hid-toggle">Remote Buttons &#9662;</button>
 <div class="hid-body" id="hid-body">
 <div style="font-size:12px;color:var(--muted);margin:6px 0">Untick a button to remove it from the remote on this host. The action still works from macros, buttons and Home Assistant &mdash; only the button goes away.</div>
 <div id="hid-list"></div>
@@ -526,7 +526,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </div>
 </div>
 <div class="hid-panel" id="rpt-panel">
-<button class="hid-toggle" id="rpt-toggle">Hold to repeat &#9662;</button>
+<button class="hid-toggle" id="rpt-toggle">Hold to Repeat &#9662;</button>
 <div class="hid-body" id="rpt-body">
 <div style="font-size:12px;color:var(--muted);margin:6px 0">Tick a button to make it fire again and again while you hold it on this host &mdash; handy for volume and menu scrolling. A quick tap still sends exactly one press. Saved per host; <strong>Reset</strong> returns to the defaults (D-pad, volume, channel, rewind and fast forward).</div>
 <div class="rpt-times">
@@ -538,7 +538,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </div>
 </div>
 <div class="hid-panel" id="hld-panel">
-<button class="hid-toggle" id="hld-toggle">Press and hold &#9662;</button>
+<button class="hid-toggle" id="hld-toggle">Press and Hold &#9662;</button>
 <div class="hid-body" id="hld-body">
 <div style="font-size:12px;color:var(--muted);margin:6px 0">Tick a button to keep it <strong>held down</strong> on this host for as long as you hold it here, instead of sending a quick tap &mdash; what push-to-talk needs. Saved per host. A button already set to repeat is greyed out: repeating and holding are the same gesture, so a button can only do one of them.</div>
 <div id="hld-list"></div>
@@ -1085,7 +1085,7 @@ function appendStep(el,val){
 
   if(hidToggle)hidToggle.addEventListener('click',()=>{
     hidPanel.classList.toggle('open');
-    hidToggle.innerHTML='Remote buttons '+(hidPanel.classList.contains('open')?'▴':'▾');
+    hidToggle.innerHTML='Remote Buttons '+(hidPanel.classList.contains('open')?'▴':'▾');
     if(hidPanel.classList.contains('open'))loadHidden();
   });
   const hidAll=document.getElementById('hid-all');
@@ -1123,14 +1123,14 @@ function appendStep(el,val){
         rptDelayIn.value=d.delay;rptRateIn.value=d.rate;
         const on=d.buttons||[],held=h.buttons||[];
         buildCheckGrid(rptList,b=>d.set?on.indexOf(b.action)>=0:b.rpt,
-                       b=>held.indexOf(b.action)>=0?'Set to hold on this host — untick it under "Press and hold" first':'');
+                       b=>held.indexOf(b.action)>=0?'Set to hold on this host — untick it under "Press and Hold" first':'');
       })
       .catch(()=>{rptList.innerHTML='<span class="prog-empty">Error loading</span>'});
   }
 
   if(rptToggle)rptToggle.addEventListener('click',()=>{
     rptPanel.classList.toggle('open');
-    rptToggle.innerHTML='Hold to repeat '+(rptPanel.classList.contains('open')?'▴':'▾');
+    rptToggle.innerHTML='Hold to Repeat '+(rptPanel.classList.contains('open')?'▴':'▾');
     if(rptPanel.classList.contains('open'))loadRepeat();
   });
   const rptAll=document.getElementById('rpt-all');
@@ -1180,14 +1180,14 @@ function appendStep(el,val){
       .then(r=>r.json()).then(d=>{
         const on=d.buttons||[],rpt=d.repeat||[];
         buildCheckGrid(hldList,b=>on.indexOf(b.action)>=0,
-                       b=>rpt.indexOf(b.action)>=0?'Set to repeat on this host — untick it under "Hold to repeat" first':'');
+                       b=>rpt.indexOf(b.action)>=0?'Set to repeat on this host — untick it under "Hold to Repeat" first':'');
       })
       .catch(()=>{hldList.innerHTML='<span class="prog-empty">Error loading</span>'});
   }
 
   if(hldToggle)hldToggle.addEventListener('click',()=>{
     hldPanel.classList.toggle('open');
-    hldToggle.innerHTML='Press and hold '+(hldPanel.classList.contains('open')?'▴':'▾');
+    hldToggle.innerHTML='Press and Hold '+(hldPanel.classList.contains('open')?'▴':'▾');
     if(hldPanel.classList.contains('open'))loadHold();
   });
   const hldNone=document.getElementById('hld-none');

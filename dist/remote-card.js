@@ -118,7 +118,17 @@ class BleRemoteCard extends HTMLElement {
     this._repeatSet = null;
     this._repeatDelay = 400;
     this._repeatRate = 180;
-    this._heldEl = null;
+    // Clearing these matters as much as the state above: they are the "sensor
+    // hasn't changed" guards in _applyHoldAndRepeat/_applyHidden, so leaving
+    // them set means the next hass update sees no change and never refills the
+    // lists just emptied. setConfig runs again on every keystroke in the visual
+    // editor's preview, which is where that would strand a card.
+    this._lastHold = undefined;
+    this._lastRepeat = undefined;
+    this._lastHidden = undefined;
+    // Released, not dropped — reconfiguring the card mid-press must not leave a
+    // key down on the host. No-ops when nothing is held.
+    this._endHold();
     // Read by the .zoom wrapper. Set on the host so it applies whether or not
     // the card has rendered yet — custom properties inherit into shadow DOM.
     this.style.setProperty('--remote-zoom', this._config.zoom);
