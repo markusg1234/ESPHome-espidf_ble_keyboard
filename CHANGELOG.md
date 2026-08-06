@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
+## v1.7.0 — 2026-08-06
 
 ### Added
 - **Press and hold: a key now stays down on the host for as long as the button is held.**

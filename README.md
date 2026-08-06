@@ -891,8 +891,6 @@ A dangling reference is flagged: any override row pointing at a macro that no lo
 
 **Forget Host** sits next to the slot picker and removes the BLE bond for whichever slot the picker shows — including one that isn't the active host. It takes two taps: the first turns it red and reads `Confirm?`, the second does it, and it disarms itself after three seconds or if you change slot.
 
-> **Unreleased — `main` only.** In **v1.6.0 and earlier** this button is in the host bar at the top of the page, not in this card, and it always forgets the *active* host.
-
 The same card also hosts the [Backup & Restore](#backup-and-restore) buttons, the [Remote Buttons](#removing-remote-buttons-per-host) hiding panel, the [Hold to Repeat](#hold-to-repeat-per-host) panel and the [Press and Hold](#press-and-hold-per-host) panel.
 
 ### Removing Remote Buttons Per Host
@@ -1089,8 +1087,6 @@ The three Lovelace cards (mouse, keyboard, media remote) can be installed and ke
 HACS registers the dashboard resource for you — there's no need to add anything under *Settings → Dashboards → Resources*. When a new version is released, HACS offers the update in the usual way.
 
 In a **sections** dashboard, all three cards support the resize handles and the card editor's **Layout** tab. Each keeps its natural height by default and offers a sensible width and height range; each keeps its proportions at whatever size you pick and scrolls if the card is smaller than the controls need — use the `zoom` option to change how big those controls are. HA's height slider stops at 8 rows, which is shorter than the media remote needs with every section on, so set `grid_options: {rows: N}` in the card's YAML if you want it taller than that. Masonry dashboards are unaffected.
-
-> **Unreleased — `main` only.** In **v1.6.0 and earlier** the cards don't declare grid sizes, so sections-view resizing warns and defaults poorly.
 
 > **HACS installs the cards only — not the firmware.** There is no HACS category for ESPHome external components, so the `espidf_ble_keyboard` component is still added to your device YAML with `external_components:` (see [Usage Example](#usage-example)) and updated by re-flashing the device. A HACS update for this repository updates the dashboard cards and nothing else.
 
