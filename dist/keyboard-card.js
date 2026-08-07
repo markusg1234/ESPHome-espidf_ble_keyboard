@@ -585,21 +585,13 @@ class BleKeyboardCard extends HTMLElement {
         align-items: center;
         gap: 8px;
         flex: 0 0 auto;
-        /* Lets the paste bar drop onto its own line when the host switcher
-           and MAC leave it no room at the card's capped width. */
-        flex-wrap: wrap;
       }
       .paste-bar {
         display: ${this._config.show_paste ? 'flex' : 'none'};
         align-items: center;
         gap: 4px;
-        flex: 1 1 140px;
-        /* The floor makes the bar wrap onto its own header line instead of
-           squeezing the field to nothing when the host switcher is shown.
-           A wrappable flex line contributes only its widest single item to
-           the min-content the .zoom block floors itself to, and the key rows
-           are far wider than this, so the floor cannot widen the card. */
-        min-width: 220px;
+        flex: 0 0 auto;
+        margin-bottom: 8px;
       }
       .paste-bar textarea {
         flex: 1;
@@ -844,9 +836,6 @@ class BleKeyboardCard extends HTMLElement {
       <svg viewBox="0 0 24 24"><path d="M19 10h-2V8h2v2zm0 4h-2v-2h2v2zm-4-4h-2V8h2v2zm0 4h-2v-2h2v2zm0 4H9v-2h6v2zm-8-8H5V8h2v2zm0 4H5v-2h2v2zM20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2z"/></svg>
       <span class="header-name">${this._config.name || defaultName}</span>
     `;
-    // Paste bar — sits between the name and the host switcher; hidden via CSS
-    // when show_paste is off (same pattern as the F-key row).
-    header.appendChild(this._buildPasteBar());
     // Host switcher in header
     if (this._config.host_slots > 1) {
       this._activeSlot = 0;
@@ -892,6 +881,10 @@ class BleKeyboardCard extends HTMLElement {
     }
 
     zoom.appendChild(header);
+
+    // Paste bar — its own line between the header and the keys; hidden via
+    // CSS when show_paste is off (same pattern as the F-key row).
+    zoom.appendChild(this._buildPasteBar());
     // One device-registry lookup serves two purposes: the friendly name (when no
     // title was configured) and the ESP's own URL, which HA fills in as
     // configuration_url because web_control requires the web_server component.

@@ -7,8 +7,8 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Added
-- **A paste bar on the web keyboard and the keyboard card**, in the header line next to the
-  layout selector. Paste or type any text and send it as one piece instead of tapping it out
+- **A paste bar on the web keyboard and the keyboard card** — in the web page's keyboard
+  header, and on its own line above the card's keys. Paste or type any text and send it as one piece instead of tapping it out
   key by key; multi-line text keeps its line breaks. An optional auto mode types text the
   moment it is pasted, and on HTTPS a clipboard button sends the clipboard in one tap. The
   card can hide the bar via a new editor toggle.
