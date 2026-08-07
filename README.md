@@ -1,6 +1,6 @@
 # ESP32 BLE HID Keyboard for ESPHome
 
-This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low Energy (BLE) HID Keyboard. This component currently targets **ESP-IDF Bluedroid GATTS** (rather than NimBLE), chosen for the HID behavior and host compatibility validated in this project.
+This is a custom [ESPHome](https://esphome.io) component that transforms an ESP32 into a Bluetooth Low Energy (BLE) HID Keyboard. This component currently targets **ESP-IDF Bluedroid GATTS** (rather than NimBLE), chosen for the HID behavior and host compatibility validated in this project.
 
 ## Features
 
@@ -29,7 +29,7 @@ This is a custom ESPHome component that transforms an ESP32 into a Bluetooth Low
 
 Add the following to your ESPHome YAML configuration:
 
-> **Versioning:** tagged releases are listed on the [Releases page](https://github.com/markusg1234/ESPHome-espidf_ble_keyboard/releases). `ref: main` always tracks the latest code (re-fetched per ESPHome's `refresh:` interval, default 1 day). Pin a tag like `ref: v1.0.0` to stay on a fixed release and upgrade only when you change the ref.
+> **Versioning:** tagged releases are listed on the [Releases page](https://github.com/markusg1234/ESPHome-espidf_ble_keyboard/releases). `ref: main` always tracks the latest code (re-fetched per ESPHome's [`external_components`](https://esphome.io/components/external_components.html) `refresh:` interval, default 1 day). Pin a tag like `ref: v1.0.0` to stay on a fixed release and upgrade only when you change the ref.
 
 ```yaml
 substitutions:
