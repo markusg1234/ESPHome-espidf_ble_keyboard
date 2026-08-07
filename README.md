@@ -1457,6 +1457,7 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 ### Features
 
 - **Full QWERTY keyboard** — letters, numbers, symbols, F-keys, modifiers, arrows
+- **Paste bar** — paste or type text in the keyboard header field and press Send to type the whole thing at once, line breaks included. Tick **auto** to type text the moment it is pasted. When the page is reached over HTTPS a clipboard button appears that reads and sends the clipboard in one tap (browsers don't allow clipboard reading over plain HTTP — pasting into the field works everywhere)
 - **Mouse touchpad** — 16:9 aspect ratio, drag to move cursor, tap for left click (5px dead zone prevents accidental clicks)
 - **Mouse acceleration** — slow movements are precise, fast swipes cover more ground (up to 4x)
 - **Mouse buttons** — Left, Middle, Right click; long-press a button to hold it for dragging (drag the touchpad or run `mouse_goto` while held), tap the held button to release
@@ -1602,6 +1603,7 @@ device: bluetooth_keyboard
 name: Living Room Keyboard    # card title (auto-detected from HA if omitted)
 zoom: 1                       # scale the whole card (default: 1)
 show_fkeys: true             # hide F1-F12 row (default: true)
+show_paste: true             # hide the paste bar in the header (default: true)
 layout: us                    # us (default), uk, de, or be — match the ESP's keyboard_layout
 host_slots: 4                 # show host switcher (default: 0 = hidden)
 host_names:                   # custom names for each slot (optional)
@@ -1628,6 +1630,7 @@ Optional configuration:
 | `name` | Auto from HA | Card title. Auto-detected from HA device registry if omitted. |
 | `zoom` | `1` | Scales the whole card — keys, labels and spacing together. `0.25`–`3`; values outside that are clamped. The card's height follows the zoom, and everything scales by the same factor in both directions so the keys keep their shape. |
 | `show_fkeys` | `true` | Show the F1–F12 function key row. |
+| `show_paste` | `true` | Show the paste bar in the card header. Paste or type text there and press Send to type the whole thing at once; the **auto** checkbox types pasted text immediately. On HTTPS a clipboard button sends the clipboard in one tap. |
 | `layout` | `us` | Keyboard layout for the on-screen card: `us`, `uk`, `de`, or `be`. UK draws the ISO shape (extra `\|` key, `£` on Shift+3); DE draws QWERTZ (Y/Z swapped, `ü`/`ö`/`ä`/`ß` keys, German modifier labels); BE draws AZERTY (A↔Q and Z↔W swapped, `M` on home row, `é è à ç ù` on the digit row). Set this to match the ESP's `keyboard_layout` option so the visual matches what gets typed. |
 | `host_slots` | `0` | Number of host slots. Set to match your `host_slots` config to show a [host switcher](#host-switcher-on-the-cards) in the header. Needs at least `2` — `0` or `1` hides it. |
 | `host_names` | `[]` | List of custom names for each host slot (e.g., `["TV", "Phone"]`). Index 0 = slot 0, etc. Falls back to switch_host button names from the ESP32, then "Host N". |
@@ -1640,6 +1643,7 @@ Features:
 - **Modifier keys** — Ctrl, Alt, Win, Shift are sticky (toggle on, auto-release after next key).
 - **Caps Lock** — persistent toggle with visual indicator.
 - **Function keys** — F1–F12 (can be hidden with `show_fkeys: false`).
+- **Paste bar** — paste or type text in the header field and send it as one piece, line breaks included (can be hidden with `show_paste: false`).
 - **Arrow keys** — Up, Down, Left, Right + Delete.
 - **Shift labels** — key labels update to show shifted characters when Shift is active.
 - **Host switcher** — prev/next buttons to switch hosts, shows current host name and MAC address (requires `host_slots` and the `switch_host` ESPHome service). Also available on the mouse and remote cards — see [Host switcher on the cards](#host-switcher-on-the-cards).

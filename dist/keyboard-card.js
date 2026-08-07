@@ -488,6 +488,7 @@ class BleKeyboardCard extends HTMLElement {
       device: config.device,
       name: config.name || null,
       show_fkeys: config.show_fkeys !== false,
+      show_paste: config.show_paste !== false,
       layout: LAYOUTS[layout] ? layout : 'us',
       host_slots: config.host_slots || 0,
       host_names: config.host_names || [],
@@ -584,6 +585,82 @@ class BleKeyboardCard extends HTMLElement {
         align-items: center;
         gap: 8px;
         flex: 0 0 auto;
+        /* Lets the paste bar drop onto its own line when the host switcher
+           and MAC leave it no room at the card's capped width. */
+        flex-wrap: wrap;
+      }
+      .paste-bar {
+        display: ${this._config.show_paste ? 'flex' : 'none'};
+        align-items: center;
+        gap: 4px;
+        flex: 1 1 140px;
+        /* The floor makes the bar wrap onto its own header line instead of
+           squeezing the field to nothing when the host switcher is shown.
+           A wrappable flex line contributes only its widest single item to
+           the min-content the .zoom block floors itself to, and the key rows
+           are far wider than this, so the floor cannot widen the card. */
+        min-width: 220px;
+      }
+      .paste-bar textarea {
+        flex: 1;
+        min-width: 0;
+        resize: none;
+        height: 26px;
+        box-sizing: border-box;
+        padding: 4px 8px;
+        border: 1px solid var(--divider-color, #e0e0e0);
+        border-radius: 6px;
+        background: var(--secondary-background-color, #f0f0f0);
+        color: var(--primary-text-color);
+        font-size: 12px;
+        font-family: inherit;
+        font-weight: 400;
+        line-height: 1.4;
+        white-space: pre;
+        overflow-x: auto;
+        overflow-y: hidden;
+      }
+      .paste-bar textarea:focus {
+        outline: none;
+        border-color: var(--primary-color, #03a9f4);
+      }
+      .paste-auto {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--secondary-text-color, #727272);
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+      }
+      .paste-auto input {
+        margin: 0;
+        accent-color: var(--primary-color, #03a9f4);
+        cursor: pointer;
+      }
+      .paste-btn {
+        height: 26px;
+        padding: 0 10px;
+        border: 1px solid var(--divider-color, #e0e0e0);
+        border-radius: 6px;
+        background: var(--secondary-background-color, #f0f0f0);
+        color: var(--primary-text-color);
+        font-size: 12px;
+        font-family: inherit;
+        cursor: pointer;
+        white-space: nowrap;
+        touch-action: manipulation;
+      }
+      .paste-btn:active {
+        background: var(--primary-color, #03a9f4);
+        color: #fff;
+        border-color: var(--primary-color, #03a9f4);
+      }
+      .paste-btn:disabled {
+        opacity: 0.55;
+        cursor: default;
       }
       .header svg {
         width: 20px;
@@ -757,6 +834,9 @@ class BleKeyboardCard extends HTMLElement {
       <svg viewBox="0 0 24 24"><path d="M19 10h-2V8h2v2zm0 4h-2v-2h2v2zm-4-4h-2V8h2v2zm0 4h-2v-2h2v2zm0 4H9v-2h6v2zm-8-8H5V8h2v2zm0 4H5v-2h2v2zM20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2z"/></svg>
       <span class="header-name">${this._config.name || defaultName}</span>
     `;
+    // Paste bar — sits between the name and the host switcher; hidden via CSS
+    // when show_paste is off (same pattern as the F-key row).
+    header.appendChild(this._buildPasteBar());
     // Host switcher in header
     if (this._config.host_slots > 1) {
       this._activeSlot = 0;
@@ -899,7 +979,98 @@ class BleKeyboardCard extends HTMLElement {
 
   _sendString(text) {
     if (!this._hass) return;
-    this._hass.callService('esphome', `${this._config.device}_send_string`, { keys: text });
+    // Returned so the paste bar can react to success/failure; key taps ignore it.
+    return this._hass.callService('esphome', `${this._config.device}_send_string`, { keys: text });
+  }
+
+  _buildPasteBar() {
+    const bar = document.createElement('div');
+    bar.className = 'paste-bar';
+
+    const ta = document.createElement('textarea');
+    ta.rows = 1;
+    ta.maxLength = 5000;
+    ta.placeholder = 'Paste text to type…';
+    ta.setAttribute('autocapitalize', 'off');
+    ta.spellcheck = false;
+
+    const clipBtn = document.createElement('button');
+    clipBtn.className = 'paste-btn';
+    clipBtn.textContent = '📋';
+    clipBtn.title = 'Read clipboard & type it';
+    clipBtn.style.display = 'none';
+
+    const autoLabel = document.createElement('label');
+    autoLabel.className = 'paste-auto';
+    autoLabel.title = 'Type pasted text immediately';
+    const autoCk = document.createElement('input');
+    autoCk.type = 'checkbox';
+    autoCk.checked = localStorage.getItem('blekb_card_paste_auto') === '1';
+    autoCk.addEventListener('change', () => {
+      localStorage.setItem('blekb_card_paste_auto', autoCk.checked ? '1' : '0');
+    });
+    autoLabel.appendChild(autoCk);
+    autoLabel.appendChild(document.createTextNode('auto'));
+
+    const sendBtn = document.createElement('button');
+    sendBtn.className = 'paste-btn';
+    sendBtn.textContent = 'Send';
+
+    const send = (text, fromField) => {
+      // CRLF and bare CR both become LF - the firmware maps BOTH to Enter, so
+      // Windows clipboard text would double-Enter without this. Unlike the
+      // device web page there is no chunking: the ESPHome native API carries
+      // the whole string in one service call.
+      text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      if (!text) return;
+      if (text.length > 5000) {
+        if (!confirm('Text is ' + text.length + ' characters; only the first 5000 will be typed. Continue?')) return;
+        text = text.slice(0, 5000);
+      }
+      sendBtn.disabled = true;
+      clipBtn.disabled = true;
+      Promise.resolve(this._sendString(text)).then(() => {
+        if (fromField) ta.value = '';
+      }).catch((e) => {
+        alert('Send failed - ' + (e && e.message ? e.message : e));
+      }).finally(() => {
+        sendBtn.disabled = false;
+        clipBtn.disabled = false;
+      });
+    };
+
+    sendBtn.addEventListener('click', () => send(ta.value, true));
+    // Physical Enter sends; Shift+Enter inserts a newline.
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        send(ta.value, true);
+      }
+    });
+    // Auto mode: grab the text straight from the paste event (works on plain
+    // HTTP origins where navigator.clipboard does not exist) and type it.
+    ta.addEventListener('paste', (e) => {
+      if (!autoCk.checked) return;
+      const t = (e.clipboardData || window.clipboardData).getData('text');
+      if (t) {
+        e.preventDefault();
+        send(t, false);
+      }
+    });
+    // One-tap clipboard read - the API only exists on secure origins, so the
+    // button stays hidden when HA is reached over plain HTTP.
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      clipBtn.style.display = '';
+      clipBtn.addEventListener('click', () => {
+        navigator.clipboard.readText().then((t) => { if (t) send(t, false); }).catch(() => ta.focus());
+      });
+    }
+
+    bar.appendChild(ta);
+    bar.appendChild(clipBtn);
+    bar.appendChild(autoLabel);
+    bar.appendChild(sendBtn);
+    return bar;
   }
 
   _sendKey(modifier, keycode) {
@@ -1129,6 +1300,7 @@ const KB_EDITOR_SCHEMA = [
     { value: 'be', label: 'Belgian' },
   ], mode: 'dropdown' } } },
   { name: 'show_fkeys', selector: { boolean: {} } },
+  { name: 'show_paste', selector: { boolean: {} } },
   { name: 'host_slots', selector: { number: { min: 0, max: 10, step: 1, mode: 'box' } } },
   { name: 'host_names', selector: { text: {} } },
   { name: 'active_host_entity', selector: { entity: { domain: 'sensor' } } },
@@ -1142,6 +1314,7 @@ const KB_EDITOR_LABELS = {
   zoom: 'Zoom (1 = normal, 0.5 = half, 2 = double)',
   layout: 'Keyboard layout',
   show_fkeys: 'Show function key row',
+  show_paste: 'Show paste bar',
   host_slots: 'Host switcher (needs 2+; 0 = hide)',
   host_names: 'Host names, comma-separated (optional)',
   active_host_entity: 'Active-host sensor (optional)',
@@ -1151,7 +1324,7 @@ const KB_EDITOR_LABELS = {
 
 class BleKeyboardCardEditor extends HTMLElement {
   setConfig(config) {
-    this._config = { layout: 'us', show_fkeys: true, host_slots: 0, show_mac: true, zoom: 1, ...config };
+    this._config = { layout: 'us', show_fkeys: true, show_paste: true, host_slots: 0, show_mac: true, zoom: 1, ...config };
     // host_names is a YAML list but edits as one comma-separated field; show it
     // as text here and turn it back into a list in _emit().
     if (Array.isArray(this._config.host_names)) {

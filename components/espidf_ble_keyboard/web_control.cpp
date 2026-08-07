@@ -45,9 +45,19 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .theme-btn{font-size:15px}
 .zoom-label{font-size:13px;color:var(--name);min-width:36px;text-align:center}
 .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:12px}
-.kb-header{display:flex;align-items:center;justify-content:space-between;margin:0 0 8px;gap:8px}
+.kb-header{display:flex;align-items:center;justify-content:space-between;margin:0 0 8px;gap:8px;flex-wrap:wrap}
 .kb-title{font-size:15px;font-weight:600;color:var(--accent)}
 .layout-sel{padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;cursor:pointer}
+/* Paste bar sits between the title and the layout dropdown; wraps onto its own
+   line on narrow screens instead of crushing them (flex-wrap on .kb-header). */
+.kb-paste{display:flex;align-items:center;gap:6px;flex:1 1 220px;min-width:0}
+.kb-paste textarea{flex:1;min-width:0;resize:none;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;line-height:1.4;height:26px;box-sizing:border-box;white-space:pre;overflow-x:auto;overflow-y:hidden}
+.kb-paste textarea:focus{outline:none;border-color:var(--active)}
+.kb-paste-auto{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap}
+.kb-paste-auto input{margin:0;accent-color:var(--active);cursor:pointer}
+.kb-paste-btn{padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap;touch-action:manipulation}
+.kb-paste-btn:active{background:var(--active);color:#fff}
+.kb-paste-btn:disabled{opacity:.55;cursor:default}
 .scalable{transform-origin:top center;transition:transform .15s}
 .row{display:flex;gap:3px;margin-bottom:3px}
 .row:last-child{margin-bottom:0}
@@ -207,7 +217,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.7.0</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -230,7 +240,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 
 <div class="host-bar" id="host-bar" style="display:none"></div>
 <div class="card" id="keyboard">
-<div class="kb-header"><span class="kb-title">Keyboard</span><select id="layoutSel" class="layout-sel"></select></div>
+<div class="kb-header"><span class="kb-title">Keyboard</span><div class="kb-paste"><textarea id="kb-paste-text" rows="1" maxlength="5000" placeholder="Paste text to type&hellip;" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea><button class="kb-paste-btn" id="kb-paste-clip" title="Read clipboard &amp; type it" style="display:none">&#128203;</button><label class="kb-paste-auto" title="Type pasted text immediately"><input type="checkbox" id="kb-paste-autock">auto</label><button class="kb-paste-btn" id="kb-paste-send">Send</button></div><select id="layoutSel" class="layout-sel"></select></div>
 <div id="kb-rows"></div>
 </div>
 
@@ -1213,7 +1223,7 @@ function appendStep(el,val){
   // those endpoints keeps their validation (name/action limits, slot range).
   // The trade-off is that a restore is NOT atomic — it stops at the first
   // failure and reports how far it got.
-  const UI_KEYS=['blekb_theme','blekb_zoom','blekb_sections','blekb_order','blekb_finder_unlocked'];
+  const UI_KEYS=['blekb_theme','blekb_zoom','blekb_sections','blekb_order','blekb_finder_unlocked','blekb_paste_auto'];
   const bkSave=document.getElementById('bk-save');
   const bkLoad=document.getElementById('bk-load');
   const bkFile=document.getElementById('bk-file');
@@ -1629,6 +1639,82 @@ buildKeyboard();
     }
     if(d.layout&&LAYOUTS[d.layout])apply(d.layout);
   }).catch(()=>{});
+})();
+
+// ── Paste bar ──
+(function(){
+  const ta=document.getElementById('kb-paste-text');
+  const sendBtn=document.getElementById('kb-paste-send');
+  const clipBtn=document.getElementById('kb-paste-clip');
+  const autoCk=document.getElementById('kb-paste-autock');
+  if(!ta)return;
+  autoCk.checked=localStorage.getItem('blekb_paste_auto')==='1';
+  autoCk.addEventListener('change',()=>localStorage.setItem('blekb_paste_auto',autoCk.checked?'1':'0'));
+  // CRLF and bare CR both become LF — the firmware maps BOTH to Enter, so
+  // Windows clipboard text would double-Enter without this.
+  function norm(t){return t.replace(/\r\n/g,'\n').replace(/\r/g,'\n')}
+  // The whole URL must fit the device's 512-byte buffer. The fetch below uses
+  // encodeURIComponent, so measuring chunks with it is exact; ~420 bytes of
+  // encoded keys= value leaves headroom for the path.
+  function chunks(t){
+    const out=[];let cur='',len=0;
+    for(const ch of t){
+      const el=encodeURIComponent(ch).length;
+      if(len+el>420&&cur){out.push(cur);cur='';len=0}
+      cur+=ch;len+=el;
+    }
+    if(cur)out.push(cur);
+    return out;
+  }
+  let sending=false;
+  function send(text,fromField){
+    text=norm(text);
+    if(!text||sending)return;
+    if(text.length>5000){
+      if(!confirm('Text is '+text.length+' characters; only the first 5000 will be typed. Continue?'))return;
+      text=text.slice(0,5000);
+    }
+    const parts=chunks(text);
+    sending=true;sendBtn.disabled=true;clipBtn.disabled=true;
+    let i=0;
+    function done(ok){
+      sending=false;sendBtn.disabled=false;clipBtn.disabled=false;
+      sendBtn.textContent='Send';
+      if(ok){if(fromField)ta.value=''}
+      else ta.value=parts.slice(i).join('');  // unsent remainder, for retry
+    }
+    (function next(){
+      if(i>=parts.length){done(true);return}
+      if(parts.length>1)sendBtn.textContent=(i+1)+'/'+parts.length+'…';
+      fetch('/api/ble_keyboard/string?keys='+encodeURIComponent(parts[i]),{method:'POST'}).then(r=>{
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        i++;
+        // 35ms+ between chunks: send_string drops an identical string repeated
+        // within 30ms (dedup), which repetitive text would otherwise trigger.
+        setTimeout(next,35);
+      }).catch(e=>{done(false);alert('Send failed — '+e.message+'. Unsent text left in the box.')});
+    })();
+  }
+  sendBtn.addEventListener('click',()=>send(ta.value,true));
+  // Physical Enter sends; Shift+Enter inserts a newline.
+  ta.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send(ta.value,true)}
+  });
+  // Auto mode: grab the text straight from the paste event (works on plain-HTTP
+  // origins where navigator.clipboard doesn't exist) and type it immediately.
+  ta.addEventListener('paste',e=>{
+    if(!autoCk.checked)return;
+    const t=(e.clipboardData||window.clipboardData).getData('text');
+    if(t){e.preventDefault();send(t,false)}
+  });
+  // One-tap clipboard read — the API only exists on secure origins (HTTPS or
+  // localhost), so the button stays hidden when reached via http://<ip>.
+  if(navigator.clipboard&&navigator.clipboard.readText){
+    clipBtn.style.display='';
+    clipBtn.addEventListener('click',()=>{
+      navigator.clipboard.readText().then(t=>{if(t)send(t,false)}).catch(()=>ta.focus());
+    });
+  }
 })();
 
 // ── Mouse ──
