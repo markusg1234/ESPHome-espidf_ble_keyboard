@@ -4,6 +4,15 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
+## Unreleased
+
+### Added
+- **Remote keys can now fire Home Assistant actions** — a new action prefix asks HA to run
+  one of its own actions over the native API, so a key remapped in Host Actions can drive
+  an IR blaster, a script, or a scene, from the HA remote card and the web remote alike.
+  Off by default behind a new YAML opt-in, and additionally gated by HA's own per-device
+  permission; Host Actions and Macros gain a ready-to-edit preset once enabled.
+
 ## v1.7.0 — 2026-08-06
 
 ### Added

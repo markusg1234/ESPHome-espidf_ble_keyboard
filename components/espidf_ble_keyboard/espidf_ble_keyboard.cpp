@@ -3012,6 +3012,14 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
             forget_host((uint8_t) slot);
         return;
     }
+    // Fire a Home Assistant action — the escape hatch to hardware BLE can't
+    // reach, like an IR blaster's remote.send_command. Must be consumed here
+    // even when API support is compiled out: falling through would type the
+    // whole string to the host as text.
+    if (action.find("ha_action:") == 0) {
+        do_ha_action_(action.substr(10));
+        return;
+    }
 
     // Per-host override: a named action can be remapped for the active host slot
     // (e.g. "record" -> Game Bar's Win+Alt+R on a Windows host, while a TV host
@@ -3162,6 +3170,71 @@ void EspidfBleKeyboard::press_external_button_(const std::string &object_id) {
         return;
     }
     ESP_LOGW(TAG, "No button with object id '%s'", object_id.c_str());
+}
+
+// Backs the `ha_action:<domain>.<action>;key=value;…` action — asks Home
+// Assistant to run one of its own actions over the native API, which is how a
+// remote key reaches hardware the ESP can't: an IR blaster's
+// remote.send_command, a script, a scene.
+//
+// Payload records split on ';'; the first is the action name, the rest are
+// data pairs split at the FIRST '=' so values may contain '=' (base64
+// padding). Keys and values are trimmed of surrounding whitespace, inner
+// spaces survive. '|' never reaches here (it is the chain separator) and ';'
+// cannot be escaped — documented limits, consistent with the rest of the
+// action vocabulary.
+void EspidfBleKeyboard::do_ha_action_(const std::string &payload) {
+#if defined(USE_API) && defined(USE_API_HOMEASSISTANT_SERVICES)
+    if (!ha_actions_enabled_) {
+        ESP_LOGW(TAG, "ha_action ignored — enable it with `ha_actions: true` in YAML");
+        return;
+    }
+    auto trim = [](const std::string &s) {
+        size_t b = s.find_first_not_of(" \t");
+        if (b == std::string::npos) return std::string();
+        size_t e = s.find_last_not_of(" \t");
+        return s.substr(b, e - b + 1);
+    };
+    size_t sep = payload.find(';');
+    std::string service = trim(payload.substr(0, sep));
+    size_t dot = service.find('.');
+    if (dot == 0 || dot == std::string::npos || dot + 1 >= service.size() ||
+        service.find('.', dot + 1) != std::string::npos) {
+        ESP_LOGW(TAG, "ha_action '%s' is not a domain.action name", service.c_str());
+        return;
+    }
+    std::map<std::string, std::string> data;
+    while (sep != std::string::npos) {
+        size_t start = sep + 1;
+        sep = payload.find(';', start);
+        std::string record = trim(payload.substr(
+            start, sep == std::string::npos ? std::string::npos : sep - start));
+        if (record.empty()) continue;
+        size_t eq = record.find('=');
+        std::string key = eq == std::string::npos ? std::string() : trim(record.substr(0, eq));
+        if (key.empty()) {
+            ESP_LOGW(TAG, "ha_action: skipping '%s' — data records are key=value", record.c_str());
+            continue;
+        }
+        data[key] = trim(record.substr(eq + 1));
+    }
+    // Our own is_connected() is the BLE host, so ask the API server directly.
+    // The call is not queued anywhere — an absent client just loses it.
+    if (api::global_api_server == nullptr || !api::global_api_server->is_connected())
+        ESP_LOGW(TAG, "ha_action: no Home Assistant client connected — the call will be lost");
+    // Same rationale as press_external_button_: web handlers run on the
+    // AsyncTCP task and the API send belongs on the main loop. One consequence:
+    // `delay:` steps block the loop, so consecutive ha_action steps in a chain
+    // coalesce at its end — space repeated calls with the action's own data
+    // (num_repeats, delay_secs) instead.
+    this->defer([this, service, data]() {
+        ESP_LOGI(TAG, "ha_action: %s (%u data fields)", service.c_str(), (unsigned) data.size());
+        this->call_homeassistant_service(service, data);
+    });
+#else
+    (void) payload;
+    ESP_LOGW(TAG, "ha_action needs the api component — set `ha_actions: true` and add `api:` to the config");
+#endif
 }
 
 // Buttons from other ESPHome platforms, discovered once on first use. Built

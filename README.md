@@ -298,6 +298,7 @@ binary_sensor:
 * **passkey_mode** (Optional, string): Passkey security mode. `legacy` (default) uses legacy MITM bonding — tested and recommended for Windows. `secure_connections` uses LE Secure Connections MITM bonding — required for iOS passkey pairing (legacy mode does not work on iOS). Android does not support passkey pairing with BLE HID keyboards.
 * **web_control** (Optional, bool): Enable a built-in web control page with keyboard and mouse UI at `http://<device-ip>/ble_keyboard`. Requires the `web_server` component. Defaults to `false`.
 * **api_services** (Optional, bool): Auto-register all documented Home Assistant services (`run_action`, `run_macro`, `send_string`, `send_key`, `send_consumer`, `mouse_move`, `mouse_scroll`, `mouse_click`, `mouse_hold`, `mouse_release`, `mouse_abs`, `switch_host`, `forget_host`) directly from the component — no `api: services:` yaml needed, and the HA cards work out of the box. Requires the `api:` component. Defaults to `false`. **Don't combine with the manual `api: services:` snippets below** — you'd register the same service names twice; delete the manual copies when enabling this. See [Home Assistant services](#home-assistant-services).
+* **ha_actions** (Optional, bool): Allow the `ha_action:` prefix to fire Home Assistant actions from the device — how a remote key reaches things BLE can't, such as an IR blaster's `remote.send_command`. Requires the `api:` component (`api: homeassistant_services: true` is enabled automatically) and Home Assistant's own per-device permission. Defaults to `false` — the web page is unauthenticated, so this is a deliberate opt-in. See [Calling Home Assistant Actions](#calling-home-assistant-actions).
 * **host_slots** (Optional, int): Number of host slots for multi-host switching (1–10). Each slot can store a bonded host. Switch between hosts using buttons, HA services, or the web control page. Defaults to `4`.
 * **mouse_sensitivity** (Optional, float): Web mouse base movement multiplier. Defaults to `1.0`. Range: 0.1–10.0.
 * **mouse_acceleration** (Optional, float): Web mouse speed-based acceleration factor. Defaults to `0.15`. Range: 0.0–2.0.
@@ -953,6 +954,7 @@ Nothing holds by default. The Home Assistant [Media Remote Card](#media-remote-c
 | `"press_button:<object_id>"` | Press another ESPHome button — e.g. `press_button:samsung_43_m70f_wol`. See [Pressing other ESPHome buttons](#pressing-other-esphome-buttons). |
 | `"alternate:<a> \|\| <b> \|\| …"` | Run **one branch** per press, advancing each time. Branches split on `\|\|`; a single `\|` still means "next step", so a branch can be a whole sequence. See [Toggling one button between two actions](#toggling-one-button-between-two-actions). |
 | `"macro:<name>"` | Run a stored [web macro](#web-macros) by name — a live reference, so editing the macro updates everything pointing at it. Macros may call each other (nesting is capped). |
+| `"ha_action:<domain>.<action>;<key>=<value>;…"` | Ask Home Assistant to run one of its own actions — e.g. an IR blaster's `remote.send_command`. Needs `ha_actions: true`. See [Calling Home Assistant Actions](#calling-home-assistant-actions). |
 
 ---
 
@@ -1070,6 +1072,40 @@ espidf_ble_keyboard:
 As written this still assumes — but `restore_value: yes` carries the state across reboots, and swapping the global for a real `binary_sensor` (a ping probe, a power monitor, anything that actually knows) makes it correct. That's the advantage over `alternate:`; the cost is that changing it needs a reflash.
 
 A button cannot trigger *itself* — that's refused and logged. Chaining to a *different* button is fine, so the lambda above may equally call `id(my_keyboard).execute_action("press_button:samsung_43_m70f_wol")` instead of `.press()`.
+
+---
+
+## Calling Home Assistant Actions
+
+BLE reaches the paired host and nothing else. An infrared-only TV behind a Broadlink blaster, a script, a scene — those belong to Home Assistant. The `ha_action:` prefix hands an action to HA over the native API, so a remote key can fire them like anything else:
+
+```
+ha_action:<domain>.<action>;<key>=<value>;<key>=<value>
+```
+
+`ha_action:remote.send_command;entity_id=remote.living_room_ir;command=power` sends the blaster's learned `power` command. Put it in [Host Actions](#host-actions-per-host-overrides) as the replacement for `remote_power` on the TV's slot, and the power key fires IR on that host from **both** the Home Assistant [Media Remote Card](#media-remote-card-for-home-assistant) and the web remote — the cards need no changes, because the name is resolved on the device. Host Actions and Macros offer a preset for it once enabled.
+
+Enabling takes two deliberate switches:
+
+```yaml
+api:
+
+espidf_ble_keyboard:
+  id: my_keyboard
+  ha_actions: true
+```
+
+and **Allow the device to perform Home Assistant actions** in the device's ESPHome integration options in HA. Without the HA-side permission the call is dropped *silently*; without `ha_actions: true` the device refuses it and logs why. The component enables `api: homeassistant_services: true` for you.
+
+Syntax rules:
+
+* Records split on `;` — the first is the action name (`domain.action`), the rest are data pairs.
+* Pairs split at the **first** `=`, so values may contain `=`. Keys and values are trimmed of surrounding spaces; inner spaces survive.
+* `|` (the chain separator) and `;` cannot appear inside a value, and there is no escaping — the same limitation as every other action string.
+* It chains and alternates like any action: `alternate:consumer:0x30 || ha_action:remote.send_command;entity_id=remote.tv;command=power` sleeps over BLE one press and wakes over IR the next. One caveat: within a single chain, `ha_action` steps are handed to HA at the **end** (`delay:` blocks the loop they queue on), so space out repeated IR commands with the action's own data — `num_repeats`, `delay_secs`, `hold_secs` — not with `delay:` between two `ha_action` steps.
+* Overrides and macros cap at 255 characters, so a raw `b64:` IR payload doesn't fit — teach the blaster the command and call it by name instead.
+
+> **The web page has no authentication**, and `ha_action:` reaches whatever HA lets the device call — which is why it is off by default. Enable it on a trusted network only, the same consideration as `hide_buttons` above.
 
 ---
 

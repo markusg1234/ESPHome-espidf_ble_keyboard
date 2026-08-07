@@ -19,6 +19,7 @@ CONF_PASSKEY = "passkey"
 CONF_PASSKEY_MODE = "passkey_mode"
 CONF_WEB_CONTROL = "web_control"
 CONF_API_SERVICES = "api_services"
+CONF_HA_ACTIONS = "ha_actions"
 CONF_HOST_SLOTS = "host_slots"
 CONF_MOUSE_SENSITIVITY = "mouse_sensitivity"
 CONF_MOUSE_ACCEL = "mouse_acceleration"
@@ -200,24 +201,32 @@ def _validate_max_key_hold(value):
     return cv.int_range(min=100, max=600000)(value)
 
 
-def _api_services_final_validate(config):
-    """api_services needs the api component, and register_service() only compiles
-    (and user_services.cpp is only built) with `api: custom_services: true` on
-    ESPHome 2025.11+ — force-enable it so users don't have to know about it."""
-    if not config.get(CONF_API_SERVICES):
+def _api_final_validate(config):
+    """api_services and ha_actions both need the api component, and each leans
+    on an `api:` option that recent ESPHome turns off by default
+    (custom_services gates register_service() and building user_services.cpp on
+    2025.11+; homeassistant_services gates device→HA action calls) —
+    force-enable them so users don't have to know about it."""
+    needs = {
+        CONF_API_SERVICES: "custom_services",
+        CONF_HA_ACTIONS: "homeassistant_services",
+    }
+    enabled = [opt for opt in needs if config.get(opt)]
+    if not enabled:
         return config
     full = fv.full_config.get()
     if "api" not in full:
         raise cv.Invalid(
-            "api_services: true requires the 'api:' component — add an 'api:' section to your config"
+            f"{enabled[0]}: true requires the 'api:' component — add an 'api:' section to your config"
         )
     api_conf = full["api"]
     if isinstance(api_conf, dict):
-        api_conf["custom_services"] = True
+        for opt in enabled:
+            api_conf[needs[opt]] = True
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _api_services_final_validate
+FINAL_VALIDATE_SCHEMA = _api_final_validate
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema({
@@ -239,6 +248,12 @@ CONFIG_SCHEMA = cv.All(
         # from C++ — requires the `api:` component. Off by default: configs that
         # pasted the manual `api: services:` snippets would get duplicate names.
         cv.Optional(CONF_API_SERVICES, default=False): cv.boolean,
+        # Let `ha_action:` strings fire Home Assistant actions from the device
+        # (IR blasters, scripts, scenes) — requires the `api:` component. Off by
+        # default: the web page is unauthenticated, so LAN-reachable HA calls
+        # must be a deliberate choice, doubly gated by HA's own per-device
+        # "allow the device to perform actions" toggle.
+        cv.Optional(CONF_HA_ACTIONS, default=False): cv.boolean,
         cv.Optional(CONF_MOUSE_SENSITIVITY, default=1.0): cv.float_range(min=0.1, max=10.0),
         cv.Optional(CONF_MOUSE_ACCEL, default=0.15): cv.float_range(min=0.0, max=2.0),
         cv.Optional(CONF_MOUSE_MAX_SPEED, default=4.0): cv.float_range(min=0.5, max=20.0),
@@ -323,6 +338,9 @@ async def to_code(config):
 
     if config[CONF_API_SERVICES]:
         cg.add(var.set_api_services(True))
+
+    if config[CONF_HA_ACTIONS]:
+        cg.add(var.set_ha_actions(True))
 
     if config[CONF_WEB_CONTROL]:
         cg.add_define("USE_BLE_KEYBOARD_WEB_CONTROL")
