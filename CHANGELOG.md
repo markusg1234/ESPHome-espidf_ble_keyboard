@@ -4,18 +4,14 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
-
-### Added
-- **A paste bar on the web keyboard and the keyboard card** — in the web page's keyboard
-  header, and on its own line above the card's keys. Paste or type any text and send it as one piece instead of tapping it out
-  key by key; multi-line text keeps its line breaks. An optional auto mode types text the
-  moment it is pasted, and on HTTPS a clipboard button sends the clipboard in one tap. The
-  card can hide the bar via a new editor toggle.
-
 ## v1.7.0 — 2026-08-06
 
 ### Added
+- **A paste bar on the web keyboard and the keyboard card** — in the web page's keyboard
+  header, and on its own line above the card's keys. Paste or type any text and send it as
+  one piece instead of tapping it out key by key; multi-line text keeps its line breaks. An
+  optional auto mode types text the moment it is pasted, and on HTTPS a clipboard button
+  sends the clipboard in one tap. The card can hide the bar via a new editor toggle.
 - **Press and hold: a key now stays down on the host for as long as the button is held.**
   Every keypress used to arrive as a short tap however long the button was held, so
   push-to-talk was impossible. Set it per physical key with the new hold and release
