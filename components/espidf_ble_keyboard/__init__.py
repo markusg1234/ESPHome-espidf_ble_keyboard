@@ -19,7 +19,7 @@ CONF_PASSKEY = "passkey"
 CONF_PASSKEY_MODE = "passkey_mode"
 CONF_WEB_CONTROL = "web_control"
 CONF_API_SERVICES = "api_services"
-CONF_HA_ACTIONS = "ha_actions"
+CONF_HA_ACTION = "ha_action"
 CONF_HOST_SLOTS = "host_slots"
 CONF_MOUSE_SENSITIVITY = "mouse_sensitivity"
 CONF_MOUSE_ACCEL = "mouse_acceleration"
@@ -202,14 +202,14 @@ def _validate_max_key_hold(value):
 
 
 def _api_final_validate(config):
-    """api_services and ha_actions both need the api component, and each leans
+    """api_services and ha_action both need the api component, and each leans
     on an `api:` option that recent ESPHome turns off by default
     (custom_services gates register_service() and building user_services.cpp on
     2025.11+; homeassistant_services gates device→HA action calls) —
     force-enable them so users don't have to know about it."""
     needs = {
         CONF_API_SERVICES: "custom_services",
-        CONF_HA_ACTIONS: "homeassistant_services",
+        CONF_HA_ACTION: "homeassistant_services",
     }
     enabled = [opt for opt in needs if config.get(opt)]
     if not enabled:
@@ -253,7 +253,7 @@ CONFIG_SCHEMA = cv.All(
         # default: the web page is unauthenticated, so LAN-reachable HA calls
         # must be a deliberate choice, doubly gated by HA's own per-device
         # "allow the device to perform actions" toggle.
-        cv.Optional(CONF_HA_ACTIONS, default=False): cv.boolean,
+        cv.Optional(CONF_HA_ACTION, default=False): cv.boolean,
         cv.Optional(CONF_MOUSE_SENSITIVITY, default=1.0): cv.float_range(min=0.1, max=10.0),
         cv.Optional(CONF_MOUSE_ACCEL, default=0.15): cv.float_range(min=0.0, max=2.0),
         cv.Optional(CONF_MOUSE_MAX_SPEED, default=4.0): cv.float_range(min=0.5, max=20.0),
@@ -339,8 +339,8 @@ async def to_code(config):
     if config[CONF_API_SERVICES]:
         cg.add(var.set_api_services(True))
 
-    if config[CONF_HA_ACTIONS]:
-        cg.add(var.set_ha_actions(True))
+    if config[CONF_HA_ACTION]:
+        cg.add(var.set_ha_action(True))
 
     if config[CONF_WEB_CONTROL]:
         cg.add_define("USE_BLE_KEYBOARD_WEB_CONTROL")

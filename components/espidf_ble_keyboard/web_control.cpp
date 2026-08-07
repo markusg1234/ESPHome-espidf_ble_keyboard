@@ -529,7 +529,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="ctrl_alt_del"><option value="power"><option value="sleep"><option value="shutdown"><option value="hibernate">
 <option value="left_click"><option value="right_click"><option value="middle_click"><option value="mouse_release">
 </datalist>
-<textarea id="ov-act" placeholder="Replacement action" maxlength="255" rows="3" title="What this action should do on the selected host.&#10;&#10;Examples:&#10;combo:0x0C:0x15 = Win+Alt+R (Game Bar record)&#10;combo:0x01:0x15 = Ctrl+R (Sound Recorder, needs focus)&#10;consumer:0x00B2 = raw HID usage&#10;play_pause = another named action&#10;string:hello = type text&#10;ha_action:remote.send_command;entity_id=remote.X;command=power = fire a Home Assistant action (needs ha_actions: true in YAML)&#10;&#10;Chain steps with a | between them:&#10;combo:0x0C:0x15 | delay:500 | string:rec&#10;&#10;Modifier bits add up: 1=Ctrl, 2=Shift, 4=Alt, 8=Win&#10;so Win+Alt = 12 = 0x0C. Decimal or 0x hex both work."></textarea>
+<textarea id="ov-act" placeholder="Replacement action" maxlength="255" rows="3" title="What this action should do on the selected host.&#10;&#10;Examples:&#10;combo:0x0C:0x15 = Win+Alt+R (Game Bar record)&#10;combo:0x01:0x15 = Ctrl+R (Sound Recorder, needs focus)&#10;consumer:0x00B2 = raw HID usage&#10;play_pause = another named action&#10;string:hello = type text&#10;ha_action:remote.send_command;entity_id=remote.X;command=power = fire a Home Assistant action (needs ha_action: true in YAML)&#10;&#10;Chain steps with a | between them:&#10;combo:0x0C:0x15 | delay:500 | string:rec&#10;&#10;Modifier bits add up: 1=Ctrl, 2=Shift, 4=Alt, 8=Win&#10;so Win+Alt = 12 = 0x0C. Decimal or 0x hex both work."></textarea>
 <select id="ov-preset"><option value="">Preset...</option></select>
 <button id="ov-save">Save</button>
 </div>
@@ -614,7 +614,7 @@ function pollStatus(){
     // composes an action that would only log a warning. By class and on every
     // poll: the Host Actions dropdown mirrors the macro list's innerHTML, so
     // copies appear later than any single load-time pass would catch.
-    document.querySelectorAll('option.ha-preset').forEach(o=>{o.disabled=!d.ha_actions;o.style.display=d.ha_actions?'':'none'});
+    document.querySelectorAll('option.ha-preset').forEach(o=>{o.disabled=!d.ha_action;o.style.display=d.ha_action?'':'none'});
   }).catch(()=>{
     sdot.className='status-dot';
     stxt.className='status-text';
@@ -2318,8 +2318,8 @@ class BleKbWebHandler : public AsyncWebHandler {
       json += kb_->is_connected() ? "true" : "false";
       json += ",\"paired\":";
       json += kb_->is_paired() ? "true" : "false";
-      json += ",\"ha_actions\":";
-      json += kb_->ha_actions_enabled() ? "true" : "false";
+      json += ",\"ha_action\":";
+      json += kb_->ha_action_enabled() ? "true" : "false";
       json += ",\"device_name\":\"";
       json += kb_->device_name();
       json += "\",\"layout\":\"";

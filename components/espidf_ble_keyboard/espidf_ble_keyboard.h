@@ -141,8 +141,8 @@ class EspidfBleKeyboard : public Component
 
   void set_web_control(bool enabled) { web_control_enabled_ = enabled; }
   void set_api_services(bool enabled) { api_services_enabled_ = enabled; }
-  void set_ha_actions(bool enabled) { ha_actions_enabled_ = enabled; }
-  bool ha_actions_enabled() const { return ha_actions_enabled_; }
+  void set_ha_action(bool enabled) { ha_action_enabled_ = enabled; }
+  bool ha_action_enabled() const { return ha_action_enabled_; }
   void set_host_slots(uint8_t slots) { host_slots_ = slots > MAX_HOST_SLOTS ? MAX_HOST_SLOTS : slots; }
 
   // Keyboard layout
@@ -530,7 +530,7 @@ class EspidfBleKeyboard : public Component
   void on_api_forget_host_(int32_t slot) { forget_host((uint8_t) slot); }
 #endif
   bool api_services_enabled_{false};
-  bool ha_actions_enabled_{false};
+  bool ha_action_enabled_{false};
   bool is_connected_{false};
   uint16_t conn_id_{0};
   bool is_paired_{false};

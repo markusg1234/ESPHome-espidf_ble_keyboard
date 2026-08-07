@@ -3185,8 +3185,8 @@ void EspidfBleKeyboard::press_external_button_(const std::string &object_id) {
 // action vocabulary.
 void EspidfBleKeyboard::do_ha_action_(const std::string &payload) {
 #if defined(USE_API) && defined(USE_API_HOMEASSISTANT_SERVICES)
-    if (!ha_actions_enabled_) {
-        ESP_LOGW(TAG, "ha_action ignored — enable it with `ha_actions: true` in YAML");
+    if (!ha_action_enabled_) {
+        ESP_LOGW(TAG, "ha_action ignored — enable it with `ha_action: true` in YAML");
         return;
     }
     auto trim = [](const std::string &s) {
@@ -3233,7 +3233,7 @@ void EspidfBleKeyboard::do_ha_action_(const std::string &payload) {
     });
 #else
     (void) payload;
-    ESP_LOGW(TAG, "ha_action needs the api component — set `ha_actions: true` and add `api:` to the config");
+    ESP_LOGW(TAG, "ha_action needs the api component — set `ha_action: true` and add `api:` to the config");
 #endif
 }
 
