@@ -605,7 +605,9 @@ class BleKeyboardCard extends HTMLElement {
         flex: 1;
         min-width: 0;
         resize: none;
-        height: 26px;
+        /* Tall enough for the text line plus the horizontal scrollbar long
+           text brings in - at 26px that scrollbar ate the line's bottom. */
+        height: 40px;
         box-sizing: border-box;
         padding: 4px 8px;
         border: 1px solid var(--divider-color, #e0e0e0);
@@ -619,6 +621,14 @@ class BleKeyboardCard extends HTMLElement {
         white-space: pre;
         overflow-x: auto;
         overflow-y: hidden;
+        scrollbar-width: thin;
+      }
+      .paste-bar textarea::-webkit-scrollbar {
+        height: 8px;
+      }
+      .paste-bar textarea::-webkit-scrollbar-thumb {
+        background: var(--divider-color, #e0e0e0);
+        border-radius: 4px;
       }
       .paste-bar textarea:focus {
         outline: none;

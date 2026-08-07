@@ -51,7 +51,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 /* Paste bar sits between the title and the layout dropdown; wraps onto its own
    line on narrow screens instead of crushing them (flex-wrap on .kb-header). */
 .kb-paste{display:flex;align-items:center;gap:6px;flex:1 1 220px;min-width:0}
-.kb-paste textarea{flex:1;min-width:0;resize:none;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;line-height:1.4;height:26px;box-sizing:border-box;white-space:pre;overflow-x:auto;overflow-y:hidden}
+/* Tall enough for the text line plus the horizontal scrollbar long text
+   brings in - at 26px that scrollbar ate the line's bottom. The thin
+   scrollbar keeps the total down. */
+.kb-paste textarea{flex:1;min-width:0;resize:none;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;line-height:1.4;height:40px;box-sizing:border-box;white-space:pre;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.kb-paste textarea::-webkit-scrollbar{height:8px}
+.kb-paste textarea::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 .kb-paste textarea:focus{outline:none;border-color:var(--active)}
 .kb-paste-auto{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap}
 .kb-paste-auto input{margin:0;accent-color:var(--active);cursor:pointer}
