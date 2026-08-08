@@ -14,9 +14,9 @@ web control page shows the matching version badge.
   back to build your own; six fit on the device.
 
 - **More remote buttons, and buttons can carry your own label.** The remote gains Menu, Exit, Guide,
-  TV, Voice, Subtitles and a full number pad as real keys, plus eight spares that send nothing until
-  you give them a per-host override — for the keys a remote needs that have no standard code worth
-  guessing. A style can now write a button as `["spare1","Netflix"]` to put its own text on the key,
+  TV, Voice, Subtitles and a full number pad as real keys, plus sixteen spares that send nothing
+  until you give them a per-host override — for app-launcher keys and anything else with no standard
+  code worth guessing. A style can now write a button as `["spare1","Netflix"]` to put its own text on the key,
   so an imported layout reads the way the remote it came from does.
 - **A remote style can now look like the remote, not just carry its keys.** New circular navigation
   ring and one-piece volume/channel rocker sections, per-button colour and size, inverted light keys,

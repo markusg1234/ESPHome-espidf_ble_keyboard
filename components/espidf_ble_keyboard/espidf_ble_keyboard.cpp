@@ -2751,12 +2751,18 @@ bool EspidfBleKeyboard::execute_remote_action_(const std::string &action) {
     return false;
 }
 
-// "spare" followed by 1..MAX_SPARES. Kept as a rule rather than a table so the
-// count is one constant to change.
+// "spare" followed by 1..MAX_SPARES. A rule rather than a table so the count is
+// one constant to change — and it parses the number rather than testing a single
+// digit, which stopped working the moment MAX_SPARES went past nine.
 bool EspidfBleKeyboard::is_spare_action(const std::string &action) {
-    if (action.size() != 6 || action.compare(0, 5, "spare") != 0) return false;
-    char c = action[5];
-    return c >= '1' && c <= ('0' + MAX_SPARES);
+    if (action.size() < 6 || action.size() > 7) return false;
+    if (action.compare(0, 5, "spare") != 0) return false;
+    int n = 0;
+    for (size_t i = 5; i < action.size(); i++) {
+        if (action[i] < '0' || action[i] > '9') return false;
+        n = n * 10 + (action[i] - '0');
+    }
+    return n >= 1 && n <= MAX_SPARES;
 }
 
 // Hold whatever `action` resolves to, instead of tapping it.

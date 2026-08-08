@@ -255,14 +255,17 @@ class EspidfBleKeyboard : public Component
   // Spare remote buttons: `spare1`..`spare<MAX_SPARES>`. They send nothing on
   // their own and exist purely as names to hang a per-host override on, for the
   // keys a remote layout needs that have no standard HID usage worth guessing.
-  static const uint8_t MAX_SPARES = 8;
+  // 16, because a real remote's app-launcher row alone wants four to ten of
+  // them on top of the keys that have no standard usage (Input, Settings,
+  // Replay…). Eight ran out on the fuller layouts.
+  static const uint8_t MAX_SPARES = 16;
   static bool is_spare_action(const std::string &action);
 
   // 64, not the button count: "None" in the Remote Buttons panel saves *every*
   // action as hidden, so this ceiling has to clear the whole catalogue with room
   // for the ones added after it. The NVS blob stays well inside its 4000-byte
   // limit at this size (see load_hidden_'s length guard).
-  static const uint8_t MAX_HIDDEN = 64;
+  static const uint8_t MAX_HIDDEN = 96;
   const std::vector<std::string> &get_hidden(uint8_t slot) const { return hidden_[slot]; }
   bool set_hidden(uint8_t slot, const std::vector<std::string> &names);  // replaces the set
   /// The active slot's hidden list as a comma-separated string, for the text sensor.
@@ -272,7 +275,7 @@ class EspidfBleKeyboard : public Component
   // is presentation only: the browser does the timing and just sends the same
   // press again, so nothing here touches execute_action(). Stored per slot
   // because a TV wants a fast volume ramp while a PC may want only the D-pad.
-  static const uint8_t MAX_REPEAT_BUTTONS = 64;  // clears the whole button catalogue, as MAX_HIDDEN does
+  static const uint8_t MAX_REPEAT_BUTTONS = 96;  // clears the whole button catalogue, as MAX_HIDDEN does
   // Bounds. `rate` cannot go below the 30ms dedup guard in send_consumer() /
   // send_key_combo() — a faster repeat of the same action would be silently
   // dropped there, so a too-low rate must be clamped, not honoured.
@@ -296,7 +299,7 @@ class EspidfBleKeyboard : public Component
   // list above this one does reach the device: the browser sends a hold on
   // pointerdown and a release on pointerup, so the key stays down on the host
   // for exactly as long as the button is held.
-  static const uint8_t MAX_HOLD = 64;  // clears the whole button catalogue, as MAX_HIDDEN does
+  static const uint8_t MAX_HOLD = 96;  // clears the whole button catalogue, as MAX_HIDDEN does
   const std::vector<std::string> &get_hold(uint8_t slot) const { return hold_[slot]; }
   bool set_hold(uint8_t slot, const std::vector<std::string> &names);  // replaces the set
   /// The button in `names` that is already in the other per-host list for this

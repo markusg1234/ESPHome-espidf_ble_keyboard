@@ -543,6 +543,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="num5"><option value="num6"><option value="num7"><option value="num8"><option value="num9">
 <option value="spare1"><option value="spare2"><option value="spare3"><option value="spare4">
 <option value="spare5"><option value="spare6"><option value="spare7"><option value="spare8">
+<option value="spare9"><option value="spare10"><option value="spare11"><option value="spare12"><option value="spare13"><option value="spare14"><option value="spare15"><option value="spare16">
 <option value="ctrl_alt_del"><option value="power"><option value="sleep"><option value="shutdown"><option value="hibernate">
 <option value="left_click"><option value="right_click"><option value="middle_click"><option value="mouse_release">
 </datalist>
@@ -742,7 +743,15 @@ spare4:{t:'Spare 4',x:'4',g:8},
 spare5:{t:'Spare 5',x:'5',g:8},
 spare6:{t:'Spare 6',x:'6',g:8},
 spare7:{t:'Spare 7',x:'7',g:8},
-spare8:{t:'Spare 8',x:'8',g:8}};
+spare8:{t:'Spare 8',x:'8',g:8},
+spare9:{t:'Spare 9',x:'9',g:8},
+spare10:{t:'Spare 10',x:'10',g:8},
+spare11:{t:'Spare 11',x:'11',g:8},
+spare12:{t:'Spare 12',x:'12',g:8},
+spare13:{t:'Spare 13',x:'13',g:8},
+spare14:{t:'Spare 14',x:'14',g:8},
+spare15:{t:'Spare 15',x:'15',g:8},
+spare16:{t:'Spare 16',x:'16',g:8}};
 const RMT_KINDS=['row','dpad','ring','strip','rocker','media','apps','-'];
 // A theme may only set these, and each maps to a custom property the .rmt-*
 // rules already read. An imported template therefore cannot inject CSS: keys

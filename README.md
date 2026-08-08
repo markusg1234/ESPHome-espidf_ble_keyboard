@@ -910,7 +910,7 @@ This is **presentation only**. The action still runs from macros, YAML `button` 
 
 The number pad on the Home Assistant card is the one thing not listed, since its digits type characters rather than firing a named action. Note also that hiding `search` removes both the magnifier and the app row's Search button, because both fire the same action.
 
-Hidden sets are stored per host on the device (max 40 buttons per slot) and are included in [Backup and restore](#backup-and-restore).
+Hidden sets are stored per host on the device (max 96 buttons per slot) and are included in [Backup and restore](#backup-and-restore).
 
 **Making the Home Assistant card follow too** is optional and needs one extra entity — the card can't read the device's HTTP API, so the list travels through Home Assistant:
 
@@ -943,13 +943,13 @@ Values outside those ranges are clamped rather than rejected. The 50 ms floor is
 
 Each repeat is a normal press, so per-host overrides apply to it. One consequence worth knowing: if a button is overridden to something that already loops, such as `repeat:3:volume_up`, holding it multiplies the two.
 
-Settings are stored per host on the device (max 40 buttons per slot), not in the browser, so they follow the host rather than the phone that set them, and they are included in [Backup and restore](#backup-and-restore). The Home Assistant [Media Remote Card](#media-remote-card-for-home-assistant) follows the same settings if you add the [`repeat_buttons` text sensor](#hold-to-repeat-config); without it that card repeats volume and channel only.
+Settings are stored per host on the device (max 96 buttons per slot), not in the browser, so they follow the host rather than the phone that set them, and they are included in [Backup and restore](#backup-and-restore). The Home Assistant [Media Remote Card](#media-remote-card-for-home-assistant) follows the same settings if you add the [`repeat_buttons` text sensor](#hold-to-repeat-config); without it that card repeats volume and channel only.
 
 A button set to **Press and Hold** below cannot also repeat: holding and repeating are the same gesture, so each panel greys out what the other has taken.
 
 ### Press and Hold Per Host
 
-Open **Press and Hold** in the Host Actions card and tick the buttons that should stay **held down** on the host for as long as you hold them on the web remote, instead of sending a tap — what push-to-talk needs. Stored per host slot (max 40 buttons), so the PC running the voice app can hold while a TV slot keeps tapping, and included in [Backup and restore](#backup-and-restore).
+Open **Press and Hold** in the Host Actions card and tick the buttons that should stay **held down** on the host for as long as you hold them on the web remote, instead of sending a tap — what push-to-talk needs. Stored per host slot (max 96 buttons), so the PC running the voice app can hold while a TV slot keeps tapping, and included in [Backup and restore](#backup-and-restore).
 
 Nothing holds by default. The Home Assistant [Media Remote Card](#media-remote-card-for-home-assistant) honours the same list once the [`hold_buttons` text sensor](#press-and-hold-buttons) is added — it is the only way that card can learn the choice. See [Press and hold](#press-and-hold) for the physical-button equivalent, the action strings, and `max_key_hold_ms`.
 
@@ -1669,11 +1669,11 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/override_set` | POST | `slot`, `name`, `action` | Set a per-host action override (max 8 per slot); persists to NVS |
 | `/api/ble_keyboard/override_clear` | POST | `slot`, `name` | Delete a saved override, falling back to YAML / built-in |
 | `/api/ble_keyboard/hidden` | GET | `slot` (int, default active) | Buttons removed from the remote for that host: `{"slot":N,"hidden":["record"]}` |
-| `/api/ble_keyboard/hidden_set` | POST | `slot`, `names` (comma-separated) | Replace a host's hidden-button set; empty `names` clears it (max 40) |
+| `/api/ble_keyboard/hidden_set` | POST | `slot`, `names` (comma-separated) | Replace a host's hidden-button set; empty `names` clears it (max 96) |
 | `/api/ble_keyboard/repeat` | GET | `slot` (int, default active) | That host's hold-to-repeat config: `{"slot":N,"set":bool,"delay":400,"rate":180,"buttons":["volume_up"]}`. `set:false` means the host is on the page defaults |
 | `/api/ble_keyboard/repeat_set` | POST | `slot`, `delay`, `rate`, `names` (comma-separated), or `reset=1` | Replace a host's repeat config; empty `names` means nothing repeats, `reset=1` returns it to the defaults. Timings are clamped (delay 100–2000, rate 50–2000) |
 | `/api/ble_keyboard/hold` | GET | `slot` (int, default active) | That host's press-and-hold set, plus its repeat set so a UI can grey out conflicts: `{"slot":N,"buttons":["ok"],"repeat":["volume_up"]}` |
-| `/api/ble_keyboard/hold_set` | POST | `slot`, `names` (comma-separated) | Replace a host's press-and-hold set; empty `names` clears it (max 40). Rejected with `400` if a name is already in that host's repeat set |
+| `/api/ble_keyboard/hold_set` | POST | `slot`, `names` (comma-separated) | Replace a host's press-and-hold set; empty `names` clears it (max 96). Rejected with `400` if a name is already in that host's repeat set |
 | `/api/ble_keyboard/remote_style_set` | POST | `slot`, `id` | Set that host's [remote style](#remote-style-per-host); empty `id` returns it to the full remote. The id is stored, never interpreted, so a style only the page knows about still round-trips |
 | `/api/ble_keyboard/remote_templates` | GET | — | The custom styles held on the device: `{"max":6,"len":1500,"items":[{"index":0,"tpl":"{…}"}]}`. Each `tpl` is the style's JSON as a string |
 | `/api/ble_keyboard/remote_tpl_chunk` | POST | `seq` (int), `data` (string) | Upload one piece of a custom style; `seq=0` starts a fresh upload. Chunked because a request carries only ~512 bytes of URL |
