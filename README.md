@@ -1914,7 +1914,15 @@ text_sensor:
 
 The style id is also on the device's `/hosts` response, which the card already polls — but a dashboard served over **https** cannot fetch a plain-http device, which is why the sensor exists. It is the same reason the hidden, hold and repeat lists travel as sensors.
 
-> **Custom styles need pasting.** A style you imported on the device lives in its NVS, and the card ships only the built-ins. If a host is set to a custom style, `auto` falls back to the full remote — paste that style's JSON into **Custom style JSON** and choose `custom` to draw it. Copy it from the web page's **Remote Style → Export**.
+**Styles travel one way: web page → card.** Build a style on the device's web page, where it is stored and named. Then copy its JSON from **Remote Style → Export** into the card's paste box, and it **joins the card's style list** under the name you gave it — selectable in the dropdown beside the built-ins, and drawn automatically when `auto` sees the device report that host's style. The card never writes back; the device stays the one place a style is defined.
+
+The box takes a single style, or a JSON array of several, so every custom remote on the device can join the list at once:
+
+```yaml
+remote_style_json: '[{"id":"lounge","name":"Lounge box",…},{"id":"study","name":"Study",…}]'
+```
+
+> A custom style the card has **not** been given still resolves to an id it has no definition for, so `auto` falls back to the full remote for that host. Paste it in and the fallback goes away.
 
 > **The card's styles are a snapshot** taken when the card files were built. Flash newer firmware with a new built-in style and the installed card won't know that id until you update the cards too — which is what the version tags on the card imports are for.
 

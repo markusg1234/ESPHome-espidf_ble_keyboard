@@ -27,8 +27,8 @@ web control page shows the matching version badge.
 - **The Home Assistant remote card draws the same styles as the web page.** Pick one in the card
   editor, or let it follow whatever style the device has for the active host so switching hosts
   re-skins the card too — that needs the new `remote_style` text sensor. A style you made yourself
-  can be pasted into the card as JSON. The card's layout now comes from the firmware's own
-  definitions rather than a second hand-kept copy.
+  can be pasted into the card, where it joins the style list under its own name. The card's layout
+  now comes from the firmware's own definitions rather than a second hand-kept copy.
 
 ### Fixed
 - **Removing a button from the remote no longer moves the others.** The remaining buttons closed the

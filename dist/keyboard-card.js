@@ -802,13 +802,20 @@ class BleKeyboardCard extends HTMLElement {
       }
       .host-info {
         text-align: center;
-        min-width: 0;
+        /* Fixed, not min-width:0: the arrows must not move as the name changes
+           length, or stepping through hosts walks the button out from under
+           your finger. A longer name ellipses instead of pushing them. */
+        width: 84px;
+        flex: 0 0 84px;
       }
       .host-name {
         font-size: 12px;
         font-weight: 600;
         color: var(--primary-text-color);
         line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       }
       .host-addr {
         font-size: 12px;
@@ -816,6 +823,11 @@ class BleKeyboardCard extends HTMLElement {
         color: var(--secondary-text-color, #888);
         font-family: monospace;
         white-space: nowrap;
+      /* 17ch is exactly a MAC in this monospace font, so the field keeps its
+         width whether it shows an address or "Empty". */
+      width: 17ch;
+      text-align: right;
+      overflow: hidden;
       }
     `;
 

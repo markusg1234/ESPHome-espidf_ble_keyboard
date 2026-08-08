@@ -23,8 +23,8 @@
  *   device: bluetooth_keyboard    # your ESPHome device name
  *   # Optional overrides:
  *   # name: Media Remote           # card title (auto from HA if omitted)
- *   # remote_style: auto           # auto | default | style1..style5 | custom
- *   # remote_style_json: '{...}'   # the style, when remote_style is custom
+ *   # remote_style: auto           # auto | default | style1..style5 | a pasted style's id
+ *   # remote_style_json: '{...}'   # style(s) copied from the web page's Export
  *   # remote_style_entity: sensor.x_remote_style   # override the auto-detected id
  *   # show_numpad: true            # show number pad (default false)
  *   # show_apps: true              # show app launch row (default true)
@@ -50,8 +50,11 @@
  * active host, which needs the optional `remote_style` text sensor — a
  * dashboard served over https cannot fetch the device's API. A host set to a
  * *custom* style names an id this card has no definition for, since those live
- * in the device's NVS; paste that style's JSON into `remote_style_json` to draw
- * it. show_apps / show_color / show_numpad filter whichever style is drawn.
+ * in the device's NVS. Copy that style's JSON from the web page's Export into
+ * `remote_style_json` and it joins this card's style list under its own name —
+ * selectable in the dropdown, and drawn under `auto` too. One style or an array
+ * of them. Styles only ever travel web page -> card; the card never writes back.
+ * show_apps / show_color / show_numpad filter whichever style is drawn.
  *
  * Full example with overrides:
  *   type: custom:ble-remote-card
@@ -74,6 +77,37 @@
 import {
   RMT_BUILTIN, RMT_BTNS, RMT_VARS, RMT_CSS, sectionHtml, validateTpl,
 } from './remote-styles.js?v=1.7.0';
+
+/**
+ * Parse the card's pasted-style box.
+ *
+ * Styles travel one way: you build one on the device's web page, where it is
+ * stored, then copy its JSON here so the card knows how to draw it. The card
+ * never writes back — the device stays the single source of truth, and a pasted
+ * style already carries the id and name it was given there.
+ *
+ * Takes one style object or an array of them, so every custom remote on the
+ * device can join the card's list. Returns { styles, error }; a bad paste is
+ * reported rather than silently ignored.
+ */
+function pastedStylesOf(raw) {
+  const text = (raw || '').trim();
+  if (!text) return { styles: [], error: null };
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (err) {
+    return { styles: [], error: 'Style JSON is not valid: ' + err.message };
+  }
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  const styles = [];
+  for (const style of list) {
+    const why = validateTpl(style);
+    if (why) return { styles: [], error: `Style "${(style && style.id) || '?'}" rejected: ${why}` };
+    styles.push(style);
+  }
+  return { styles, error: null };
+}
 
 class BleRemoteCard extends HTMLElement {
   set hass(hass) {
@@ -148,6 +182,7 @@ class BleRemoteCard extends HTMLElement {
     // Forces the next _renderStyle() to redraw even if the resolved id is
     // unchanged — the pasted JSON may have been edited under the same id.
     this._drawnStyleKey = undefined;
+    this._pasteRaw = undefined;
     // Per-host behaviour defaults, in place before the first hass update so a
     // press that beats the sensor read is an ordinary tap rather than a crash.
     // null repeat set = "use the card's own defaults", see _repeats().
@@ -332,9 +367,18 @@ class BleRemoteCard extends HTMLElement {
           touch-action: manipulation;
         }
         .host-btn:active { background: var(--primary-color, #03a9f4); color: #fff; }
-        .host-info { text-align: center; min-width: 0; }
-        .host-name { font-size: 12px; font-weight: 600; color: var(--primary-text-color, #333); line-height: 1.2; }
-        .host-addr { font-size: 12px; font-weight: 400; font-family: monospace; white-space: nowrap; color: var(--secondary-text-color, #888); }
+        /* Both of these are variable width — a host name can be anything, and
+           the address swaps between a 17-character MAC and "Empty" — so without
+           a reserved width the prev/next arrows slid sideways on every step and
+           walked out from under your finger. Fixed widths keep them still; a
+           long name ellipses rather than pushing them along. */
+        .host-info { text-align: center; width: 84px; flex: 0 0 84px; }
+        .host-name { font-size: 12px; font-weight: 600; color: var(--primary-text-color, #333); line-height: 1.2;
+                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* 17ch is exactly a MAC in this monospace font. */
+        .host-addr { font-size: 12px; font-weight: 400; font-family: monospace; white-space: nowrap;
+                     width: 17ch; text-align: right; overflow: hidden;
+                     color: var(--secondary-text-color, #888); }
 
         /* Button grid sections */
         .section { margin-bottom: 12px; }
@@ -691,16 +735,10 @@ class BleRemoteCard extends HTMLElement {
   // already polls, then the default.
   _resolveStyle() {
     const cfg = this._config;
-    if (cfg.remote_style === 'custom') {
-      const raw = (cfg.remote_style_json || '').trim();
-      if (!raw) return { style: null, error: 'No custom style JSON — paste one in the card options.' };
-      let parsed;
-      try { parsed = JSON.parse(raw); }
-      catch (err) { return { style: null, error: 'Custom style is not valid JSON: ' + err.message }; }
-      const why = validateTpl(parsed);
-      if (why) return { style: null, error: 'Custom style rejected: ' + why };
-      return { style: parsed, error: null };
-    }
+    // Report a bad paste rather than silently drawing the default — a typo in
+    // the box should say so.
+    const paste = pastedStylesOf(cfg.remote_style_json || '');
+    if (paste.error) return { style: null, error: paste.error };
 
     let id = cfg.remote_style;
     if (id === 'auto') {
@@ -710,10 +748,36 @@ class BleRemoteCard extends HTMLElement {
       // The style the device reports for the active host, else what /hosts said.
       id = fromSensor || this._styleFromHosts() || 'default';
     }
-    const style = RMT_BUILTIN.find(t => t.id === id);
-    // A host set to a *custom* style names an id this card has no definition
-    // for — its JSON lives in the device's NVS. Fall back rather than blank.
+    // A pasted style counts under 'auto' too: once it is saved to the device it
+    // can be assigned to a host, and this is the only copy of its definition the
+    // card has — the device stores the document but the card never reads it back
+    // (an https dashboard cannot). Without this, switching to that host would
+    // fall back to the full remote even though the style is saved and assigned.
+    // A pasted style is looked up exactly like a built-in — that is what makes
+    // it "join the list" rather than being a separate mode.
+    const style = this._pastedById(id) || RMT_BUILTIN.find(t => t.id === id);
+    // A custom style the device knows but this card has never been given has no
+    // definition here, so fall back rather than draw nothing.
     return { style: style || RMT_BUILTIN.find(t => t.id === 'default'), error: null };
+  }
+
+  // Styles pasted into the card, which is how a style made on the web page
+  // reaches it: the device holds the definition, and this is the copy the card
+  // draws from. Nothing is ever sent the other way.
+  //
+  // Accepts one style or an array of them, so several custom remotes can join
+  // the list. Cached against the raw text — this runs on every state update.
+  _pastedStyles() {
+    const raw = (this._config.remote_style_json || '').trim();
+    if (raw !== this._pasteRaw) {
+      this._pasteRaw = raw;
+      this._pasteStyles = pastedStylesOf(raw).styles;
+    }
+    return this._pasteStyles || [];
+  }
+
+  _pastedById(id) {
+    return this._pastedStyles().find(t => t.id === id) || null;
   }
 
   // The per-host style id from the /hosts poll, when that fetch works at all.
@@ -856,40 +920,45 @@ customElements.define('ble-remote-card', BleRemoteCard);
  * an unstyled editor is still better than a blank panel.
  * ---------------------------------------------------------------------- */
 
-const REMOTE_EDITOR_SCHEMA = [
-  { name: 'device', required: true, selector: { text: {} } },
-  { name: 'name', selector: { text: {} } },
-  { name: 'zoom', selector: { number: { min: 0.25, max: 3, step: 0.05, mode: 'box' } } },
-  // Built from the generated catalogue, so the list is whatever the firmware
-  // this card shipped with defines — no second place to keep in step.
-  { name: 'remote_style', selector: { select: { mode: 'dropdown', options: [
-    { value: 'auto', label: 'Auto (follow the device)' },
-    ...RMT_BUILTIN.map(t => ({ value: t.id, label: t.name })),
-    { value: 'custom', label: 'Custom (paste JSON below)' },
-  ] } } },
-  // multiline so a style — about a kilobyte — is readable and pasteable. The
-  // fallback editor renders a textarea for this too.
-  { name: 'remote_style_json', selector: { text: { multiline: true } } },
-  { name: 'remote_style_entity', selector: { entity: { domain: 'sensor' } } },
-  { name: 'show_numpad', selector: { boolean: {} } },
-  { name: 'show_apps', selector: { boolean: {} } },
-  { name: 'show_color', selector: { boolean: {} } },
-  { name: 'hidden_entity', selector: { entity: { domain: 'sensor' } } },
-  { name: 'hold_entity', selector: { entity: { domain: 'sensor' } } },
-  { name: 'repeat_entity', selector: { entity: { domain: 'sensor' } } },
-  { name: 'host_slots', selector: { number: { min: 0, max: 10, step: 1, mode: 'box' } } },
-  { name: 'host_names', selector: { text: {} } },
-  { name: 'active_host_entity', selector: { entity: { domain: 'sensor' } } },
-  { name: 'show_mac', selector: { boolean: {} } },
-  { name: 'host_url', selector: { text: {} } },
-];
+// Built per render, not once: a pasted style joins this list by name, and the
+// list is where it becomes selectable.
+function remoteEditorSchema(config) {
+  const pasted = pastedStylesOf((config && config.remote_style_json) || '').styles;
+  return [
+    { name: 'device', required: true, selector: { text: {} } },
+    { name: 'name', selector: { text: {} } },
+    { name: 'zoom', selector: { number: { min: 0.25, max: 3, step: 0.05, mode: 'box' } } },
+    { name: 'remote_style', selector: { select: { mode: 'dropdown', options: [
+      { value: 'auto', label: 'Auto (follow the device)' },
+      ...RMT_BUILTIN.map(t => ({ value: t.id, label: t.name })),
+      // Pasted styles sit alongside the built-ins under the names they were
+      // given on the web page.
+      ...pasted.map(t => ({ value: t.id, label: `${t.name} (pasted)` })),
+    ] } } },
+    // multiline so a style — about a kilobyte — is readable and pasteable. The
+    // fallback editor renders a textarea for this too.
+    { name: 'remote_style_json', selector: { text: { multiline: true } } },
+    { name: 'remote_style_entity', selector: { entity: { domain: 'sensor' } } },
+    { name: 'show_numpad', selector: { boolean: {} } },
+    { name: 'show_apps', selector: { boolean: {} } },
+    { name: 'show_color', selector: { boolean: {} } },
+    { name: 'hidden_entity', selector: { entity: { domain: 'sensor' } } },
+    { name: 'hold_entity', selector: { entity: { domain: 'sensor' } } },
+    { name: 'repeat_entity', selector: { entity: { domain: 'sensor' } } },
+    { name: 'host_slots', selector: { number: { min: 0, max: 10, step: 1, mode: 'box' } } },
+    { name: 'host_names', selector: { text: {} } },
+    { name: 'active_host_entity', selector: { entity: { domain: 'sensor' } } },
+    { name: 'show_mac', selector: { boolean: {} } },
+    { name: 'host_url', selector: { text: {} } },
+  ];
+}
 
 const REMOTE_EDITOR_LABELS = {
   device: 'ESPHome device name',
   name: 'Card title (optional)',
   zoom: 'Zoom (1 = normal, 0.5 = half, 2 = double)',
   remote_style: 'Remote style',
-  remote_style_json: 'Custom style JSON (paste from the web page’s Export)',
+  remote_style_json: 'Paste a style from the web page’s Export (or a list of them)',
   remote_style_entity: 'Remote-style sensor (optional)',
   show_numpad: 'Show number pad',
   show_apps: 'Show app launcher row',
@@ -939,7 +1008,8 @@ class BleRemoteCardEditor extends HTMLElement {
     // for the sections the chosen style actually contains means it renders as
     // designed, while the toggles still do exactly what they say afterwards.
     if (config.remote_style && config.remote_style !== this._config.remote_style) {
-      const picked = RMT_BUILTIN.find(t => t.id === config.remote_style);
+      const picked = RMT_BUILTIN.find(t => t.id === config.remote_style)
+        || pastedStylesOf(config.remote_style_json || '').styles.find(t => t.id === config.remote_style);
       if (picked) {
         const flat = JSON.stringify(picked.sections);
         if (/"num[0-9]"/.test(flat)) config.show_numpad = true;
@@ -964,7 +1034,12 @@ class BleRemoteCardEditor extends HTMLElement {
 
   _render() {
     if (this._rendered) {
-      if (this._form) this._form.data = this._config;
+      if (this._form) {
+        // Schema too, not just data: pasting a style adds an entry to the
+        // dropdown, and a cached schema would never show it.
+        this._form.schema = remoteEditorSchema(this._config);
+        this._form.data = this._config;
+      }
       return;
     }
     this._rendered = true;
@@ -973,7 +1048,7 @@ class BleRemoteCardEditor extends HTMLElement {
       const form = document.createElement('ha-form');
       form.hass = this._hass;
       form.data = this._config;
-      form.schema = REMOTE_EDITOR_SCHEMA;
+      form.schema = remoteEditorSchema(this._config);
       form.computeLabel = (s) => REMOTE_EDITOR_LABELS[s.name] || s.name;
       form.addEventListener('value-changed', (e) => this._emit(e.detail.value));
       this.appendChild(form);
@@ -982,7 +1057,7 @@ class BleRemoteCardEditor extends HTMLElement {
     }
 
     this.appendChild(buildFallbackEditor(
-      REMOTE_EDITOR_SCHEMA, REMOTE_EDITOR_LABELS, () => this._config,
+      remoteEditorSchema(this._config), REMOTE_EDITOR_LABELS, () => this._config,
       (cfg) => this._emit(cfg),
     ));
   }
