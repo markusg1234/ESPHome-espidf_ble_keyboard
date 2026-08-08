@@ -914,9 +914,16 @@ function refreshActiveTemplate(){
         // address the phone shows for itself; s.addr rotates on Android.
         b.innerHTML='<span class="slot-label">'+(s.name||('Host '+(s.slot+1)))+'</span>'+(s.occupied?(s.identity||s.addr):'Empty');
         onTap(b,()=>{
-          api('switch_host',{slot:s.slot});
+          // Mark the new host at once, then re-read as soon as the device has
+          // taken the switch. Without this the page waited for the next 5s poll
+          // to pick up the new host's style and hidden/repeat/hold sets, while
+          // Home Assistant — which the firmware pushes to inside switch_host —
+          // had already moved on. The switch is applied by the time the POST
+          // answers, so this fetch sees the new slot.
           bar.querySelectorAll('.host-btn').forEach(x=>x.classList.remove('active'));
           b.classList.add('active');
+          fetch('/api/ble_keyboard/switch_host?'+new URLSearchParams({slot:s.slot}),{method:'POST'})
+            .then(loadHosts).catch(()=>{});
         },'active');
         bar.appendChild(b);
       });
