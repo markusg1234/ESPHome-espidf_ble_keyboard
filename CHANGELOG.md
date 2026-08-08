@@ -13,6 +13,16 @@ web control page shows the matching version badge.
   device, so they follow the host rather than the browser. Export one, edit the JSON, and import it
   back to build your own; six fit on the device.
 
+- **More remote buttons, and buttons can carry your own label.** The remote gains Menu, Exit, Guide,
+  TV, Voice, Subtitles and a full number pad as real keys, plus eight spares that send nothing until
+  you give them a per-host override — for the keys a remote needs that have no standard code worth
+  guessing. A style can now write a button as `["spare1","Netflix"]` to put its own text on the key,
+  so an imported layout reads the way the remote it came from does.
+- **A remote style can now look like the remote, not just carry its keys.** New circular navigation
+  ring and one-piece volume/channel rocker sections, per-button colour and size, inverted light keys,
+  and body shaping through gradients, the full border-radius grammar and an optional taper. Enough
+  for a style to read as the device it belongs to rather than a generic slab.
+
 ### Fixed
 - **Removing a button from the remote no longer moves the others.** The remaining buttons closed the
   gap, so hiding OK pulled the D-pad arrows out of position; a removed button now leaves its place

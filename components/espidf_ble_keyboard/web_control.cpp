@@ -192,10 +192,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    renderRemote) to turn the card into a slab shaped like a real remote. Inline
    custom properties rather than per-template CSS classes, so a user-authored
    template can theme itself without the page injecting any CSS. */
-.rmt-body{background:var(--rb-bg,transparent);border:1px solid var(--rb-border,transparent);border-radius:var(--rb-radius,0);padding:var(--rb-pad,0);max-width:var(--rb-maxw,none);margin:0 auto}
+.rmt-body{background:var(--rb-bg,transparent);border:1px solid var(--rb-border,transparent);border-radius:var(--rb-radius,0);padding:var(--rb-pad,0);max-width:var(--rb-maxw,none);margin:0 auto;box-shadow:var(--rb-shadow,none);clip-path:var(--rb-clip,none)}
 .rmt-section{margin-bottom:10px}
 .rmt-section:last-child{margin-bottom:0}
-.rmt-row{display:flex;justify-content:center;align-items:center;gap:8px;margin-bottom:8px}
+/* Wraps because an imported style decides its own row lengths: a row longer
+   than the body is wide has to fall onto a second line rather than out of the
+   card. The built-in styles are all short enough that this never triggers. */
+.rmt-row{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;margin-bottom:8px}
 .rmt-row:last-child{margin-bottom:0}
 .rmt-btn{width:48px;height:48px;border:1px solid var(--rb-btn-border,var(--border));border-radius:var(--rb-btn-radius,50%);background:var(--rb-btn-bg,var(--bg));color:var(--rb-btn-fg,var(--fg));font-size:12px;font-weight:500;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;transition:background .1s,transform .1s;user-select:none;-webkit-user-select:none}
 .rmt-btn:active,.rmt-btn.p{background:var(--active);color:#fff;border-color:var(--active);transform:scale(.93)}
@@ -213,8 +216,10 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    labelled one, and centring would leave the two columns half a label apart. */
 .rmt-strip{display:flex;align-items:flex-start;justify-content:center;gap:16px}
 .rmt-strip-group{display:flex;flex-direction:column;align-items:center;gap:4px}
-.rmt-strip-label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase}
-.rmt-divider{height:1px;background:var(--border);margin:10px 0}
+/* Themeable because a light-bodied remote (alloy, white) needs a dark label —
+   the page's own --muted is tuned for a dark card and vanishes on one. */
+.rmt-strip-label{font-size:10px;color:var(--rb-label,var(--muted));font-weight:600;text-transform:uppercase}
+.rmt-divider{height:1px;background:var(--rb-divider,var(--border));margin:10px 0}
 .rmt-media-row{display:flex;justify-content:center;gap:8px}
 .rmt-btn.media{width:42px;height:42px}
 .rmt-btn.rec{background:#c62828;color:#fff;border-color:#c62828}
@@ -227,6 +232,51 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-btn.blue{background:#1e88e5}
 .rmt-app-row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
 .rmt-btn.app{width:auto;height:38px;border-radius:19px;padding:0 14px;font-size:11px}
+/* ── Circular D-pad ──────────────────────────────────────────────
+   The nav ring most remotes actually have, as an alternative to the square
+   .rmt-dpad cluster. The four arrows sit in absolutely-positioned *wrappers*
+   rather than being positioned themselves: .rmt-btn:active already owns
+   `transform` for its press animation, and a positioning transform on the same
+   element would cancel it. */
+.rmt-ring{position:relative;width:168px;height:168px;margin:10px auto;border-radius:50%;
+  background:var(--rb-ring-bg,var(--rb-btn-bg,var(--bg)));border:1px solid var(--rb-btn-border,var(--border))}
+.rmt-ring>span{position:absolute}
+.rmt-ring>span.n{top:6px;left:50%;margin-left:-24px}
+.rmt-ring>span.s{bottom:6px;left:50%;margin-left:-24px}
+.rmt-ring>span.w{left:6px;top:50%;margin-top:-24px}
+.rmt-ring>span.e{right:6px;top:50%;margin-top:-24px}
+.rmt-ring>span.c{left:50%;top:50%;margin:-42px 0 0 -42px}
+/* Arrows read as part of the ring, so they carry no chrome of their own — but
+   they do need their own colour: the ring is often the opposite tone to the
+   other keys (a white ring on a black body, a black one on alloy), and
+   inheriting btn_fg leaves the arrows invisible. */
+.rmt-ring .rmt-btn{background:none;border-color:transparent;color:var(--rb-ring-fg,var(--rb-btn-fg,var(--fg)))}
+.rmt-ring .rmt-btn:active,.rmt-ring .rmt-btn.p{background:rgba(255,255,255,.18);border-color:transparent}
+.rmt-ring .center{width:84px;height:84px}
+/* ── One-piece rocker ────────────────────────────────────────────
+   A volume or channel key as a single tall pill with two halves and its label
+   between them, which is how a remote carries them. A group of one button
+   renders as a plain key at the same height, so mute sits between two rockers. */
+.rmt-rocker{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:14px}
+.rmt-rocker-col{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  padding:4px 0;width:50px;border-radius:25px;background:var(--rb-btn-bg,var(--bg));
+  border:1px solid var(--rb-btn-border,var(--border))}
+.rmt-rocker-col .rmt-btn{background:none;border-color:transparent;height:40px}
+.rmt-rocker-col .rmt-btn:active,.rmt-rocker-col .rmt-btn.p{background:rgba(255,255,255,.18);border-color:transparent}
+.rmt-rocker-label{font-size:9px;color:var(--rb-label,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.rmt-rocker-solo{background:none;border:none;padding:0;width:auto}
+/* ── Per-button variants ─────────────────────────────────────────
+   Size and shape are classes so the cost is paid once however many styles use
+   them; only a validated #rrggbb ever reaches an inline style attribute. */
+.rmt-btn.sm{width:36px;height:36px;font-size:11px}
+.rmt-btn.sm svg{width:16px;height:16px}
+.rmt-btn.lg{width:56px;height:56px}
+.rmt-btn.xl{width:64px;height:64px;font-size:13px}
+.rmt-btn.xl svg{width:26px;height:26px}
+.rmt-btn.wide{width:auto;min-width:56px;padding:0 14px;border-radius:22px}
+.rmt-btn.sq{border-radius:10px}
+.rmt-btn.light{background:var(--rb-light-bg,#e9e9ee);color:var(--rb-light-fg,#16161a);border-color:var(--rb-light-bg,#e9e9ee)}
+.rmt-btn.light:active,.rmt-btn.light.p{background:#fff;color:#000}
 </style></head><body>
 
 <div id="scalable" class="scalable">
@@ -488,6 +538,11 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="home"><option value="back"><option value="search"><option value="info"><option value="channel_up"><option value="channel_down">
 <option value="color_red"><option value="color_green"><option value="color_yellow"><option value="color_blue">
 <option value="app_explorer"><option value="app_browser"><option value="app_email"><option value="app_calc">
+<option value="menu"><option value="exit"><option value="guide"><option value="voice"><option value="captions"><option value="tv">
+<option value="num0"><option value="num1"><option value="num2"><option value="num3"><option value="num4">
+<option value="num5"><option value="num6"><option value="num7"><option value="num8"><option value="num9">
+<option value="spare1"><option value="spare2"><option value="spare3"><option value="spare4">
+<option value="spare5"><option value="spare6"><option value="spare7"><option value="spare8">
 <option value="ctrl_alt_del"><option value="power"><option value="sleep"><option value="shutdown"><option value="hibernate">
 <option value="left_click"><option value="right_click"><option value="middle_click"><option value="mouse_release">
 </datalist>
@@ -529,7 +584,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div style="font-size:12px;color:var(--muted);margin:6px 0">Choose the remote layout this host gets &mdash; switch to the host and the remote re-skins to match it. The hidden, repeat and hold settings above still apply on top of whatever style is showing, and every action stays available to macros, buttons and Home Assistant either way.</div>
 <div class="macro-form" style="margin-top:0"><div class="tpl-step"><button id="tpl-prev" title="Previous style">&minus;</button><span class="tpl-name" id="tpl-name" title="The style this host's remote is drawn in">Full remote</span><button id="tpl-next" title="Next style">+</button></div><button id="tpl-export" class="cancel" title="Copy the shown style into the box below as JSON — edit it, give it a new id, and Import it back as your own">Export</button></div>
 <div id="tpl-custom"></div>
-<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">Roll your own: <strong>Export</strong> a style, change its <code>id</code> and <code>name</code>, rearrange the sections, then <strong>Import</strong>. Sections are <code>["row",…]</code>, <code>["dpad"]</code>, <code>["strip",["Vol","volume_up",…],…]</code>, <code>["media",…]</code>, <code>["apps",…]</code> and <code>["-"]</code> for a divider; <code>"|"</code> spaces a row out. <code>theme</code> is optional.</div>
+<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">Roll your own: <strong>Export</strong> a style, change its <code>id</code> and <code>name</code>, rearrange the sections, then <strong>Import</strong>. Sections are <code>["row",…]</code>, <code>["dpad"]</code>, <code>["ring"]</code> for a round nav ring, <code>["strip",["Vol","volume_up",…],…]</code>, <code>["rocker",["Vol","volume_up","volume_down"],…]</code> for one-piece rockers, <code>["media",…]</code>, <code>["apps",…]</code> and <code>["-"]</code> for a divider; <code>"|"</code> spaces a row out. <code>theme</code> is optional and <code>bg</code> takes a gradient. Write a button as <code>["spare1","Netflix"]</code> to label it &mdash; pair that with an override on the same host and the key both reads and does what you want &mdash; or <code>["spare1","Netflix","#e50914 wide"]</code> to colour and size it (<code>light sm lg xl wide sq</code>).</div>
 <div class="macro-form"><textarea id="tpl-json" placeholder="Paste a style JSON here to import&hellip;" rows="4" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="tpl-import">Import</button></div>
 <div id="tpl-msg" style="font-size:11px;color:var(--muted)"></div>
 </div>
@@ -623,7 +678,13 @@ play:'<path d="M8 5v14l11-7z"/>',
 stop:'<path d="M6 6h12v12H6z"/>',
 ff:'<path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>',
 next:'<path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>',
-rec:'<circle cx="12" cy="12" r="7"/>'};
+rec:'<circle cx="12" cy="12" r="7"/>',
+menu:'<path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>',
+exit:'<path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>',
+guide:'<path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM5 7h6v2H5V7zm0 4h6v2H5v-2zm0 4h6v2H5v-2zm8-8h6v2h-6V7zm0 4h6v2h-6v-2zm0 4h6v2h-6v-2z"/>',
+mic:'<path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>',
+cc:'<path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H5V6h14v12zM7 15h3v-1.5H8.5v-3H10V9H7v6zm7 0h3v-1.5h-1.5v-3H17V9h-3v6z"/>',
+tv:'<path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>'};
 // Every action the remote can show. t=title, i=icon id, x=text label,
 // c=extra classes, r=repeats by default, g=group in the Host Actions grids.
 const RMT_BTNS={
@@ -656,14 +717,53 @@ color_blue:{t:'Blue (F4)',c:'col blue',g:4},
 app_explorer:{t:'File Explorer',x:'Explorer',c:'app',g:5},
 app_browser:{t:'Web Browser',x:'Browser',c:'app',g:5},
 app_email:{t:'Email Client',x:'Email',c:'app',g:5},
-app_calc:{t:'Calculator',x:'Calc',c:'app',g:5}};
-const RMT_KINDS=['row','dpad','strip','media','apps','-'];
+app_calc:{t:'Calculator',x:'Calc',c:'app',g:5},
+// Keys a TV remote has that a keyboard doesn't. Standard HID usages, but that
+// page is patchily implemented — a host that ignores one is a case for an
+// override, not a bug.
+menu:{t:'Menu',i:'menu',g:6},
+exit:{t:'Exit',i:'exit',g:6},
+guide:{t:'Guide',i:'guide',g:6},
+voice:{t:'Voice / Mic',i:'mic',g:6},
+captions:{t:'Subtitles',i:'cc',g:6},
+tv:{t:'TV',i:'tv',g:6},
+// The keypad, as keyboard digits — direct channel entry on a TV, typing a
+// number on a PC.
+num1:{t:'1',x:'1',g:7},num2:{t:'2',x:'2',g:7},num3:{t:'3',x:'3',g:7},
+num4:{t:'4',x:'4',g:7},num5:{t:'5',x:'5',g:7},num6:{t:'6',x:'6',g:7},
+num7:{t:'7',x:'7',g:7},num8:{t:'8',x:'8',g:7},num9:{t:'9',x:'9',g:7},
+num0:{t:'0',x:'0',g:7},
+// Spares send nothing until the host they are on gives them an override. A
+// style normally relabels them, so the digit is only what they fall back to.
+spare1:{t:'Spare 1',x:'1',g:8},
+spare2:{t:'Spare 2',x:'2',g:8},
+spare3:{t:'Spare 3',x:'3',g:8},
+spare4:{t:'Spare 4',x:'4',g:8},
+spare5:{t:'Spare 5',x:'5',g:8},
+spare6:{t:'Spare 6',x:'6',g:8},
+spare7:{t:'Spare 7',x:'7',g:8},
+spare8:{t:'Spare 8',x:'8',g:8}};
+const RMT_KINDS=['row','dpad','ring','strip','rocker','media','apps','-'];
 // A theme may only set these, and each maps to a custom property the .rmt-*
 // rules already read. An imported template therefore cannot inject CSS: keys
 // outside this table are dropped, values only ever land in a --rb-* property.
+// `bg` and `btn_bg` feed the CSS `background` shorthand, so a gradient string
+// works as well as a flat colour — the cheapest depth a style can have.
 const RMT_VARS={bg:'--rb-bg',border:'--rb-border',radius:'--rb-radius',pad:'--rb-pad',
 maxw:'--rb-maxw',btn_bg:'--rb-btn-bg',btn_fg:'--rb-btn-fg',btn_border:'--rb-btn-border',
-btn_radius:'--rb-btn-radius',ok_bg:'--rb-ok-bg',ok_fg:'--rb-ok-fg'};
+btn_radius:'--rb-btn-radius',ok_bg:'--rb-ok-bg',ok_fg:'--rb-ok-fg',
+ring_bg:'--rb-ring-bg',ring_fg:'--rb-ring-fg',light_bg:'--rb-light-bg',light_fg:'--rb-light-fg',shadow:'--rb-shadow',
+label:'--rb-label',divider:'--rb-divider',clip:'--rb-clip'};
+// `radius` takes the whole CSS border-radius grammar, including the two-axis
+// `/` form — that is what makes an egg or a teardrop body, no code needed.
+// `clip` goes further for a genuine taper, and is the one theme value with a
+// grammar of its own, so it is checked against exactly that and nothing else.
+const RMT_CLIP=/^polygon\(\s*[-0-9%.,\s]+\)$/i;
+// Appearance tokens a button may carry. Top level, not inside either IIFE: the
+// renderer applies them and the importer validates them, and they must agree —
+// keeping them in one place is what stops the two drifting apart.
+const RMT_OPTS=['light','sm','lg','xl','wide','sq'];
+const RMT_HEX=/^#[0-9a-f]{3,8}$/i;
 // Built-in styles. `default` reproduces the fixed markup the remote had before
 // styles existed, so a host that never picks one sees no change at all. The
 // rest are numbered rather than named after the devices they suit: the shapes
@@ -1175,7 +1275,8 @@ function appendStep(el,val){
     return Object.keys(RMT_BTNS).map(a=>({action:a,label:RMT_BTNS[a].t,
                                           group:RMT_BTNS[a].g,rpt:!!RMT_BTNS[a].r}));
   }
-  const GROUP_NAMES=['Power &amp; navigation','D-pad','Volume &amp; channel','Media','Colours','Apps'];
+  const GROUP_NAMES=['Power &amp; navigation','D-pad','Volume &amp; channel','Media','Colours','Apps',
+                     'TV keys','Numbers','Spare (set an override to use)'];
 
   // Shared by all three per-host panels: same button list, same grouping — only
   // what a tick means differs, so the caller supplies that as a predicate.
@@ -1455,23 +1556,60 @@ function appendStep(el,val){
     if(!Array.isArray(t.sections)||!t.sections.length)return 'sections must be a non-empty array';
     if(t.theme!==undefined&&(typeof t.theme!=='object'||t.theme===null||Array.isArray(t.theme)))
       return 'theme must be an object';
+    // Theme values are handed to setProperty, which rejects malformed CSS on its
+    // own — but url() is well-formed and would have the page fetch from
+    // somewhere else the moment a style is applied. Nothing here needs it.
+    if(t.theme)for(const k in t.theme){
+      if(typeof t.theme[k]!=='string')continue;
+      if(/url\s*\(/i.test(t.theme[k]))
+        return 'theme values cannot use url() — "'+k+'" would load from another host';
+      if(k==='clip'&&!RMT_CLIP.test(t.theme[k].trim()))
+        return 'clip must be a polygon(), e.g. polygon(0% 0%, 100% 0%, 82% 100%, 18% 100%)';
+    }
     for(const s of t.sections){
       if(!Array.isArray(s)||typeof s[0]!=='string')return 'Each section is an array starting with its kind';
       if(RMT_KINDS.indexOf(s[0])<0)return 'Unknown section kind "'+s[0]+'" — use '+RMT_KINDS.join(', ');
       let items=[];
-      if(s[0]==='strip'){
+      if(s[0]==='strip'||s[0]==='rocker'){
         for(const g of s.slice(1)){
-          if(!Array.isArray(g))return 'Each strip group is an array: ["Label","action",…]';
+          if(!Array.isArray(g))return 'Each '+s[0]+' group is an array: ["Label","action",…]';
+          if(typeof g[0]!=='string')return 'A '+s[0]+' group starts with its label — "" for none';
+          if(g[0].length>8)return 'Group labels are up to 8 characters — "'+g[0]+'" is too wide';
+          if(s[0]==='rocker'&&(g.length<2||g.length>3))
+            return 'A rocker group is ["Label","up","down"], or ["Label","action"] for a single key';
           items=items.concat(g.slice(1));
         }
-      }else if(s[0]==='dpad'){
-        if(s.length>1&&s.length!==6)return 'A dpad section lists exactly 5 actions (up, left, centre, right, down) or none';
+      }else if(s[0]==='dpad'||s[0]==='ring'){
+        if(s.length>1&&s.length!==6)
+          return 'A '+s[0]+' section lists exactly 5 actions (up, left, centre, right, down) or none';
         items=s.slice(1);
       }else{
         items=s.slice(1);
       }
-      for(const a of items){
-        if(a==='|'&&s[0]==='row')continue;
+      for(const it of items){
+        if(it==='|'&&s[0]==='row')continue;
+        // "action", ["action","Label"], or ["action","Label","opts"].
+        const arr=Array.isArray(it);
+        if(arr&&(it.length<2||it.length>3))
+          return 'A button is ["action","Label"] or ["action","Label","opts"]';
+        if(arr&&typeof it[1]!=='string')return 'A button label must be text ("" to keep the icon)';
+        // 16 is what the widest button (an app pill) carries; a round key fits
+        // about four, which is the caller's problem rather than an error.
+        if(arr&&it[1].length>16)
+          return 'Button labels are up to 16 characters — "'+it[1]+'" will not fit a key';
+        if(arr&&it.length===3){
+          if(typeof it[2]!=='string')return 'Button options must be a string, e.g. "light sm"';
+          for(const tok of it[2].split(/\s+/)){
+            if(!tok)continue;
+            // Refused rather than ignored: a silently dropped typo looks like
+            // the renderer is broken. The hex test here is the same one
+            // btnHtml applies, and is what keeps arbitrary CSS out of the
+            // inline style attribute it builds.
+            if(!RMT_HEX.test(tok)&&RMT_OPTS.indexOf(tok)<0)
+              return 'Unknown button option "'+tok+'" — use a #hex colour or '+RMT_OPTS.join(', ');
+          }
+        }
+        const a=arr?it[0]:it;
         if(typeof a!=='string'||!RMT_BTNS[a])return 'Unknown button "'+a+'"';
       }
     }
@@ -2354,11 +2492,37 @@ buildKeyboard();
   // wholesale costs nothing to rewire — the new ones are picked up by the same
   // closest('.rmt-btn') lookup on the next press.
   function icon(i){return '<svg viewBox="0 0 24 24">'+RI[i]+'</svg>'}
-  function btnHtml(a){
+  // Custom labels come from imported styles, so they are the one user-supplied
+  // string that reaches innerHTML anywhere on this page — style names go through
+  // textContent and ids are regex-restricted. Everything else built into the
+  // markup below comes from RMT_BTNS, which is ours.
+  function esc(s){
+    return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+  // An item is an action name, or [action, label] to relabel its face, or
+  // [action, label, opts] to restyle it too. A label is what lets a spare read
+  // "Netflix" while the tooltip still names the action the host will run.
+  function btnHtml(item){
+    const arr=Array.isArray(item);
+    const a=arr?item[0]:item, lab=arr?item[1]:null, opt=arr?item[2]:null;
     const b=RMT_BTNS[a];
-    if(!b)return '';   // a template naming a button this firmware doesn't have
-    return '<button class="rmt-btn'+(b.c?' '+b.c:'')+'" data-action="'+a+'"'+
-           (b.r?' data-repeat="1"':'')+' title="'+b.t+'">'+(b.i?icon(b.i):(b.x||''))+'</button>';
+    if(!b)return '';   // a style naming a button this firmware doesn't have
+    const face=(lab!=null&&lab!=='')?esc(lab):(b.i?icon(b.i):(b.x||''));
+    const tip=(lab!=null&&lab!=='')?esc(lab)+' — runs '+a:b.t;
+    let cls='',css='';
+    if(typeof opt==='string'){
+      for(const tok of opt.split(/\s+/)){
+        if(!tok)continue;
+        // The only value that reaches an inline style attribute, so it is
+        // matched against a strict hex pattern and nothing else — a token that
+        // got this far already passed the same test at import.
+        if(RMT_HEX.test(tok))css='background:'+tok+';border-color:'+tok;
+        else if(RMT_OPTS.indexOf(tok)>=0)cls+=' '+tok;
+      }
+    }
+    return '<button class="rmt-btn'+(b.c?' '+b.c:'')+cls+'" data-action="'+a+'"'+
+           (b.r?' data-repeat="1"':'')+(css?' style="'+css+'"':'')+
+           ' title="'+tip+'">'+face+'</button>';
   }
   function sectionHtml(s){
     const k=s[0];
@@ -2373,10 +2537,28 @@ buildKeyboard();
       inner='<div class="rmt-dpad"><div class="empty"></div>'+btnHtml(d[0])+'<div class="empty"></div>'+
             btnHtml(d[1])+btnHtml(d[2])+btnHtml(d[3])+
             '<div class="empty"></div>'+btnHtml(d[4])+'<div class="empty"></div></div>';
+    }else if(k==='ring'){
+      // Same five actions as a dpad, drawn as the nav ring instead. Wrappers do
+      // the positioning so each button keeps its own press transform.
+      const d=s.length>1?s.slice(1):['up','left','ok','right','down'];
+      const at=(p,i)=>'<span class="'+p+'">'+btnHtml(d[i])+'</span>';
+      inner='<div class="rmt-ring">'+at('n',0)+at('w',1)+at('c',2)+at('e',3)+at('s',4)+'</div>';
+    }else if(k==='rocker'){
+      inner='<div class="rmt-rocker">'+s.slice(1).map(g=>{
+        // Three entries = a two-way rocker with its label between the halves.
+        // Two = a lone key at the same height, which is how mute sits between
+        // a volume and a channel rocker.
+        if(g.length>=3)
+          return '<div class="rmt-rocker-col">'+btnHtml(g[1])+
+                 (g[0]?'<span class="rmt-rocker-label">'+esc(g[0])+'</span>':'')+
+                 btnHtml(g[2])+'</div>';
+        return '<div class="rmt-rocker-col rmt-rocker-solo">'+btnHtml(g[1])+
+               (g[0]?'<span class="rmt-rocker-label">'+esc(g[0])+'</span>':'')+'</div>';
+      }).join('')+'</div>';
     }else if(k==='strip'){
       inner='<div class="rmt-strip">'+s.slice(1).map((g,i)=>
         (i?'<div style="width:40px"></div>':'')+
-        '<div class="rmt-strip-group">'+(g[0]?'<span class="rmt-strip-label">'+g[0]+'</span>':'')+
+        '<div class="rmt-strip-group">'+(g[0]?'<span class="rmt-strip-label">'+esc(g[0])+'</span>':'')+
         g.slice(1).map(a=>btnHtml(a)).join('')+'</div>').join('')+'</div>';
     }else if(k==='media'||k==='apps'){
       inner='<div class="rmt-'+(k==='media'?'media-row':'app-row')+'">'+
@@ -3375,7 +3557,11 @@ class BleKbWebHandler : public AsyncWebHandler {
       if (slot < 0 || slot >= kb_->host_slots()) {
         send_response(400, "text/plain", "Invalid slot");
       } else if (list.size() > EspidfBleKeyboard::MAX_HIDDEN) {
-        send_response(400, "text/plain", "Too many hidden buttons (max 40)");
+        // Built from the constant, not spelled out: these messages said "max 40"
+        // for a while after the cap moved, which is worse than no number.
+        std::string msg = "Too many hidden buttons (max " +
+                          std::to_string(EspidfBleKeyboard::MAX_HIDDEN) + ")";
+        send_response(400, "text/plain", msg.c_str());
       } else if (!kb_->set_hidden((uint8_t) slot, list)) {
         send_response(400, "text/plain", "Invalid button name in list");
       } else {
@@ -3418,7 +3604,9 @@ class BleKbWebHandler : public AsyncWebHandler {
         kb_->clear_repeat((uint8_t) slot);
         send_response(200, "text/plain", "OK");
       } else if (list.size() > EspidfBleKeyboard::MAX_REPEAT_BUTTONS) {
-        send_response(400, "text/plain", "Too many repeat buttons (max 40)");
+        std::string msg = "Too many repeat buttons (max " +
+                          std::to_string(EspidfBleKeyboard::MAX_REPEAT_BUTTONS) + ")";
+        send_response(400, "text/plain", msg.c_str());
       } else if (delay < 0 || rate < 0) {
         send_response(400, "text/plain", "Invalid timing");
       } else if (!clash.empty()) {
@@ -3448,7 +3636,9 @@ class BleKbWebHandler : public AsyncWebHandler {
       if (slot < 0 || slot >= kb_->host_slots()) {
         send_response(400, "text/plain", "Invalid slot");
       } else if (list.size() > EspidfBleKeyboard::MAX_HOLD) {
-        send_response(400, "text/plain", "Too many hold buttons (max 40)");
+        std::string msg = "Too many hold buttons (max " +
+                          std::to_string(EspidfBleKeyboard::MAX_HOLD) + ")";
+        send_response(400, "text/plain", msg.c_str());
       } else if (!clash.empty()) {
         std::string msg = "\"" + clash + "\" is set to repeat on this host — untick it there first";
         send_response(400, "text/plain", msg.c_str());

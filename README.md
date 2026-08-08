@@ -487,6 +487,14 @@ espidf_ble_keyboard:
 | `"channel_up"` / `"channel_down"` | Channel surf — Page Up / Page Down keypress. |
 | `"color_red"` / `"color_green"` / `"color_yellow"` / `"color_blue"` | Coloured remote keys — F1–F4, as most media apps expect. |
 | `"app_explorer"` / `"app_browser"` / `"app_email"` / `"app_calc"` | App launch keys (`0x0194`, `0x0223`, `0x018A`, `0x0192`). |
+| `"menu"` / `"exit"` | Menu (`0x0040`) and Menu Escape (`0x0046`) — the hamburger and back-out keys a set-top remote has. |
+| `"guide"` / `"tv"` | Programme Guide (`0x008D`) and Media Select TV (`0x0089`). |
+| `"voice"` | Voice Command (`0x00CF`) — the microphone key. |
+| `"captions"` | Closed Caption (`0x0061`) — subtitles on/off. |
+| `"num0"` … `"num9"` | The keypad, as plain keyboard digits — direct channel entry on a TV, typing a number on a PC. |
+| `"spare1"` … `"spare8"` | Send **nothing** on their own. They exist as names to hang a [per-host override](#host-actions-per-host-overrides) on, for remote keys with no standard HID usage worth guessing — an app launcher, a set-top box's Input, a vendor's own menu. Pressing an unmapped one logs a hint and does nothing. |
+
+> The six keys above are standard Consumer Page usages, but that page is patchily implemented — a host that ignores one leaves the button dead. That is what overrides are for, and it is the same reason `ok` sends Enter rather than Menu Pick.
 | `"left_click"` | Mouse left click. |
 | `"right_click"` | Mouse right click. |
 | `"middle_click"` | Mouse middle click. |
@@ -989,13 +997,51 @@ Press **Export** to drop the style currently shown into the box below as JSON, e
 | Kind | Renders |
 |---|---|
 | `["row", …]` | A centred row of round buttons. `"\|"` inserts a stretching gap, which is what pushes Power to the far left. |
-| `["dpad"]` | The standard D-pad. List five actions — `["dpad","up","left","ok","right","down"]` — to substitute your own. |
+| `["dpad"]` | A square D-pad cluster. List five actions — `["dpad","up","left","ok","right","down"]` — to substitute your own. |
+| `["ring"]` | The same five keys as a **circular navigation ring** with a centre button, which is what most modern remotes have. Takes the same optional five actions. |
 | `["strip", ["Vol","volume_up","volume_down"], …]` | Labelled vertical columns side by side. The first entry of each group is its label; `""` for none. |
+| `["rocker", ["Vol","volume_up","volume_down"], …]` | **One-piece rocker keys** — a tall pill with two halves and the label between them, as a remote carries volume and channel. A two-entry group, `["","mute"]`, is a single key at the same height, which is how mute sits between two rockers. |
 | `["media", …]` | A row of the smaller transport-sized buttons. |
 | `["apps", …]` | A row of wide pill buttons. |
 | `["-"]` | A horizontal divider. |
 
-Buttons are named by action — any name from the [Action Reference](#action-reference) table below that the remote knows (`remote_power`, `search`, `info`, `mute`, `home`, `back`, the D-pad five, `volume_*`, `channel_*`, the seven transport keys, `color_*`, `app_*`). An unknown name is refused on import rather than rendering a dead button. `theme` is optional and may set `bg`, `border`, `radius`, `pad`, `maxw`, `btn_bg`, `btn_fg`, `btn_border`, `btn_radius`, `ok_bg` and `ok_fg`; anything else in it is ignored, so an imported style cannot restyle the rest of the page.
+**Colouring and sizing a button.** A third element carries appearance tokens, space-separated:
+
+```json
+["row", ["spare1","Netflix","#e50914 wide"], ["keyboard","Kbd","light sm"]]
+```
+
+| Token | Effect |
+|---|---|
+| `#rrggbb` | the button's own colour |
+| `light` | an inverted key — light face, dark glyph, as remotes use for Home and app buttons |
+| `sm` / `lg` / `xl` | 36 / 56 / 64 px instead of the usual 48 |
+| `wide` | an auto-width pill |
+| `sq` | square-ish corners |
+
+An unknown token is refused on import rather than ignored, so a typo shows up rather than silently doing nothing.
+
+**Giving a button its own label.** Write it as `["action", "Label"]` instead of a bare action name and the label replaces the button's face, while the tooltip still names the action underneath. Pair that with a per-host override and a key both reads and does what you want:
+
+```json
+["row", ["spare1", "Netflix"], ["spare2", "iPlayer"], "voice"]
+```
+
+Labels are 1–16 characters. A round key fits about four; the wide app pill fits more. Spares are the natural partner here — they send nothing until you give them an override on that host.
+
+Buttons are named by action — any name from the [Action Reference](#action-reference) table below that the remote knows (`remote_power`, `search`, `info`, `mute`, `home`, `back`, the D-pad five, `volume_*`, `channel_*`, the seven transport keys, `color_*`, `app_*`, `menu`, `guide`, `voice`, `captions`, `tv`, `num0`–`num9`, `spare1`–`spare8`). An unknown name is refused on import rather than rendering a dead button.
+
+**Shaping the body.** `theme` is optional. Colours: `bg`, `border`, `btn_bg`, `btn_fg`, `btn_border`, `ok_bg`, `ok_fg`, `ring_bg`, `ring_fg`, `light_bg`, `light_fg`, `label`, `divider`. Geometry: `pad`, `maxw`, `radius`, `btn_radius`, `shadow`, `clip`. Anything else is ignored, so an imported style cannot restyle the rest of the page.
+
+Three of those do more than they look:
+
+- **`bg` takes a gradient**, not just a colour — it feeds the CSS `background` shorthand, so `"linear-gradient(180deg,#2b2b33,#141418)"` gives the body depth. Same for `btn_bg`.
+- **`radius` takes the whole CSS grammar**, including the two-axis `/` form. That is what makes a rounded-end stick or a teardrop pebble: `"46% 46% 26% 26% / 24% 24% 8% 8%"`.
+- **`clip`** accepts a `polygon()` for a genuinely tapered body, e.g. `"polygon(0% 0%, 100% 0%, 82% 100%, 18% 100%)"`. It is validated as a polygon and nothing else.
+
+`url()` is refused anywhere in a theme — an imported style must not be able to make the page fetch from another host.
+
+> `ring_fg` exists because a nav ring is often the opposite tone to the rest of the remote — a white ring on a black body, a black one on alloy. Without it the arrows inherit `btn_fg` and disappear.
 
 Deleting a custom style leaves the hosts using it on the full remote; re-importing it under the same id puts them all back.
 

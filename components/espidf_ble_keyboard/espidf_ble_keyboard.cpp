@@ -2688,6 +2688,18 @@ static const NamedConsumer NAMED_CONSUMERS[] = {
     {"rewind", 0x00B4},       {"fast_forward", 0x00B3},
     {"app_explorer", 0x0194}, {"app_browser", 0x0223},
     {"app_email", 0x018A},    {"app_calc", 0x0192},
+    // Keys a TV remote has and a keyboard doesn't. Every one is a standard
+    // Consumer Page usage, but that page is widely under-implemented — a host
+    // that ignores one leaves the button dead, which is what per-host overrides
+    // are for (same reasoning as "ok" below, which sends Enter for exactly this
+    // reason). Prefer a spare over a guessed code: "input", "settings" and
+    // "replay" have no standard usage and are deliberately absent.
+    {"menu", 0x0040},         // Menu
+    {"exit", 0x0046},         // Menu Escape
+    {"captions", 0x0061},     // Closed Caption
+    {"tv", 0x0089},           // Media Select TV
+    {"guide", 0x008D},        // Media Select Program Guide
+    {"voice", 0x00CF},        // Voice Command — the mic key
 };
 
 struct NamedCombo {
@@ -2708,6 +2720,14 @@ static const NamedCombo NAMED_COMBOS[] = {
     {"color_green", 0, 0x3B},   // F2
     {"color_yellow", 0, 0x3C},  // F3
     {"color_blue", 0, 0x3D},    // F4
+    // The keypad, as plain keyboard digits — what a TV wants for direct channel
+    // entry and what a PC reads as typing a number. There is no consumer usage
+    // for these; the keyboard row is the whole mechanism, so a host that takes
+    // digits at all takes these.
+    {"num1", 0, 0x1E}, {"num2", 0, 0x1F}, {"num3", 0, 0x20},
+    {"num4", 0, 0x21}, {"num5", 0, 0x22}, {"num6", 0, 0x23},
+    {"num7", 0, 0x24}, {"num8", 0, 0x25}, {"num9", 0, 0x26},
+    {"num0", 0, 0x27},
 };
 
 bool EspidfBleKeyboard::execute_remote_action_(const std::string &action) {
@@ -2717,7 +2737,26 @@ bool EspidfBleKeyboard::execute_remote_action_(const std::string &action) {
     for (const auto &e : NAMED_COMBOS) {
         if (action == e.name) { send_key_combo(e.modifier, e.keycode); return true; }
     }
+    // Spare buttons: a name to hang a per-host override on, and nothing else.
+    // They exist because a remote layout often needs a key this device has no
+    // business guessing a HID code for — an app launcher, a set-top box's
+    // "input", a vendor's own menu. Overrides resolve before this function, so
+    // reaching here means the button is genuinely unmapped on this host. That
+    // is a normal state, not a fault, hence the hint rather than a warning.
+    if (is_spare_action(action)) {
+        ESP_LOGI(TAG, "%s has no action on host %u — set one for it under Host Actions",
+                 action.c_str(), (unsigned) active_slot_);
+        return true;  // handled: swallow it, so it can't fall through to "unknown action"
+    }
     return false;
+}
+
+// "spare" followed by 1..MAX_SPARES. Kept as a rule rather than a table so the
+// count is one constant to change.
+bool EspidfBleKeyboard::is_spare_action(const std::string &action) {
+    if (action.size() != 6 || action.compare(0, 5, "spare") != 0) return false;
+    char c = action[5];
+    return c >= '1' && c <= ('0' + MAX_SPARES);
 }
 
 // Hold whatever `action` resolves to, instead of tapping it.
