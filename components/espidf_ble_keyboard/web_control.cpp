@@ -904,6 +904,9 @@ function refreshActiveTemplate(){
       if(window.applyHidden)window.applyHidden(false);
       if(window.applyRepeat)window.applyRepeat(false);
       if(window.applyHold)window.applyHold(false);
+      // Host Actions edits one slot at a time; tell it the device moved so its
+      // picker can follow. Defined by that card's own block, which runs later.
+      if(window.onHostSwitched)window.onHostSwitched(d.active);
       if(!d.slots||d.slots.length<=1){bar.style.display='none';return}
       bar.style.display='';
       bar.innerHTML='';
@@ -1498,6 +1501,29 @@ function appendStep(el,val){
         return loadHold();
       });
   });
+
+  // Called by the host bar whenever the device changes host, however that
+  // happened — a tap here, a physical button, Home Assistant.
+  //
+  // The picker always follows, so this card shows the host you are actually on
+  // rather than whichever one it happened to be left on. Picking a slot by hand
+  // still works exactly as before: choose any host to edit it, and the picker
+  // stays there until the device moves again.
+  window.onHostSwitched=function(newActive){
+    if(typeof newActive!=='number'||newActive===activeSlot)return;
+    activeSlot=newActive;
+    slot=newActive;
+    // An armed Forget confirm belonged to the slot it was armed on.
+    if(forgetBtn)resetForget();
+    // loadSlots repaints the labels too — the "(active)" marker has moved.
+    loadSlots().then(()=>{
+      load();
+      if(hidPanel&&hidPanel.classList.contains('open'))loadHidden();
+      if(rptPanel&&rptPanel.classList.contains('open'))loadRepeat();
+      if(hldPanel&&hldPanel.classList.contains('open'))loadHold();
+      if(tplPanel&&tplPanel.classList.contains('open')){tplNote('');loadTpl()}
+    }).catch(()=>{});
+  };
 
   // ── Remote style (per host) ──
   // Which template the remote is drawn from for this host. The device only
