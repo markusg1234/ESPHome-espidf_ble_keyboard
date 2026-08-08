@@ -1908,10 +1908,12 @@ void EspidfBleKeyboard::switch_host(uint8_t slot) {
     save_host_slots_();
     if (active_host_sensor_ != nullptr)
         active_host_sensor_->publish_state(slot);
-    // The new host may hide, hold and repeat a different set of buttons.
+    // The new host may hide, hold and repeat a different set of buttons, and
+    // may draw its remote in a different style.
     publish_hidden_();
     publish_hold_();
     publish_repeat_();
+    publish_remote_style_();
 
     // Re-apply security params for the new slot's passkey config
     bool slot_has_pk; uint32_t slot_pk; bool slot_sc;
@@ -2054,6 +2056,7 @@ void EspidfBleKeyboard::setup() {
     publish_hidden_();
     publish_repeat_();
     publish_hold_();
+    publish_remote_style_();
     // Apply YAML default if no setter ran (defensive), then let NVS override.
     if (active_layout_ == nullptr) active_layout_ = default_layout();
     load_layout_();
@@ -2065,6 +2068,7 @@ void EspidfBleKeyboard::setup() {
     if (active_host_sensor_ != nullptr)
         active_host_sensor_->publish_state(active_slot_);
     publish_hidden_();
+    publish_remote_style_();
 
     // If active slot has a bonded host, use directed advertising on startup
     // Skip directed for RPA addresses (Android rotates these)

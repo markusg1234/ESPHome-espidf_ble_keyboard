@@ -72,7 +72,7 @@
 // own web page so this card draws exactly what the device does. Regenerate with
 // `node tools/gen-remote-styles.mjs` after changing styles in web_control.cpp.
 import {
-  RMT_BUILTIN, RMT_VARS, RMT_CSS, sectionHtml, validateTpl,
+  RMT_BUILTIN, RMT_BTNS, RMT_VARS, RMT_CSS, sectionHtml, validateTpl,
 } from './remote-styles.js?v=1.7.0';
 
 class BleRemoteCard extends HTMLElement {
@@ -219,12 +219,16 @@ class BleRemoteCard extends HTMLElement {
     }
   }
 
-  // True if this action should repeat while held on this host. With no sensor
-  // the card falls back to the four buttons it has always repeated.
+  // True if this action should repeat while held on this host. With no sensor,
+  // fall back to the catalogue's own defaults — the same `r` flags the web page
+  // reads when a host has never been configured. It used to be a hardcoded four,
+  // which meant an unconfigured host repeated less here than on the device's own
+  // remote, and made "reset to defaults" in Host Actions change the card's
+  // behaviour rather than leave it alone.
   _repeats(action) {
-    return this._repeatSet
-      ? this._repeatSet.includes(action)
-      : ['volume_up', 'volume_down', 'channel_up', 'channel_down'].includes(action);
+    if (this._repeatSet) return this._repeatSet.includes(action);
+    const b = RMT_BTNS[action];
+    return !!(b && b.r);
   }
 
   // Ends the current hold, once, however the press ended. Also the safety net

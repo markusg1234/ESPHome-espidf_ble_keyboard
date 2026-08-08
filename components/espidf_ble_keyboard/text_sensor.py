@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
+from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
 
 from . import EspidfBleKeyboard
 
@@ -22,7 +23,15 @@ TYPE_REPEAT_BUTTONS = "repeat_buttons"
 # blocks. Empty state = the host uses the default style.
 TYPE_REMOTE_STYLE = "remote_style"
 
-CONFIG_SCHEMA = text_sensor.text_sensor_schema().extend(
+# Diagnostic by default: every one of these carries machine-readable state for
+# the Lovelace cards, not something to read on the device page. That keeps them
+# out of the main entity list (and out of auto-generated dashboards) and folds
+# them into the collapsed Diagnostic section instead — which matters because a
+# repeat list is a long comma-separated string that otherwise runs across the
+# integration screen. Override with `entity_category:` if you want one promoted.
+CONFIG_SCHEMA = text_sensor.text_sensor_schema(
+    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+).extend(
     {
         cv.Required(CONF_KEYBOARD_ID): cv.use_id(EspidfBleKeyboard),
         cv.Optional(CONF_TYPE, default=TYPE_HIDDEN_BUTTONS): cv.one_of(
