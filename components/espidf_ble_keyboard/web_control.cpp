@@ -788,8 +788,13 @@ const RMT_BUILTIN=[
  ['media','color_red','color_green','color_yellow','color_blue'],
  ['-'],
  ['apps','app_explorer','app_browser','app_email','app_calc','search']]},
+// `divider` is set, not left to fall back: an unset one resolves to the page's
+// --border, which flips with the light/dark toggle and drew a pale line across
+// this style's dark body in light mode. A style that fixes its own colours has
+// to fix all of them.
 {id:'style1',name:'Style 1',theme:{bg:'#17181d',border:'#2a2c33',radius:'34px',pad:'22px 12px',
- maxw:'250px',btn_bg:'#232630',btn_fg:'#e8e8ec',btn_border:'#303341',ok_bg:'#454a5c'},sections:[
+ maxw:'250px',btn_bg:'#232630',btn_fg:'#e8e8ec',btn_border:'#303341',ok_bg:'#454a5c',
+ divider:'#303341'},sections:[
  ['row','remote_power','|','search','mute'],
  ['dpad'],
  ['row','back','home','info'],

@@ -968,6 +968,10 @@ The web remote can be drawn in a different **style** per host, so switching to a
 | **Style 4** | The full set-top shape: number pad, colour keys, nav ring, back/home/TV, one-piece VOL·mute·CH rockers and four app pills. Dark body. |
 | **Style 5** | Style 4's layout on a pale body — the only light style, and easier to read on a bright screen. |
 
+Styles 4 and 5 take their key arrangement from [HA-Firemote](https://github.com/PRProd/HA-Firemote) (GPL-3.0). The buttons, icons and renderer are this project's own.
+
+**Light and dark mode.** A style's colours are its own and do **not** follow the page's light/dark toggle — a black remote stays black on a light page, which is the point of it looking like the real thing. Only **Full remote** follows the theme, because it sets no colours at all and everything falls through to the page palette. That is why Styles 4 and 5 exist as a pair: they are the same remote, and you pick the one that suits your theme. The same applies to a style you write — set a colour and you own it in both themes, so **set all of them or none**. Leaving one out means it follows the page and flips underneath the rest.
+
 > Styles 4 and 5 carry [spare buttons](#action-reference) for the keys that have no standard code — Input, Mark, Set and the four app pills. They send nothing until you give them a per-host override, which is what lets one App pill launch something different on each machine.
 
 The built-in styles are numbered rather than named after particular devices: the shapes are generic, and a number can't suggest a tie to anyone's product. Your own styles can be called whatever you like.
