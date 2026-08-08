@@ -179,11 +179,18 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .toggle-btn.on{background:var(--active);color:#fff;border-color:var(--active)}
 .toggle-btn.dragging{opacity:.5}
 .toggle-btn.drag-over{box-shadow:inset 0 0 0 2px var(--accent)}
+/* The remote's body, and the only element a template styles. Every --rb-* below
+   is unset by default, so a template with no theme falls back to exactly what
+   this card looked like before templates existed; a skin sets them inline (see
+   renderRemote) to turn the card into a slab shaped like a real remote. Inline
+   custom properties rather than per-template CSS classes, so a user-authored
+   template can theme itself without the page injecting any CSS. */
+.rmt-body{background:var(--rb-bg,transparent);border:1px solid var(--rb-border,transparent);border-radius:var(--rb-radius,0);padding:var(--rb-pad,0);max-width:var(--rb-maxw,none);margin:0 auto}
 .rmt-section{margin-bottom:10px}
 .rmt-section:last-child{margin-bottom:0}
 .rmt-row{display:flex;justify-content:center;align-items:center;gap:8px;margin-bottom:8px}
 .rmt-row:last-child{margin-bottom:0}
-.rmt-btn{width:48px;height:48px;border:1px solid var(--border);border-radius:50%;background:var(--bg);color:var(--fg);font-size:12px;font-weight:500;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;transition:background .1s,transform .1s;user-select:none;-webkit-user-select:none}
+.rmt-btn{width:48px;height:48px;border:1px solid var(--rb-btn-border,var(--border));border-radius:var(--rb-btn-radius,50%);background:var(--rb-btn-bg,var(--bg));color:var(--rb-btn-fg,var(--fg));font-size:12px;font-weight:500;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;transition:background .1s,transform .1s;user-select:none;-webkit-user-select:none}
 .rmt-btn:active,.rmt-btn.p{background:var(--active);color:#fff;border-color:var(--active);transform:scale(.93)}
 .rmt-btn svg{width:20px;height:20px;fill:currentColor;pointer-events:none}
 .rmt-btn.power{background:#c62828;color:#fff;border-color:#c62828}
@@ -192,10 +199,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-btn.held{background:var(--accent);color:#fff;border-color:var(--accent)}
 .rmt-dpad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:4px;justify-content:center;margin:8px 0}
 .rmt-dpad .rmt-btn{border-radius:12px}
-.rmt-dpad .center{background:var(--active);color:#fff;border-color:var(--active);font-size:11px;font-weight:700;border-radius:50%}
+.rmt-dpad .center{background:var(--rb-ok-bg,var(--active));color:var(--rb-ok-fg,#fff);border-color:var(--rb-ok-bg,var(--active));font-size:11px;font-weight:700;border-radius:50%}
 .rmt-dpad .center:active{background:var(--accent)}
 .rmt-dpad .empty{visibility:hidden}
-.rmt-strip{display:flex;align-items:center;justify-content:center;gap:16px}
+/* flex-start, not center: a template may put an unlabelled group beside a
+   labelled one, and centring would leave the two columns half a label apart. */
+.rmt-strip{display:flex;align-items:flex-start;justify-content:center;gap:16px}
 .rmt-strip-group{display:flex;flex-direction:column;align-items:center;gap:4px}
 .rmt-strip-label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase}
 .rmt-divider{height:1px;background:var(--border);margin:10px 0}
@@ -222,7 +231,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.7.0</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -309,64 +318,10 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 
 <div class="card" id="media-card">
 <h2><svg viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM5 15h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2z"/></svg>Remote</h2>
-<div class="rmt-section"><div class="rmt-row">
-<button class="rmt-btn power" data-action="remote_power" title="Power"><svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg></button>
-<div style="flex:1"></div>
-<button class="rmt-btn" data-action="search" title="Search"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
-<button class="rmt-btn" data-action="info" title="Info"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg></button>
-<button class="rmt-btn" data-action="mute" title="Mute"><svg viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg></button>
-<button class="rmt-btn" data-action="home" title="Home"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></button>
-<button class="rmt-btn" data-action="back" title="Back"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
-</div></div>
-<div class="rmt-section"><div class="rmt-dpad">
-<div class="empty"></div>
-<button class="rmt-btn" data-action="up" data-repeat="1" title="Up"><svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg></button>
-<div class="empty"></div>
-<button class="rmt-btn" data-action="left" data-repeat="1" title="Left"><svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/></svg></button>
-<button class="rmt-btn center" data-action="ok" title="OK">OK</button>
-<button class="rmt-btn" data-action="right" data-repeat="1" title="Right"><svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg></button>
-<div class="empty"></div>
-<button class="rmt-btn" data-action="down" data-repeat="1" title="Down"><svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
-<div class="empty"></div>
-</div></div>
-<div class="rmt-section"><div class="rmt-strip">
-<div class="rmt-strip-group">
-<span class="rmt-strip-label">Vol</span>
-<button class="rmt-btn" data-action="volume_up" data-repeat="1" title="Volume Up"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
-<button class="rmt-btn" data-action="volume_down" data-repeat="1" title="Volume Down"><svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg></button>
-</div>
-<div style="width:40px"></div>
-<div class="rmt-strip-group">
-<span class="rmt-strip-label">Ch</span>
-<button class="rmt-btn" data-action="channel_up" data-repeat="1" title="Channel Up"><svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg></button>
-<button class="rmt-btn" data-action="channel_down" data-repeat="1" title="Channel Down"><svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
-</div>
-</div></div>
-<div class="rmt-divider"></div>
-<div class="rmt-section"><div class="rmt-media-row">
-<button class="rmt-btn media" data-action="prev_track" title="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
-<button class="rmt-btn media" data-action="rewind" data-repeat="1" title="Rewind"><svg viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg></button>
-<button class="rmt-btn media" data-action="play_pause" title="Play/Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
-<button class="rmt-btn media" data-action="stop" title="Stop"><svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg></button>
-<button class="rmt-btn media" data-action="fast_forward" data-repeat="1" title="Fast Forward"><svg viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg></button>
-<button class="rmt-btn media" data-action="next_track" title="Next"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
-<button class="rmt-btn media rec" data-action="record" title="Record"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg></button>
-</div></div>
-<div class="rmt-divider"></div>
-<div class="rmt-section"><div class="rmt-media-row">
-<button class="rmt-btn col red" data-action="color_red" title="Red (F1)"></button>
-<button class="rmt-btn col green" data-action="color_green" title="Green (F2)"></button>
-<button class="rmt-btn col yellow" data-action="color_yellow" title="Yellow (F3)"></button>
-<button class="rmt-btn col blue" data-action="color_blue" title="Blue (F4)"></button>
-</div></div>
-<div class="rmt-divider"></div>
-<div class="rmt-section"><div class="rmt-app-row">
-<button class="rmt-btn app" data-action="app_explorer" title="File Explorer">Explorer</button>
-<button class="rmt-btn app" data-action="app_browser" title="Web Browser">Browser</button>
-<button class="rmt-btn app" data-action="app_email" title="Email Client">Email</button>
-<button class="rmt-btn app" data-action="app_calc" title="Calculator">Calc</button>
-<button class="rmt-btn app" data-action="search" title="Search (same key as the magnifier above)">Search</button>
-</div></div>
+<!-- Rendered by renderRemote() from the active host's template, so the buttons
+     here follow whichever machine is selected. The markup this replaced is now
+     the `default` entry in RMT_TEMPLATES, which reproduces it exactly. -->
+<div id="rmt-body" class="rmt-body"></div>
 </div>
 
 <div class="card" id="btns-card">
@@ -561,6 +516,17 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="macro-form"><button id="hld-save">Save hold</button><button id="hld-none" class="cancel">None</button></div>
 </div>
 </div>
+<div class="hid-panel" id="tpl-panel">
+<button class="hid-toggle" id="tpl-toggle">Remote Style &#9662;</button>
+<div class="hid-body" id="tpl-body">
+<div style="font-size:12px;color:var(--muted);margin:6px 0">Choose the remote layout this host gets &mdash; switch to the host and the remote re-skins to match it. The hidden, repeat and hold settings above still apply on top of whatever style is showing, and every action stays available to macros, buttons and Home Assistant either way.</div>
+<div class="macro-form" style="margin-top:0"><select id="tpl-sel" title="The style this host's remote is drawn in"></select><button id="tpl-export" class="cancel" title="Copy the selected style into the box below as JSON — edit it, give it a new id, and Import it back as your own">Export</button></div>
+<div id="tpl-custom"></div>
+<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">Roll your own: <strong>Export</strong> a style, change its <code>id</code> and <code>name</code>, rearrange the sections, then <strong>Import</strong>. Sections are <code>["row",…]</code>, <code>["dpad"]</code>, <code>["strip",["Vol","volume_up",…],…]</code>, <code>["media",…]</code>, <code>["apps",…]</code> and <code>["-"]</code> for a divider; <code>"|"</code> spaces a row out. <code>theme</code> is optional.</div>
+<div class="macro-form"><textarea id="tpl-json" placeholder="Paste a style JSON here to import&hellip;" rows="4" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="tpl-import">Import</button></div>
+<div id="tpl-msg" style="font-size:11px;color:var(--muted)"></div>
+</div>
+</div>
 </div>
 </div>
 
@@ -624,6 +590,144 @@ function pollStatus(){
 pollStatus();
 setInterval(pollStatus,3000);
 
+// ── Remote button catalog & styles ──
+// Shared by the renderer (which draws the remote) and Host Actions (whose
+// check-grids must list every action whatever style is on screen), so it lives
+// out here rather than inside either IIFE.
+//
+// RI holds the inner markup of each icon once, keyed by an id the catalog
+// points at — several buttons reuse the same arrow.
+const RI={
+power:'<path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>',
+search:'<path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>',
+info:'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>',
+mute:'<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>',
+home:'<path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>',
+back:'<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>',
+up:'<path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/>',
+left:'<path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/>',
+right:'<path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/>',
+down:'<path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/>',
+plus:'<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>',
+minus:'<path d="M19 13H5v-2h14v2z"/>',
+prev:'<path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>',
+rew:'<path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>',
+play:'<path d="M8 5v14l11-7z"/>',
+stop:'<path d="M6 6h12v12H6z"/>',
+ff:'<path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>',
+next:'<path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>',
+rec:'<circle cx="12" cy="12" r="7"/>'};
+// Every action the remote can show. t=title, i=icon id, x=text label,
+// c=extra classes, r=repeats by default, g=group in the Host Actions grids.
+const RMT_BTNS={
+remote_power:{t:'Power',i:'power',c:'power',g:0},
+search:{t:'Search',i:'search',g:0},
+info:{t:'Info',i:'info',g:0},
+mute:{t:'Mute',i:'mute',g:0},
+home:{t:'Home',i:'home',g:0},
+back:{t:'Back',i:'back',g:0},
+up:{t:'Up',i:'up',r:1,g:1},
+left:{t:'Left',i:'left',r:1,g:1},
+ok:{t:'OK',x:'OK',c:'center',g:1},
+right:{t:'Right',i:'right',r:1,g:1},
+down:{t:'Down',i:'down',r:1,g:1},
+volume_up:{t:'Volume Up',i:'plus',r:1,g:2},
+volume_down:{t:'Volume Down',i:'minus',r:1,g:2},
+channel_up:{t:'Channel Up',i:'up',r:1,g:2},
+channel_down:{t:'Channel Down',i:'down',r:1,g:2},
+prev_track:{t:'Previous',i:'prev',c:'media',g:3},
+rewind:{t:'Rewind',i:'rew',c:'media',r:1,g:3},
+play_pause:{t:'Play/Pause',i:'play',c:'media',g:3},
+stop:{t:'Stop',i:'stop',c:'media',g:3},
+fast_forward:{t:'Fast Forward',i:'ff',c:'media',r:1,g:3},
+next_track:{t:'Next',i:'next',c:'media',g:3},
+record:{t:'Record',i:'rec',c:'media rec',g:3},
+color_red:{t:'Red (F1)',c:'col red',g:4},
+color_green:{t:'Green (F2)',c:'col green',g:4},
+color_yellow:{t:'Yellow (F3)',c:'col yellow',g:4},
+color_blue:{t:'Blue (F4)',c:'col blue',g:4},
+app_explorer:{t:'File Explorer',x:'Explorer',c:'app',g:5},
+app_browser:{t:'Web Browser',x:'Browser',c:'app',g:5},
+app_email:{t:'Email Client',x:'Email',c:'app',g:5},
+app_calc:{t:'Calculator',x:'Calc',c:'app',g:5}};
+const RMT_KINDS=['row','dpad','strip','media','apps','-'];
+// A theme may only set these, and each maps to a custom property the .rmt-*
+// rules already read. An imported template therefore cannot inject CSS: keys
+// outside this table are dropped, values only ever land in a --rb-* property.
+const RMT_VARS={bg:'--rb-bg',border:'--rb-border',radius:'--rb-radius',pad:'--rb-pad',
+maxw:'--rb-maxw',btn_bg:'--rb-btn-bg',btn_fg:'--rb-btn-fg',btn_border:'--rb-btn-border',
+btn_radius:'--rb-btn-radius',ok_bg:'--rb-ok-bg',ok_fg:'--rb-ok-fg'};
+// Built-in styles. `default` reproduces the fixed markup the remote had before
+// styles existed, so a host that never picks one sees no change at all.
+const RMT_BUILTIN=[
+{id:'default',name:'Full remote',theme:{},sections:[
+ ['row','remote_power','|','search','info','mute','home','back'],
+ ['dpad'],
+ ['strip',['Vol','volume_up','volume_down'],['Ch','channel_up','channel_down']],
+ ['-'],
+ ['media','prev_track','rewind','play_pause','stop','fast_forward','next_track','record'],
+ ['-'],
+ ['media','color_red','color_green','color_yellow','color_blue'],
+ ['-'],
+ ['apps','app_explorer','app_browser','app_email','app_calc','search']]},
+{id:'atv',name:'Apple TV',theme:{bg:'#101013',border:'#2b2b31',radius:'26px',pad:'20px 14px',
+ maxw:'250px',btn_bg:'#1d1d21',btn_fg:'#ececf0',btn_border:'#2c2c32',ok_bg:'#3a3a40'},sections:[
+ ['row','remote_power','|','search','mute'],
+ ['dpad'],
+ ['strip',['','back','home','play_pause'],['Vol','volume_up','volume_down']]]},
+{id:'firetv',name:'Fire TV',theme:{bg:'#17181d',border:'#2a2c33',radius:'34px',pad:'22px 12px',
+ maxw:'250px',btn_bg:'#232630',btn_fg:'#e8e8ec',btn_border:'#303341',ok_bg:'#454a5c'},sections:[
+ ['row','remote_power','|','search','mute'],
+ ['dpad'],
+ ['row','back','home','info'],
+ ['media','rewind','play_pause','fast_forward'],
+ ['strip',['Vol','volume_up','volume_down'],['Ch','channel_up','channel_down']],
+ ['-'],
+ ['apps','app_explorer','app_browser','app_email','app_calc']]},
+{id:'samsung',name:'Samsung TV',theme:{bg:'#0d0d10',border:'#26262b',radius:'30px',pad:'20px 14px',
+ maxw:'250px',btn_bg:'#1a1a1f',btn_fg:'#ededed',btn_border:'#2a2a30',ok_bg:'#333338'},sections:[
+ ['row','remote_power','|','info','search'],
+ ['dpad'],
+ ['row','back','home','play_pause'],
+ ['strip',['Vol','volume_up','volume_down'],['Ch','channel_up','channel_down']],
+ ['row','mute']]},
+{id:'media',name:'Media only',theme:{},sections:[
+ ['row','remote_power','|','mute','volume_down','volume_up'],
+ ['media','prev_track','rewind','play_pause','stop','fast_forward','next_track']]}];
+// User-authored styles, fetched from the device. `index` is the storage slot
+// they came from, which is what an update or a delete addresses.
+let RMT_CUSTOM=[],RMT_CUSTOM_MAX=6,RMT_CUSTOM_LEN=1500;
+function allTemplates(){return RMT_BUILTIN.concat(RMT_CUSTOM)}
+function tplById(id){
+  for(const t of allTemplates())if(t.id===id)return t;
+  return null;   // deleted, or from a firmware that knew a style this page doesn't
+}
+// The device stores each template as the compact JSON the page sent, and never
+// looks inside; anything unparseable is skipped rather than breaking the list.
+function loadCustomTpls(){
+  return fetch('/api/ble_keyboard/remote_templates').then(r=>r.json()).then(d=>{
+    RMT_CUSTOM_MAX=d.max||RMT_CUSTOM_MAX;RMT_CUSTOM_LEN=d.len||RMT_CUSTOM_LEN;
+    const out=[];
+    (d.items||[]).forEach(it=>{
+      try{
+        const t=JSON.parse(it.tpl);
+        if(t&&t.id&&Array.isArray(t.sections)){t.index=it.index;t.custom=true;out.push(t)}
+      }catch(e){}
+    });
+    RMT_CUSTOM=out;
+  }).catch(()=>{});
+}
+// Re-reads the styles and redraws the active host's, forcing the render even if
+// the id is unchanged — used after an import, which edits a style in place.
+function refreshActiveTemplate(){
+  return loadCustomTpls()
+    .then(()=>fetch('/api/ble_keyboard/hosts').then(r=>r.json()))
+    .then(d=>{
+      const a=(d.slots||[]).find(s=>s.slot===d.active);
+      if(window.applyTemplate)window.applyTemplate((a&&a.tpl)||'default',true);
+    }).catch(()=>{});
+}
+
 // ── Host Switcher ──
 (function(){
   const bar=document.getElementById('host-bar');
@@ -636,6 +740,13 @@ setInterval(pollStatus,3000);
       // Before the single-slot early return below: a one-host device still has
       // a hidden set and a repeat set to apply, and the active slot may have
       // changed.
+      // The style rides along on this same response, so a host switch made
+      // anywhere — another tab, a YAML button, Home Assistant — re-skins the
+      // remote here on the next poll.
+      if(window.applyTemplate){
+        const act=(d.slots||[]).find(s=>s.slot===d.active);
+        window.applyTemplate((act&&act.tpl)||'default');
+      }
       if(window.applyHidden)window.applyHidden(false);
       if(window.applyRepeat)window.applyRepeat(false);
       if(window.applyHold)window.applyHold(false);
@@ -898,6 +1009,9 @@ function appendStep(el,val){
   const forgetBtn=document.getElementById('ov-forget');
   if(!slotSel)return;
   let slot=null;  // null until the first load picks the active slot
+  // The slot the device is actually on, which is not necessarily the one being
+  // edited — a style change only redraws the remote when the two agree.
+  let activeSlot=null;
 
   // Reuse the macro form's preset list rather than shipping a second copy of
   // ~60 <option> rows; it stays in sync automatically.
@@ -917,6 +1031,7 @@ function appendStep(el,val){
   function loadSlots(){
     return fetch('/api/ble_keyboard/hosts').then(r=>r.json()).then(d=>{
       if(slot===null)slot=d.active;
+      activeSlot=d.active;
       slotSel.innerHTML='';
       d.slots.forEach(s=>{
         const o=document.createElement('option');
@@ -1022,6 +1137,7 @@ function appendStep(el,val){
     if(hidPanel&&hidPanel.classList.contains('open'))loadHidden();
     if(rptPanel&&rptPanel.classList.contains('open'))loadRepeat();
     if(hldPanel&&hldPanel.classList.contains('open'))loadHold();
+    if(tplPanel&&tplPanel.classList.contains('open')){tplNote('');fillTplSel()}
   });
 
   saveBtn.addEventListener('click',()=>{
@@ -1037,25 +1153,18 @@ function appendStep(el,val){
   loadSlots().then(load).catch(()=>{list.innerHTML='<span class="prog-empty">Error loading</span>'});
 
   // ── Hidden buttons (per host) ──
-  // The button list is built from the remote's own DOM rather than a hardcoded
-  // table, so it can never drift as buttons are added or removed.
+  // The button list comes from the catalog, not from the remote's DOM: these
+  // grids must offer every action whatever style the active host happens to
+  // show, or saving while a sparse style is on screen would quietly drop the
+  // buttons it never drew from this host's settings.
   const hidPanel=document.getElementById('hid-panel');
   const hidToggle=document.getElementById('hid-toggle');
   const hidList=document.getElementById('hid-list');
   const hidSave=document.getElementById('hid-save');
 
   function remoteButtons(){
-    const out=[],seen={};
-    document.querySelectorAll('#media-card [data-action]').forEach(b=>{
-      const a=b.dataset.action;
-      if(seen[a])return;              // e.g. search is on two buttons
-      seen[a]=true;
-      const sec=b.closest('.rmt-section');
-      const secs=[...document.querySelectorAll('#media-card .rmt-section')];
-      out.push({action:a,label:b.title||b.textContent.trim()||a,group:secs.indexOf(sec),
-                rpt:b.hasAttribute('data-repeat')});
-    });
-    return out;
+    return Object.keys(RMT_BTNS).map(a=>({action:a,label:RMT_BTNS[a].t,
+                                          group:RMT_BTNS[a].g,rpt:!!RMT_BTNS[a].r}));
   }
   const GROUP_NAMES=['Power &amp; navigation','D-pad','Volume &amp; channel','Media','Colours','Apps'];
 
@@ -1228,6 +1337,198 @@ function appendStep(el,val){
       });
   });
 
+  // ── Remote style (per host) ──
+  // Which template the remote is drawn from for this host. The device only
+  // stores the id and hands it out with /hosts — what it looks like is decided
+  // here, so a new built-in style is a page change alone.
+  const tplPanel=document.getElementById('tpl-panel');
+  const tplToggle=document.getElementById('tpl-toggle');
+  const tplSel=document.getElementById('tpl-sel');
+  const tplCustom=document.getElementById('tpl-custom');
+  const tplJson=document.getElementById('tpl-json');
+  const tplImport=document.getElementById('tpl-import');
+  const tplExport=document.getElementById('tpl-export');
+  const tplMsg=document.getElementById('tpl-msg');
+  let slotTpl={};                       // slot -> stored style id ('' = default)
+  function tplNote(m,err){if(tplMsg){tplMsg.textContent=m||'';tplMsg.style.color=err?'#c44':'var(--muted)'}}
+
+  function fillTplSel(){
+    if(!tplSel)return;
+    tplSel.innerHTML='';
+    allTemplates().forEach(t=>{
+      const o=document.createElement('option');
+      o.value=t.id;
+      o.textContent=t.name+(t.custom?' (custom)':'');
+      tplSel.appendChild(o);
+    });
+    const cur=slotTpl[slot]||'default';
+    // A style this host points at but that no longer exists (deleted, or a
+    // backup from a device that had it) shows as the default, which is what
+    // the remote itself falls back to.
+    tplSel.value=tplById(cur)?cur:'default';
+  }
+
+  function renderCustomList(){
+    if(!tplCustom)return;
+    tplCustom.innerHTML='';
+    if(!RMT_CUSTOM.length)return;
+    RMT_CUSTOM.forEach(t=>{
+      const row=document.createElement('div');
+      row.className='ovr-row';
+      const n=document.createElement('span');
+      n.className='ovr-name';n.textContent=t.name;
+      const a=document.createElement('span');
+      a.className='ovr-act';a.textContent=t.id;
+      const eb=document.createElement('button');
+      eb.className='macro-act';eb.textContent='✎';eb.title='Load into the box below to edit';
+      eb.addEventListener('click',()=>{tplJson.value=tplText(t);tplNote('Loaded "'+t.name+'" — edit and Import to replace it.')});
+      const db=document.createElement('button');
+      db.className='macro-act del';db.textContent='✕';db.title='Delete this style. Hosts using it fall back to the full remote.';
+      db.addEventListener('click',()=>{
+        if(!confirm('Delete the custom style "'+t.name+'"?\n\nAny host set to it falls back to the full remote.'))return;
+        post('remote_tpl_delete',{index:t.index})
+          .then(()=>refreshActiveTemplate())
+          .then(()=>{fillTplSel();renderCustomList();tplNote('Deleted.')})
+          .catch(e=>tplNote(e.message,true));
+      });
+      row.appendChild(n);row.appendChild(a);row.appendChild(eb);row.appendChild(db);
+      tplCustom.appendChild(row);
+    });
+  }
+
+  // What Export writes and Import reads. The device's own bookkeeping fields
+  // are stripped so a round trip through the box is byte-stable.
+  function tplText(t){
+    const {index,custom,...rest}=t;
+    return JSON.stringify(rest,null,2);
+  }
+
+  // Structure only — anything that would render as a broken remote is refused
+  // here, because the device stores the JSON without ever looking inside it.
+  function validateTpl(t){
+    if(!t||typeof t!=='object'||Array.isArray(t))return 'Top level must be a JSON object';
+    if(typeof t.id!=='string'||!/^[a-z0-9_]{1,15}$/.test(t.id))
+      return 'id must be 1-15 characters of a-z, 0-9 or _';
+    if(RMT_BUILTIN.some(b=>b.id===t.id))return '"'+t.id+'" is a built-in style — give yours another id';
+    if(typeof t.name!=='string'||!t.name.trim()||t.name.length>24)return 'name is required (max 24 characters)';
+    if(!Array.isArray(t.sections)||!t.sections.length)return 'sections must be a non-empty array';
+    if(t.theme!==undefined&&(typeof t.theme!=='object'||t.theme===null||Array.isArray(t.theme)))
+      return 'theme must be an object';
+    for(const s of t.sections){
+      if(!Array.isArray(s)||typeof s[0]!=='string')return 'Each section is an array starting with its kind';
+      if(RMT_KINDS.indexOf(s[0])<0)return 'Unknown section kind "'+s[0]+'" — use '+RMT_KINDS.join(', ');
+      let items=[];
+      if(s[0]==='strip'){
+        for(const g of s.slice(1)){
+          if(!Array.isArray(g))return 'Each strip group is an array: ["Label","action",…]';
+          items=items.concat(g.slice(1));
+        }
+      }else if(s[0]==='dpad'){
+        if(s.length>1&&s.length!==6)return 'A dpad section lists exactly 5 actions (up, left, centre, right, down) or none';
+        items=s.slice(1);
+      }else{
+        items=s.slice(1);
+      }
+      for(const a of items){
+        if(a==='|'&&s[0]==='row')continue;
+        if(typeof a!=='string'||!RMT_BTNS[a])return 'Unknown button "'+a+'"';
+      }
+    }
+    return '';
+  }
+
+  // Uploaded in pieces: the device's web server takes 512 bytes of URL, and a
+  // style's JSON is several times that once encoded. Same chunking rule as the
+  // paste bar — measure with encodeURIComponent, which is what actually goes
+  // on the wire. seq 0 starts a fresh upload, so a failed one needs no cleanup.
+  function uploadTpl(index,text){
+    const parts=[];let cur='',len=0;
+    for(const ch of text){
+      const el=encodeURIComponent(ch).length;
+      if(len+el>380&&cur){parts.push(cur);cur='';len=0}
+      cur+=ch;len+=el;
+    }
+    if(cur)parts.push(cur);
+    let chain=Promise.resolve();
+    parts.forEach((p,i)=>{
+      chain=chain.then(()=>fetch('/api/ble_keyboard/remote_tpl_chunk?seq='+i+'&data='+encodeURIComponent(p),
+                                 {method:'POST'})
+        .then(r=>r.text().then(t=>{if(!r.ok)throw new Error(t);})));
+    });
+    return chain.then(()=>post('remote_tpl_save',{index:index}));
+  }
+
+  if(tplExport)tplExport.addEventListener('click',()=>{
+    const t=tplById(tplSel.value);
+    if(!t){tplNote('Nothing to export.',true);return}
+    // A built-in is exported under a free id, so importing it straight back
+    // lands as a new custom style rather than being refused as a duplicate.
+    const copy=JSON.parse(JSON.stringify(t));
+    if(!t.custom){
+      let n=1;while(tplById(copy.id+'_'+n)&&n<100)n++;
+      copy.id=copy.id+'_'+n;
+      copy.name=(t.name+' copy').slice(0,24);
+    }
+    tplJson.value=tplText(copy);
+    tplNote('Exported "'+t.name+'"'+(t.custom?'':' as "'+copy.id+'"')+' — edit it, then Import.');
+  });
+
+  if(tplImport)tplImport.addEventListener('click',()=>{
+    let t;
+    try{t=JSON.parse(tplJson.value)}catch(e){tplNote('Not valid JSON: '+e.message,true);return}
+    const why=validateTpl(t);
+    if(why){tplNote(why,true);return}
+    const compact=JSON.stringify({id:t.id,name:t.name.trim(),theme:t.theme||{},sections:t.sections});
+    if(compact.length>RMT_CUSTOM_LEN){
+      tplNote('Too big: '+compact.length+' characters, limit '+RMT_CUSTOM_LEN+'.',true);return;
+    }
+    // Same id = replace in place, so editing a style keeps its storage slot and
+    // every host pointing at it.
+    const existing=RMT_CUSTOM.find(c=>c.id===t.id);
+    let index=existing?existing.index:-1;
+    if(index<0){
+      const used=RMT_CUSTOM.map(c=>c.index);
+      for(let i=0;i<RMT_CUSTOM_MAX;i++)if(used.indexOf(i)<0){index=i;break}
+    }
+    if(index<0){tplNote('No room — the device holds '+RMT_CUSTOM_MAX+' custom styles. Delete one first.',true);return}
+    tplNote('Uploading…');
+    uploadTpl(index,compact)
+      .then(()=>refreshActiveTemplate())
+      .then(()=>{fillTplSel();renderCustomList();
+                 tplNote('Saved "'+t.name.trim()+'". Pick it above to give it to a host.')})
+      .catch(e=>tplNote('Import failed: '+e.message,true));
+  });
+
+  function loadTpl(){
+    return fetch('/api/ble_keyboard/hosts').then(r=>r.json()).then(d=>{
+      slotTpl={};
+      (d.slots||[]).forEach(s=>{slotTpl[s.slot]=s.tpl||''});
+      activeSlot=d.active;
+    }).then(loadCustomTpls).then(()=>{fillTplSel();renderCustomList()})
+      .catch(()=>tplNote('Could not read the styles.',true));
+  }
+
+  if(tplToggle)tplToggle.addEventListener('click',()=>{
+    tplPanel.classList.toggle('open');
+    tplToggle.innerHTML='Remote Style '+(tplPanel.classList.contains('open')?'▴':'▾');
+    if(tplPanel.classList.contains('open')){tplNote('');loadTpl()}
+  });
+
+  if(tplSel)tplSel.addEventListener('change',()=>{
+    const id=tplSel.value;
+    // Stored empty for the default: an unset slot and one explicitly set back
+    // to the full remote are the same thing, and empty is what the firmware
+    // erases rather than keeps.
+    fetch('/api/ble_keyboard/remote_style_set?'+new URLSearchParams({slot:slot,id:id==='default'?'':id}),
+          {method:'POST'})
+      .then(r=>{
+        if(!r.ok)return r.text().then(t=>{tplNote(t,true)});
+        slotTpl[slot]=id==='default'?'':id;
+        if(slot===activeSlot&&window.applyTemplate)window.applyTemplate(id);
+        tplNote('Saved'+(slot===activeSlot?'.':' — switch to that host to see it.'));
+      });
+  });
+
   // ── Backup / Restore ──
   // Restore replays the file through the same endpoints the UI already uses,
   // rather than uploading it: the handler parses query args only, and reusing
@@ -1397,6 +1698,26 @@ function appendStep(el,val){
       }
       return chain;
     }).then(()=>{
+      status('Restoring: remote styles...');
+      // Custom styles first, then the per-host assignments that point at them.
+      // Every storage slot is cleared first so one the file doesn't mention
+      // can't survive under a host that now expects something else.
+      const tpls=Array.isArray(d.remote_templates)?d.remote_templates:[];
+      let chain=Promise.resolve();
+      for(let i=0;i<RMT_CUSTOM_MAX;i++)chain=chain.then(()=>post('remote_tpl_delete',{index:i}));
+      tpls.forEach(t=>{
+        if(!t||typeof t.index!=='number'||typeof t.tpl!=='string')return;
+        chain=chain.then(()=>uploadTpl(t.index,t.tpl));
+      });
+      // Every slot, including ones the file omits, so Replace really does put
+      // an unmentioned host back on the full remote.
+      const sty=d.remote_styles&&typeof d.remote_styles==='object'?d.remote_styles:{};
+      for(let s=0;s<slotSel.options.length;s++){
+        const sl=parseInt(slotSel.options[s].value);
+        chain=chain.then(()=>post('remote_style_set',{slot:sl,id:sty[sl]||sty[String(sl)]||''}));
+      }
+      return chain;
+    }).then(()=>{
       if(!d.layout)return;
       status('Restoring: layout...');
       return post('set_layout',{id:d.layout});
@@ -1437,6 +1758,9 @@ function appendStep(el,val){
         if(window.applyHidden)window.applyHidden(true);
         if(window.applyRepeat)window.applyRepeat(true);
         if(window.applyHold)window.applyHold(true);
+        refreshActiveTemplate().then(()=>{
+          if(tplPanel&&tplPanel.classList.contains('open'))loadTpl();
+        });
       }
     }).catch(e=>status('Restore stopped at "'+e.message+'" — the device is partly restored.',true));
   }
@@ -1855,6 +2179,9 @@ buildKeyboard();
 (function(){
   const card=document.getElementById('media-card');
   if(!card)return;
+  // Everything the renderer replaces lives inside this, so the card's heading
+  // survives a style change and the gesture handlers stay bound to the card.
+  const body=document.getElementById('rmt-body');
   // Hold-to-repeat set for the active host. Populated by applyRepeat() below;
   // until that first fetch lands the page falls back to its own data-repeat
   // markup, so holding works from the moment the page is usable.
@@ -1976,7 +2303,7 @@ buildKeyboard();
       card.querySelectorAll('.rmt-strip-group').forEach(g=>{g.style.display=empty(g)?'none':''});
       card.querySelectorAll('.rmt-section').forEach(s=>{s.style.display=empty(s)?'none':''});
       // A divider only earns its place between two visible sections.
-      const kids=[...card.children];
+      const kids=[...body.children];
       kids.forEach((el,i)=>{
         if(!el.classList.contains('rmt-divider'))return;
         const vis=j=>j.classList&&j.classList.contains('rmt-section')&&j.style.display!=='none';
@@ -1987,7 +2314,64 @@ buildKeyboard();
       });
     }).catch(()=>{});
   };
-  window.applyHidden(true);
+
+  // ── Per-host remote style ──
+  // Draws the remote from a template. Every gesture is delegated from
+  // #media-card (see the pointer handlers above), so replacing the buttons
+  // wholesale costs nothing to rewire — the new ones are picked up by the same
+  // closest('.rmt-btn') lookup on the next press.
+  function icon(i){return '<svg viewBox="0 0 24 24">'+RI[i]+'</svg>'}
+  function btnHtml(a){
+    const b=RMT_BTNS[a];
+    if(!b)return '';   // a template naming a button this firmware doesn't have
+    return '<button class="rmt-btn'+(b.c?' '+b.c:'')+'" data-action="'+a+'"'+
+           (b.r?' data-repeat="1"':'')+' title="'+b.t+'">'+(b.i?icon(b.i):(b.x||''))+'</button>';
+  }
+  function sectionHtml(s){
+    const k=s[0];
+    if(k==='-')return '<div class="rmt-divider"></div>';
+    let inner='';
+    if(k==='row'){
+      inner='<div class="rmt-row">'+s.slice(1).map(a=>a==='|'?'<div style="flex:1"></div>':btnHtml(a)).join('')+'</div>';
+    }else if(k==='dpad'){
+      // The four arrows and a centre, in reading order. Listing none is the
+      // usual case and means the standard five.
+      const d=s.length>1?s.slice(1):['up','left','ok','right','down'];
+      inner='<div class="rmt-dpad"><div class="empty"></div>'+btnHtml(d[0])+'<div class="empty"></div>'+
+            btnHtml(d[1])+btnHtml(d[2])+btnHtml(d[3])+
+            '<div class="empty"></div>'+btnHtml(d[4])+'<div class="empty"></div></div>';
+    }else if(k==='strip'){
+      inner='<div class="rmt-strip">'+s.slice(1).map((g,i)=>
+        (i?'<div style="width:40px"></div>':'')+
+        '<div class="rmt-strip-group">'+(g[0]?'<span class="rmt-strip-label">'+g[0]+'</span>':'')+
+        g.slice(1).map(a=>btnHtml(a)).join('')+'</div>').join('')+'</div>';
+    }else if(k==='media'||k==='apps'){
+      inner='<div class="rmt-'+(k==='media'?'media-row':'app-row')+'">'+
+            s.slice(1).map(a=>btnHtml(a)).join('')+'</div>';
+    }
+    return '<div class="rmt-section">'+inner+'</div>';
+  }
+  let curTplId=null;
+  window.applyTemplate=function(id,force){
+    const t=tplById(id)||tplById('default');
+    if(!force&&t.id===curTplId)return;
+    curTplId=t.id;
+    // A style change mid-press would strand the key that is down on the host
+    // and leave an interval hammering a button that no longer exists.
+    endHold();stopRepeat();
+    for(const k in RMT_VARS)body.style.removeProperty(RMT_VARS[k]);
+    if(t.theme)for(const k in RMT_VARS)
+      if(typeof t.theme[k]==='string')body.style.setProperty(RMT_VARS[k],t.theme[k]);
+    body.innerHTML=t.sections.map(sectionHtml).join('');
+    // Forced: the buttons are new, so whatever this host hides has to be
+    // reapplied even though the hidden set itself did not change.
+    window.applyHidden(true);
+  };
+  // Draw the full remote at once so the card is usable before any fetch lands,
+  // then correct it to the active host's style. The host bar can't do this for
+  // us: it caches its first /hosts response before this function exists.
+  window.applyTemplate('default',true);
+  refreshActiveTemplate();
 })();
 
 // ── Position Finder ──
@@ -2478,6 +2862,15 @@ class BleKbWebHandler : public AsyncWebHandler {
           json += json_escape(it->second);  // button names are user-supplied
           json += "\"";
         }
+        // Which remote style this host is drawn in. Rides along here rather than
+        // on an endpoint of its own so the page's existing 5s poll of this
+        // response is what re-skins the remote after a host switch.
+        const std::string &style = kb_->get_remote_style(i);
+        if (!style.empty()) {
+          json += ",\"tpl\":\"";
+          json += style;  // validated to [a-z0-9_] on the way in
+          json += "\"";
+        }
         json += "}";
       }
       json += "]}";
@@ -2589,6 +2982,28 @@ class BleKbWebHandler : public AsyncWebHandler {
       return;
     }
 
+    if (path == "remote_templates") {
+      // The user-authored styles, each handed back as the JSON *string* it was
+      // stored as rather than inlined: the device never parsed it, so embedding
+      // it raw would let one malformed style break the whole response.
+      std::string json = "{\"max\":";
+      json += std::to_string(EspidfBleKeyboard::MAX_CUSTOM_TEMPLATES);
+      json += ",\"len\":";
+      json += std::to_string(EspidfBleKeyboard::MAX_TEMPLATE_LEN);
+      json += ",\"items\":[";
+      bool first = true;
+      for (uint8_t i = 0; i < EspidfBleKeyboard::MAX_CUSTOM_TEMPLATES; i++) {
+        const std::string &t = kb_->get_custom_template(i);
+        if (t.empty()) continue;
+        if (!first) json += ",";
+        first = false;
+        json += "{\"index\":" + std::to_string(i) + ",\"tpl\":\"" + json_escape(t) + "\"}";
+      }
+      json += "]}";
+      send_response(200, "application/json", json.c_str());
+      return;
+    }
+
     if (path == "backup") {
       // Everything the user can edit at runtime, in one document. Deliberately
       // excludes the passkey and the generated per-slot addresses (device
@@ -2663,7 +3078,25 @@ class BleKbWebHandler : public AsyncWebHandler {
         }
         json += "]";
       }
-      json += "},\"goto_scale\":{";
+      json += "},\"remote_styles\":{";
+      bool first_style = true;
+      for (uint8_t s = 0; s < kb_->host_slots(); s++) {
+        const std::string &st = kb_->get_remote_style(s);
+        if (st.empty()) continue;  // an unset slot restores as the default style
+        if (!first_style) json += ",";
+        first_style = false;
+        json += "\"" + std::to_string(s) + "\":\"" + st + "\"";
+      }
+      json += "},\"remote_templates\":[";
+      bool first_tpl = true;
+      for (uint8_t i = 0; i < EspidfBleKeyboard::MAX_CUSTOM_TEMPLATES; i++) {
+        const std::string &t = kb_->get_custom_template(i);
+        if (t.empty()) continue;
+        if (!first_tpl) json += ",";
+        first_tpl = false;
+        json += "{\"index\":" + std::to_string(i) + ",\"tpl\":\"" + json_escape(t) + "\"}";
+      }
+      json += "],\"goto_scale\":{";
       bool first_scale = true;
       for (uint8_t s = 0; s < kb_->host_slots(); s++) {
         float gx = 0, gy = 0;
@@ -2989,6 +3422,57 @@ class BleKbWebHandler : public AsyncWebHandler {
       } else if (!kb_->set_hold((uint8_t) slot, list)) {
         send_response(400, "text/plain", "Invalid button name in list");
       } else {
+        send_response(200, "text/plain", "OK");
+      }
+
+    } else if (path == "remote_style_set") {
+      // Which style the web remote draws for one host. An empty id clears the
+      // slot back to the default. The id is never interpreted here — see
+      // set_remote_style() for why the firmware stays out of the layout.
+      int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : -1;
+      std::string id = request->hasArg("id") ? request->arg("id").c_str() : "";
+      if (slot < 0 || slot >= kb_->host_slots()) {
+        send_response(400, "text/plain", "Invalid slot");
+      } else if (!kb_->set_remote_style((uint8_t) slot, id)) {
+        send_response(400, "text/plain", "Invalid style id (max 15 chars: a-z, 0-9, _)");
+      } else {
+        send_response(200, "text/plain", "OK");
+      }
+
+    } else if (path == "remote_tpl_chunk") {
+      // One piece of a custom style upload. Chunked because the web server
+      // takes 512 bytes of URL and an encoded style runs several times that;
+      // seq=0 starts a fresh upload, so a failed one leaves nothing to clean up.
+      int seq = request->hasArg("seq") ? atoi(request->arg("seq").c_str()) : -1;
+      std::string data = request->hasArg("data") ? request->arg("data").c_str() : "";
+      if (seq < 0 || seq > 65535) {
+        send_response(400, "text/plain", "Invalid chunk number");
+      } else if (!kb_->stage_template_chunk((uint16_t) seq, data)) {
+        send_response(400, "text/plain",
+                      "Chunk rejected — start the upload again (styles are capped at 1500 characters)");
+      } else {
+        send_response(200, "text/plain", "OK");
+      }
+
+    } else if (path == "remote_tpl_save") {
+      int index = request->hasArg("index") ? atoi(request->arg("index").c_str()) : -1;
+      if (index < 0 || index >= EspidfBleKeyboard::MAX_CUSTOM_TEMPLATES) {
+        send_response(400, "text/plain", "Invalid style slot");
+      } else if (!kb_->commit_template((uint8_t) index)) {
+        send_response(400, "text/plain", "Nothing uploaded to save");
+      } else {
+        send_response(200, "text/plain", "OK");
+      }
+
+    } else if (path == "remote_tpl_delete") {
+      int index = request->hasArg("index") ? atoi(request->arg("index").c_str()) : -1;
+      if (index < 0 || index >= EspidfBleKeyboard::MAX_CUSTOM_TEMPLATES) {
+        send_response(400, "text/plain", "Invalid style slot");
+      } else {
+        // Deliberately does not touch the hosts pointing at it: the page falls
+        // back to the default for an id it can't resolve, so re-importing the
+        // style under the same id puts every one of them back.
+        kb_->delete_template((uint8_t) index);
         send_response(200, "text/plain", "OK");
       }
 

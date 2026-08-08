@@ -297,6 +297,31 @@ class EspidfBleKeyboard : public Component
   /// The active slot's hold list as a comma-separated string, for the text sensor.
   std::string hold_csv(uint8_t slot) const;
 
+  // Per-host remote style: which template the web remote is drawn from for this
+  // host, so an Apple TV slot gets an Apple-TV-shaped remote and a PC slot the
+  // full one. Deliberately opaque here — the device stores an id and hands it
+  // out with /hosts, and the page decides what it looks like. That way a new
+  // built-in style is a page change alone, and an id this firmware has never
+  // heard of (a custom one, or a newer page) still round-trips.
+  static const uint8_t MAX_STYLE_LEN = 15;
+  const std::string &get_remote_style(uint8_t slot) const;
+  /// Empty clears the slot back to the default style. False = bad slot or id.
+  bool set_remote_style(uint8_t slot, const std::string &id);
+  static bool valid_style_id(const std::string &id);
+
+  // User-authored styles, stored whole as the compact JSON the page uploads.
+  // Opaque too: the browser validates the structure (it is the only thing that
+  // can — it owns the button catalogue), the device guards size and character
+  // range. Uploaded in chunks because the web server takes 512 bytes of URL.
+  static const uint8_t MAX_CUSTOM_TEMPLATES = 6;
+  static const uint16_t MAX_TEMPLATE_LEN = 1500;
+  const std::string &get_custom_template(uint8_t index) const;
+  /// Append one chunk of an upload; seq 0 starts a new one. False = out of
+  /// order, too long, or contains characters that can't survive the JSON trip.
+  bool stage_template_chunk(uint16_t seq, const std::string &data);
+  bool commit_template(uint8_t index);   // staged bytes -> storage slot
+  bool delete_template(uint8_t index);
+
   /// Execute an action string (combo:, consumer:, named actions, or literal text).
   /// Used by buttons, macros, web API, and YAML automations.
   void execute_action(const std::string &action);
@@ -621,6 +646,19 @@ class EspidfBleKeyboard : public Component
   void load_hold_();
   void save_hold_(uint8_t slot);
   void publish_hold_();  // push the active slot's list to the text sensor
+
+  // Per-host remote style id (NVS key "rst<slot>"); empty = the default style.
+  std::string remote_style_[MAX_HOST_SLOTS];
+  void load_remote_style_();
+  void save_remote_style_(uint8_t slot);
+
+  // Custom remote styles (NVS key "ctpl<index>"), and the buffer a chunked
+  // upload fills before commit_template() moves it into one of the slots.
+  std::string custom_templates_[MAX_CUSTOM_TEMPLATES];
+  std::string tpl_staging_;
+  uint16_t tpl_next_seq_{0};
+  void load_templates_();
+  void save_template_(uint8_t index);
 
   // Multi-host state
   uint8_t host_slots_{MAX_HOST_SLOTS};

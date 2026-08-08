@@ -945,6 +945,58 @@ Open **Press and Hold** in the Host Actions card and tick the buttons that shoul
 
 Nothing holds by default. The Home Assistant [Media Remote Card](#media-remote-card-for-home-assistant) honours the same list once the [`hold_buttons` text sensor](#press-and-hold-buttons) is added — it is the only way that card can learn the choice. See [Press and hold](#press-and-hold) for the physical-button equivalent, the action strings, and `max_key_hold_ms`.
 
+### Remote Style Per Host
+
+> **Unreleased — `main` only.** Not in **v1.7.0 and earlier**, where the web remote had one fixed layout for every host.
+
+The web remote can be drawn in a different **style** per host, so switching to the Apple TV slot brings up an Apple-TV-shaped remote and switching back to the PC brings back the full one. Open **Remote Style** in the Host Actions card, pick the host, and choose its style.
+
+| Style | What it shows |
+|---|---|
+| **Full remote** | Everything, exactly as before styles existed. The default for every host. |
+| **Apple TV** | Narrow dark slab: power, search, D-pad, back, home, play/pause, mute, volume. |
+| **Fire TV** | Stick-remote shape: power, search, D-pad, back/home/menu, transport, volume, channel, app row. |
+| **Samsung TV** | Power, D-pad, back/home/play, volume and channel rockers, mute. |
+| **Media only** | Compact strip: power, mute, volume and the full transport row. Good for a headless box. |
+
+The style is stored on the device against the host slot, not in the browser, so it follows the host rather than the phone that set it — and every browser watching the page re-skins within a few seconds of a host switch, whoever made it. It is **presentation only**: the actions a style leaves out still run from macros, YAML buttons and Home Assistant, and the **Remote Buttons**, **Hold to Repeat** and **Press and Hold** panels always list every action regardless of which style is showing, so they can be set for a host before you ever look at its remote. Styles are included in [Backup and restore](#backup-and-restore).
+
+Styles are a web-page feature; the [Media Remote Card](#media-remote-card-for-home-assistant) is unaffected and keeps its own layout.
+
+#### Making your own
+
+Press **Export** to drop the selected style into the box below as JSON, edit it, and press **Import**. Importing over an id that already exists replaces it; a new id adds a style. The device holds **6** custom styles of up to **1500 characters** each.
+
+```json
+{
+  "id": "shield",
+  "name": "Shield",
+  "theme": { "bg": "#12161c", "radius": "28px", "maxw": "240px", "btn_bg": "#1e242e" },
+  "sections": [
+    ["row", "remote_power", "|", "search", "mute"],
+    ["dpad"],
+    ["row", "back", "home"],
+    ["media", "rewind", "play_pause", "fast_forward"],
+    ["strip", ["Vol", "volume_up", "volume_down"]]
+  ]
+}
+```
+
+`id` is 1–15 characters of `a-z`, `0-9` or `_` and cannot be one of the built-in ids. Each entry in `sections` is an array starting with its kind:
+
+| Kind | Renders |
+|---|---|
+| `["row", …]` | A centred row of round buttons. `"\|"` inserts a stretching gap, which is what pushes Power to the far left. |
+| `["dpad"]` | The standard D-pad. List five actions — `["dpad","up","left","ok","right","down"]` — to substitute your own. |
+| `["strip", ["Vol","volume_up","volume_down"], …]` | Labelled vertical columns side by side. The first entry of each group is its label; `""` for none. |
+| `["media", …]` | A row of the smaller transport-sized buttons. |
+| `["apps", …]` | A row of wide pill buttons. |
+| `["-"]` | A horizontal divider. |
+
+Buttons are named by action — any name from the [Action Reference](#action-reference) table below that the remote knows (`remote_power`, `search`, `info`, `mute`, `home`, `back`, the D-pad five, `volume_*`, `channel_*`, the seven transport keys, `color_*`, `app_*`). An unknown name is refused on import rather than rendering a dead button. `theme` is optional and may set `bg`, `border`, `radius`, `pad`, `maxw`, `btn_bg`, `btn_fg`, `btn_border`, `btn_radius`, `ok_bg` and `ok_fg`; anything else in it is ignored, so an imported style cannot restyle the rest of the page.
+
+Deleting a custom style leaves the hosts using it on the full remote; re-importing it under the same id puts them all back.
+
 ### Action Reference
 
 | Action | Description |
@@ -1526,6 +1578,7 @@ Macros, host actions and `mouse_goto` calibration only exist in the device's NVS
 - Per-host hidden remote buttons
 - Per-host hold-to-repeat settings (a host left on the defaults is simply absent, and restores as "reset to defaults")
 - Per-host press-and-hold buttons
+- Per-host remote styles, and any custom styles stored on the device
 - Occupied host slots — address, address type, and whether the device still holds a Bluetooth bond for it
 - This browser's interface preferences: theme, zoom, and which sections are shown and in what order
 
@@ -1558,7 +1611,7 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/status` | GET | — | Returns `{"connected":bool,"paired":bool,"device_name":"..."}` |
 | `/api/ble_keyboard/buttons` | GET | — | Returns JSON array of programmed buttons |
 | `/api/ble_keyboard/press` | POST | `action` (string) | Trigger a programmed button action |
-| `/api/ble_keyboard/hosts` | GET | — | Returns `{"active":N,"slots":[{"slot":N,"occupied":bool,"addr":"XX:XX:..."},...]}`  |
+| `/api/ble_keyboard/hosts` | GET | — | Returns `{"active":N,"slots":[{"slot":N,"occupied":bool,"addr":"XX:XX:...","tpl":"atv"},...]}`. `tpl` is that host's [remote style](#remote-style-per-host) and is absent when it uses the default |
 | `/api/ble_keyboard/switch_host` | POST | `slot` (int) | Switch to host slot 0–9 |
 | `/api/ble_keyboard/forget_host` | POST | `slot` (int) | Remove bond for host slot 0–9 |
 | `/api/ble_keyboard/macro_add` | POST | `name`, `action` | Add a new macro (max 16) |
@@ -1573,6 +1626,11 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/repeat_set` | POST | `slot`, `delay`, `rate`, `names` (comma-separated), or `reset=1` | Replace a host's repeat config; empty `names` means nothing repeats, `reset=1` returns it to the defaults. Timings are clamped (delay 100–2000, rate 50–2000) |
 | `/api/ble_keyboard/hold` | GET | `slot` (int, default active) | That host's press-and-hold set, plus its repeat set so a UI can grey out conflicts: `{"slot":N,"buttons":["ok"],"repeat":["volume_up"]}` |
 | `/api/ble_keyboard/hold_set` | POST | `slot`, `names` (comma-separated) | Replace a host's press-and-hold set; empty `names` clears it (max 40). Rejected with `400` if a name is already in that host's repeat set |
+| `/api/ble_keyboard/remote_style_set` | POST | `slot`, `id` | Set that host's [remote style](#remote-style-per-host); empty `id` returns it to the full remote. The id is stored, never interpreted, so a style only the page knows about still round-trips |
+| `/api/ble_keyboard/remote_templates` | GET | — | The custom styles held on the device: `{"max":6,"len":1500,"items":[{"index":0,"tpl":"{…}"}]}`. Each `tpl` is the style's JSON as a string |
+| `/api/ble_keyboard/remote_tpl_chunk` | POST | `seq` (int), `data` (string) | Upload one piece of a custom style; `seq=0` starts a fresh upload. Chunked because a request carries only ~512 bytes of URL |
+| `/api/ble_keyboard/remote_tpl_save` | POST | `index` (int) | Commit the uploaded chunks into custom style slot 0–5 |
+| `/api/ble_keyboard/remote_tpl_delete` | POST | `index` (int) | Delete a custom style. Hosts pointing at it fall back to the full remote |
 | `/api/ble_keyboard/hold_action` | POST | `action` (string) | Press and hold an action now — `400` if it isn't something that can be held |
 | `/api/ble_keyboard/release` | POST | — | Release everything held: keys, consumer usage and mouse buttons |
 | `/api/ble_keyboard/backup` | GET | — | All runtime settings as JSON: macros, saved overrides, layout, per-host calibration, and occupied host slots (with a `bonded` flag) |

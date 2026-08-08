@@ -1346,6 +1346,158 @@ void EspidfBleKeyboard::save_hidden_(uint8_t slot) {
     nvs_close(handle);
 }
 
+// ── Per-host remote style + custom styles (NVS-persisted) ─────────
+//
+// Presentation that lives entirely in the browser: the device remembers an id
+// per host and a handful of user-authored style documents, and never looks
+// inside either. Keeping the firmware out of the layout is what lets a new
+// built-in style ship as a page change alone, and what lets a style the page
+// invents outlive a firmware that has never heard of it.
+
+bool EspidfBleKeyboard::valid_style_id(const std::string &id) {
+    if (id.empty() || id.size() > MAX_STYLE_LEN) return false;
+    for (char c : id) {
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) return false;
+    }
+    return true;
+}
+
+const std::string &EspidfBleKeyboard::get_remote_style(uint8_t slot) const {
+    static const std::string none;
+    return slot < MAX_HOST_SLOTS ? remote_style_[slot] : none;
+}
+
+bool EspidfBleKeyboard::set_remote_style(uint8_t slot, const std::string &id) {
+    if (slot >= MAX_HOST_SLOTS) return false;
+    if (!id.empty() && !valid_style_id(id)) return false;
+    remote_style_[slot] = id;
+    save_remote_style_(slot);
+    ESP_LOGI(TAG, "Remote style for host %u: %s", (unsigned) slot,
+             id.empty() ? "(default)" : id.c_str());
+    return true;
+}
+
+void EspidfBleKeyboard::load_remote_style_() {
+    nvs_handle_t handle;
+    if (nvs_open("espidf_ble_kb", NVS_READONLY, &handle) != ESP_OK) return;
+
+    for (uint8_t slot = 0; slot < MAX_HOST_SLOTS; slot++) {
+        char key[12];
+        snprintf(key, sizeof(key), "rst%u", slot);
+        // A stored value too long for this buffer comes back as an error and is
+        // skipped, which is the right answer: the page could not have written it.
+        char buf[MAX_STYLE_LEN + 1];
+        size_t len = sizeof(buf);
+        if (nvs_get_str(handle, key, buf, &len) != ESP_OK) continue;
+        std::string id(buf);
+        if (valid_style_id(id)) {
+            remote_style_[slot] = id;
+            ESP_LOGI(TAG, "Host %u uses remote style \"%s\"", (unsigned) slot, id.c_str());
+        }
+    }
+    nvs_close(handle);
+}
+
+void EspidfBleKeyboard::save_remote_style_(uint8_t slot) {
+    if (slot >= MAX_HOST_SLOTS) return;
+    nvs_handle_t handle;
+    if (nvs_open("espidf_ble_kb", NVS_READWRITE, &handle) != ESP_OK) return;
+
+    char key[12];
+    snprintf(key, sizeof(key), "rst%u", slot);
+    if (remote_style_[slot].empty()) {
+        nvs_erase_key(handle, key);
+    } else {
+        nvs_set_str(handle, key, remote_style_[slot].c_str());
+    }
+    nvs_commit(handle);
+    nvs_close(handle);
+}
+
+const std::string &EspidfBleKeyboard::get_custom_template(uint8_t index) const {
+    static const std::string none;
+    return index < MAX_CUSTOM_TEMPLATES ? custom_templates_[index] : none;
+}
+
+bool EspidfBleKeyboard::stage_template_chunk(uint16_t seq, const std::string &data) {
+    // seq 0 restarts, so an upload that died halfway needs no timeout to clean
+    // up after it — the next one simply overwrites what it left behind.
+    if (seq == 0) {
+        tpl_staging_.clear();
+        tpl_next_seq_ = 0;
+    }
+    if (seq != tpl_next_seq_) return false;
+    if (tpl_staging_.size() + data.size() > MAX_TEMPLATE_LEN) return false;
+    // Control characters would break the JSON this is handed back inside, and
+    // the page only ever sends compacted JSON, which contains none.
+    for (char c : data) {
+        if ((unsigned char) c < 0x20) return false;
+    }
+    tpl_staging_ += data;
+    tpl_next_seq_++;
+    return true;
+}
+
+bool EspidfBleKeyboard::commit_template(uint8_t index) {
+    if (index >= MAX_CUSTOM_TEMPLATES || tpl_staging_.empty()) return false;
+    custom_templates_[index] = tpl_staging_;
+    tpl_staging_.clear();
+    tpl_staging_.shrink_to_fit();  // the staging copy is dead weight until the next upload
+    tpl_next_seq_ = 0;
+    save_template_(index);
+    ESP_LOGI(TAG, "Saved custom remote style %u (%u bytes)", (unsigned) index,
+             (unsigned) custom_templates_[index].size());
+    return true;
+}
+
+bool EspidfBleKeyboard::delete_template(uint8_t index) {
+    if (index >= MAX_CUSTOM_TEMPLATES) return false;
+    custom_templates_[index].clear();
+    custom_templates_[index].shrink_to_fit();
+    save_template_(index);
+    return true;
+}
+
+void EspidfBleKeyboard::load_templates_() {
+    nvs_handle_t handle;
+    if (nvs_open("espidf_ble_kb", NVS_READONLY, &handle) != ESP_OK) return;
+
+    for (uint8_t i = 0; i < MAX_CUSTOM_TEMPLATES; i++) {
+        char key[12];
+        snprintf(key, sizeof(key), "ctpl%u", i);
+
+        size_t len = 0;
+        if (nvs_get_str(handle, key, nullptr, &len) != ESP_OK || len == 0) continue;
+        if (len > MAX_TEMPLATE_LEN + 1) {
+            ESP_LOGW(TAG, "Custom remote style %u is oversized (%u bytes) — ignoring",
+                     (unsigned) i, (unsigned) len);
+            continue;
+        }
+        std::vector<char> buf(len);
+        if (nvs_get_str(handle, key, buf.data(), &len) != ESP_OK) continue;
+        custom_templates_[i] = buf.data();
+        ESP_LOGI(TAG, "Loaded custom remote style %u (%u bytes)", (unsigned) i,
+                 (unsigned) custom_templates_[i].size());
+    }
+    nvs_close(handle);
+}
+
+void EspidfBleKeyboard::save_template_(uint8_t index) {
+    if (index >= MAX_CUSTOM_TEMPLATES) return;
+    nvs_handle_t handle;
+    if (nvs_open("espidf_ble_kb", NVS_READWRITE, &handle) != ESP_OK) return;
+
+    char key[12];
+    snprintf(key, sizeof(key), "ctpl%u", index);
+    if (custom_templates_[index].empty()) {
+        nvs_erase_key(handle, key);
+    } else {
+        nvs_set_str(handle, key, custom_templates_[index].c_str());
+    }
+    nvs_commit(handle);
+    nvs_close(handle);
+}
+
 // ── Per-host press-and-hold (NVS-persisted) ───────────────────────
 //
 // Same shape as the hidden list above (one comma-separated NVS entry per slot,
@@ -1883,6 +2035,8 @@ void EspidfBleKeyboard::setup() {
     load_hidden_();
     load_repeat_();
     load_hold_();
+    load_remote_style_();
+    load_templates_();
     // Publish after loading, not just when the sensors are attached: the
     // set_*_sensor() calls run at registration, which is before this setup()
     // reads NVS, so their initial publish always described an empty list. Until
