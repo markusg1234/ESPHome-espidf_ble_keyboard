@@ -52,8 +52,9 @@
  * *custom* style names an id this card has no definition for, since those live
  * in the device's NVS. Copy that style's JSON from the web page's Export into
  * `remote_style_json` and it joins this card's style list under its own name —
- * selectable in the dropdown, and drawn under `auto` too. One style or an array
- * of them. Styles only ever travel web page -> card; the card never writes back.
+ * selectable in the dropdown, and drawn under `auto` too. Use the web page's
+ * "Export all" button to copy every custom style at once as a JSON array.
+ * Styles only ever travel web page -> card; the card never writes back.
  * show_apps / show_color / show_numpad filter whichever style is drawn.
  *
  * Full example with overrides:
@@ -958,7 +959,7 @@ const REMOTE_EDITOR_LABELS = {
   name: 'Card title (optional)',
   zoom: 'Zoom (1 = normal, 0.5 = half, 2 = double)',
   remote_style: 'Remote style',
-  remote_style_json: 'Paste a style from the web page’s Export (or a list of them)',
+  remote_style_json: 'Paste from the web page’s Export, or Export all for every custom style',
   remote_style_entity: 'Remote-style sensor (optional)',
   show_numpad: 'Show number pad',
   show_apps: 'Show app launcher row',

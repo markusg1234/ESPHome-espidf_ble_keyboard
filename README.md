@@ -1916,11 +1916,13 @@ The style id is also on the device's `/hosts` response, which the card already p
 
 **Styles travel one way: web page → card.** Build a style on the device's web page, where it is stored and named. Then copy its JSON from **Remote Style → Export** into the card's paste box, and it **joins the card's style list** under the name you gave it — selectable in the dropdown beside the built-ins, and drawn automatically when `auto` sees the device report that host's style. The card never writes back; the device stays the one place a style is defined.
 
-The box takes a single style, or a JSON array of several, so every custom remote on the device can join the list at once:
+**To bring several across at once, use Export all.** The plain **Export** button copies the one style the stepper is showing — that one is for editing. **Export all** copies *every* custom style on the device as a single JSON list, which is what the card's box wants:
 
 ```yaml
 remote_style_json: '[{"id":"lounge","name":"Lounge box",…},{"id":"study","name":"Study",…}]'
 ```
+
+Paste that in and every custom remote joins the card's dropdown together. There is no need to send them all — one style is enough if that is all your hosts use, and six of them is roughly 6 KB in the card's YAML.
 
 > A custom style the card has **not** been given still resolves to an id it has no definition for, so `auto` falls back to the full remote for that host. Paste it in and the fallback goes away.
 
