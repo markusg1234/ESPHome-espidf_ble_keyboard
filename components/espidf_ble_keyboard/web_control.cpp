@@ -124,6 +124,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .macro-form button{padding:6px 12px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 .macro-form button:active{opacity:.8}
 .macro-form .cancel{background:var(--muted)}
+/* Style stepper — the same shape as the toolbar's zoom control, restated here
+   because `.macro-form button` above is the more specific rule and would
+   otherwise repaint these two as accent-green pills. */
+.tpl-step{display:flex;align-items:center;gap:4px}
+.macro-form .tpl-step button{width:30px;height:30px;padding:0;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:17px;font-weight:700}
+.macro-form .tpl-step button:active{background:var(--active);color:#fff;opacity:1}
+.tpl-name{min-width:132px;text-align:center;font-size:12px;color:var(--fg);padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .combo-row{display:flex;gap:4px;width:100%;align-items:center;flex-wrap:wrap}
 .mod-btn{padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);font-size:11px;font-weight:600;cursor:pointer;user-select:none}
 .mod-btn.on{background:var(--active);color:#fff;border-color:var(--active)}
@@ -520,7 +527,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <button class="hid-toggle" id="tpl-toggle">Remote Style &#9662;</button>
 <div class="hid-body" id="tpl-body">
 <div style="font-size:12px;color:var(--muted);margin:6px 0">Choose the remote layout this host gets &mdash; switch to the host and the remote re-skins to match it. The hidden, repeat and hold settings above still apply on top of whatever style is showing, and every action stays available to macros, buttons and Home Assistant either way.</div>
-<div class="macro-form" style="margin-top:0"><select id="tpl-sel" title="The style this host's remote is drawn in"></select><button id="tpl-export" class="cancel" title="Copy the selected style into the box below as JSON — edit it, give it a new id, and Import it back as your own">Export</button></div>
+<div class="macro-form" style="margin-top:0"><div class="tpl-step"><button id="tpl-prev" title="Previous style">&minus;</button><span class="tpl-name" id="tpl-name" title="The style this host's remote is drawn in">Full remote</span><button id="tpl-next" title="Next style">+</button></div><button id="tpl-export" class="cancel" title="Copy the shown style into the box below as JSON — edit it, give it a new id, and Import it back as your own">Export</button></div>
 <div id="tpl-custom"></div>
 <div style="font-size:12px;color:var(--muted);margin:8px 0 4px">Roll your own: <strong>Export</strong> a style, change its <code>id</code> and <code>name</code>, rearrange the sections, then <strong>Import</strong>. Sections are <code>["row",…]</code>, <code>["dpad"]</code>, <code>["strip",["Vol","volume_up",…],…]</code>, <code>["media",…]</code>, <code>["apps",…]</code> and <code>["-"]</code> for a divider; <code>"|"</code> spaces a row out. <code>theme</code> is optional.</div>
 <div class="macro-form"><textarea id="tpl-json" placeholder="Paste a style JSON here to import&hellip;" rows="4" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="tpl-import">Import</button></div>
@@ -1345,30 +1352,62 @@ function appendStep(el,val){
   // here, so a new built-in style is a page change alone.
   const tplPanel=document.getElementById('tpl-panel');
   const tplToggle=document.getElementById('tpl-toggle');
-  const tplSel=document.getElementById('tpl-sel');
+  const tplPrev=document.getElementById('tpl-prev');
+  const tplNext=document.getElementById('tpl-next');
+  const tplName=document.getElementById('tpl-name');
   const tplCustom=document.getElementById('tpl-custom');
   const tplJson=document.getElementById('tpl-json');
   const tplImport=document.getElementById('tpl-import');
   const tplExport=document.getElementById('tpl-export');
   const tplMsg=document.getElementById('tpl-msg');
   let slotTpl={};                       // slot -> stored style id ('' = default)
+  let tplOpts=[],tplIdx=0;              // the styles to step through, and where we are
   function tplNote(m,err){if(tplMsg){tplMsg.textContent=m||'';tplMsg.style.color=err?'#c44':'var(--muted)'}}
 
+  function showTpl(){
+    if(!tplName)return;
+    const t=tplOpts[tplIdx];
+    tplName.textContent=t?t.name+(t.custom?' (custom)':''):'—';
+  }
+
+  // Rebuilt whenever the list can have changed — a style imported or deleted
+  // shifts what − and + step through.
   function fillTplSel(){
-    if(!tplSel)return;
-    tplSel.innerHTML='';
-    allTemplates().forEach(t=>{
-      const o=document.createElement('option');
-      o.value=t.id;
-      o.textContent=t.name+(t.custom?' (custom)':'');
-      tplSel.appendChild(o);
-    });
+    tplOpts=allTemplates();
     const cur=slotTpl[slot]||'default';
+    tplIdx=tplOpts.findIndex(t=>t.id===cur);
     // A style this host points at but that no longer exists (deleted, or a
     // backup from a device that had it) shows as the default, which is what
     // the remote itself falls back to.
-    tplSel.value=tplById(cur)?cur:'default';
+    if(tplIdx<0)tplIdx=0;
+    showTpl();
   }
+
+  // Steps to the next or previous style and saves it in one press. Wraps, so
+  // + always leads somewhere and the end of the list is one press from the
+  // start — with only a handful of styles that beats a button that goes dead.
+  function stepTpl(d){
+    if(!tplOpts.length)return;
+    tplIdx=(tplIdx+d+tplOpts.length)%tplOpts.length;
+    showTpl();
+    const id=tplOpts[tplIdx].id;
+    // Stored empty for the default: an unset slot and one explicitly set back
+    // to the full remote are the same thing, and empty is what the firmware
+    // erases rather than keeps.
+    fetch('/api/ble_keyboard/remote_style_set?'+new URLSearchParams({slot:slot,id:id==='default'?'':id}),
+          {method:'POST'})
+      .then(r=>{
+        if(!r.ok)return r.text().then(t=>{tplNote(t,true)});
+        slotTpl[slot]=id==='default'?'':id;
+        // Stepping through the active host's styles redraws the remote as you
+        // go, which is the whole point — so there is nothing to announce. Say
+        // something only when the change lands somewhere you can't see.
+        if(slot===activeSlot&&window.applyTemplate){window.applyTemplate(id);tplNote('')}
+        else tplNote('Saved — switch to that host to see it.');
+      });
+  }
+  if(tplPrev)tplPrev.addEventListener('click',()=>stepTpl(-1));
+  if(tplNext)tplNext.addEventListener('click',()=>stepTpl(1));
 
   function renderCustomList(){
     if(!tplCustom)return;
@@ -1461,7 +1500,7 @@ function appendStep(el,val){
   }
 
   if(tplExport)tplExport.addEventListener('click',()=>{
-    const t=tplById(tplSel.value);
+    const t=tplOpts[tplIdx];
     if(!t){tplNote('Nothing to export.',true);return}
     // A built-in is exported under a free id, so importing it straight back
     // lands as a new custom style rather than being refused as a duplicate.
@@ -1514,21 +1553,6 @@ function appendStep(el,val){
     tplPanel.classList.toggle('open');
     tplToggle.innerHTML='Remote Style '+(tplPanel.classList.contains('open')?'▴':'▾');
     if(tplPanel.classList.contains('open')){tplNote('');loadTpl()}
-  });
-
-  if(tplSel)tplSel.addEventListener('change',()=>{
-    const id=tplSel.value;
-    // Stored empty for the default: an unset slot and one explicitly set back
-    // to the full remote are the same thing, and empty is what the firmware
-    // erases rather than keeps.
-    fetch('/api/ble_keyboard/remote_style_set?'+new URLSearchParams({slot:slot,id:id==='default'?'':id}),
-          {method:'POST'})
-      .then(r=>{
-        if(!r.ok)return r.text().then(t=>{tplNote(t,true)});
-        slotTpl[slot]=id==='default'?'':id;
-        if(slot===activeSlot&&window.applyTemplate)window.applyTemplate(id);
-        tplNote('Saved'+(slot===activeSlot?'.':' — switch to that host to see it.'));
-      });
   });
 
   // ── Backup / Restore ──

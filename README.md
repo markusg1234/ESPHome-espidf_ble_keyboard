@@ -949,7 +949,7 @@ Nothing holds by default. The Home Assistant [Media Remote Card](#media-remote-c
 
 > **Unreleased — `main` only.** Not in **v1.7.0 and earlier**, where the web remote had one fixed layout for every host.
 
-The web remote can be drawn in a different **style** per host, so switching to a media box brings up a compact remote shaped for it and switching back to the PC brings back the full one. Open **Remote Style** in the Host Actions card, pick the host, and choose its style. Changing the active host's style redraws the remote immediately, so the quickest way to find the one you want is to try them.
+The web remote can be drawn in a different **style** per host, so switching to a media box brings up a compact remote shaped for it and switching back to the PC brings back the full one. Open **Remote Style** in the Host Actions card, pick the host, and step through the styles with **−** and **+**. Each press saves straight away, and changing the active host's style redraws the remote as you go — so the quickest way to find the one you want is to press **+** until it looks right. The list wraps, so you can reach the far end from either direction.
 
 | Style | What it shows |
 |---|---|
@@ -967,7 +967,7 @@ Styles are a web-page feature; the [Media Remote Card](#media-remote-card-for-ho
 
 #### Making your own
 
-Press **Export** to drop the selected style into the box below as JSON, edit it, and press **Import**. Importing over an id that already exists replaces it; a new id adds a style. The device holds **6** custom styles of up to **1500 characters** each.
+Press **Export** to drop the style currently shown into the box below as JSON, edit it, and press **Import**. Importing over an id that already exists replaces it; a new id adds a style. The device holds **6** custom styles of up to **1500 characters** each.
 
 ```json
 {
