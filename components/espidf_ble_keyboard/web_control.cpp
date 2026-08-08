@@ -583,7 +583,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <button class="hid-toggle" id="tpl-toggle">Remote Style &#9662;</button>
 <div class="hid-body" id="tpl-body">
 <div style="font-size:12px;color:var(--muted);margin:6px 0">Choose the remote layout this host gets &mdash; switch to the host and the remote re-skins to match it. The hidden, repeat and hold settings above still apply on top of whatever style is showing, and every action stays available to macros, buttons and Home Assistant either way.</div>
-<div class="macro-form" style="margin-top:0"><div class="tpl-step"><button id="tpl-prev" title="Previous style">&minus;</button><span class="tpl-name" id="tpl-name" title="The style this host's remote is drawn in">Full remote</span><button id="tpl-next" title="Next style">+</button></div><button id="tpl-export" class="cancel" title="Copy the shown style into the box below as JSON — edit it, give it a new id, and Import it back as your own">Export</button></div>
+<div class="macro-form" style="margin-top:0"><div class="tpl-step"><button id="tpl-prev" title="Previous style">&minus;</button><span class="tpl-name" id="tpl-name" title="The style this host's remote is drawn in">Full remote</span><button id="tpl-next" title="Next style">+</button></div><button id="tpl-export" class="cancel" title="Copy the shown style into the box below as JSON — edit it, give it a new id, and Import it back as your own">Export</button><button id="tpl-export-all" class="cancel" title="Copy every custom style into the box below as one JSON list — paste that into the Home Assistant remote card and they all join its style list">Export all</button></div>
 <div id="tpl-custom"></div>
 <div style="font-size:12px;color:var(--muted);margin:8px 0 4px">Roll your own: <strong>Export</strong> a style, change its <code>id</code> and <code>name</code>, rearrange the sections, then <strong>Import</strong>. Sections are <code>["row",…]</code>, <code>["dpad"]</code>, <code>["ring"]</code> for a round nav ring, <code>["strip",["Vol","volume_up",…],…]</code>, <code>["rocker",["Vol","volume_up","volume_down"],…]</code> for one-piece rockers, <code>["media",…]</code>, <code>["apps",…]</code> and <code>["-"]</code> for a divider; <code>"|"</code> spaces a row out. <code>theme</code> is optional and <code>bg</code> takes a gradient. Write a button as <code>["spare1","Netflix"]</code> to label it &mdash; pair that with an override on the same host and the key both reads and does what you want &mdash; or <code>["spare1","Netflix","#e50914 wide"]</code> to colour and size it (<code>light sm lg xl wide sq</code>).</div>
 <div class="macro-form"><textarea id="tpl-json" placeholder="Paste a style JSON here to import&hellip;" rows="4" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="tpl-import">Import</button></div>
@@ -1538,6 +1538,7 @@ function appendStep(el,val){
   const tplJson=document.getElementById('tpl-json');
   const tplImport=document.getElementById('tpl-import');
   const tplExport=document.getElementById('tpl-export');
+  const tplExportAll=document.getElementById('tpl-export-all');
   const tplMsg=document.getElementById('tpl-msg');
   let slotTpl={};                       // slot -> stored style id ('' = default)
   let tplOpts=[],tplIdx=0;              // the styles to step through, and where we are
@@ -1616,11 +1617,16 @@ function appendStep(el,val){
     });
   }
 
-  // What Export writes and Import reads. The device's own bookkeeping fields
-  // are stripped so a round trip through the box is byte-stable.
-  function tplText(t){
+  // A style without the device's own bookkeeping fields, so a round trip
+  // through the box is byte-stable. Shared by both Export buttons.
+  function tplPlain(t){
     const {index,custom,...rest}=t;
-    return JSON.stringify(rest,null,2);
+    return rest;
+  }
+  // What Export writes and Import reads — pretty-printed, because that one is
+  // for editing by hand.
+  function tplText(t){
+    return JSON.stringify(tplPlain(t),null,2);
   }
 
   // Structure only — anything that would render as a broken remote is refused
@@ -1728,6 +1734,24 @@ function appendStep(el,val){
     }
     tplJson.value=tplText(copy);
     tplNote('Exported "'+t.name+'"'+(t.custom?'':' as "'+copy.id+'"')+' — edit it, then Import.');
+  });
+
+  // Every custom style at once, as the JSON list the Home Assistant card takes.
+  // Exporting one at a time meant only a single custom remote ever reached the
+  // card, since building the list by hand was the only other way.
+  //
+  // Built-ins are left out on purpose: the card already ships those, and
+  // including them would only make the paste bigger. Compact rather than
+  // pretty-printed — this one is a payload to copy across, not something to
+  // edit, and six styles indented is an unreadable wall of textarea.
+  if(tplExportAll)tplExportAll.addEventListener('click',()=>{
+    if(!RMT_CUSTOM.length){
+      tplNote('No custom styles yet — Import one first, then Export all.',true);
+      return;
+    }
+    tplJson.value=JSON.stringify(RMT_CUSTOM.map(tplPlain));
+    tplNote('Exported all '+RMT_CUSTOM.length+' custom style'+(RMT_CUSTOM.length>1?'s':'')+
+            ' — paste this into the Home Assistant card to add them all to its list.');
   });
 
   if(tplImport)tplImport.addEventListener('click',()=>{
