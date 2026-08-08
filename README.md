@@ -962,10 +962,13 @@ The web remote can be drawn in a different **style** per host, so switching to a
 | Style | What it shows |
 |---|---|
 | **Full remote** | Everything, exactly as before styles existed. The default for every host. |
-| **Style 1** | Narrow slab: power, search, D-pad, back, home, play/pause, mute, volume. Suits a small streaming box. |
-| **Style 2** | Taller slab: power, search, D-pad, back/home/menu, transport, volume, channel and an app row. |
-| **Style 3** | Power, D-pad, back/home/play, volume and channel rockers, mute. Suits a television. |
-| **Style 4** | Compact strip: power, mute, volume and the full transport row. Good for a headless box. |
+| **Style 1** | Slab: power, search, D-pad, back/home/menu, transport, volume, channel and an app row. |
+| **Style 2** | Power, D-pad, back/home/play, volume and channel rockers, mute. Suits a television. |
+| **Style 3** | Compact strip: power, mute, volume and the full transport row. Good for a headless box. |
+| **Style 4** | The full set-top shape: number pad, colour keys, nav ring, back/home/TV, one-piece VOL·mute·CH rockers and four app pills. Dark body. |
+| **Style 5** | Style 4's layout on a pale body — the only light style, and easier to read on a bright screen. |
+
+> Styles 4 and 5 carry [spare buttons](#action-reference) for the keys that have no standard code — Input, Mark, Set and the four app pills. They send nothing until you give them a per-host override, which is what lets one App pill launch something different on each machine.
 
 The built-in styles are numbered rather than named after particular devices: the shapes are generic, and a number can't suggest a tie to anyone's product. Your own styles can be called whatever you like.
 

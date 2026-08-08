@@ -788,12 +788,7 @@ const RMT_BUILTIN=[
  ['media','color_red','color_green','color_yellow','color_blue'],
  ['-'],
  ['apps','app_explorer','app_browser','app_email','app_calc','search']]},
-{id:'style1',name:'Style 1',theme:{bg:'#101013',border:'#2b2b31',radius:'26px',pad:'20px 14px',
- maxw:'250px',btn_bg:'#1d1d21',btn_fg:'#ececf0',btn_border:'#2c2c32',ok_bg:'#3a3a40'},sections:[
- ['row','remote_power','|','search','mute'],
- ['dpad'],
- ['strip',['','back','home','play_pause'],['Vol','volume_up','volume_down']]]},
-{id:'style2',name:'Style 2',theme:{bg:'#17181d',border:'#2a2c33',radius:'34px',pad:'22px 12px',
+{id:'style1',name:'Style 1',theme:{bg:'#17181d',border:'#2a2c33',radius:'34px',pad:'22px 12px',
  maxw:'250px',btn_bg:'#232630',btn_fg:'#e8e8ec',btn_border:'#303341',ok_bg:'#454a5c'},sections:[
  ['row','remote_power','|','search','mute'],
  ['dpad'],
@@ -802,16 +797,52 @@ const RMT_BUILTIN=[
  ['strip',['Vol','volume_up','volume_down'],['Ch','channel_up','channel_down']],
  ['-'],
  ['apps','app_explorer','app_browser','app_email','app_calc']]},
-{id:'style3',name:'Style 3',theme:{bg:'#0d0d10',border:'#26262b',radius:'30px',pad:'20px 14px',
+{id:'style2',name:'Style 2',theme:{bg:'#0d0d10',border:'#26262b',radius:'30px',pad:'20px 14px',
  maxw:'250px',btn_bg:'#1a1a1f',btn_fg:'#ededed',btn_border:'#2a2a30',ok_bg:'#333338'},sections:[
  ['row','remote_power','|','info','search'],
  ['dpad'],
  ['row','back','home','play_pause'],
  ['strip',['Vol','volume_up','volume_down'],['Ch','channel_up','channel_down']],
  ['row','mute']]},
-{id:'style4',name:'Style 4',theme:{},sections:[
+{id:'style3',name:'Style 3',theme:{},sections:[
  ['row','remote_power','|','mute','volume_down','volume_up'],
- ['media','prev_track','rewind','play_pause','stop','fast_forward','next_track']]}];
+ ['media','prev_track','rewind','play_pause','stop','fast_forward','next_track']]},
+// The keypad pair — the only built-ins with numbers, colour keys and a nav
+// ring, and 5 is the only pale one. Their spares carry the keys that have no
+// standard usage (Input, Mark, Set) and the four app pills, so give them
+// per-host overrides to make them do anything.
+{id:'style4',name:'Style 4',theme:{bg:'#252525',border:'#2f2f2f',radius:'34px',pad:'18px 12px',
+ maxw:'236px',btn_bg:'#2f2f2f',btn_fg:'#e6e6e6',btn_border:'#0f0f0f',ring_bg:'#d8d8d8',
+ ring_fg:'#1c1c1c',ok_bg:'#2a2a2a',ok_fg:'#ededed',light_bg:'#ededed',light_fg:'#1c1c1c',
+ label:'#8f8f8f',divider:'#343434',shadow:'0 2px 10px rgba(0,0,0,.4)'},sections:[
+ ['row','remote_power',['spare1','Input'],'num1'],
+ ['row','num2','num3','num4'],
+ ['row','num5','num6','num7'],
+ ['row','num8','num9','captions'],
+ ['row','num0','info',['spare2','Mark']],
+ ['row',['spare3','Kbd','light'],['spare4','Set']],
+ ['row',['color_red','','sm'],['color_green','','sm'],['color_yellow','','sm'],['color_blue','','sm']],
+ ['ring'],
+ ['row','back',['home','','light'],'tv'],
+ ['rocker',['Vol','volume_up','volume_down'],['','mute'],['Ch','channel_up','channel_down']],
+ ['apps',['spare5','App 1','light wide'],['spare6','App 2','light wide'],['spare7','App 3','light wide']],
+ ['apps',['spare8','App 4','light wide']]]},
+{id:'style5',name:'Style 5',theme:{bg:'#f4f4f4',border:'#dcdcdc',radius:'34px',pad:'18px 12px',
+ maxw:'236px',btn_bg:'#ffffff',btn_fg:'#6a6a6a',btn_border:'#bababa',ring_bg:'#cfcfcf',
+ ring_fg:'#4a4a4a',ok_bg:'#f4f4f4',ok_fg:'#4a4a4a',light_bg:'#ffffff',light_fg:'#3a3a3a',
+ label:'#7a7a7a',divider:'#e2e2e2',shadow:'0 2px 8px rgba(0,0,0,.14)'},sections:[
+ ['row','remote_power',['spare1','Input'],'num1'],
+ ['row','num2','num3','num4'],
+ ['row','num5','num6','num7'],
+ ['row','num8','num9','captions'],
+ ['row','num0','info',['spare2','Mark']],
+ ['row',['spare3','Kbd','light'],['spare4','Set']],
+ ['row',['color_red','','sm'],['color_green','','sm'],['color_yellow','','sm'],['color_blue','','sm']],
+ ['ring'],
+ ['row','back',['home','','light'],'tv'],
+ ['rocker',['Vol','volume_up','volume_down'],['','mute'],['Ch','channel_up','channel_down']],
+ ['apps',['spare5','App 1','light wide'],['spare6','App 2','light wide'],['spare7','App 3','light wide']],
+ ['apps',['spare8','App 4','light wide']]]}];
 // User-authored styles, fetched from the device. `index` is the storage slot
 // they came from, which is what an update or a delete addresses.
 let RMT_CUSTOM=[],RMT_CUSTOM_MAX=6,RMT_CUSTOM_LEN=1500;
