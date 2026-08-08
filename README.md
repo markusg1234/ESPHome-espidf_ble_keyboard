@@ -949,15 +949,17 @@ Nothing holds by default. The Home Assistant [Media Remote Card](#media-remote-c
 
 > **Unreleased — `main` only.** Not in **v1.7.0 and earlier**, where the web remote had one fixed layout for every host.
 
-The web remote can be drawn in a different **style** per host, so switching to the Apple TV slot brings up an Apple-TV-shaped remote and switching back to the PC brings back the full one. Open **Remote Style** in the Host Actions card, pick the host, and choose its style.
+The web remote can be drawn in a different **style** per host, so switching to a media box brings up a compact remote shaped for it and switching back to the PC brings back the full one. Open **Remote Style** in the Host Actions card, pick the host, and choose its style. Changing the active host's style redraws the remote immediately, so the quickest way to find the one you want is to try them.
 
 | Style | What it shows |
 |---|---|
 | **Full remote** | Everything, exactly as before styles existed. The default for every host. |
-| **Apple TV** | Narrow dark slab: power, search, D-pad, back, home, play/pause, mute, volume. |
-| **Fire TV** | Stick-remote shape: power, search, D-pad, back/home/menu, transport, volume, channel, app row. |
-| **Samsung TV** | Power, D-pad, back/home/play, volume and channel rockers, mute. |
-| **Media only** | Compact strip: power, mute, volume and the full transport row. Good for a headless box. |
+| **Style 1** | Narrow slab: power, search, D-pad, back, home, play/pause, mute, volume. Suits a small streaming box. |
+| **Style 2** | Taller slab: power, search, D-pad, back/home/menu, transport, volume, channel and an app row. |
+| **Style 3** | Power, D-pad, back/home/play, volume and channel rockers, mute. Suits a television. |
+| **Style 4** | Compact strip: power, mute, volume and the full transport row. Good for a headless box. |
+
+The built-in styles are numbered rather than named after particular devices: the shapes are generic, and a number can't suggest a tie to anyone's product. Your own styles can be called whatever you like.
 
 The style is stored on the device against the host slot, not in the browser, so it follows the host rather than the phone that set it — and every browser watching the page re-skins within a few seconds of a host switch, whoever made it. It is **presentation only**: the actions a style leaves out still run from macros, YAML buttons and Home Assistant, and the **Remote Buttons**, **Hold to Repeat** and **Press and Hold** panels always list every action regardless of which style is showing, so they can be set for a host before you ever look at its remote. Styles are included in [Backup and restore](#backup-and-restore).
 
@@ -969,8 +971,8 @@ Press **Export** to drop the selected style into the box below as JSON, edit it,
 
 ```json
 {
-  "id": "shield",
-  "name": "Shield",
+  "id": "lounge",
+  "name": "Lounge box",
   "theme": { "bg": "#12161c", "radius": "28px", "maxw": "240px", "btn_bg": "#1e242e" },
   "sections": [
     ["row", "remote_power", "|", "search", "mute"],
@@ -1611,7 +1613,7 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/status` | GET | — | Returns `{"connected":bool,"paired":bool,"device_name":"..."}` |
 | `/api/ble_keyboard/buttons` | GET | — | Returns JSON array of programmed buttons |
 | `/api/ble_keyboard/press` | POST | `action` (string) | Trigger a programmed button action |
-| `/api/ble_keyboard/hosts` | GET | — | Returns `{"active":N,"slots":[{"slot":N,"occupied":bool,"addr":"XX:XX:...","tpl":"atv"},...]}`. `tpl` is that host's [remote style](#remote-style-per-host) and is absent when it uses the default |
+| `/api/ble_keyboard/hosts` | GET | — | Returns `{"active":N,"slots":[{"slot":N,"occupied":bool,"addr":"XX:XX:...","tpl":"style1"},...]}`. `tpl` is that host's [remote style](#remote-style-per-host) and is absent when it uses the default |
 | `/api/ble_keyboard/switch_host` | POST | `slot` (int) | Switch to host slot 0–9 |
 | `/api/ble_keyboard/forget_host` | POST | `slot` (int) | Remove bond for host slot 0–9 |
 | `/api/ble_keyboard/macro_add` | POST | `name`, `action` | Add a new macro (max 16) |

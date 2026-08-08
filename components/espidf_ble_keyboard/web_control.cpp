@@ -658,7 +658,9 @@ const RMT_VARS={bg:'--rb-bg',border:'--rb-border',radius:'--rb-radius',pad:'--rb
 maxw:'--rb-maxw',btn_bg:'--rb-btn-bg',btn_fg:'--rb-btn-fg',btn_border:'--rb-btn-border',
 btn_radius:'--rb-btn-radius',ok_bg:'--rb-ok-bg',ok_fg:'--rb-ok-fg'};
 // Built-in styles. `default` reproduces the fixed markup the remote had before
-// styles existed, so a host that never picks one sees no change at all.
+// styles existed, so a host that never picks one sees no change at all. The
+// rest are numbered rather than named after the devices they suit: the shapes
+// are generic on purpose, and a number can't imply a tie to anyone's product.
 const RMT_BUILTIN=[
 {id:'default',name:'Full remote',theme:{},sections:[
  ['row','remote_power','|','search','info','mute','home','back'],
@@ -670,12 +672,12 @@ const RMT_BUILTIN=[
  ['media','color_red','color_green','color_yellow','color_blue'],
  ['-'],
  ['apps','app_explorer','app_browser','app_email','app_calc','search']]},
-{id:'atv',name:'Apple TV',theme:{bg:'#101013',border:'#2b2b31',radius:'26px',pad:'20px 14px',
+{id:'style1',name:'Style 1',theme:{bg:'#101013',border:'#2b2b31',radius:'26px',pad:'20px 14px',
  maxw:'250px',btn_bg:'#1d1d21',btn_fg:'#ececf0',btn_border:'#2c2c32',ok_bg:'#3a3a40'},sections:[
  ['row','remote_power','|','search','mute'],
  ['dpad'],
  ['strip',['','back','home','play_pause'],['Vol','volume_up','volume_down']]]},
-{id:'firetv',name:'Fire TV',theme:{bg:'#17181d',border:'#2a2c33',radius:'34px',pad:'22px 12px',
+{id:'style2',name:'Style 2',theme:{bg:'#17181d',border:'#2a2c33',radius:'34px',pad:'22px 12px',
  maxw:'250px',btn_bg:'#232630',btn_fg:'#e8e8ec',btn_border:'#303341',ok_bg:'#454a5c'},sections:[
  ['row','remote_power','|','search','mute'],
  ['dpad'],
@@ -684,14 +686,14 @@ const RMT_BUILTIN=[
  ['strip',['Vol','volume_up','volume_down'],['Ch','channel_up','channel_down']],
  ['-'],
  ['apps','app_explorer','app_browser','app_email','app_calc']]},
-{id:'samsung',name:'Samsung TV',theme:{bg:'#0d0d10',border:'#26262b',radius:'30px',pad:'20px 14px',
+{id:'style3',name:'Style 3',theme:{bg:'#0d0d10',border:'#26262b',radius:'30px',pad:'20px 14px',
  maxw:'250px',btn_bg:'#1a1a1f',btn_fg:'#ededed',btn_border:'#2a2a30',ok_bg:'#333338'},sections:[
  ['row','remote_power','|','info','search'],
  ['dpad'],
  ['row','back','home','play_pause'],
  ['strip',['Vol','volume_up','volume_down'],['Ch','channel_up','channel_down']],
  ['row','mute']]},
-{id:'media',name:'Media only',theme:{},sections:[
+{id:'style4',name:'Style 4',theme:{},sections:[
  ['row','remote_power','|','mute','volume_down','volume_up'],
  ['media','prev_track','rewind','play_pause','stop','fast_forward','next_track']]}];
 // User-authored styles, fetched from the device. `index` is the storage slot
@@ -2296,10 +2298,17 @@ buildKeyboard();
       lastHiddenKey=key;
       const hide=d.hidden||[];
       card.querySelectorAll('[data-action]').forEach(b=>{
-        b.style.display=hide.indexOf(b.dataset.action)>=0?'none':'';
+        // visibility, not display: a hidden button keeps its slot, so removing
+        // OK leaves a hole in the D-pad instead of sliding right and down into
+        // it, and a row's remaining buttons stay where they were. Same trick
+        // the D-pad's own corner placeholders use. An invisible button takes no
+        // clicks either, which `opacity:0` would not have given us.
+        b.style.visibility=hide.indexOf(b.dataset.action)>=0?'hidden':'';
       });
-      // Collapse a group/section once every button inside it is gone.
-      const empty=el=>![...el.querySelectorAll('[data-action]')].some(b=>b.style.display!=='none');
+      // Holding the shape stops once there is no shape left to hold: a group or
+      // section with nothing visible in it collapses entirely rather than
+      // leaving a band of empty slots.
+      const empty=el=>![...el.querySelectorAll('[data-action]')].some(b=>b.style.visibility!=='hidden');
       card.querySelectorAll('.rmt-strip-group').forEach(g=>{g.style.display=empty(g)?'none':''});
       card.querySelectorAll('.rmt-section').forEach(s=>{s.style.display=empty(s)?'none':''});
       // A divider only earns its place between two visible sections.

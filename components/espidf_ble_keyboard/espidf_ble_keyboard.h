@@ -298,8 +298,8 @@ class EspidfBleKeyboard : public Component
   std::string hold_csv(uint8_t slot) const;
 
   // Per-host remote style: which template the web remote is drawn from for this
-  // host, so an Apple TV slot gets an Apple-TV-shaped remote and a PC slot the
-  // full one. Deliberately opaque here — the device stores an id and hands it
+  // host, so a media-box slot gets a compact remote shaped for it while a PC
+  // slot keeps the full one. Deliberately opaque here — the device stores an id and hands it
   // out with /hosts, and the page decides what it looks like. That way a new
   // built-in style is a page change alone, and an id this firmware has never
   // heard of (a custom one, or a newer page) still round-trips.

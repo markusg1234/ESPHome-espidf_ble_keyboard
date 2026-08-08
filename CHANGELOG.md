@@ -8,10 +8,15 @@ web control page shows the matching version badge.
 
 ### Added
 - **The web remote can now look different on each host.** Pick a style per host slot in the new
-  Remote Style panel and the remote re-skins as you switch machines — an Apple TV, Fire TV, Samsung
-  TV or compact media layout instead of the one fixed remote. Styles are stored on the device, so
-  they follow the host rather than the browser. Export one, edit the JSON, and import it back to
-  build your own; six fit on the device.
+  Remote Style panel and the remote re-skins as you switch machines — four compact remote shapes
+  alongside the full one, for hosts that need only a handful of keys. Styles are stored on the
+  device, so they follow the host rather than the browser. Export one, edit the JSON, and import it
+  back to build your own; six fit on the device.
+
+### Fixed
+- **Removing a button from the remote no longer moves the others.** The remaining buttons closed the
+  gap, so hiding OK pulled the D-pad arrows out of position; a removed button now leaves its place
+  empty. A row or section with nothing left visible still collapses.
 - **Remote keys can now fire Home Assistant actions** — a new action prefix asks HA to run
   one of its own actions over the native API, so a key remapped in Host Actions can drive
   an IR blaster, a script, or a scene, from the HA remote card and the web remote alike.
