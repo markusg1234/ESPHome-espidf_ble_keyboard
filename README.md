@@ -538,7 +538,7 @@ espidf_ble_keyboard:
 Optional. Four types are available.
 
 * **keyboard_id** (Required, ID): The ID of the `espidf_ble_keyboard` component.
-* **type** (Optional, string): `hidden_buttons` (default), `host_mac`, `hold_buttons` or `repeat_buttons`.
+* **type** (Optional, string): `hidden_buttons` (default), `host_mac`, `hold_buttons`, `repeat_buttons` or `remote_style`.
 * **name** (Optional, string): Friendly entity name shown in Home Assistant.
 
 #### Hidden buttons
@@ -618,7 +618,7 @@ Each slot learns its host's identity the next time that host connects, and remem
 
 The value is only as stable as the bond. Unpair and pair again and a phone may present a different identity, so re-check the sensor after re-pairing rather than assuming the old value still holds. Treat this as identification, not authentication — it tells one device from another, but it is not proof against a device that deliberately imitates one.
 
-> ESPHome text sensors appear in Home Assistant under the **`sensor.`** domain, not `text_sensor.`. With the YAML above the entities are `sensor.<device>_hidden_buttons`, `sensor.<device>_hold_buttons`, `sensor.<device>_repeat_buttons` and `sensor.<device>_host_mac`. Those names are what the cards auto-detect; if you give one a different `name`, set the matching `hidden_entity:` / `hold_entity:` / `repeat_entity:` on the card.
+> ESPHome text sensors appear in Home Assistant under the **`sensor.`** domain, not `text_sensor.`. With the YAML above the entities are `sensor.<device>_hidden_buttons`, `sensor.<device>_hold_buttons`, `sensor.<device>_repeat_buttons`, `sensor.<device>_remote_style` and `sensor.<device>_host_mac`. Those names are what the cards auto-detect; if you give one a different `name`, set the matching `hidden_entity:` / `hold_entity:` / `repeat_entity:` on the card.
 
 ---
 
@@ -1381,6 +1381,7 @@ Features:
 - **Buttons** — Left, Middle, Right click; long-press to hold for dragging (needs the `mouse_hold`/`mouse_release` services), tap the held button to release.
 - **Scroll** — Scroll Up / Scroll Down buttons (hold to repeat).
 - **Host switcher** — optional prev/next buttons in the header to change the active BLE host, with its name and MAC address. See [Host switcher on the cards](#host-switcher-on-the-cards).
+- **Remote styles** — the card draws the same [remote styles](#remote-style-per-host) the web page does, and can follow the one set for the active host.
 - **Auto device name** — card title is auto-detected from Home Assistant's device registry.
 
 ![Mouse HA Card](docs/mouse_ha_card.png)
@@ -1880,8 +1881,11 @@ Optional configuration:
 |---|---|---|
 | `name` | Auto from HA | Card title. Auto-detected from HA device registry if omitted. |
 | `zoom` | `1` | Scales the whole remote — buttons, text and spacing together. `0.25`–`3`; values outside that are clamped. The card's height follows the zoom, so `0.55` fits the full remote into roughly 8 grid rows, the shortest HA's height slider offers. Zooming past about `1.1` makes the remote wider than a 500px section, and the card scrolls sideways. |
-| `show_numpad` | `false` | Show a number pad (0–9) for channel entry or PIN input. |
-| `show_apps` | `true` | Show app launch buttons (Explorer, Browser, Email, Calc, Search). |
+| `remote_style` | `auto` | Which layout to draw: `auto` follows the style the device has for the active host, or pin one of `default`, `style1`…`style5`, or `custom` to use your own. |
+| `remote_style_json` | — | The style to draw when `remote_style: custom`. Paste it from the web page's **Remote Style → Export**. |
+| `remote_style_entity` | `sensor.<device>_remote_style` | Text sensor carrying the active host's style id. Needed for `auto` — see the note below. |
+| `show_numpad` | `false` | Show the number pad. Filters whichever style is drawn, so turning it off removes the keypad from Style 4 and 5 too. |
+| `show_apps` | `true` | Show the app launcher row. Filters whichever style is drawn. |
 | `show_color` | `false` | Show red/green/yellow/blue color buttons (mapped to F1–F4). |
 | `hidden_entity` | `sensor.<device>_hidden_buttons` | Text sensor carrying the active host's hidden buttons, so the card mirrors the web remote's [per-host hiding](#removing-remote-buttons-per-host). Optional — without the entity every button is shown. |
 | `hold_entity` | `sensor.<device>_hold_buttons` | Text sensor carrying the active host's [Press and hold](#press-and-hold-per-host) buttons. Required for push-to-talk on the card — without it no button holds. |
@@ -1892,6 +1896,26 @@ Optional configuration:
 | `show_mac` | `true` | Show the active host's MAC address to the left of the switcher. |
 | `host_url` | Auto | Address of the ESP32 (e.g. `http://192.168.1.50`), used to read slot MACs. Auto-detected from the device's HA registry entry. |
 
+#### Remote styles on the card
+
+The card draws its remote from the same style definitions the device's web page uses, so a layout looks the same in both places. Pick one in the card editor's **Remote style** dropdown.
+
+**`auto`** mirrors whatever style the device has for the active host, so switching hosts re-skins the card just as it re-skins the web page. That needs the `remote_style` text sensor:
+
+```yaml
+text_sensor:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: remote_style
+    name: "Remote Style"
+```
+
+The style id is also on the device's `/hosts` response, which the card already polls — but a dashboard served over **https** cannot fetch a plain-http device, which is why the sensor exists. It is the same reason the hidden, hold and repeat lists travel as sensors.
+
+> **Custom styles need pasting.** A style you imported on the device lives in its NVS, and the card ships only the built-ins. If a host is set to a custom style, `auto` falls back to the full remote — paste that style's JSON into **Custom style JSON** and choose `custom` to draw it. Copy it from the web page's **Remote Style → Export**.
+
+> **The card's styles are a snapshot** taken when the card files were built. Flash newer firmware with a new built-in style and the installed card won't know that id until you update the cards too — which is what the version tags on the card imports are for.
+
 Features:
 - **Power button** — HID power signal for clean OS-level power control.
 - **D-pad navigation** — arrow keys + Enter, ideal for media apps and menus.
@@ -1900,9 +1924,9 @@ Features:
 - **Channel** — Page Up/Down with hold-to-repeat for channel surfing.
 - **Media playback** — play/pause, stop, previous, next, rewind, fast forward, record.
 - **App launchers** — quick launch Explorer, Browser, Email, Calculator, Search.
-- **Number pad** — optional 0–9 keypad for channel/PIN entry.
+- **Number pad** — optional 0–9 keypad for channel/PIN entry. The digits are named actions like every other key, so they are remappable and hideable per host.
 - **Color buttons** — optional red/green/yellow/blue (F1–F4).
-- **Per-host remapping** — every button is a named action, so any of them can do something different on each paired host (the number pad excepted).
+- **Per-host remapping** — every button is a named action, so any of them can do something different on each paired host.
 - **Host switcher** — optional prev/next buttons in the header to change the active BLE host, with its name and MAC address. Switching here also repaints the card's [per-host hidden buttons](#removing-remote-buttons-per-host). See [Host switcher on the cards](#host-switcher-on-the-cards).
 - **Auto device name** — card title is auto-detected from Home Assistant's device registry.
 

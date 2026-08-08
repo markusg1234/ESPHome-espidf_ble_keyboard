@@ -10,9 +10,9 @@
  *   2. Add the resource in HA:
  *        Settings -> Dashboards -> Resources -> Add Resource
  *        URL: /local/remote-card.js   Type: JavaScript Module
- *   3. Add ESPHome services to your device YAML (see README). This card uses
- *      run_action (every button) and send_string (the optional number pad) —
- *      the simplest way to get both is `api_services: true` on the component.
+ *   3. Add ESPHome services to your device YAML (see README). Every button on
+ *      this card goes through run_action, including the number pad — the
+ *      simplest way to get it is `api_services: true` on the component.
  *
  * Every button fires a *named* action, so any of them can be remapped per host
  * slot via the component's `actions:` config or the web UI's Host Actions card.
@@ -23,6 +23,9 @@
  *   device: bluetooth_keyboard    # your ESPHome device name
  *   # Optional overrides:
  *   # name: Media Remote           # card title (auto from HA if omitted)
+ *   # remote_style: auto           # auto | default | style1..style5 | custom
+ *   # remote_style_json: '{...}'   # the style, when remote_style is custom
+ *   # remote_style_entity: sensor.x_remote_style   # override the auto-detected id
  *   # show_numpad: true            # show number pad (default false)
  *   # show_apps: true              # show app launch row (default true)
  *   # show_color: true             # show color buttons (default false)
@@ -41,6 +44,15 @@
  * sensor, this card hides whatever the active host hides on the web remote, and
  * follows a host switch live. Without that sensor every button is shown.
  *
+ * Remote styles: the layout is drawn from the same style definitions the
+ * device's own web page uses (dist/remote-styles.js, generated from the
+ * firmware). `remote_style: auto` mirrors whatever style the device has for the
+ * active host, which needs the optional `remote_style` text sensor — a
+ * dashboard served over https cannot fetch the device's API. A host set to a
+ * *custom* style names an id this card has no definition for, since those live
+ * in the device's NVS; paste that style's JSON into `remote_style_json` to draw
+ * it. show_apps / show_color / show_numpad filter whichever style is drawn.
+ *
  * Full example with overrides:
  *   type: custom:ble-remote-card
  *   device: bluetooth_keyboard
@@ -56,12 +68,24 @@
  *     - Tablet
  */
 
+// The remote's catalogue, renderer and stylesheet, generated from the firmware's
+// own web page so this card draws exactly what the device does. Regenerate with
+// `node tools/gen-remote-styles.mjs` after changing styles in web_control.cpp.
+import {
+  RMT_BUILTIN, RMT_VARS, RMT_CSS, sectionHtml, validateTpl,
+} from './remote-styles.js?v=1.7.0';
+
 class BleRemoteCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._initialized) {
       this._initialize();
     }
+    // Before _applyHidden: on 'auto' the style comes from a text sensor, so a
+    // state update can change the whole layout, and the hidden list has to be
+    // applied to the buttons that redraw produced. _renderStyle no-ops when
+    // nothing changed, and forces the re-apply itself when something did.
+    this._renderStyle();
     this._applyHidden();
     this._applyHoldAndRepeat();
     // Track active host changes via HA sensor entity. The firmware publishes to
@@ -110,7 +134,20 @@ class BleRemoteCard extends HTMLElement {
       show_mac: config.show_mac !== false,
       host_url: config.host_url || null,
       zoom: this._parseZoom(config.zoom),
+      // Which remote layout to draw. 'auto' mirrors whatever style the device
+      // has for the active host; a built-in id pins one; 'custom' uses the
+      // pasted JSON below.
+      remote_style: config.remote_style || 'auto',
+      remote_style_json: config.remote_style_json || '',
+      // The style id from the device, for 'auto'. Same reason the other
+      // per-host settings travel as text sensors: a dashboard on https cannot
+      // fetch the device's API, so /hosts alone is not enough.
+      remote_style_entity: config.remote_style_entity ||
+        `sensor.${config.device.replace(/-/g, '_')}_remote_style`,
     };
+    // Forces the next _renderStyle() to redraw even if the resolved id is
+    // unchanged — the pasted JSON may have been edited under the same id.
+    this._drawnStyleKey = undefined;
     // Per-host behaviour defaults, in place before the first hass update so a
     // press that beats the sensor read is an ordinary tap rather than a crash.
     // null repeat set = "use the card's own defaults", see _repeats().
@@ -202,31 +239,33 @@ class BleRemoteCard extends HTMLElement {
 
   // Hide the buttons the active host has no use for. Driven by the text sensor,
   // so it follows a host switch without a dashboard reload.
-  _applyHidden() {
+  // `force` after a redraw: the buttons are new, but the sensor string has not
+  // changed, so the guard below would otherwise skip and leave a fresh layout
+  // showing what this host hides.
+  _applyHidden(force) {
     if (!this._hass || !this.shadowRoot) return;
     const ent = this._hass.states[this._config.hidden_entity];
     const raw = ent && typeof ent.state === 'string' &&
                 ent.state !== 'unknown' && ent.state !== 'unavailable' ? ent.state : '';
-    if (raw === this._lastHidden) return;   // states stream constantly; only act on change
+    if (!force && raw === this._lastHidden) return;   // states stream constantly; only act on change
     this._lastHidden = raw;
 
     const hide = raw ? raw.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const map = this._actionMap || {};
-    Object.keys(map).forEach(id => {
-      const el = this.shadowRoot.getElementById(id);
-      if (el) el.style.display = hide.includes(map[id]) ? 'none' : '';
-    });
-    // App buttons are built dynamically and carry their action on the element.
+    // visibility, not display: a hidden button keeps its slot, so removing OK
+    // leaves a hole in the D-pad instead of the arrows sliding into it. An
+    // invisible button takes no clicks either, which opacity would not give.
     this.shadowRoot.querySelectorAll('[data-action]').forEach(el => {
-      el.style.display = hide.includes(el.dataset.action) ? 'none' : '';
+      const off = hide.includes(el.dataset.action) || el.dataset.toggledOff === '1';
+      el.style.visibility = off ? 'hidden' : '';
     });
-    // Collapse the optional rows once everything in them is hidden.
-    ['color-section', 'app-section'].forEach(id => {
-      const sec = this.shadowRoot.getElementById(id);
-      if (!sec || sec.dataset.enabled !== '1') return;
-      const anyVisible = [...sec.querySelectorAll('button')].some(b => b.style.display !== 'none');
-      sec.style.display = anyVisible ? '' : 'none';
-    });
+    // Holding the shape stops once there is no shape left to hold: a group or
+    // section with nothing visible collapses rather than leaving empty slots.
+    const empty = el => ![...el.querySelectorAll('[data-action]')]
+      .some(b => b.style.visibility !== 'hidden');
+    this.shadowRoot.querySelectorAll('.rmt-strip-group, .rmt-rocker-col')
+      .forEach(g => { g.style.display = empty(g) ? 'none' : ''; });
+    this.shadowRoot.querySelectorAll('.rmt-section')
+      .forEach(s => { s.style.display = empty(s) ? 'none' : ''; });
   }
 
   _initialize() {
@@ -381,6 +420,34 @@ class BleRemoteCard extends HTMLElement {
           margin-right: auto;
         }
 
+        /* The remote's own stylesheet, generated from the firmware. Its rules
+           fall back to the page palette (--bg, --fg, …), and a shadow root has
+           no :root to inherit those from — so they are mapped onto HA's theme
+           here. That is what makes an unthemed style follow the dashboard
+           theme, exactly as the full remote does on the device's page. */
+        .card {
+          --bg: var(--secondary-background-color, #f0f2f5);
+          --fg: var(--primary-text-color, #212121);
+          --card: var(--ha-card-background, var(--card-background-color, #fff));
+          --border: var(--divider-color, #d0d5dd);
+          --muted: var(--secondary-text-color, #7c8aad);
+          --active: var(--primary-color, #03a9f4);
+          --accent: var(--accent-color, #00d4aa);
+        }
+        ${RMT_CSS}
+
+        /* Shown instead of the remote when a pasted style can't be used, so a
+           typo reads as a message rather than an empty card. */
+        .style-error {
+          margin: 12px auto;
+          max-width: 460px;
+          padding: 10px 12px;
+          border-radius: 8px;
+          background: var(--error-color, #b71c1c);
+          color: #fff;
+          font-size: 13px;
+          line-height: 1.4;
+        }
       </style>
       <div class="card">
         <div class="zoom">
@@ -395,201 +462,12 @@ class BleRemoteCard extends HTMLElement {
           </div>
         </div>
 
-        <!-- Power & Back row -->
-        <div class="section">
-          <div class="row">
-            <button class="btn power" id="power" title="Power">
-              <svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42A6.92 6.92 0 0119 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.04.88-3.88 2.29-5.16L5.88 5.46A8.96 8.96 0 003 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.72-1.21-5.15-3.17-6.83z"/></svg>
-            </button>
-            <div style="flex:1"></div>
-            <button class="btn" id="search" title="Search">
-              <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-            </button>
-            <button class="btn" id="info" title="Info / Guide">
-              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-            </button>
-            <button class="btn" id="mute" title="Mute">
-              <svg viewBox="0 0 24 24"><path d="M16.5 12A4.5 4.5 0 0014 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.796 8.796 0 0021 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 003.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
-            </button>
-            <button class="btn" id="home" title="Home (Win)">
-              <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-            </button>
-            <button class="btn" id="back" title="Back (Escape)">
-              <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- D-Pad Navigation -->
-        <div class="section">
-          <div class="dpad">
-            <div class="empty"></div>
-            <button class="btn" id="up" title="Up">
-              <svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
-            </button>
-            <div class="empty"></div>
-            <button class="btn" id="left" title="Left">
-              <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            </button>
-            <button class="btn center" id="ok">OK</button>
-            <button class="btn" id="right" title="Right">
-              <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-            </button>
-            <div class="empty"></div>
-            <button class="btn" id="down" title="Down">
-              <svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
-            </button>
-            <div class="empty"></div>
-          </div>
-        </div>
-
-        <!-- Volume & Channel -->
-        <div class="section">
-          <div class="strip">
-            <div class="strip-group">
-              <span class="strip-label">Vol</span>
-              <button class="btn" id="vol_up" title="Volume Up">
-                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-              </button>
-              <button class="btn" id="vol_dn" title="Volume Down">
-                <svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>
-              </button>
-            </div>
-            <div style="width:40px"></div>
-            <div class="strip-group">
-              <span class="strip-label">Ch</span>
-              <button class="btn" id="pg_up" title="Page Up (Channel Up)">
-                <svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
-              </button>
-              <button class="btn" id="pg_dn" title="Page Down (Channel Down)">
-                <svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <!-- Media Controls -->
-        <div class="section">
-          <div class="media-row">
-            <button class="btn media" id="prev" title="Previous Track">
-              <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-            </button>
-            <button class="btn media" id="rew" title="Rewind">
-              <svg viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
-            </button>
-            <button class="btn media" id="play" title="Play / Pause">
-              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-            <button class="btn media" id="stop" title="Stop">
-              <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
-            </button>
-            <button class="btn media" id="fwd" title="Fast Forward">
-              <svg viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
-            </button>
-            <button class="btn media" id="next" title="Next Track">
-              <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-            </button>
-            <button class="btn media rec" id="rec" title="Record">
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Color Buttons (optional) -->
-        <div class="section" id="color-section" style="display:none">
-          <div class="divider"></div>
-          <div class="row">
-            <button class="btn red" id="c_red"></button>
-            <button class="btn green" id="c_green"></button>
-            <button class="btn yellow" id="c_yellow"></button>
-            <button class="btn blue" id="c_blue"></button>
-          </div>
-        </div>
-
-        <!-- Number Pad (optional) -->
-        <div class="section" id="numpad-section" style="display:none">
-          <div class="divider"></div>
-          <div class="numpad" id="numpad"></div>
-        </div>
-
-        <!-- App Launch Row (optional) -->
-        <div class="section" id="app-section" style="display:none">
-          <div class="divider"></div>
-          <div class="app-row" id="app-row"></div>
-        </div>
+        <!-- Drawn by _renderStyle() from the selected remote style, using the
+             same renderer the device's own web page uses. -->
+        <div id="rmt-body" class="rmt-body"></div>
         </div>
       </div>
     `;
-
-    // Show optional sections. `enabled` marks the ones the config turned on, so
-    // per-host hiding can collapse them without re-showing a section the user
-    // disabled outright.
-    if (this._config.show_color) {
-      const sec = shadow.getElementById('color-section');
-      sec.style.display = '';
-      sec.dataset.enabled = '1';
-    }
-
-    if (this._config.show_numpad) {
-      const section = shadow.getElementById('numpad-section');
-      section.style.display = '';
-      const numpad = shadow.getElementById('numpad');
-      for (let i = 1; i <= 9; i++) {
-        const btn = document.createElement('button');
-        btn.className = 'btn';
-        btn.textContent = i;
-        btn.addEventListener('pointerdown', (e) => { 
-          e.preventDefault(); 
-          this._press(btn); 
-          this._sendString(String(i)); 
-        });
-        numpad.appendChild(btn);
-      }
-      // Bottom row: empty, 0, empty
-      const spacer1 = document.createElement('div');
-      const zero = document.createElement('button');
-      zero.className = 'btn';
-      zero.textContent = '0';
-      zero.addEventListener('pointerdown', (e) => { 
-        e.preventDefault(); 
-        this._press(zero); 
-        this._sendString('0'); 
-      });
-      const spacer2 = document.createElement('div');
-      numpad.appendChild(spacer1);
-      numpad.appendChild(zero);
-      numpad.appendChild(spacer2);
-    }
-
-    if (this._config.show_apps) {
-      const section = shadow.getElementById('app-section');
-      section.style.display = '';
-      section.dataset.enabled = '1';
-      const row = shadow.getElementById('app-row');
-      // Named actions so these are remappable per host too. 'Search' shares the
-      // Search button's action — both are AC Search 0x0221.
-      const apps = [
-        { name: 'Explorer', action: 'app_explorer' },  // 0x0194
-        { name: 'Browser', action: 'app_browser' },    // 0x0223
-        { name: 'Email', action: 'app_email' },        // 0x018A
-        { name: 'Calc', action: 'app_calc' },          // 0x0192
-        { name: 'Search', action: 'search' },          // 0x0221
-      ];
-      apps.forEach(app => {
-        const btn = document.createElement('button');
-        btn.className = 'btn app';
-        btn.textContent = app.name;
-        btn.dataset.action = app.action;   // so per-host hiding can find it
-        btn.addEventListener('pointerdown', (e) => {
-          e.preventDefault();
-          this._press(btn);
-          this._runAction(app.action);
-        });
-        row.appendChild(btn);
-      });
-    }
 
     // One device-registry lookup serves two purposes: the friendly name (when no
     // title was configured) and the ESP's own URL, which HA fills in as
@@ -614,6 +492,9 @@ class BleRemoteCard extends HTMLElement {
 
     // Wire up all buttons
     this._wireButtons(shadow);
+    // Draw the remote. Safe before the first hass update: 'auto' falls back to
+    // the default until the sensor arrives, so the card is never blank.
+    this._renderStyle();
     this._setupHostSwitcher(shadow);
   }
 
@@ -715,6 +596,9 @@ class BleRemoteCard extends HTMLElement {
         this._hostSlots = data.slots || [];
         this._hostDataAvailable = true;
         this._updateHostDisplay();
+        // /hosts carries the per-host style id. It is the fallback route for
+        // 'auto' — the sensor is the one that survives an https dashboard.
+        this._renderStyle();
       })
       .catch(() => this._updateHostDisplay());
   }
@@ -745,107 +629,156 @@ class BleRemoteCard extends HTMLElement {
     setTimeout(() => btn.classList.remove('p'), 150);
   }
 
+  // One delegated handler for the whole remote, instead of binding each button.
+  // The layout is redrawn whenever the style changes, so per-button listeners
+  // would have to be rebound every time; resolving the action from the element
+  // under the pointer means a redraw needs no rewiring at all. This is how the
+  // device's own page does it.
   _wireButtons(shadow) {
-    // Button action map: id -> named action.
-    //
-    // These are named actions rather than raw HID codes so per-host `actions:`
-    // overrides apply — e.g. a Windows host can remap record to Game Bar's
-    // Win+Alt+R while a TV host keeps HID Record. Each name's built-in default
-    // is the same code this card used to send directly.
-    const actions = {
-      // Power & navigation
-      power:  'remote_power',   // HID consumer Power 0x0030 (not System Power Down)
-      back:   'back',           // AC Back 0x0224
-      home:   'home',           // AC Home 0x0223
-      mute:   'mute',           // 0x00E2
+    const card = shadow.querySelector('.card');
+    if (!card) return;
 
-      search: 'search',         // AC Search 0x0221
-      info:   'info',           // AC More Info / Guide 0x0209
-
-      // D-pad
-      up:     'up',             // Menu Up 0x0042
-      down:   'down',           // Menu Down 0x0043
-      left:   'left',           // Menu Left 0x0044
-      right:  'right',          // Menu Right 0x0045
-      ok:     'ok',             // Enter 0x28 (not Menu Pick — see README)
-
-      // Volume
-      vol_up: 'volume_up',      // 0x00E9
-      vol_dn: 'volume_down',    // 0x00EA
-
-      // Channel (Page Up/Down)
-      pg_up:  'channel_up',     // Page Up
-      pg_dn:  'channel_down',   // Page Down
-
-      // Media
-      play:   'play_pause',     // 0x00CD
-      stop:   'stop',           // 0x00B7
-      prev:   'prev_track',     // 0x00B6
-      next:   'next_track',     // 0x00B5
-      rew:    'rewind',         // 0x00B4
-      fwd:    'fast_forward',   // 0x00B3
-      rec:    'record',         // 0x00B2
-
-      // Color buttons (F1-F4, common for media apps)
-      c_red:    'color_red',
-      c_green:  'color_green',
-      c_yellow: 'color_yellow',
-      c_blue:   'color_blue',
+    let interval = null, timer = null, activeEl = null;
+    const stopRepeat = () => {
+      if (interval) { clearInterval(interval); interval = null; }
+      if (timer) { clearTimeout(timer); timer = null; }
+    };
+    const end = () => {
+      stopRepeat();
+      if (activeEl && this._heldEl === activeEl) this._endHold();
+      activeEl = null;
     };
 
-    // Kept so _applyHidden can map a hidden action name back to its button id.
-    this._actionMap = actions;
+    card.addEventListener('pointerdown', (e) => {
+      const el = e.target.closest && e.target.closest('[data-action]');
+      if (!el) return;
+      const action = el.dataset.action;
+      e.preventDefault();
+      activeEl = el;
+      this._press(el);
 
-    // Every button gets the same wiring, because which of the three behaviours
-    // it has — tap, repeat while held, or stay down while held — is a per-host
-    // setting that can change under it. The old code decided at bind time and
-    // hardcoded four buttons, so the Host Actions choice never reached here.
-    for (const [id, action] of Object.entries(actions)) {
-      const el = shadow.getElementById(id);
-      if (!el) continue;
+      // Hold wins, and goes down immediately — a push-to-talk button that only
+      // engages after a threshold clips the first word.
+      if (this._holdSet.includes(action)) {
+        this._endHold();          // only one hold at a time
+        this._heldEl = el;
+        el.classList.add('held');
+        this._runAction('hold:' + action);
+        return;
+      }
 
-      let interval = null;
-      let timer = null;
-      const stopRepeat = () => {
-        if (interval) { clearInterval(interval); interval = null; }
-        if (timer) { clearTimeout(timer); timer = null; }
-      };
-      const end = () => { stopRepeat(); if (this._heldEl === el) this._endHold(); };
-
-      el.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        this._press(el);
-
-        // Hold wins, and goes down immediately — a push-to-talk button that
-        // only engages after a threshold clips the first word.
-        if (this._holdSet.includes(action)) {
-          this._endHold();          // only one hold at a time
-          this._heldEl = el;
-          el.classList.add('held');
-          this._runAction('hold:' + action);
-          return;
-        }
-
-        this._runAction(action);
-        if (!this._repeats(action)) return;
-        // The first repeat waits out the configured delay, so a quick tap
-        // stays one press. Matches the web remote's timing for this host.
-        timer = setTimeout(() => {
-          timer = null;
-          interval = setInterval(() => this._runAction(action), this._repeatRate);
-        }, this._repeatDelay);
-      });
-      el.addEventListener('pointerup', end);
-      el.addEventListener('pointerleave', end);
-      el.addEventListener('pointercancel', end);
-    }
+      this._runAction(action);
+      if (!this._repeats(action)) return;
+      // The first repeat waits out the configured delay, so a quick tap stays
+      // one press. Matches the web remote's timing for this host.
+      timer = setTimeout(() => {
+        timer = null;
+        interval = setInterval(() => this._runAction(action), this._repeatRate);
+      }, this._repeatDelay);
+    });
+    card.addEventListener('pointerup', end);
+    card.addEventListener('pointerleave', end);
+    card.addEventListener('pointercancel', end);
   }
 
-  // Used by the optional number pad, which types digits rather than sending a
-  // fixed HID code — the one part of the card that isn't a named action.
-  _sendString(text) {
-    if (!this._hass) return;
-    this._hass.callService('esphome', `${this._config.device}_send_string`, { keys: text });
+  // ── Remote style ────────────────────────────────────────────────
+  // Resolve, then draw. Order for 'auto': the text sensor (the only route that
+  // survives an https dashboard), then the tpl on the /hosts response the card
+  // already polls, then the default.
+  _resolveStyle() {
+    const cfg = this._config;
+    if (cfg.remote_style === 'custom') {
+      const raw = (cfg.remote_style_json || '').trim();
+      if (!raw) return { style: null, error: 'No custom style JSON — paste one in the card options.' };
+      let parsed;
+      try { parsed = JSON.parse(raw); }
+      catch (err) { return { style: null, error: 'Custom style is not valid JSON: ' + err.message }; }
+      const why = validateTpl(parsed);
+      if (why) return { style: null, error: 'Custom style rejected: ' + why };
+      return { style: parsed, error: null };
+    }
+
+    let id = cfg.remote_style;
+    if (id === 'auto') {
+      const ent = this._hass && this._hass.states[cfg.remote_style_entity];
+      const fromSensor = ent && typeof ent.state === 'string' &&
+        ent.state !== 'unknown' && ent.state !== 'unavailable' ? ent.state.trim() : '';
+      // The style the device reports for the active host, else what /hosts said.
+      id = fromSensor || this._styleFromHosts() || 'default';
+    }
+    const style = RMT_BUILTIN.find(t => t.id === id);
+    // A host set to a *custom* style names an id this card has no definition
+    // for — its JSON lives in the device's NVS. Fall back rather than blank.
+    return { style: style || RMT_BUILTIN.find(t => t.id === 'default'), error: null };
+  }
+
+  // The per-host style id from the /hosts poll, when that fetch works at all.
+  _styleFromHosts() {
+    const slots = this._hostSlots;
+    if (!Array.isArray(slots)) return '';
+    const slot = slots.find(s => s.slot === this._activeSlot);
+    return (slot && slot.tpl) || '';
+  }
+
+  _renderStyle() {
+    if (!this.shadowRoot) return;
+    const body = this.shadowRoot.getElementById('rmt-body');
+    if (!body) return;
+    const { style, error } = this._resolveStyle();
+
+    // Redraw only when the outcome actually changes. The key covers the pasted
+    // JSON too, so editing a custom style under the same id still redraws.
+    const key = error || (style.id + '|' + JSON.stringify(style.sections).length +
+                          '|' + (this._config.remote_style === 'custom' ? this._config.remote_style_json : ''));
+    if (key === this._drawnStyleKey) return;
+    this._drawnStyleKey = key;
+
+    // Never redraw under a finger: a held key would be stranded down on the
+    // host, and a running repeat would hammer a button that no longer exists.
+    this._endHold();
+
+    if (error) {
+      body.innerHTML = '';
+      const msg = document.createElement('div');
+      msg.className = 'style-error';
+      msg.textContent = error;
+      body.appendChild(msg);
+      return;
+    }
+
+    for (const k in RMT_VARS) body.style.removeProperty(RMT_VARS[k]);
+    if (style.theme) {
+      for (const k in RMT_VARS) {
+        if (typeof style.theme[k] === 'string') body.style.setProperty(RMT_VARS[k], style.theme[k]);
+      }
+    }
+    body.innerHTML = style.sections.map(sectionHtml).join('');
+    this._applyToggles();
+    // Forced: the buttons are new, so whatever this host hides has to be
+    // reapplied even though the hidden list itself did not change.
+    this._applyHidden(true);
+  }
+
+  // show_apps / show_color / show_numpad filter whatever style is drawn, rather
+  // than only the default layout. The card editor switches them on for the
+  // sections a style actually contains, so a style still renders as designed
+  // unless you deliberately turn one off.
+  _applyToggles() {
+    if (!this.shadowRoot) return;
+    const body = this.shadowRoot.getElementById('rmt-body');
+    if (!body) return;
+    const c = this._config;
+    body.querySelectorAll('[data-action]').forEach(el => {
+      const a = el.dataset.action;
+      const off = (!c.show_color && a.startsWith('color_')) ||
+                  (!c.show_numpad && /^num[0-9]$/.test(a));
+      el.dataset.toggledOff = off ? '1' : '';
+    });
+    if (!c.show_apps) {
+      body.querySelectorAll('.rmt-app-row').forEach(row => {
+        row.querySelectorAll('[data-action]').forEach(el => { el.dataset.toggledOff = '1'; });
+      });
+    }
   }
 
   _runAction(action) {
@@ -923,6 +856,17 @@ const REMOTE_EDITOR_SCHEMA = [
   { name: 'device', required: true, selector: { text: {} } },
   { name: 'name', selector: { text: {} } },
   { name: 'zoom', selector: { number: { min: 0.25, max: 3, step: 0.05, mode: 'box' } } },
+  // Built from the generated catalogue, so the list is whatever the firmware
+  // this card shipped with defines — no second place to keep in step.
+  { name: 'remote_style', selector: { select: { mode: 'dropdown', options: [
+    { value: 'auto', label: 'Auto (follow the device)' },
+    ...RMT_BUILTIN.map(t => ({ value: t.id, label: t.name })),
+    { value: 'custom', label: 'Custom (paste JSON below)' },
+  ] } } },
+  // multiline so a style — about a kilobyte — is readable and pasteable. The
+  // fallback editor renders a textarea for this too.
+  { name: 'remote_style_json', selector: { text: { multiline: true } } },
+  { name: 'remote_style_entity', selector: { entity: { domain: 'sensor' } } },
   { name: 'show_numpad', selector: { boolean: {} } },
   { name: 'show_apps', selector: { boolean: {} } },
   { name: 'show_color', selector: { boolean: {} } },
@@ -940,6 +884,9 @@ const REMOTE_EDITOR_LABELS = {
   device: 'ESPHome device name',
   name: 'Card title (optional)',
   zoom: 'Zoom (1 = normal, 0.5 = half, 2 = double)',
+  remote_style: 'Remote style',
+  remote_style_json: 'Custom style JSON (paste from the web page’s Export)',
+  remote_style_entity: 'Remote-style sensor (optional)',
   show_numpad: 'Show number pad',
   show_apps: 'Show app launcher row',
   show_color: 'Show colour buttons',
@@ -965,6 +912,7 @@ class BleRemoteCardEditor extends HTMLElement {
       host_slots: 0,
       show_mac: true,
       zoom: 1,
+      remote_style: 'auto',
       ...config,
     };
     // host_names is a YAML list but edits as one comma-separated field; show it
@@ -981,6 +929,20 @@ class BleRemoteCardEditor extends HTMLElement {
   }
 
   _emit(config) {
+    // The show_* toggles filter whatever style is drawn, and two of them
+    // default to off — so choosing a style that has a number pad or colour keys
+    // would strip out the very thing that makes it that style. Switching them on
+    // for the sections the chosen style actually contains means it renders as
+    // designed, while the toggles still do exactly what they say afterwards.
+    if (config.remote_style && config.remote_style !== this._config.remote_style) {
+      const picked = RMT_BUILTIN.find(t => t.id === config.remote_style);
+      if (picked) {
+        const flat = JSON.stringify(picked.sections);
+        if (/"num[0-9]"/.test(flat)) config.show_numpad = true;
+        if (/"color_/.test(flat)) config.show_color = true;
+        if (/"apps"/.test(flat)) config.show_apps = true;
+      }
+    }
     this._config = config;
     // Hand the card a real list again — it expects host_names to be an array.
     const out = { ...config };
@@ -1033,7 +995,12 @@ function buildFallbackEditor(schema, labels, getConfig, onChange) {
     const row = document.createElement('label');
     row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:14px';
     const isBool = !!item.selector.boolean;
-    const input = document.createElement(item.selector.select ? 'select' : 'input');
+    // A style's JSON runs to about a kilobyte, which is unusable in a one-line
+    // input — so a multiline text selector gets a real textarea here too, not
+    // just in the ha-form path.
+    const isArea = !!(item.selector.text && item.selector.text.multiline);
+    const input = document.createElement(
+      item.selector.select ? 'select' : isArea ? 'textarea' : 'input');
     if (item.selector.select) {
       item.selector.select.options.forEach((o) => {
         const opt = document.createElement('option');
@@ -1045,6 +1012,10 @@ function buildFallbackEditor(schema, labels, getConfig, onChange) {
     } else if (isBool) {
       input.type = 'checkbox';
       input.checked = config[item.name] === true;
+    } else if (isArea) {
+      input.rows = 5;
+      input.value = config[item.name] ?? '';
+      input.style.cssText = 'flex:1;font-family:monospace;font-size:12px';
     } else {
       input.type = item.selector.number ? 'number' : 'text';
       if (item.selector.number) {
@@ -1056,6 +1027,7 @@ function buildFallbackEditor(schema, labels, getConfig, onChange) {
     const text = document.createElement('span');
     text.textContent = (labels[item.name] || item.name) + (item.required ? ' *' : '');
     text.style.cssText = isBool ? '' : 'min-width:180px';
+    if (isArea) row.style.cssText = 'display:flex;flex-direction:column;gap:4px;font-size:14px';
     if (isBool) { row.appendChild(input); row.appendChild(text); }
     else { row.appendChild(text); row.appendChild(input); }
 

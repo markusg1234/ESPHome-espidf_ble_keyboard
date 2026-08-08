@@ -17,6 +17,10 @@ TYPE_HOST_MAC = "host_mac"
 # reach them as entity state instead.
 TYPE_HOLD_BUTTONS = "hold_buttons"
 TYPE_REPEAT_BUTTONS = "repeat_buttons"
+# Which remote style the active host is set to, for the same reason: the id is
+# on the /hosts response the card already polls, but that fetch is what https
+# blocks. Empty state = the host uses the default style.
+TYPE_REMOTE_STYLE = "remote_style"
 
 CONFIG_SCHEMA = text_sensor.text_sensor_schema().extend(
     {
@@ -26,6 +30,7 @@ CONFIG_SCHEMA = text_sensor.text_sensor_schema().extend(
             TYPE_HOST_MAC,
             TYPE_HOLD_BUTTONS,
             TYPE_REPEAT_BUTTONS,
+            TYPE_REMOTE_STYLE,
             lower=True,
         ),
     }
@@ -43,5 +48,7 @@ async def to_code(config):
         cg.add(parent.set_hold_sensor(var))
     elif sensor_type == TYPE_REPEAT_BUTTONS:
         cg.add(parent.set_repeat_sensor(var))
+    elif sensor_type == TYPE_REMOTE_STYLE:
+        cg.add(parent.set_remote_style_sensor(var))
     else:
         cg.add(parent.set_hidden_sensor(var))

@@ -24,6 +24,12 @@ web control page shows the matching version badge.
   and body shaping through gradients, the full border-radius grammar and an optional taper. Enough
   for a style to read as the device it belongs to rather than a generic slab.
 
+- **The Home Assistant remote card draws the same styles as the web page.** Pick one in the card
+  editor, or let it follow whatever style the device has for the active host so switching hosts
+  re-skins the card too — that needs the new `remote_style` text sensor. A style you made yourself
+  can be pasted into the card as JSON. The card's layout now comes from the firmware's own
+  definitions rather than a second hand-kept copy.
+
 ### Fixed
 - **Removing a button from the remote no longer moves the others.** The remaining buttons closed the
   gap, so hiding OK pulled the D-pad arrows out of position; a removed button now leaves its place

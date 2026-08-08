@@ -1372,9 +1372,18 @@ bool EspidfBleKeyboard::set_remote_style(uint8_t slot, const std::string &id) {
     if (!id.empty() && !valid_style_id(id)) return false;
     remote_style_[slot] = id;
     save_remote_style_(slot);
+    if (slot == active_slot_) publish_remote_style_();
     ESP_LOGI(TAG, "Remote style for host %u: %s", (unsigned) slot,
              id.empty() ? "(default)" : id.c_str());
     return true;
+}
+
+// Empty for the default style, which is what the card reads as "draw the full
+// remote". No length guard needed — a style id is 15 characters at most, far
+// inside the 255 that truncates the button lists.
+void EspidfBleKeyboard::publish_remote_style_() {
+    if (remote_style_sensor_ == nullptr) return;
+    remote_style_sensor_->publish_state(remote_style_[active_slot_]);
 }
 
 void EspidfBleKeyboard::load_remote_style_() {

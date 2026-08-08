@@ -485,6 +485,15 @@ class EspidfBleKeyboard : public Component
     publish_hidden_();
   }
 
+  // Which remote style the active host uses, so the Lovelace card can draw the
+  // same one the web page does. Same reason as the lists below — the id is
+  // already on the /hosts response, but a dashboard on https can't fetch it.
+  // Empty state means the host is on the default style.
+  void set_remote_style_sensor(text_sensor::TextSensor *sensor) {
+    remote_style_sensor_ = sensor;
+    publish_remote_style_();
+  }
+
   // Press-and-hold buttons for the active host, published the same way — the
   // Lovelace remote card reads it to know which of its buttons should hold
   // rather than tap. The card can't read the device's REST API reliably (HA
@@ -531,6 +540,7 @@ class EspidfBleKeyboard : public Component
   esp_bd_addr_t peer_addr_{};
   sensor::Sensor *active_host_sensor_{nullptr};
   text_sensor::TextSensor *hidden_sensor_{nullptr};
+  text_sensor::TextSensor *remote_style_sensor_{nullptr};
   text_sensor::TextSensor *hold_sensor_{nullptr};
   text_sensor::TextSensor *repeat_sensor_{nullptr};
   text_sensor::TextSensor *host_mac_sensor_{nullptr};
@@ -647,6 +657,7 @@ class EspidfBleKeyboard : public Component
   void load_hidden_();
   void save_hidden_(uint8_t slot);
   void publish_hidden_();  // push the active slot's list to the text sensor
+  void publish_remote_style_();  // push the active slot's style id to the text sensor
 
   // Per-host hold-to-repeat (NVS key "rpt<slot>", "<delay>,<rate>,name,name").
   RepeatCfg repeat_[MAX_HOST_SLOTS];
