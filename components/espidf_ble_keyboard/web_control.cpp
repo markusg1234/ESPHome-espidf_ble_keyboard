@@ -2823,10 +2823,25 @@ buildKeyboard();
   // that reaches innerHTML — so it goes through the same treatment as any other.
   const esc2=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+  // The window is sized to the remote that will be in it, rather than to a guess.
+  // Measured from the drawn remote itself (#rmt-body, not the card, which still
+  // has its heading and padding here) — the rect is after the page's transform,
+  // so it is the size actually on screen, which is the size the window applies
+  // its own zoom to. Plus the 6px border each side, and no more.
+  function remoteSize(){
+    const b=card.querySelector('#rmt-body')||card;
+    const r=b.getBoundingClientRect();
+    const maxH=((window.screen&&screen.availHeight)||900)-80;
+    return {w:Math.max(200,Math.min(900,Math.ceil(r.width)+16)),
+            h:Math.max(200,Math.min(maxH,Math.ceil(r.height)+16))};
+  }
+  // For the pop-up window, whose width and height are the OUTER frame — the title
+  // bar and borders sit outside the page. A size the user has since dragged to
+  // wins over both: having been set by hand, it is not ours to correct.
   function geom(){
-    const d={w:380,h:Math.min(820,((window.screen&&screen.availHeight)||900)-80)};
     try{const s=JSON.parse(localStorage.getItem(WKEY));if(s&&s.w>200&&s.h>200)return s}catch(e){}
-    return d;
+    const s=remoteSize();
+    return {w:s.w+16,h:s.h+40};
   }
 
   // Stands in for the card while it is away. It takes the card's id once the swap
@@ -2862,7 +2877,9 @@ buildKeyboard();
 
   async function popOut(){
     if(ph)return;
-    const g=geom();
+    // Both measured before anything moves: the remote has to still be in the page
+    // to have a size at all.
+    const s=remoteSize(),g=geom();
     let why='';   // why the always-on-top window didn't happen, if it didn't
     if(onTop&&onTop.checked&&pipUsable){
       // Ask for the window BEFORE touching the page. A refusal then leaves the
@@ -2877,8 +2894,9 @@ buildKeyboard();
         if(w){w.document.head.replaceChildren();w.document.body.replaceChildren()}
         else{
           // Deliberately not geom(): that is the pop-up's outer size, chrome and
-          // all, while this window is measured by its content.
-          const opts={width:380,height:Math.min(760,((window.screen&&screen.availHeight)||900)-120)};
+          // all, while this window is measured by its content — which is exactly
+          // what remoteSize() gives, so the window comes up hugging the remote.
+          const opts={width:s.w,height:s.h};
           const req=documentPictureInPicture.requestWindow(opts);
           // A request that never settles is the one failure with no symptom at
           // all — no window, no error, and a button that appears dead. Give it a
@@ -2900,7 +2918,7 @@ buildKeyboard();
         if(w){
           await new Promise(r=>setTimeout(r,80));
           if(!w.closed&&(!w.innerWidth||!w.innerHeight)){
-            try{w.resizeTo(380,Math.min(760,((window.screen&&screen.availHeight)||900)-120))}catch(_){}
+            try{w.resizeTo(s.w,s.h)}catch(_){}
             await new Promise(r=>setTimeout(r,80));
           }
           if(w.closed||!w.innerWidth||!w.innerHeight){
