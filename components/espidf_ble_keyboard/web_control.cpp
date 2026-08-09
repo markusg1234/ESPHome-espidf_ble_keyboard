@@ -2835,13 +2835,10 @@ buildKeyboard();
 
   // ── Inside the pop-up window ──
   if(POPOUT){
-    const bar=document.querySelector('.toolbar-right');
-    if(bar){
-      const b=document.createElement('button');
-      b.className='macro-edit-btn';b.textContent='Pin back';
-      b.addEventListener('click',()=>{localStorage.setItem(KEY,'0');window.close()});
-      bar.appendChild(b);
-    }
+    // No Pin back button here: closing the window already is one. Its pagehide
+    // sets the key below, the page picks that up and takes the remote back. The
+    // placeholder left behind on the page keeps a button, for pinning back
+    // without going to find the window first.
     localStorage.setItem(KEY,'1');   // and again after a reload of this window
     // Pin back pressed on the page that opened us: a storage event fires in every
     // OTHER document of this origin, which is exactly this one.
@@ -2904,19 +2901,6 @@ buildKeyboard();
     p.replaceWith(card);
     if(w)try{w.close()}catch(e){}
     if(r)try{r.close()}catch(e){}
-  }
-
-  // The picture-in-picture window's only chrome: the way back. Zoom lives on the
-  // page — this window is resized by dragging its own edge. Built from a class
-  // that arrives with the copied stylesheet, so it costs no CSS of its own.
-  function miniBar(w){
-    const t=w.document.createElement('div');
-    t.className='toolbar';
-    const pin=w.document.createElement('button');
-    pin.className='macro-edit-btn';pin.textContent='Pin back';
-    pin.addEventListener('click',attach);
-    t.appendChild(pin);
-    return t;
   }
 
   async function popOut(){
@@ -2985,8 +2969,9 @@ buildKeyboard();
           // sized around its content, so the space taken has to change with it.
           w.document.body.style.zoom=zoom/100;
           detachCard('Open in a window of its own, above the others.');
-          w.document.body.appendChild(miniBar(w));
           w.document.body.appendChild(card);
+          // Closing that window is how the remote comes back, so this listener is
+          // the whole of Pin back for it.
           w.addEventListener('pagehide',attach);
           pipWin=w;
           return;

@@ -1627,7 +1627,7 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 
 ### Popping the remote out
 
-**Pop out** in the Remote heading moves the remote into a window of its own, leaving a placeholder in the page; **Pin back** — in either window — puts it back exactly where it was, including wherever you have since dragged it to. What you get is the remote and nothing else — no host bar, no toolbar clutter. It still follows the active host, re-skinning when you switch machines; switching them stays on the page you popped it out of.
+**Pop out** in the Remote heading moves the remote into a window of its own, leaving a placeholder in the page. Closing that window puts the remote back exactly where it was, including wherever you have since dragged it to — or press **Pin back** on the placeholder, which does the same without going to find the window first. What you get is the remote and nothing else — no host bar, no toolbar clutter. It still follows the active host, re-skinning when you switch machines; switching them stays on the page you popped it out of.
 
 That window is this same page at `http://<device>/ble_keyboard#remote`, which shows the remote and nothing else. You can open that address directly — bookmark it, or add it to a phone's home screen — for a remote-only page without popping anything out. It is drawn at whatever zoom the page is set to, so the remote does not change size by being moved; the zoom and theme controls themselves stay on the page.
 
