@@ -1634,7 +1634,7 @@ That window is this same page at `http://<device>/ble_keyboard#remote`, which sh
 **on top** keeps that window above your other windows. It needs the browser's Document Picture-in-Picture support, which is a Chromium feature (Chrome, Edge) and only offered on a **secure page** — so on a plain `http://` device address the option is greyed out and Pop out opens an ordinary window instead. Two ways to get it:
 
 - Reach the device through an HTTPS reverse proxy.
-- Or list the device origin in `chrome://flags/#unsafely-treat-insecure-origin-as-secure` (`edge://flags/...` on Edge), e.g. `http://192.168.1.100`.
+- Or list the device origin in `chrome://flags/#unsafely-treat-insecure-origin-as-secure` (`edge://flags/...` on Edge), e.g. `http://192.168.1.100`. This makes the tick box available, but it is not a promise that the window appears: Chrome has been seen to grant one and then never show it, with no size and no error. The remote detects that, falls back to an ordinary window and says so — if that happens, real HTTPS or the OS route below is what will work.
 
 Failing either, any ordinary window can be pinned by the operating system — on Windows, PowerToys' **Always on Top** (`Win+Ctrl+T`).
 

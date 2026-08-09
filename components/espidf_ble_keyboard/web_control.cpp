@@ -2933,6 +2933,22 @@ buildKeyboard();
             w=null;
           }
         }
+        // A window can be granted and never actually shown: the promise resolves,
+        // nothing throws, and it stays 0 wide and 0 high — which is what Chrome
+        // does on an origin only trusted through the insecure-origin flag. The
+        // remote would be handed to a window nobody can see and simply vanish, so
+        // wait for a layout, ask once for a size, and give up if it stays empty.
+        if(w){
+          await new Promise(r=>setTimeout(r,80));
+          if(!w.closed&&(!w.innerWidth||!w.innerHeight)){
+            try{w.resizeTo(380,Math.min(760,((window.screen&&screen.availHeight)||900)-120))}catch(_){}
+            await new Promise(r=>setTimeout(r,80));
+          }
+          if(w.closed||!w.innerWidth||!w.innerHeight){
+            try{w.close()}catch(_){}
+            w=null;why='the browser opened it with no size';
+          }
+        }
       }catch(e){why=e&&(e.name||e.message)||'refused'}
       if(why)console.warn('[ble_keyboard] always-on-top window refused:',why);
       if(w){
