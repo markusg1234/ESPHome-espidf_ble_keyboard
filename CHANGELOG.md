@@ -42,6 +42,11 @@ web control page shows the matching version badge.
   now comes from the firmware's own definitions rather than a second hand-kept copy.
 
 ### Fixed
+- **The web page asks the device for a lot less, so it stops resetting connections.** The position
+  finder polled several times a second whatever was on screen; it now stops when its section is
+  hidden and slows right down while the map is locked. Any page in the background stops polling
+  until it is looked at again, and the browser no longer asks for a favicon the device never had. A
+  page and a popped-out remote together now make fewer requests than the page alone used to.
 - **Removing a button from the remote no longer moves the others.** The remaining buttons closed the
   gap, so hiding OK pulled the D-pad arrows out of position; a removed button now leaves its place
   empty. A row or section with nothing left visible still collapses.

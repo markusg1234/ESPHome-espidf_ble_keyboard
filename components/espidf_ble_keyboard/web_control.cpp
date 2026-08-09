@@ -21,6 +21,10 @@ static const char PAGE_HTML[] PROGMEM = R"rawhtml(<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>BLE Keyboard &amp; Mouse</title>
+<!-- An empty icon, so the browser stops asking the device for /favicon.ico. The
+     handler doesn't serve one, so every page load spent a connection on a request
+     that came back empty — and popping the remote out doubled that. -->
+<link rel="icon" href="data:,">
 <!-- The remote pops out into a window of its own by reloading this same page under
      #remote. A hash, not a query string, so the request the device sees is byte for
      byte the one it already serves. Set here rather than in the main script at the
@@ -645,6 +649,18 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 // work no one can see — see the guards on the cards' blocks below.
 const POPOUT=document.documentElement.classList.contains('popout');
 
+// Every repeating poll on this page goes through here. One small server, and a
+// popped-out remote means two pages asking it for things at once — which is
+// enough to start resetting connections. So a page that is out of sight stops
+// asking altogether and catches up the moment it is looked at again, and the
+// popped-out window, being the second view of the same device, asks less often
+// than the page it came from.
+function pollEvery(fn,ms){
+  fn();
+  setInterval(()=>{if(!document.hidden)fn()},POPOUT?Math.round(ms*1.6):ms);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)fn()});
+}
+
 // API helper
 function api(endpoint,params){
   const url='/api/ble_keyboard/'+endpoint+'?'+new URLSearchParams(params);
@@ -704,8 +720,7 @@ function pollStatus(){
     stxt.textContent='Offline';
   });
 }
-pollStatus();
-setInterval(pollStatus,3000);
+pollEvery(pollStatus,3000);
 
 // ── Remote button catalog & styles ──
 // Shared by the renderer (which draws the remote) and Host Actions (whose
@@ -986,8 +1001,7 @@ function refreshActiveTemplate(){
       });
     }).catch(()=>{bar.style.display='none'});
   }
-  loadHosts();
-  setInterval(loadHosts,5000);
+  pollEvery(loadHosts,5000);
 })();
 
 // `alternate:` owns the whole chain (it splits the '|' itself), so its preset
@@ -3185,8 +3199,18 @@ buildKeyboard();
     calInfo.textContent=msg||'enter the actual X and/or Y where it landed';
   })}
   // Poll the last sent target so the green marker tracks goto's from any source.
-  function pollSent(){fetch('/api/ble_keyboard/goto_last').then(r=>r.json()).then(d=>{if(d&&d.x!=null)placeSent(d.x,d.y)}).catch(()=>{})}
-  setInterval(pollSent,1200);pollSent();
+  // Easily the busiest request on the page, and the one that earns it least: it
+  // ran four times a second whatever was on screen. Now it stops entirely when
+  // this section is toggled away, drops to a quarter of the rate while the map is
+  // locked (the default, where nothing here can move the cursor and the marker is
+  // only a bystander), and pollEvery stops it dead behind a popped-out remote.
+  let sentTick=0;
+  function pollSent(){
+    if(!map.offsetParent)return;
+    if(locked&&(++sentTick%4))return;
+    fetch('/api/ble_keyboard/goto_last').then(r=>r.json()).then(d=>{if(d&&d.x!=null)placeSent(d.x,d.y)}).catch(()=>{})
+  }
+  pollEvery(pollSent,1200);
   if(window.ResizeObserver){new ResizeObserver(()=>{if(map.clientWidth!==lastW)draw()}).observe(map)}
   else{window.addEventListener('resize',draw)}
   load();
