@@ -3052,20 +3052,36 @@ buildKeyboard();
   // this side holds the handle to the window. Debounced for the same reason as
   // the pop-up's copy — the first draw is the default style, corrected moments
   // later by the one the active host actually wants.
+  // Asks the window to fit the remote — and if it will not, fits the remote to
+  // the window instead, so a style that no longer fits is never left cut off.
+  // Which of the two happens is the browser's call: resizeTo is honoured for some
+  // kinds of window and quietly ignored for others, and there is no asking in
+  // advance. The zoom is the page's to begin with, and only ever reduced from
+  // there, so a window big enough shows the remote at exactly the page's size.
+  function fitPip(){
+    if(!pipWin||pipWin.closed)return;
+    const b=card.querySelector('#rmt-body');
+    if(!b)return;
+    pipWin.document.body.style.zoom=zoom/100;
+    const s=fitSize(b);
+    // Content size, matching the width and height the window was asked for in the
+    // first place. No frame arithmetic: outerWidth cannot be trusted to describe
+    // what a window of this kind carries.
+    try{pipWin.resizeTo(s.w,s.h)}catch(e){}
+    setTimeout(()=>{
+      if(!pipWin||pipWin.closed)return;
+      const w=pipWin.innerWidth,h=pipWin.innerHeight;
+      if(!w||!h)return;
+      if(Math.abs(w-s.w)<=4&&Math.abs(h-s.h)<=4)return;   // it took the size
+      const k=Math.min(w/s.w,h/s.h,1);
+      if(k<0.999)pipWin.document.body.style.zoom=(zoom/100)*k;
+    },150);
+  }
   let fitT=null;
   window.onRemoteResize=function(){
     if(!pipWin||pipWin.closed)return;
     clearTimeout(fitT);
-    fitT=setTimeout(()=>{
-      if(!pipWin||pipWin.closed)return;
-      const b=card.querySelector('#rmt-body');
-      if(!b)return;
-      const s=fitSize(b);
-      // Content size, to match the width and height this window was asked for in
-      // the first place. No frame arithmetic here: that window carries next to no
-      // frame, and outerWidth cannot be trusted to describe what it does carry.
-      try{pipWin.resizeTo(s.w,s.h)}catch(e){}
-    },250);
+    fitT=setTimeout(fitPip,250);
   };
 
   // The picture-in-picture document has its own body, so the theme has to be
@@ -3079,7 +3095,7 @@ buildKeyboard();
   // open follows them rather than keeping the size it was opened at.
   ['zin','zout'].forEach(id=>{
     const b=document.getElementById(id);
-    if(b)b.addEventListener('click',()=>{if(pipWin)pipWin.document.body.style.zoom=zoom/100});
+    if(b)b.addEventListener('click',()=>fitPip());   // zoom changes the size too
   });
 
   // The pop-up closing itself — its Pin back, or its X. A reload of that window
