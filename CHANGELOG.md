@@ -9,8 +9,9 @@ web control page shows the matching version badge.
 ### Added
 - **The web remote can be popped out into a window of its own**, so it stays in reach while you
   scroll the page or work in another app, and pinned back where it was afterwards. The window holds
-  the remote and nothing else, and still follows the active host. On a Chromium browser reaching the
-  device over https it can be kept above your other windows; elsewhere it opens as an ordinary one.
+  the remote and nothing else, sized to it and resized whenever a host switch brings a style of a
+  different shape. On a Chromium browser reaching the device over https it can be kept above your
+  other windows; elsewhere it opens as an ordinary one.
   The same view can be opened directly at `/ble_keyboard#remote` and bookmarked as a remote-only page.
 
 - **A remote style that draws its own body loses the card from behind it once popped out**, so what

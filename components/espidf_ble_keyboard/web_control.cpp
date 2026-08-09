@@ -2755,6 +2755,10 @@ buildKeyboard();
     // Forced: the buttons are new, so whatever this host hides has to be
     // reapplied even though the hidden set itself did not change.
     window.applyHidden(true);
+    // A window holding this remote is sized around it, so a style of a different
+    // shape — which is what a host switch usually brings — has to take the window
+    // with it. Defined by whichever side owns that window; absent when docked.
+    if(window.onRemoteResize)window.onRemoteResize();
   };
   // Draw the full remote at once so the card is usable before any fetch lands,
   // then correct it to the active host's style. The host bar can't do this for
@@ -2790,12 +2794,42 @@ buildKeyboard();
   const NOSIZE='blekb_rmt_nopip'; // this address grants a window it never shows
   const PIP='documentPictureInPicture' in window;
 
+  // A window sized around the remote has to be measured the same way from both
+  // sides of this block, because the remote sits in a different document
+  // depending on which kind of window is open. The rect is taken after zoom, so
+  // it is the size actually on screen; the 8 is the body's 2px each side plus 4
+  // of slack, so a sub-pixel width cannot round up into a scrollbar. Clamped to
+  // what still fits on the screen.
+  function fitSize(el){
+    const r=el.getBoundingClientRect();
+    const maxH=((window.screen&&screen.availHeight)||900)-80;
+    return {w:Math.max(200,Math.min(900,Math.ceil(r.width)+8)),
+            h:Math.max(200,Math.min(maxH,Math.ceil(r.height)+8))};
+  }
+
   // ── Inside the pop-up window ──
   if(POPOUT){
     // No Pin back button here: closing the window already is one. Its pagehide
     // sets the key below, the page picks that up and takes the remote back. The
     // placeholder left behind on the page keeps a button, for pinning back
     // without going to find the window first.
+    // A style change — usually a host switch — redraws the remote at a different
+    // size, and a window sized around it has to follow. Debounced, because the
+    // page draws the default first and corrects it once /hosts answers, and that
+    // should be one resize rather than two. Only for a window opened by script:
+    // a bookmarked #remote tab is not ours to resize.
+    let fitT=null;
+    window.onRemoteResize=function(){
+      if(!window.opener)return;
+      clearTimeout(fitT);
+      fitT=setTimeout(()=>{
+        const b=document.getElementById('rmt-body');
+        if(!b)return;
+        const s=fitSize(b);
+        // resizeTo takes the outer size, so add whatever frame this window carries.
+        try{window.resizeTo(s.w+(outerWidth-innerWidth),s.h+(outerHeight-innerHeight))}catch(e){}
+      },250);
+    };
     localStorage.setItem(KEY,'1');   // and again after a reload of this window
     // Pin back pressed on the page that opened us: a storage event fires in every
     // OTHER document of this origin, which is exactly this one.
@@ -2803,7 +2837,8 @@ buildKeyboard();
     // Closed by its own X — tell the page, and leave the geometry for next time.
     window.addEventListener('pagehide',()=>{
       localStorage.setItem(KEY,'0');
-      try{localStorage.setItem(WKEY,JSON.stringify({w:outerWidth,h:outerHeight,x:screenX,y:screenY}))}catch(e){}
+      // Where it sat, not how big it was: the size is the remote's business.
+      try{localStorage.setItem(WKEY,JSON.stringify({x:screenX,y:screenY}))}catch(e){}
     });
     return;
   }
@@ -2823,26 +2858,18 @@ buildKeyboard();
   // that reaches innerHTML — so it goes through the same treatment as any other.
   const esc2=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-  // The window is sized to the remote that will be in it, rather than to a guess.
-  // Measured from the drawn remote itself (#rmt-body, not the card, which still
-  // has its heading and padding here) — the rect is after the page's transform,
-  // so it is the size actually on screen, which is the size the window applies
-  // its own zoom to. The 8 is the body's 2px each side plus 4 of slack, which is
-  // there so a sub-pixel width can't round up into a scrollbar.
-  function remoteSize(){
-    const b=card.querySelector('#rmt-body')||card;
-    const r=b.getBoundingClientRect();
-    const maxH=((window.screen&&screen.availHeight)||900)-80;
-    return {w:Math.max(200,Math.min(900,Math.ceil(r.width)+8)),
-            h:Math.max(200,Math.min(maxH,Math.ceil(r.height)+8))};
-  }
+  // Measured from the drawn remote (#rmt-body, not the card, which still has its
+  // heading and padding while it is here in the page).
+  function remoteSize(){return fitSize(card.querySelector('#rmt-body')||card)}
   // For the pop-up window, whose width and height are the OUTER frame — the title
-  // bar and borders sit outside the page. A size the user has since dragged to
-  // wins over both: having been set by hand, it is not ours to correct.
+  // bar and borders sit outside the page. The size always follows the remote, so
+  // only where the window sat is remembered: a window that hugs its contents and
+  // then keeps a stale size the next time the remote is a different shape would
+  // be the worst of both.
   function geom(){
-    try{const s=JSON.parse(localStorage.getItem(WKEY));if(s&&s.w>200&&s.h>200)return s}catch(e){}
-    const s=remoteSize();
-    return {w:s.w+16,h:s.h+40};
+    const s=remoteSize(),g={w:s.w+16,h:s.h+40};
+    try{const p=JSON.parse(localStorage.getItem(WKEY));if(p&&p.x!=null){g.x=p.x;g.y=p.y}}catch(e){}
+    return g;
   }
 
   // Stands in for the card while it is away. It takes the card's id once the swap
@@ -3004,6 +3031,24 @@ buildKeyboard();
   if(onTop)onTop.addEventListener('change',()=>
     localStorage.setItem('blekb_rmt_ontop',onTop.checked?'1':'0'));
   syncOnTop();
+
+  // The always-on-top window is resized from here rather than from inside it: the
+  // remote is in that window's document, so it measures itself there, but only
+  // this side holds the handle to the window. Debounced for the same reason as
+  // the pop-up's copy — the first draw is the default style, corrected moments
+  // later by the one the active host actually wants.
+  let fitT=null;
+  window.onRemoteResize=function(){
+    if(!pipWin||pipWin.closed)return;
+    clearTimeout(fitT);
+    fitT=setTimeout(()=>{
+      if(!pipWin||pipWin.closed)return;
+      const b=card.querySelector('#rmt-body');
+      if(!b)return;
+      const s=fitSize(b);
+      try{pipWin.resizeTo(s.w,s.h)}catch(e){}
+    },250);
+  };
 
   // The picture-in-picture document has its own body, so the theme has to be
   // handed to it as it changes. Registered after the toggle's own handler, so the
