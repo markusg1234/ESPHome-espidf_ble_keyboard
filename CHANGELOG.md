@@ -7,6 +7,17 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Added
+- **The web remote can be popped out into a window of its own**, so it stays in reach while you
+  scroll the page or work in another app, and pinned back where it was afterwards. It follows the
+  active host and brings the host bar with it. On a Chromium browser reaching the device over https
+  it can be kept above your other windows; elsewhere it opens as an ordinary window. The same view
+  can be opened directly at `/ble_keyboard#remote` and bookmarked as a remote-only page.
+
+- **A remote style that draws its own body is now shown without a card behind it**, so the shape,
+  shadow and taper it defines are what you see, in the page and in the popped-out window alike. A
+  new tick box in the Remote heading puts the card back. Styles that draw no body of their own are
+  unchanged.
+
 - **The web remote can now look different on each host.** Pick a style per host slot in the new
   Remote Style panel and the remote re-skins as you switch machines — five shapes alongside the full
   one, from a compact media strip to a full set-top remote with a number pad, colour keys and a

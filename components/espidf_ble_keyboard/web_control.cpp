@@ -21,6 +21,11 @@ static const char PAGE_HTML[] PROGMEM = R"rawhtml(<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>BLE Keyboard &amp; Mouse</title>
+<!-- The remote pops out into a window of its own by reloading this same page under
+     #remote. A hash, not a query string, so the request the device sees is byte for
+     byte the one it already serves. Set here rather than in the main script at the
+     end of the body, so the page never paints as the full page first. -->
+<script>if(location.hash==='#remote')document.documentElement.classList.add('popout')</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#1a1e28;--fg:#e2e8f0;--card:#13161e;--border:#252a38;--muted:#7c8aad;--accent:#00d4aa;--active:#03a9f4;--caps:#ff9800;--name:var(--fg)}
@@ -277,6 +282,36 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-btn.sq{border-radius:10px}
 .rmt-btn.light{background:var(--rb-light-bg,#e9e9ee);color:var(--rb-light-fg,#16161a);border-color:var(--rb-light-bg,#e9e9ee)}
 .rmt-btn.light:active,.rmt-btn.light.p{background:#fff;color:#000}
+/* ── The remote away from the page ───────────────────────────────
+   Two ways out of the column, one look. `.popout` is on the <html> of the page
+   served under #remote (the pop-up window), and is set on the picture-in-picture
+   document too — so both are described once, here, and neither needs a script to
+   undress the page after it has already painted as the full one. */
+.popout body{padding:6px;max-width:none}
+.popout .card:not(#media-card){display:none}
+.popout #media-card{margin-bottom:0}
+/* A window holding nothing else doesn't need the card to name itself, and Pin back
+   sits in the toolbar (pop-up) or the mini bar (picture-in-picture) instead. */
+.popout #media-card>h2{display:none}
+.popout .section-toggles{display:none}
+/* Room for Pin back in a window this narrow — the toolbar clips what does not fit
+   (overflow:hidden), and it was Pin back that fell off the end. The dot already
+   says what the word beside it says, and the version badge belongs to the page
+   this was popped out of. The button itself never shrinks. */
+.popout .status-text,.popout #webver{display:none}
+.popout .toolbar-right>.macro-edit-btn{flex-shrink:0}
+/* A style that paints its own body is a slab inside the card's slab. Take the card
+   out from behind it and the shape itself — its radius, its shadow, its taper — is
+   what you see, on the page rather than in a frame. The styles that paint nothing
+   keep their card and have to: their buttons are var(--bg), which IS the page
+   background, and they would disappear on it. `frame` puts it back either way. */
+#media-card.shaped:not(.framed){background:none;border:none;padding:0}
+/* Three controls in the heading now, so let them drop to a second line on a narrow
+   phone rather than crush. The auto margin that pushes them right belongs to the
+   group; .macro-edit-btn's own would otherwise split it (see #bk-load). */
+#media-card>h2{flex-wrap:wrap}
+.rmt-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto}
+.rmt-head .macro-edit-btn{margin-left:0}
 </style></head><body>
 
 <div id="scalable" class="scalable">
@@ -374,7 +409,11 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </div>
 
 <div class="card" id="media-card">
-<h2><svg viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM5 15h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2z"/></svg>Remote</h2>
+<h2><svg viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM5 15h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2z"/></svg>Remote<span class="rmt-head">
+<label class="kb-paste-auto" id="rmt-frame-lbl" style="display:none" title="Put the card back behind a style that draws its own body"><input type="checkbox" id="rmt-frame">frame</label>
+<label class="kb-paste-auto" id="rmt-ontop-lbl"><input type="checkbox" id="rmt-ontop">on top</label>
+<button class="macro-edit-btn" id="rmt-pop">Pop out</button>
+</span></h2>
 <!-- Rendered by renderRemote() from the active host's template, so the buttons
      here follow whichever machine is selected. The markup this replaced is now
      the `default` entry in RMT_TEMPLATES, which reproduces it exactly. -->
@@ -594,6 +633,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </div>
 
 <script>
+// True in the pop-up window, which is this same page reloaded under #remote. The
+// class is set in <head> so the CSS has already hidden everything but the remote
+// by the time anything here runs; this is only for the JS that would otherwise do
+// work no one can see — see the guards on the cards' blocks below.
+const POPOUT=document.documentElement.classList.contains('popout');
+
 // API helper
 function api(endpoint,params){
   const url='/api/ble_keyboard/'+endpoint+'?'+new URLSearchParams(params);
@@ -623,10 +668,13 @@ thmBtn.addEventListener('click',toggleTheme);
 let zoom=100;
 const scalable=document.getElementById('scalable');
 const zlbl=document.getElementById('zlbl');
-function setZoom(v){zoom=Math.max(50,Math.min(200,v));scalable.style.transform='scale('+(zoom/100)+')';zlbl.textContent=zoom+'%';localStorage.setItem('blekb_zoom',zoom)}
+// The popped-out remote keeps its own zoom: it is sized for a small window of its
+// own, and shrinking it to fit that window has no business shrinking the page.
+const ZKEY=POPOUT?'blekb_zoom_popout':'blekb_zoom';
+function setZoom(v){zoom=Math.max(50,Math.min(200,v));scalable.style.transform='scale('+(zoom/100)+')';zlbl.textContent=zoom+'%';localStorage.setItem(ZKEY,zoom)}
 document.getElementById('zin').addEventListener('click',()=>setZoom(zoom+5));
 document.getElementById('zout').addEventListener('click',()=>setZoom(zoom-5));
-setZoom(parseInt(localStorage.getItem('blekb_zoom'))||100);
+setZoom(parseInt(localStorage.getItem(ZKEY))||100);
 
 // ── Status polling ──
 const sdot=document.getElementById('sdot');
@@ -638,7 +686,7 @@ function pollStatus(){
     sdot.className='status-dot'+(p?' paired':c?' connected':'');
     stxt.className='status-text'+((c||p)?' on':'');
     stxt.textContent=p?'Paired':c?'Connected':'Disconnected';
-    if(d.device_name){dname.textContent='('+d.device_name+')';document.title=d.device_name+' — BLE Control'}
+    if(d.device_name){dname.textContent='('+d.device_name+')';document.title=d.device_name+(POPOUT?' — Remote':' — BLE Control')}
     // Hide the ha_action preset when the YAML opt-in is off, so nobody
     // composes an action that would only log a warning. By class and on every
     // poll: the Host Actions dropdown mirrors the macro list's innerHTML, so
@@ -1007,6 +1055,7 @@ function appendStep(el,val){
 
 // ── Buttons & Macros ──
 (function(){
+  if(POPOUT)return;   // card is hidden there — don't fetch a list nobody can see
   const containerBtns=document.getElementById('prog-btns');
   const containerMacros=document.getElementById('macro-btns');
   const nameIn=document.getElementById('mn');
@@ -1164,6 +1213,7 @@ function appendStep(el,val){
 
 // ── Host Actions (per-host action overrides) ──
 (function(){
+  if(POPOUT)return;   // hidden card, and its panels each poll a slot of their own
   const slotSel=document.getElementById('ov-slot');
   const list=document.getElementById('ov-list');
   const nameIn=document.getElementById('ov-name');
@@ -1801,7 +1851,11 @@ function appendStep(el,val){
   // those endpoints keeps their validation (name/action limits, slot range).
   // The trade-off is that a restore is NOT atomic — it stops at the first
   // failure and reports how far it got.
-  const UI_KEYS=['blekb_theme','blekb_zoom','blekb_sections','blekb_order','blekb_finder_unlocked','blekb_paste_auto'];
+  // Preferences only. The popped-out remote's own keys (whether a window is open
+  // right now, and where it sat) are this browser's business on this screen, and
+  // restoring them onto another one would say a window is open that isn't.
+  const UI_KEYS=['blekb_theme','blekb_zoom','blekb_sections','blekb_order','blekb_finder_unlocked',
+                 'blekb_paste_auto','blekb_rmt_frame','blekb_rmt_ontop','blekb_zoom_popout'];
   const bkSave=document.getElementById('bk-save');
   const bkLoad=document.getElementById('bk-load');
   const bkFile=document.getElementById('bk-file');
@@ -2320,6 +2374,7 @@ buildKeyboard();
 
 // ── Mouse ──
 (function(){
+  if(POPOUT)return;
   const pad=document.getElementById('touchpad');
   let tracking=false,lastX=0,lastY=0,lastTime=0,startTime=0,moved=false,startSX=0,startSY=0;
   let accumX=0,accumY=0,moveAC=null,heldBtn=0;
@@ -2515,7 +2570,13 @@ buildKeyboard();
   // A tab switch or a locked screen never delivers pointerup, and a key left
   // down on the host is worse than a press cut short. max_key_hold_ms is the
   // device-side backstop for the cases even this misses (the tab being killed).
-  window.addEventListener('blur',endHold);
+  // Not while the remote is in a picture-in-picture window, though: pressing a
+  // button in that window blurs this one, and the blur arrives after the press
+  // has already gone down — which would release a push-to-talk key on the spot.
+  window.addEventListener('blur',()=>{
+    if(window.documentPictureInPicture&&documentPictureInPicture.window)return;
+    endHold();
+  });
   document.addEventListener('visibilitychange',()=>{if(document.hidden)endHold()});
   }
 
@@ -2668,6 +2729,26 @@ buildKeyboard();
     }
     return '<div class="rmt-section">'+inner+'</div>';
   }
+  // ── Frame ──
+  // Whether the card is drawn behind the remote. Only ever a question for a style
+  // that paints a body of its own, so for the rest the checkbox has nothing to say
+  // and stays out of the heading rather than sitting there doing nothing.
+  const frameChk=document.getElementById('rmt-frame');
+  const frameLbl=document.getElementById('rmt-frame-lbl');
+  const framed=()=>localStorage.getItem('blekb_rmt_frame')==='1';
+  function applyFrame(){card.classList.toggle('framed',framed())}
+  if(frameChk){
+    frameChk.checked=framed();
+    frameChk.addEventListener('change',()=>{
+      localStorage.setItem('blekb_rmt_frame',frameChk.checked?'1':'0');applyFrame();
+    });
+  }
+  applyFrame();
+  function setShaped(on){
+    card.classList.toggle('shaped',on);
+    if(frameLbl)frameLbl.style.display=on?'':'none';
+  }
+
   let curTplId=null;
   window.applyTemplate=function(id,force){
     const t=tplById(id)||tplById('default');
@@ -2679,6 +2760,11 @@ buildKeyboard();
     for(const k in RMT_VARS)body.style.removeProperty(RMT_VARS[k]);
     if(t.theme)for(const k in RMT_VARS)
       if(typeof t.theme[k]==='string')body.style.setProperty(RMT_VARS[k],t.theme[k]);
+    // `bg` is the one theme value that makes .rmt-body paint a body at all, which
+    // makes it exactly the test for "this style is a remote shape rather than a
+    // set of keys" — and behind a shape, the card is one slab too many. Set from
+    // here so it follows a host switch, an import and the style stepper for free.
+    setShaped(typeof (t.theme||{}).bg==='string');
     body.innerHTML=t.sections.map(sectionHtml).join('');
     // Forced: the buttons are new, so whatever this host hides has to be
     // reapplied even though the hidden set itself did not change.
@@ -2691,10 +2777,201 @@ buildKeyboard();
   refreshActiveTemplate();
 })();
 
+// ── Pop out ──
+// The remote in a window of its own, and the way back. There are two routes out,
+// because only one of them can be kept above other windows and it is not available
+// everywhere:
+//
+//   picture-in-picture — the live card is MOVED into a window of its own. Every
+//     gesture on it is delegated from the card element and every closure above
+//     already holds it, so it goes on working off this page's script and this
+//     page's polls: no second copy of the page, no second set of fetches, and the
+//     per-host style, hidden set and repeat set keep applying to it untouched.
+//     It is also the only window a browser will keep on top. The API is
+//     secure-context only, so on a plain http:// device page it is simply absent.
+//   pop-up window — this same page reloaded under #remote, which the CSS strips
+//     down to the remote alone. Works everywhere, and no web API can pin it above
+//     other windows (the OS can: Win+Ctrl+T with PowerToys, and its like).
+//
+// Either way the card leaves the column and a placeholder stands in for it,
+// carrying the same id so the section toggles and the drag-reorder go on working
+// — and so pinning back returns the card wherever the placeholder was dragged to.
+(function(){
+  const card=document.getElementById('media-card');
+  if(!card)return;
+  const KEY='blekb_rmt_popout';   // '1' while the pop-up window is open
+  const WKEY='blekb_rmt_win';     // its last size and position
+  const PIP='documentPictureInPicture' in window;
+
+  // ── Inside the pop-up window ──
+  if(POPOUT){
+    const bar=document.querySelector('.toolbar-right');
+    if(bar){
+      const b=document.createElement('button');
+      b.className='macro-edit-btn';b.textContent='Pin back';
+      b.addEventListener('click',()=>{localStorage.setItem(KEY,'0');window.close()});
+      bar.appendChild(b);
+    }
+    localStorage.setItem(KEY,'1');   // and again after a reload of this window
+    // Pin back pressed on the page that opened us: a storage event fires in every
+    // OTHER document of this origin, which is exactly this one.
+    window.addEventListener('storage',e=>{if(e.key===KEY&&e.newValue!=='1')window.close()});
+    // Closed by its own X — tell the page, and leave the geometry for next time.
+    window.addEventListener('pagehide',()=>{
+      localStorage.setItem(KEY,'0');
+      try{localStorage.setItem(WKEY,JSON.stringify({w:outerWidth,h:outerHeight,x:screenX,y:screenY}))}catch(e){}
+    });
+    return;
+  }
+
+  // ── On the page ──
+  const popBtn=document.getElementById('rmt-pop');
+  const onTop=document.getElementById('rmt-ontop');
+  const onTopLbl=document.getElementById('rmt-ontop-lbl');
+  if(!popBtn)return;
+  let ph=null,popRef=null,pipWin=null,poll=null,redock=null;
+
+  function geom(){
+    const d={w:380,h:Math.min(820,((window.screen&&screen.availHeight)||900)-80)};
+    try{const s=JSON.parse(localStorage.getItem(WKEY));if(s&&s.w>200&&s.h>200)return s}catch(e){}
+    return d;
+  }
+
+  // Stands in for the card while it is away. It takes the card's id once the swap
+  // is done: ids are per document, so with the real card in another one — or in
+  // none at all — this is what getElementById('media-card') answers with, which is
+  // how the toggle bar's show/hide and its drag-reorder go on working meanwhile.
+  function detachCard(note){
+    const d=document.createElement('div');
+    d.className='card';
+    d.innerHTML='<h2>Remote<span class="rmt-head">'+
+                '<button class="macro-edit-btn">Pin back</button></span></h2>'+
+                '<div class="rmt-out-note" style="font-size:12px;color:var(--muted)"></div>';
+    d.querySelector('button').addEventListener('click',attach);
+    d.querySelector('.rmt-out-note').textContent=note;
+    card.replaceWith(d);
+    d.id='media-card';
+    ph=d;
+  }
+
+  function attach(){
+    const p=ph;if(!p)return;
+    // Cleared first: closing a picture-in-picture window fires its pagehide, which
+    // lands back here, and the card has to be home before that window goes.
+    ph=null;
+    const w=pipWin,r=popRef;pipWin=null;popRef=null;
+    if(poll){clearInterval(poll);poll=null}
+    if(redock){clearTimeout(redock);redock=null}
+    localStorage.setItem(KEY,'0');
+    card.style.zoom='';        // the mini bar's zoom belongs to that window only
+    p.replaceWith(card);
+    if(w)try{w.close()}catch(e){}
+    if(r)try{r.close()}catch(e){}
+  }
+
+  // The picture-in-picture window's own strip: zoom, and the way back. Built from
+  // classes that arrive with the copied stylesheet, so it costs no CSS.
+  function miniBar(w){
+    const t=w.document.createElement('div');
+    t.className='toolbar';
+    t.innerHTML='<div class="zoom-controls"><button class="zoom-btn">&minus;</button>'+
+                '<span class="zoom-label">100%</span><button class="zoom-btn">+</button></div>';
+    const pin=w.document.createElement('button');
+    pin.className='macro-edit-btn';pin.textContent='Pin back';
+    pin.addEventListener('click',attach);
+    t.appendChild(pin);
+    const btns=t.querySelectorAll('.zoom-btn'),lbl=t.querySelector('.zoom-label');
+    let z=parseInt(localStorage.getItem('blekb_zoom_popout'))||100;
+    // zoom, not the page's transform: the window is sized around the remote, and
+    // scaling has to change how much room it actually takes, not just how it looks.
+    const set=v=>{z=Math.max(50,Math.min(200,v));card.style.zoom=z/100;
+                  lbl.textContent=z+'%';localStorage.setItem('blekb_zoom_popout',z)};
+    btns[0].addEventListener('click',()=>set(z-5));
+    btns[1].addEventListener('click',()=>set(z+5));
+    set(z);
+    return t;
+  }
+
+  async function popOut(){
+    if(ph)return;
+    const g=geom();
+    if(onTop&&onTop.checked&&PIP){
+      detachCard('Open in a window of its own, above the others.');
+      try{
+        const w=await documentPictureInPicture.requestWindow({width:g.w,height:g.h});
+        pipWin=w;
+        const st=document.querySelector('style');
+        if(st){const c=w.document.createElement('style');c.textContent=st.textContent;
+               w.document.head.appendChild(c)}
+        w.document.documentElement.classList.add('popout');
+        w.document.body.className=document.body.className;   // carries the theme
+        w.document.body.appendChild(miniBar(w));
+        w.document.body.appendChild(card);
+        w.addEventListener('pagehide',attach);
+        return;
+      }catch(e){pipWin=null;attach()}   // refused: fall back to the pop-up below
+    }
+    detachCard('Open in a window of its own.');
+    let feat='popup=yes,width='+g.w+',height='+g.h;
+    if(g.x!=null&&g.y!=null)feat+=',left='+g.x+',top='+g.y;
+    popRef=window.open('/ble_keyboard#remote','blekb-remote',feat);
+    if(!popRef){
+      // Blocked. An anchor click is not blocked, so offer one rather than leave a
+      // button that appears to do nothing; Pin back still returns the card.
+      ph.querySelector('.rmt-out-note').innerHTML=
+        'The browser blocked the pop-up. <a href="/ble_keyboard#remote" target="_blank" '+
+        'style="color:var(--active)">Open it in a tab</a>, or allow pop-ups for this page.';
+      return;
+    }
+    localStorage.setItem(KEY,'1');
+    // Backstop for the window being closed by its X while this page still holds a
+    // reference to it; the storage event covers the case where it doesn't.
+    poll=setInterval(()=>{if(popRef&&popRef.closed)attach()},1000);
+  }
+
+  popBtn.addEventListener('click',popOut);
+
+  if(onTop){
+    onTop.disabled=!PIP;
+    onTop.checked=PIP&&localStorage.getItem('blekb_rmt_ontop')==='1';
+    onTop.addEventListener('change',()=>
+      localStorage.setItem('blekb_rmt_ontop',onTop.checked?'1':'0'));
+    if(onTopLbl){
+      onTopLbl.title=PIP?'Opens in a picture-in-picture window, which stays above other windows'
+                        :'Needs a Chromium browser on an https page; the pop-up opens as an ordinary window';
+      if(!PIP)onTopLbl.style.opacity='.55';
+    }
+  }
+
+  // The picture-in-picture document has its own body, so the theme has to be
+  // handed to it as it changes. Registered after the toggle's own handler, so the
+  // class is already the new one by the time this runs.
+  const thm=document.getElementById('thm');
+  if(thm)thm.addEventListener('click',()=>{
+    if(pipWin)pipWin.document.body.className=document.body.className;
+  });
+
+  // The pop-up closing itself — its Pin back, or its X. A reload of that window
+  // also passes through '0' before re-asserting '1', so wait long enough that a
+  // reload doesn't flap the card back into the column and out again.
+  window.addEventListener('storage',e=>{
+    if(e.key!==KEY)return;
+    if(e.newValue==='1'){if(redock){clearTimeout(redock);redock=null}return}
+    if(redock)clearTimeout(redock);
+    redock=setTimeout(()=>{redock=null;if(ph&&!pipWin)attach()},600);
+  });
+
+  // This page reloaded while its pop-up lived on. There is no handle to it any
+  // more, but Pin back still reaches it: it is listening for that same key.
+  if(localStorage.getItem(KEY)==='1')detachCard('Open in a window of its own.');
+})();
+
 // ── Position Finder ──
 (function(){
   const map=document.getElementById('finder-map');
-  if(!map)return;
+  // POPOUT matters most here: this is the block with a 1.2s poll of its own, and a
+  // second window running it doubles that traffic for a card it never shows.
+  if(!map||POPOUT)return;
   const val=document.getElementById('finder-val');
   const info=document.getElementById('finder-info');
   const copyBtn=document.getElementById('finder-copy');
@@ -2833,6 +3110,10 @@ buildKeyboard();
 
 // ── Section Toggles + Drag Reorder ──
 (function(){
+  // Skipped in the pop-up window for more than tidiness: this block writes the
+  // shared blekb_sections/blekb_order keys, and applies them — so a page whose
+  // Remote section is toggled off would open a pop-up with nothing in it.
+  if(POPOUT)return;
   const bar=document.getElementById('toggle-bar');
   const scalable=document.getElementById('scalable');
   const KEY='blekb_sections';

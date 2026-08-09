@@ -1615,6 +1615,8 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 - **Backup & Restore** — download every runtime setting as a JSON file and re-apply it later or on another board — see [Backup and restore](#backup-and-restore)
 - **Remove buttons per host** — untick the remote buttons a host doesn't need; they disappear for that host only — see [Removing remote buttons per host](#removing-remote-buttons-per-host)
 - **Section toggles** — show/hide Keyboard, Mouse, Remote, and Buttons sections individually (state saved in browser)
+- **Pop out the remote** — **Pop out** in the Remote heading moves the remote into a window of its own, so it stays in reach while you scroll the page or work in another app; **Pin back** returns it to where it was. See [Popping the remote out](#popping-the-remote-out)
+- **Remote shapes stand on their own** — a style that draws its own remote body (Style 1, 2, 4, 5 and most imported ones) is shown without a card behind it, so what you see is the remote's shape, shadow and taper. Tick **frame** in the Remote heading to put the card back. Styles that draw no body of their own always keep it
 - **Zoom controls** — resize keyboard and mouse with +/- buttons in 5% steps (50%–200%), zoom level saved in browser
 - **Light/dark theme** — toggle between dark and light mode, preference saved in browser
 - **BLE connection status** — live indicator shows Connected, Paired, or Disconnected (polls every 3s)
@@ -1622,6 +1624,19 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 - **Programmed buttons** — any buttons defined in YAML appear as clickable buttons on the web page
 - **Zero dependencies** — no HA, no custom cards, no JS files to install
 - **Works from any phone** — just open the URL in a mobile browser
+
+### Popping the remote out
+
+**Pop out** in the Remote heading moves the remote into a window of its own, leaving a placeholder in the page; **Pin back** — in either window — puts it back exactly where it was, including wherever you have since dragged it to. The popped-out remote follows the active host like the one in the page does: it re-skins when you switch machines, and the host bar comes with it so you can switch from there.
+
+That window is this same page at `http://<device>/ble_keyboard#remote`, which shows the remote and nothing else. You can open that address directly — bookmark it, or add it to a phone's home screen — for a remote-only page without popping anything out. Its zoom is remembered separately from the page's, since it is sized for a small window.
+
+**on top** keeps that window above your other windows. It needs the browser's Document Picture-in-Picture support, which is a Chromium feature (Chrome, Edge) and only offered on a **secure page** — so on a plain `http://` device address the option is greyed out and Pop out opens an ordinary window instead. Two ways to get it:
+
+- Reach the device through an HTTPS reverse proxy.
+- Or list the device origin in `chrome://flags/#unsafely-treat-insecure-origin-as-secure` (`edge://flags/...` on Edge), e.g. `http://192.168.1.100`.
+
+Failing either, any ordinary window can be pinned by the operating system — on Windows, PowerToys' **Always on Top** (`Win+Ctrl+T`).
 
 ### Backup and restore
 
