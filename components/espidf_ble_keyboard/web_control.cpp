@@ -291,42 +291,23 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    served under #remote (the pop-up window), and is set on the picture-in-picture
    document too — so both are described once, here, and neither needs a script to
    undress the page after it has already painted as the full one. */
-.popout body{padding:6px;max-width:none}
+/* The window holds the remote and nothing else — no toolbar, no host bar, not
+   even the card behind it. The card is dropped for every style, not just the ones
+   that draw a body of their own, and the window takes the card's colour instead:
+   that colour was the whole of what the card contributed, and the styles that
+   draw no body have page-coloured buttons which would disappear on the page
+   colour. So an unshaped remote looks exactly as it does in the page, and a
+   shaped one is left as its own silhouette with nothing squared off around it. */
+.popout body{padding:6px;max-width:none;background:var(--card)}
 .popout .card:not(#media-card){display:none}
-.popout #media-card{margin-bottom:0}
-/* A window holding nothing else doesn't need the card to name itself, and Pin back
-   sits in the toolbar (pop-up) or the mini bar (picture-in-picture) instead. */
+.popout .toolbar{display:none}
+.popout #media-card{background:none;border:none;padding:0;margin-bottom:0}
+/* Nothing here needs naming, and the controls that lived in this heading — on
+   top, Pop out — belong to the page the remote came from. */
 .popout #media-card>h2{display:none}
-.popout .section-toggles{display:none}
-/* The remote and nothing else. The always-on-top window gets this for free — it
-   is handed the card alone — and the pop-up window matches it rather than being
-   the one detached remote with a host bar and a toolbar stuck to the top. Zoom
-   and the theme belong to the page: the window is sized by dragging its own edge,
-   and the theme it was popped out under is the one it keeps. What is left is the
-   connection dot, the device name and the way back. Switching hosts stays on the
-   page too; the remote still follows whichever is active, because the poll behind
-   it goes on running either way. */
-.popout .host-bar,.popout .zoom-controls,.popout .theme-btn{display:none}
-/* Room for Pin back in a window this narrow — the toolbar clips what does not fit
-   (overflow:hidden), and it was Pin back that fell off the end. The dot already
-   says what the word beside it says, and the version badge belongs to the page
-   this was popped out of. The button itself never shrinks. */
-.popout .status-text,.popout #webver{display:none}
-.popout .toolbar-right>.macro-edit-btn{flex-shrink:0}
-/* The host bar's five fixed columns are sized for the page's 640px; in a window
-   this narrow they leave about 55px each and .host-btn's overflow:hidden cuts the
-   MAC in half. auto-fit takes as many columns as actually fit instead, and
-   overflow-wrap drops a long identity onto a second line rather than clipping it. */
-.popout .host-bar{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
-.popout .host-btn{overflow-wrap:anywhere}
-/* A style that paints its own body is a slab inside the card's slab. In a window
-   of its own, take the card out from behind it and what is left is the shape
-   itself — its radius, its shadow, its taper — floating on the background. On the
-   page the card stays: it is one of seven there, and a remote with no card among
-   six with one reads as a mistake rather than a choice. The styles that paint no
-   body of their own keep their card everywhere, and have to — their buttons are
-   var(--bg), which IS the page background, so they would disappear on it. */
-.popout #media-card.shaped{background:none;border:none;padding:0}
+/* Switching hosts stays on that page too. The remote still follows whichever is
+   active: the poll that re-skins it goes on running either way. */
+.popout .host-bar{display:none}
 /* Three controls in the heading now, so let them drop to a second line on a narrow
    phone rather than crush. The auto margin that pushes them right belongs to the
    group; .macro-edit-btn's own would otherwise split it (see #bk-load). */
@@ -2759,10 +2740,6 @@ buildKeyboard();
     }
     return '<div class="rmt-section">'+inner+'</div>';
   }
-  // Marks a style that paints a body of its own. Only the popped-out window acts
-  // on it, by dropping the card from behind the shape — see the CSS.
-  function setShaped(on){card.classList.toggle('shaped',on)}
-
   let curTplId=null;
   window.applyTemplate=function(id,force){
     const t=tplById(id)||tplById('default');
@@ -2774,11 +2751,6 @@ buildKeyboard();
     for(const k in RMT_VARS)body.style.removeProperty(RMT_VARS[k]);
     if(t.theme)for(const k in RMT_VARS)
       if(typeof t.theme[k]==='string')body.style.setProperty(RMT_VARS[k],t.theme[k]);
-    // `bg` is the one theme value that makes .rmt-body paint a body at all, which
-    // makes it exactly the test for "this style is a remote shape rather than a
-    // set of keys" — and behind a shape, the card is one slab too many. Set from
-    // here so it follows a host switch, an import and the style stepper for free.
-    setShaped(typeof (t.theme||{}).bg==='string');
     body.innerHTML=t.sections.map(sectionHtml).join('');
     // Forced: the buttons are new, so whatever this host hides has to be
     // reapplied even though the hidden set itself did not change.
