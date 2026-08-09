@@ -319,12 +319,14 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    overflow-wrap drops a long identity onto a second line rather than clipping it. */
 .popout .host-bar{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
 .popout .host-btn{overflow-wrap:anywhere}
-/* A style that paints its own body is a slab inside the card's slab. Take the card
-   out from behind it and the shape itself — its radius, its shadow, its taper — is
-   what you see, on the page rather than in a frame. The styles that paint nothing
-   keep their card and have to: their buttons are var(--bg), which IS the page
-   background, and they would disappear on it. `frame` puts it back either way. */
-#media-card.shaped:not(.framed){background:none;border:none;padding:0}
+/* A style that paints its own body is a slab inside the card's slab. In a window
+   of its own, take the card out from behind it and what is left is the shape
+   itself — its radius, its shadow, its taper — floating on the background. On the
+   page the card stays: it is one of seven there, and a remote with no card among
+   six with one reads as a mistake rather than a choice. The styles that paint no
+   body of their own keep their card everywhere, and have to — their buttons are
+   var(--bg), which IS the page background, so they would disappear on it. */
+.popout #media-card.shaped{background:none;border:none;padding:0}
 /* Three controls in the heading now, so let them drop to a second line on a narrow
    phone rather than crush. The auto margin that pushes them right belongs to the
    group; .macro-edit-btn's own would otherwise split it (see #bk-load). */
@@ -429,7 +431,6 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 
 <div class="card" id="media-card">
 <h2><svg viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM5 15h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2z"/></svg>Remote<span class="rmt-head">
-<label class="kb-paste-auto" id="rmt-frame-lbl" style="display:none" title="Put the card back behind a style that draws its own body"><input type="checkbox" id="rmt-frame">frame</label>
 <label class="kb-paste-auto" id="rmt-ontop-lbl"><input type="checkbox" id="rmt-ontop">on top</label>
 <button class="macro-edit-btn" id="rmt-pop">Pop out</button>
 </span></h2>
@@ -1884,7 +1885,7 @@ function appendStep(el,val){
   // right now, and where it sat) are this browser's business on this screen, and
   // restoring them onto another one would say a window is open that isn't.
   const UI_KEYS=['blekb_theme','blekb_zoom','blekb_sections','blekb_order','blekb_finder_unlocked',
-                 'blekb_paste_auto','blekb_rmt_frame','blekb_rmt_ontop'];
+                 'blekb_paste_auto','blekb_rmt_ontop'];
   const bkSave=document.getElementById('bk-save');
   const bkLoad=document.getElementById('bk-load');
   const bkFile=document.getElementById('bk-file');
@@ -2758,25 +2759,9 @@ buildKeyboard();
     }
     return '<div class="rmt-section">'+inner+'</div>';
   }
-  // ── Frame ──
-  // Whether the card is drawn behind the remote. Only ever a question for a style
-  // that paints a body of its own, so for the rest the checkbox has nothing to say
-  // and stays out of the heading rather than sitting there doing nothing.
-  const frameChk=document.getElementById('rmt-frame');
-  const frameLbl=document.getElementById('rmt-frame-lbl');
-  const framed=()=>localStorage.getItem('blekb_rmt_frame')==='1';
-  function applyFrame(){card.classList.toggle('framed',framed())}
-  if(frameChk){
-    frameChk.checked=framed();
-    frameChk.addEventListener('change',()=>{
-      localStorage.setItem('blekb_rmt_frame',frameChk.checked?'1':'0');applyFrame();
-    });
-  }
-  applyFrame();
-  function setShaped(on){
-    card.classList.toggle('shaped',on);
-    if(frameLbl)frameLbl.style.display=on?'':'none';
-  }
+  // Marks a style that paints a body of its own. Only the popped-out window acts
+  // on it, by dropping the card from behind the shape — see the CSS.
+  function setShaped(on){card.classList.toggle('shaped',on)}
 
   let curTplId=null;
   window.applyTemplate=function(id,force){

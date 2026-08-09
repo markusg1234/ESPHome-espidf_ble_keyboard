@@ -13,10 +13,10 @@ web control page shows the matching version badge.
   device over https it can be kept above your other windows; elsewhere it opens as an ordinary one.
   The same view can be opened directly at `/ble_keyboard#remote` and bookmarked as a remote-only page.
 
-- **A remote style that draws its own body is now shown without a card behind it**, so the shape,
-  shadow and taper it defines are what you see, in the page and in the popped-out window alike. A
-  new tick box in the Remote heading puts the card back. Styles that draw no body of their own are
-  unchanged.
+- **A remote style that draws its own body loses the card from behind it once popped out**, so what
+  floats in the window is the shape, shadow and taper it defines rather than a slab inside a slab.
+  In the page it keeps its card like the sections around it, and a style that draws no body of its
+  own keeps one everywhere.
 
 - **The web remote can now look different on each host.** Pick a style per host slot in the new
   Remote Style panel and the remote re-skins as you switch machines — five shapes alongside the full
