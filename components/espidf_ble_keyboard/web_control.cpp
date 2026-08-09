@@ -964,6 +964,13 @@ function refreshActiveTemplate(){
       if(window.applyHidden)window.applyHidden(false);
       if(window.applyRepeat)window.applyRepeat(false);
       if(window.applyHold)window.applyHold(false);
+      // Tell the other window, if the remote has been popped out into one. It
+      // polls this same endpoint, but at its own slower rate — long enough after
+      // a host switch that the remote would sit there in the old host's style,
+      // and the window around it at the old host's size. A storage event fires in
+      // every other document of this origin, so whichever of the two saw the
+      // change first hands it straight to the other.
+      try{localStorage.setItem('blekb_rmt_hosts',txt.length+':'+Date.now())}catch(e){}
       // Host Actions edits one slot at a time; tell it the device moved so its
       // picker can follow. Defined by that card's own block, which runs later.
       if(window.onHostSwitched)window.onHostSwitched(d.active);
@@ -993,6 +1000,9 @@ function refreshActiveTemplate(){
     }).catch(()=>{bar.style.display='none'});
   }
   pollEvery(loadHosts,5000);
+  // The other window says the hosts moved: read them now rather than waiting for
+  // the next poll. lastHostsRaw makes this free when nothing actually changed.
+  window.addEventListener('storage',e=>{if(e.key==='blekb_rmt_hosts')loadHosts()});
 })();
 
 // `alternate:` owns the whole chain (it splits the '|' itself), so its preset
@@ -2657,6 +2667,11 @@ buildKeyboard();
         for(let j=i+1;j<kids.length;j++){if(vis(kids[j])){after=true;break}}
         el.style.display=(before&&after)?'':'none';
       });
+      // Collapsing those rows changes the remote's size, and it happens here —
+      // after a fetch — rather than when the style was drawn. A window sized
+      // around the remote has to be measured against THIS layout, not the one
+      // before the host's hidden buttons were taken out of it.
+      if(window.onRemoteResize)window.onRemoteResize();
     }).catch(()=>{});
   };
 
@@ -3046,6 +3061,9 @@ buildKeyboard();
       const b=card.querySelector('#rmt-body');
       if(!b)return;
       const s=fitSize(b);
+      // Content size, to match the width and height this window was asked for in
+      // the first place. No frame arithmetic here: that window carries next to no
+      // frame, and outerWidth cannot be trusted to describe what it does carry.
       try{pipWin.resizeTo(s.w,s.h)}catch(e){}
     },250);
   };
