@@ -2911,14 +2911,30 @@ buildKeyboard();
       // the card out first and had to put it back on every failure.
       let w=null;
       try{
-        // Only one of these exists at a time; one left over from an earlier
-        // attempt (or another tab) would make this request fail outright.
-        if(documentPictureInPicture.window)documentPictureInPicture.window.close();
-        // Deliberately not geom(): that is the pop-up's outer size, chrome and
-        // all, and a picture-in-picture window is measured by its content.
-        w=await documentPictureInPicture.requestWindow(
-            {width:380,height:Math.min(760,((window.screen&&screen.availHeight)||900)-120)});
+        // A window from an earlier attempt is reused rather than closed and asked
+        // for again: only one exists at a time, and closing one to immediately
+        // request another races the close.
+        w=documentPictureInPicture.window||null;
+        if(w){w.document.head.replaceChildren();w.document.body.replaceChildren()}
+        else{
+          // Deliberately not geom(): that is the pop-up's outer size, chrome and
+          // all, while this window is measured by its content.
+          const opts={width:380,height:Math.min(760,((window.screen&&screen.availHeight)||900)-120)};
+          const req=documentPictureInPicture.requestWindow(opts);
+          // A request that never settles is the one failure with no symptom at
+          // all — no window, no error, and a button that appears dead. Give it a
+          // deadline and treat silence as a refusal like any other.
+          w=await Promise.race([
+            req.catch(e=>{why=e&&(e.name||e.message)||'refused';return null}),
+            new Promise(r=>setTimeout(()=>r('timeout'),2500))]);
+          if(w==='timeout'){
+            why='no response';
+            req.then(x=>{try{x.close()}catch(_){}},()=>{});   // if it turns up late
+            w=null;
+          }
+        }
       }catch(e){why=e&&(e.name||e.message)||'refused'}
+      if(why)console.warn('[ble_keyboard] always-on-top window refused:',why);
       if(w){
         try{
           const st=document.querySelector('style');
