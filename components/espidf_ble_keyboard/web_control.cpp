@@ -300,6 +300,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    this was popped out of. The button itself never shrinks. */
 .popout .status-text,.popout #webver{display:none}
 .popout .toolbar-right>.macro-edit-btn{flex-shrink:0}
+/* The host bar's five fixed columns are sized for the page's 640px; in a window
+   this narrow they leave about 55px each and .host-btn's overflow:hidden cuts the
+   MAC in half. auto-fit takes as many columns as actually fit instead, and
+   overflow-wrap drops a long identity onto a second line rather than clipping it. */
+.popout .host-bar{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
+.popout .host-btn{overflow-wrap:anywhere}
 /* A style that paints its own body is a slab inside the card's slab. Take the card
    out from behind it and the shape itself — its radius, its shadow, its taper — is
    what you see, on the page rather than in a frame. The styles that paint nothing
@@ -2830,6 +2836,9 @@ buildKeyboard();
   const onTopLbl=document.getElementById('rmt-ontop-lbl');
   if(!popBtn)return;
   let ph=null,popRef=null,pipWin=null,poll=null,redock=null;
+  // The browser writes the failure text, not us, but it is the one string here
+  // that reaches innerHTML — so it goes through the same treatment as any other.
+  const esc2=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
   function geom(){
     const d={w:380,h:Math.min(820,((window.screen&&screen.availHeight)||900)-80)};
@@ -2895,23 +2904,47 @@ buildKeyboard();
   async function popOut(){
     if(ph)return;
     const g=geom();
+    let why='';   // why the always-on-top window didn't happen, if it didn't
     if(onTop&&onTop.checked&&PIP){
-      detachCard('Open in a window of its own, above the others.');
+      // Ask for the window BEFORE touching the page. A refusal then leaves the
+      // card exactly where it was, with nothing to undo — the earlier order tore
+      // the card out first and had to put it back on every failure.
+      let w=null;
       try{
-        const w=await documentPictureInPicture.requestWindow({width:g.w,height:g.h});
-        pipWin=w;
-        const st=document.querySelector('style');
-        if(st){const c=w.document.createElement('style');c.textContent=st.textContent;
-               w.document.head.appendChild(c)}
-        w.document.documentElement.classList.add('popout');
-        w.document.body.className=document.body.className;   // carries the theme
-        w.document.body.appendChild(miniBar(w));
-        w.document.body.appendChild(card);
-        w.addEventListener('pagehide',attach);
-        return;
-      }catch(e){pipWin=null;attach()}   // refused: fall back to the pop-up below
+        // Only one of these exists at a time; one left over from an earlier
+        // attempt (or another tab) would make this request fail outright.
+        if(documentPictureInPicture.window)documentPictureInPicture.window.close();
+        // Deliberately not geom(): that is the pop-up's outer size, chrome and
+        // all, and a picture-in-picture window is measured by its content.
+        w=await documentPictureInPicture.requestWindow(
+            {width:380,height:Math.min(760,((window.screen&&screen.availHeight)||900)-120)});
+      }catch(e){why=e&&(e.name||e.message)||'refused'}
+      if(w){
+        try{
+          const st=document.querySelector('style');
+          if(st){const c=w.document.createElement('style');c.textContent=st.textContent;
+                 w.document.head.appendChild(c)}
+          w.document.documentElement.classList.add('popout');
+          w.document.body.className=document.body.className;   // carries the theme
+          detachCard('Open in a window of its own, above the others.');
+          w.document.body.appendChild(miniBar(w));
+          w.document.body.appendChild(card);
+          w.addEventListener('pagehide',attach);
+          pipWin=w;
+          return;
+        }catch(e){
+          // Never leave an empty always-on-top window floating: the old code
+          // dropped its reference here, so a failure part-way through setup left
+          // a blank window on screen and the card back in the page.
+          try{w.close()}catch(_){}
+          pipWin=null;
+          if(ph)attach();
+          why=e&&(e.message||e.name)||'setup failed';
+        }
+      }
     }
-    detachCard('Open in a window of its own.');
+    detachCard(why?('Could not open an always-on-top window ('+why+'). Opened an ordinary one instead.')
+                  :'Open in a window of its own.');
     let feat='popup=yes,width='+g.w+',height='+g.h;
     if(g.x!=null&&g.y!=null)feat+=',left='+g.x+',top='+g.y;
     popRef=window.open('/ble_keyboard#remote','blekb-remote',feat);
@@ -2919,7 +2952,8 @@ buildKeyboard();
       // Blocked. An anchor click is not blocked, so offer one rather than leave a
       // button that appears to do nothing; Pin back still returns the card.
       ph.querySelector('.rmt-out-note').innerHTML=
-        'The browser blocked the pop-up. <a href="/ble_keyboard#remote" target="_blank" '+
+        (why?'Always-on-top was refused ('+esc2(why)+'), and the ':'The ')+
+        'browser blocked the pop-up. <a href="/ble_keyboard#remote" target="_blank" '+
         'style="color:var(--active)">Open it in a tab</a>, or allow pop-ups for this page.';
       return;
     }

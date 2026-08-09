@@ -1616,7 +1616,7 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 - **Remove buttons per host** — untick the remote buttons a host doesn't need; they disappear for that host only — see [Removing remote buttons per host](#removing-remote-buttons-per-host)
 - **Section toggles** — show/hide Keyboard, Mouse, Remote, and Buttons sections individually (state saved in browser)
 - **Pop out the remote** — **Pop out** in the Remote heading moves the remote into a window of its own, so it stays in reach while you scroll the page or work in another app; **Pin back** returns it to where it was. See [Popping the remote out](#popping-the-remote-out)
-- **Remote shapes stand on their own** — a style that draws its own remote body (Style 1, 2, 4, 5 and most imported ones) is shown without a card behind it, so what you see is the remote's shape, shadow and taper. Tick **frame** in the Remote heading to put the card back. Styles that draw no body of their own always keep it
+- **Remote shapes stand on their own** — a style that draws its own remote body (Style 1, 2, 4, 5 and most imported ones) is shown without a card behind it, so what you see is the remote's shape, shadow and taper. Tick **frame** in the Remote heading to put the card back — a clear change in the light theme, a subtle one in the dark, where the card and the page are close in tone. Styles that draw no body of their own always keep it, and don't offer the tick box
 - **Zoom controls** — resize keyboard and mouse with +/- buttons in 5% steps (50%–200%), zoom level saved in browser
 - **Light/dark theme** — toggle between dark and light mode, preference saved in browser
 - **BLE connection status** — live indicator shows Connected, Paired, or Disconnected (polls every 3s)
@@ -1637,6 +1637,8 @@ That window is this same page at `http://<device>/ble_keyboard#remote`, which sh
 - Or list the device origin in `chrome://flags/#unsafely-treat-insecure-origin-as-secure` (`edge://flags/...` on Edge), e.g. `http://192.168.1.100`.
 
 Failing either, any ordinary window can be pinned by the operating system — on Windows, PowerToys' **Always on Top** (`Win+Ctrl+T`).
+
+If the browser refuses the always-on-top window for any other reason, the remote still pops out as an ordinary window and the placeholder left in the page names what the browser said, so there is something to act on rather than a button that appears to do nothing.
 
 ### Backup and restore
 
