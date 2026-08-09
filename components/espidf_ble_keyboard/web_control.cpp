@@ -2807,6 +2807,7 @@ buildKeyboard();
   if(!card)return;
   const KEY='blekb_rmt_popout';   // '1' while the pop-up window is open
   const WKEY='blekb_rmt_win';     // its last size and position
+  const NOSIZE='blekb_rmt_nopip'; // this address grants a window it never shows
   const PIP='documentPictureInPicture' in window;
 
   // ── Inside the pop-up window ──
@@ -2836,6 +2837,11 @@ buildKeyboard();
   const onTopLbl=document.getElementById('rmt-ontop-lbl');
   if(!popBtn)return;
   let ph=null,popRef=null,pipWin=null,poll=null,redock=null;
+  // Cleared the first time this address proves it cannot show one — after that
+  // Pop out goes straight to window.open, in the click itself, which is also what
+  // keeps the pop-up blocker quiet: an open delayed behind an await reads as
+  // unrequested and gets stopped.
+  let pipUsable=PIP&&localStorage.getItem(NOSIZE)!=='1';
   // The browser writes the failure text, not us, but it is the one string here
   // that reaches innerHTML — so it goes through the same treatment as any other.
   const esc2=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -2905,7 +2911,7 @@ buildKeyboard();
     if(ph)return;
     const g=geom();
     let why='';   // why the always-on-top window didn't happen, if it didn't
-    if(onTop&&onTop.checked&&PIP){
+    if(onTop&&onTop.checked&&pipUsable){
       // Ask for the window BEFORE touching the page. A refusal then leaves the
       // card exactly where it was, with nothing to undo — the earlier order tore
       // the card out first and had to put it back on every failure.
@@ -2947,6 +2953,9 @@ buildKeyboard();
           if(w.closed||!w.innerWidth||!w.innerHeight){
             try{w.close()}catch(_){}
             w=null;why='the browser opened it with no size';
+            // Learned once and remembered against this address: stop offering it,
+            // so from now on Pop out is the plain window.open it always was.
+            localStorage.setItem(NOSIZE,'1');pipUsable=false;syncOnTop();
           }
         }
       }catch(e){why=e&&(e.name||e.message)||'refused'}
@@ -2975,7 +2984,8 @@ buildKeyboard();
         }
       }
     }
-    detachCard(why?('Could not open an always-on-top window ('+why+'). Opened an ordinary one instead.')
+    detachCard(why?('Could not open an always-on-top window ('+why+'). Opened an ordinary one instead.'+
+                    (PIP&&!pipUsable?' On top is off for this address now.':''))
                   :'Open in a window of its own.');
     let feat='popup=yes,width='+g.w+',height='+g.h;
     if(g.x!=null&&g.y!=null)feat+=',left='+g.x+',top='+g.y;
@@ -2997,17 +3007,25 @@ buildKeyboard();
 
   popBtn.addEventListener('click',popOut);
 
-  if(onTop){
-    onTop.disabled=!PIP;
-    onTop.checked=PIP&&localStorage.getItem('blekb_rmt_ontop')==='1';
-    onTop.addEventListener('change',()=>
-      localStorage.setItem('blekb_rmt_ontop',onTop.checked?'1':'0'));
-    if(onTopLbl){
-      onTopLbl.title=PIP?'Opens in a picture-in-picture window, which stays above other windows'
-                        :'Needs a Chromium browser on an https page; the pop-up opens as an ordinary window';
-      if(!PIP)onTopLbl.style.opacity='.55';
-    }
+  // Whether always-on-top is worth offering here. The API being present is not
+  // enough: an address trusted only through the browser's insecure-origin flag
+  // hands back a window it never shows, which is discovered by trying it once.
+  // localStorage is per origin, so that discovery is remembered against this
+  // address alone and reaching the device over https asks again from scratch.
+  function syncOnTop(){
+    if(!onTop)return;
+    onTop.disabled=!pipUsable;
+    onTop.checked=pipUsable&&localStorage.getItem('blekb_rmt_ontop')==='1';
+    if(!onTopLbl)return;
+    onTopLbl.style.opacity=pipUsable?'':'.55';
+    onTopLbl.title=pipUsable
+      ?'Opens in a picture-in-picture window, which stays above other windows'
+      :(PIP?'This address opened one with no size, so it is off here — it needs a real https page'
+           :'Needs a Chromium browser on an https page; the pop-up opens as an ordinary window');
   }
+  if(onTop)onTop.addEventListener('change',()=>
+    localStorage.setItem('blekb_rmt_ontop',onTop.checked?'1':'0'));
+  syncOnTop();
 
   // The picture-in-picture document has its own body, so the theme has to be
   // handed to it as it changes. Registered after the toggle's own handler, so the
