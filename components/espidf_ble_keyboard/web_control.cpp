@@ -298,6 +298,15 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    sits in the toolbar (pop-up) or the mini bar (picture-in-picture) instead. */
 .popout #media-card>h2{display:none}
 .popout .section-toggles{display:none}
+/* The remote and nothing else. The always-on-top window gets this for free — it
+   is handed the card alone — and the pop-up window matches it rather than being
+   the one detached remote with a host bar and a toolbar stuck to the top. Zoom
+   and the theme belong to the page: the window is sized by dragging its own edge,
+   and the theme it was popped out under is the one it keeps. What is left is the
+   connection dot, the device name and the way back. Switching hosts stays on the
+   page too; the remote still follows whichever is active, because the poll behind
+   it goes on running either way. */
+.popout .host-bar,.popout .zoom-controls,.popout .theme-btn{display:none}
 /* Room for Pin back in a window this narrow — the toolbar clips what does not fit
    (overflow:hidden), and it was Pin back that fell off the end. The dot already
    says what the word beside it says, and the version badge belongs to the page
@@ -690,13 +699,13 @@ thmBtn.addEventListener('click',toggleTheme);
 let zoom=100;
 const scalable=document.getElementById('scalable');
 const zlbl=document.getElementById('zlbl');
-// The popped-out remote keeps its own zoom: it is sized for a small window of its
-// own, and shrinking it to fit that window has no business shrinking the page.
-const ZKEY=POPOUT?'blekb_zoom_popout':'blekb_zoom';
-function setZoom(v){zoom=Math.max(50,Math.min(200,v));scalable.style.transform='scale('+(zoom/100)+')';zlbl.textContent=zoom+'%';localStorage.setItem(ZKEY,zoom)}
+// The popped-out remote is drawn at whatever the page is set to — it is the same
+// remote, so it should not change size by being moved. It only reads the setting:
+// the controls that write it stay on the page.
+function setZoom(v){zoom=Math.max(50,Math.min(200,v));scalable.style.transform='scale('+(zoom/100)+')';zlbl.textContent=zoom+'%';if(!POPOUT)localStorage.setItem('blekb_zoom',zoom)}
 document.getElementById('zin').addEventListener('click',()=>setZoom(zoom+5));
 document.getElementById('zout').addEventListener('click',()=>setZoom(zoom-5));
-setZoom(parseInt(localStorage.getItem(ZKEY))||100);
+setZoom(parseInt(localStorage.getItem('blekb_zoom'))||100);
 
 // ── Status polling ──
 const sdot=document.getElementById('sdot');
@@ -1875,7 +1884,7 @@ function appendStep(el,val){
   // right now, and where it sat) are this browser's business on this screen, and
   // restoring them onto another one would say a window is open that isn't.
   const UI_KEYS=['blekb_theme','blekb_zoom','blekb_sections','blekb_order','blekb_finder_unlocked',
-                 'blekb_paste_auto','blekb_rmt_frame','blekb_rmt_ontop','blekb_zoom_popout'];
+                 'blekb_paste_auto','blekb_rmt_frame','blekb_rmt_ontop'];
   const bkSave=document.getElementById('bk-save');
   const bkLoad=document.getElementById('bk-load');
   const bkFile=document.getElementById('bk-file');
@@ -2892,32 +2901,21 @@ buildKeyboard();
     if(poll){clearInterval(poll);poll=null}
     if(redock){clearTimeout(redock);redock=null}
     localStorage.setItem(KEY,'0');
-    card.style.zoom='';        // the mini bar's zoom belongs to that window only
     p.replaceWith(card);
     if(w)try{w.close()}catch(e){}
     if(r)try{r.close()}catch(e){}
   }
 
-  // The picture-in-picture window's own strip: zoom, and the way back. Built from
-  // classes that arrive with the copied stylesheet, so it costs no CSS.
+  // The picture-in-picture window's only chrome: the way back. Zoom lives on the
+  // page — this window is resized by dragging its own edge. Built from a class
+  // that arrives with the copied stylesheet, so it costs no CSS of its own.
   function miniBar(w){
     const t=w.document.createElement('div');
     t.className='toolbar';
-    t.innerHTML='<div class="zoom-controls"><button class="zoom-btn">&minus;</button>'+
-                '<span class="zoom-label">100%</span><button class="zoom-btn">+</button></div>';
     const pin=w.document.createElement('button');
     pin.className='macro-edit-btn';pin.textContent='Pin back';
     pin.addEventListener('click',attach);
     t.appendChild(pin);
-    const btns=t.querySelectorAll('.zoom-btn'),lbl=t.querySelector('.zoom-label');
-    let z=parseInt(localStorage.getItem('blekb_zoom_popout'))||100;
-    // zoom, not the page's transform: the window is sized around the remote, and
-    // scaling has to change how much room it actually takes, not just how it looks.
-    const set=v=>{z=Math.max(50,Math.min(200,v));card.style.zoom=z/100;
-                  lbl.textContent=z+'%';localStorage.setItem('blekb_zoom_popout',z)};
-    btns[0].addEventListener('click',()=>set(z-5));
-    btns[1].addEventListener('click',()=>set(z+5));
-    set(z);
     return t;
   }
 
@@ -2981,6 +2979,11 @@ buildKeyboard();
                  w.document.head.appendChild(c)}
           w.document.documentElement.classList.add('popout');
           w.document.body.className=document.body.className;   // carries the theme
+          // The card is leaving #scalable, and the page's zoom is a transform on
+          // that — so it has to be re-applied here or the remote would change size
+          // just by being moved. zoom rather than a transform: this window is
+          // sized around its content, so the space taken has to change with it.
+          w.document.body.style.zoom=zoom/100;
           detachCard('Open in a window of its own, above the others.');
           w.document.body.appendChild(miniBar(w));
           w.document.body.appendChild(card);
@@ -3047,6 +3050,12 @@ buildKeyboard();
   const thm=document.getElementById('thm');
   if(thm)thm.addEventListener('click',()=>{
     if(pipWin)pipWin.document.body.className=document.body.className;
+  });
+  // Same for the zoom: the page's controls are the only ones, so a window already
+  // open follows them rather than keeping the size it was opened at.
+  ['zin','zout'].forEach(id=>{
+    const b=document.getElementById(id);
+    if(b)b.addEventListener('click',()=>{if(pipWin)pipWin.document.body.style.zoom=zoom/100});
   });
 
   // The pop-up closing itself — its Pin back, or its X. A reload of that window

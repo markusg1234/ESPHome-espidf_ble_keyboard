@@ -1627,14 +1627,33 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 
 ### Popping the remote out
 
-**Pop out** in the Remote heading moves the remote into a window of its own, leaving a placeholder in the page; **Pin back** — in either window — puts it back exactly where it was, including wherever you have since dragged it to. The popped-out remote follows the active host like the one in the page does: it re-skins when you switch machines, and the host bar comes with it so you can switch from there.
+**Pop out** in the Remote heading moves the remote into a window of its own, leaving a placeholder in the page; **Pin back** — in either window — puts it back exactly where it was, including wherever you have since dragged it to. What you get is the remote and nothing else — no host bar, no toolbar clutter. It still follows the active host, re-skinning when you switch machines; switching them stays on the page you popped it out of.
 
-That window is this same page at `http://<device>/ble_keyboard#remote`, which shows the remote and nothing else. You can open that address directly — bookmark it, or add it to a phone's home screen — for a remote-only page without popping anything out. Its zoom is remembered separately from the page's, since it is sized for a small window.
+That window is this same page at `http://<device>/ble_keyboard#remote`, which shows the remote and nothing else. You can open that address directly — bookmark it, or add it to a phone's home screen — for a remote-only page without popping anything out. It is drawn at whatever zoom the page is set to, so the remote does not change size by being moved; the zoom and theme controls themselves stay on the page.
 
 **on top** keeps that window above your other windows. It needs the browser's Document Picture-in-Picture support, which is a Chromium feature (Chrome, Edge) and only offered on a **secure page** — so on a plain `http://` device address the option is greyed out and Pop out opens an ordinary window instead. Two ways to get it:
 
-- Reach the device through an HTTPS reverse proxy.
-- Or list the device origin in `chrome://flags/#unsafely-treat-insecure-origin-as-secure` (`edge://flags/...` on Edge), e.g. `http://192.168.1.100`. **This makes the tick box available but often does not deliver the window** — Chrome grants one that has no size and is never shown, with no error. The remote finds that out by trying it once: it falls back to an ordinary window, says so, and switches **on top** off for that address so it neither pretends nor asks again. That one attempt may also draw a pop-up prompt, because the fallback happens after the browser call rather than directly in your click; later ones don't. If that is what you see, the flag is a dead end here — real HTTPS or the OS route below is what will actually work.
+- **Reach the page through `localhost`, which needs no certificate at all.** Browsers count
+  `http://localhost` as a secure context in its own right, so forwarding a local port to the device
+  is the shortest route to a working **on top**. On Windows, in an Administrator PowerShell:
+
+  ```powershell
+  netsh interface portproxy add v4tov4 listenaddress=127.0.0.1 listenport=8080 connectaddress=<device-ip> connectport=80
+  ```
+
+  Then browse `http://localhost:8080/ble_keyboard`. Undo it with the same command using `delete` and
+  just the two `listen` arguments. It only works from the machine running the forward — binding it
+  to anything but loopback puts you back on an insecure origin.
+- Or reach the device through an HTTPS reverse proxy, for something permanent and available to every
+  machine on the network. The device speaks plain HTTP only, so the certificate lives on the proxy;
+  a self-signed one will not do, since a page with an untrusted certificate is not a secure context
+  either.
+- **What does *not* work: `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.** It makes the
+  tick box available and looks like it should be enough, but Chrome then grants a window that has no
+  size and is never shown, with no error of any kind. The remote finds this out by trying it once:
+  it falls back to an ordinary window, says so, and switches **on top** off for that address so it
+  neither pretends nor asks again. (Since that verdict is remembered per address, reaching the same
+  device through `localhost` or https asks again from scratch.)
 
 Failing either, any ordinary window can be pinned by the operating system — on Windows, PowerToys' **Always on Top** (`Win+Ctrl+T`).
 
