@@ -298,7 +298,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    draw no body have page-coloured buttons which would disappear on the page
    colour. So an unshaped remote looks exactly as it does in the page, and a
    shaped one is left as its own silhouette with nothing squared off around it. */
-.popout body{padding:6px;max-width:none;background:var(--card)}
+.popout body{padding:2px;max-width:none;background:var(--card)}
 .popout .card:not(#media-card){display:none}
 .popout .toolbar{display:none}
 .popout #media-card{background:none;border:none;padding:0;margin-bottom:0}
@@ -2827,13 +2827,14 @@ buildKeyboard();
   // Measured from the drawn remote itself (#rmt-body, not the card, which still
   // has its heading and padding here) — the rect is after the page's transform,
   // so it is the size actually on screen, which is the size the window applies
-  // its own zoom to. Plus the 6px border each side, and no more.
+  // its own zoom to. The 8 is the body's 2px each side plus 4 of slack, which is
+  // there so a sub-pixel width can't round up into a scrollbar.
   function remoteSize(){
     const b=card.querySelector('#rmt-body')||card;
     const r=b.getBoundingClientRect();
     const maxH=((window.screen&&screen.availHeight)||900)-80;
-    return {w:Math.max(200,Math.min(900,Math.ceil(r.width)+16)),
-            h:Math.max(200,Math.min(maxH,Math.ceil(r.height)+16))};
+    return {w:Math.max(200,Math.min(900,Math.ceil(r.width)+8)),
+            h:Math.max(200,Math.min(maxH,Math.ceil(r.height)+8))};
   }
   // For the pop-up window, whose width and height are the OUTER frame — the title
   // bar and borders sit outside the page. A size the user has since dragged to
