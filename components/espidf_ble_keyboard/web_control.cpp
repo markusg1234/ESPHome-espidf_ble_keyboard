@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-g</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-h</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -2975,18 +2975,32 @@ buildKeyboard();
   function armGestureFit(win,el,baseZoom){
     if(win.__blekbArmed)return;
     win.__blekbArmed=true;
-    const onClick=()=>{
-      if(win.closed){
-        win.removeEventListener('click',onClick,true);
-        if(win!==window)window.removeEventListener('click',onClick,true);
-        return;
-      }
+    const attempt=()=>{
+      if(win.closed)return;
       const s=fitSize(el);
       if(Math.abs(win.innerWidth-s.w)<=3&&Math.abs(win.innerHeight-s.h)<=3)return;
       try{
         win.resizeTo(s.w+frameOf(win,0),s.h+frameOf(win,1));
         try{console.log('[blekb fit] put right on a click:',s.w+'x'+s.h)}catch(e){}
       }catch(e){}
+    };
+    const onClick=()=>{
+      if(win.closed){
+        win.removeEventListener('click',onClick,true);
+        if(win!==window)window.removeEventListener('click',onClick,true);
+        return;
+      }
+      // Now, and again shortly after. The click that switches hosts lands before
+      // the new style does, so at this instant the size worth setting is not yet
+      // known — the later tries are for when it is. They stay well inside the
+      // seconds a gesture is good for, and each does nothing at all if the window
+      // is already right, so a first try that was enough costs the rest nothing.
+      // Chrome grows one of these windows to fit its content by itself but never
+      // shrinks it, which is why a style that got shorter needs this and a style
+      // that got taller never did.
+      attempt();
+      setTimeout(attempt,400);
+      setTimeout(attempt,1200);
     };
     win.addEventListener('click',onClick,true);
     if(win!==window)window.addEventListener('click',onClick,true);
