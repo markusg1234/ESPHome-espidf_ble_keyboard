@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-j</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-k</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -3117,6 +3117,18 @@ buildKeyboard();
     if(redock){clearTimeout(redock);redock=null}
     localStorage.setItem(KEY,'0');
     p.replaceWith(card);
+    // Leave the window the size the remote wants before letting it go. The
+    // browser opens the next one of these at the size the last one had, and a
+    // pop-out cannot correct that itself — its press is spent by the time the
+    // window exists. Pin back IS a press, though, so the correction lands here
+    // and the next pop-out simply opens right. Harmless when this came from the
+    // window closing itself: the resize is refused and the close carries on.
+    if(w&&!w.closed){
+      try{
+        const rb=card.querySelector('#rmt-body');
+        if(rb){const fs=fitSize(rb);w.resizeTo(fs.w+frameOf(w,0),fs.h+frameOf(w,1))}
+      }catch(e){}
+    }
     if(w)try{w.close()}catch(e){}
     if(r)try{r.close()}catch(e){}
   }
