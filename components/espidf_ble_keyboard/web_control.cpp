@@ -2884,7 +2884,11 @@ buildKeyboard();
         // Asked several times over for one change — the style, then the hidden
         // set behind its own fetch. Only the first has anything to say, and a
         // window that jumps once per ask is a window jumping about on screen.
-        if(lastFit&&lastFit.w===s.w&&lastFit.h===s.h)return;
+        // Within a few pixels counts as unchanged: a window resized to a whole
+        // number of device pixels comes back as a fractional CSS width on a
+        // scaled display, and rounding that up to ask again walks the window a
+        // pixel or two wider every time. A real change is tens of pixels.
+        if(lastFit&&Math.abs(lastFit.w-s.w)<=3&&Math.abs(lastFit.h-s.h)<=3)return;
         lastFit={w:s.w,h:s.h};
         // resizeTo takes the outer size, so add the frame this window actually
         // carries. Measured, not guessed: the opener had to guess when it asked
@@ -3152,7 +3156,10 @@ buildKeyboard();
     // screen. So the answer is what counts, not the asking: if the remote wants
     // the size it was last given, there is nothing to do, and any scale-to-fit
     // already worked out stays exactly as it was.
-    if(lastFit&&lastFit.w===s.w&&lastFit.h===s.h&&lastFit.z===zoom){
+    // Within a few pixels counts as unchanged, for the same reason as the pop-up
+    // window's copy: a fractional CSS width coming back from a whole number of
+    // device pixels, rounded up, would walk the window wider on every ask.
+    if(lastFit&&Math.abs(lastFit.w-s.w)<=3&&Math.abs(lastFit.h-s.h)<=3&&lastFit.z===zoom){
       pipWin.document.body.style.zoom=wasZoom;
       return;
     }
