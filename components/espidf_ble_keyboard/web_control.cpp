@@ -3164,10 +3164,14 @@ buildKeyboard();
       return;
     }
     lastFit={w:s.w,h:s.h,z:zoom};
-    // Content size, matching the width and height the window was asked for in the
-    // first place. No frame arithmetic: outerWidth cannot be trusted to describe
-    // what a window of this kind carries.
-    try{pipWin.resizeTo(s.w,s.h)}catch(e){}
+    // resizeTo sets the OUTER size, so the frame this window carries has to be
+    // added — without it the content comes out that much smaller than asked every
+    // single time, and the check below then scales the remote to fit a window that
+    // was never really that small. Bounded, because a window reporting a
+    // nonsensical frame (an iframe reports its parent's) is better ignored.
+    const fw=pipWin.outerWidth-pipWin.innerWidth,fh=pipWin.outerHeight-pipWin.innerHeight;
+    const sane=f=>isFinite(f)&&f>=0&&f<=100?f:0;
+    try{pipWin.resizeTo(s.w+sane(fw),s.h+sane(fh))}catch(e){}
     setTimeout(()=>{
       if(!pipWin||pipWin.closed)return;
       const w=pipWin.innerWidth,h=pipWin.innerHeight;
