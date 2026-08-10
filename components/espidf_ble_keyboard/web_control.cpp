@@ -298,11 +298,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    draw no body have page-coloured buttons which would disappear on the page
    colour. So an unshaped remote looks exactly as it does in the page, and a
    shaped one is left as its own silhouette with nothing squared off around it. */
-/* overflow-x, so the window can be asked for exactly the remote plus this padding
-   and no slack: a width a fraction of a pixel short would otherwise bring in a
-   horizontal scrollbar, and the slack that used to guard against that was split
-   by the centring and made the sides twice the top. Vertical scrolling stays. */
-.popout body{padding:2px;max-width:none;background:var(--card);overflow-x:hidden}
+/* No padding at all: the window is asked for exactly the remote, so what shows
+   around it is whatever the browser would not take off the size — nothing this
+   page adds. overflow-x because there is no slack left for a width a fraction of
+   a pixel short, which would otherwise bring in a horizontal scrollbar and cost
+   far more room than it saves. Vertical scrolling stays, for the case where a
+   remote is too tall to be scaled into the window it was given. */
+.popout body{padding:0;max-width:none;background:var(--card);overflow-x:hidden}
 .popout .card:not(#media-card){display:none}
 .popout .toolbar{display:none}
 .popout #media-card{background:none;border:none;padding:0;margin-bottom:0}
@@ -2847,11 +2849,16 @@ buildKeyboard();
     // rw/rh are the measurements before clamping — what the remote actually is,
     // which is what a scale-to-fit has to divide by. The clamped pair is only what
     // it is worth asking a window for.
-    // +4 is the body's 2px each side and nothing else, so every edge of the window
-    // shows the same margin. No slack: the ceil above already rounds up, and
-    // overflow-x on the body covers the fraction of a pixel that might remain.
-    return {w:Math.max(200,Math.min(900,Math.ceil(w)+4)),
-            h:Math.max(200,Math.min(maxH,Math.ceil(r.height)+4)),
+    // The remote and nothing else: the body adds no padding, so any gap left
+    // around it is the browser's, not ours. The ceil is the only rounding, and
+    // overflow-x on the body covers the fraction of a pixel it can leave behind.
+    // The floor is only against a degenerate request from a remote that has not
+    // drawn yet — it used to be 200, which is inside the range real remotes live
+    // in: a 194px one was asking for a 200px window and wearing the difference as
+    // 3px down each side while the top had none. The browser has a minimum of its
+    // own and is welcome to apply it.
+    return {w:Math.max(100,Math.min(900,Math.ceil(w))),
+            h:Math.max(100,Math.min(maxH,Math.ceil(r.height))),
             rw:w,rh:r.height};
   }
 
@@ -3176,7 +3183,7 @@ buildKeyboard();
       });
       // Already at or under the limit: shrinking further is not on the table.
       const floor=isFinite(small)&&small>0?Math.min(1,MINBTN/small):0.5;
-      const k=Math.max(floor,Math.min(w/(s.rw+4),h/(s.rh+4),1));
+      const k=Math.max(floor,Math.min(w/s.rw,h/s.rh,1));
       if(k<0.999)pipWin.document.body.style.zoom=(zoom/100)*k;
     },150);
   }
