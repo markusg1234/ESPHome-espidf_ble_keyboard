@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-e</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-f</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -2990,8 +2990,14 @@ buildKeyboard();
           win.removeEventListener('click',onGesture,true);
           if(win!==window)window.removeEventListener('click',onGesture,true);
           win.__blekbPending=false;
-          try{win.resizeTo(tw,th);log('applied on gesture',tw+'x'+th)}
-          catch(e2){log('still refused on gesture',e2&&e2.name)}
+          // Measured afresh, and not straight away. The click that wakes this up
+          // is very often the one that switched hosts, and the new style has not
+          // arrived yet — replaying the size worked out for the old remote would
+          // set the window wrong AND spend the gesture doing it, leaving the real
+          // size a click behind for ever after. A gesture is good for some
+          // seconds, so there is room to let the style land first.
+          log('gesture — refitting once the style has settled');
+          setTimeout(()=>{if(!win.closed)fitInto(win,el,baseZoom)},400);
         };
         win.addEventListener('click',onGesture,true);
         // The page's clicks count as much as the window's: this call is made from
