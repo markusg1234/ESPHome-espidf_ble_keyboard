@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-i</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-j</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -1002,6 +1002,13 @@ function refreshActiveTemplate(){
           // answers, so this fetch sees the new slot.
           bar.querySelectorAll('.host-btn').forEach(x=>x.classList.remove('active'));
           b.classList.add('active');
+          // The style this host uses came with /hosts, so it can be drawn now
+          // instead of a second from now when the device answers — and drawing it
+          // now is what lets the popped-out window be resized to it, because that
+          // resize only works inside a press and the answer arrives long after
+          // this one is over. If the switch fails, the next poll puts it back.
+          if(window.applyTemplate)window.applyTemplate(s.tpl||'default');
+          if(window.onRemoteFitNow)window.onRemoteFitNow();
           fetch('/api/ble_keyboard/switch_host?'+new URLSearchParams({slot:s.slot}),{method:'POST'})
             .then(loadHosts).catch(()=>{});
         },'active');
@@ -3303,6 +3310,11 @@ buildKeyboard();
     clearTimeout(fitT);
     fitT=setTimeout(fitPip,250);
   };
+  // The same fit, immediately and undebounced. For a caller that is inside a
+  // press and needs the resize to land while that press still counts: an
+  // always-on-top window is only resized from within a real event handler, and
+  // nothing on a timer — not 250ms later, not 400 — is allowed to do it.
+  window.onRemoteFitNow=function(){if(pipWin&&!pipWin.closed)fitPip()};
 
   // The picture-in-picture document has its own body, so the theme has to be
   // handed to it as it changes. Registered after the toggle's own handler, so the
