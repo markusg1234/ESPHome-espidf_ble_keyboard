@@ -2857,9 +2857,13 @@ buildKeyboard();
     // in: a 194px one was asking for a 200px window and wearing the difference as
     // 3px down each side while the top had none. The browser has a minimum of its
     // own and is welcome to apply it.
+    // Width is the remote's exactly — the body pads nothing at the sides. Height
+    // carries the body's 2px above and below, and must: a window asked for the
+    // remote's bare height cannot hold the remote plus that padding, and the 4px
+    // it is short by is enough to raise a scrollbar over the whole thing.
     return {w:Math.max(100,Math.min(900,Math.ceil(w))),
-            h:Math.max(100,Math.min(maxH,Math.ceil(r.height))),
-            rw:w,rh:r.height};
+            h:Math.max(100,Math.min(maxH,Math.ceil(r.height)+4)),
+            rw:w,rh:r.height+4};
   }
 
   // ── Inside the pop-up window ──
@@ -2890,12 +2894,11 @@ buildKeyboard();
         // pixel or two wider every time. A real change is tens of pixels.
         if(lastFit&&Math.abs(lastFit.w-s.w)<=3&&Math.abs(lastFit.h-s.h)<=3)return;
         lastFit={w:s.w,h:s.h};
-        // resizeTo takes the outer size, so add the frame this window actually
-        // carries. Measured, not guessed: the opener had to guess when it asked
-        // for the window (it allows for borders this one may not have), and being
-        // wider than asked leaves the surplus split down the two sides while the
-        // top keeps its 2px. From in here the frame is simply known.
-        try{window.resizeTo(s.w+(outerWidth-innerWidth),s.h+(outerHeight-innerHeight))}catch(e){}
+        // baseZoom 1, not the page's zoom: this page already applies that as a
+        // transform on #scalable, and a body zoom on top would apply it twice.
+        // fitInto measures what the window actually became and corrects it, which
+        // is also what finally stops a tall remote sitting behind a scrollbar.
+        fitInto(window,b,1);
       },250);
     };
     // Once on load for exactly that reason: the size this window was opened at
@@ -2942,6 +2945,53 @@ buildKeyboard();
   // The browser writes the failure text, not us, but it is the one string here
   // that reaches innerHTML — so it goes through the same treatment as any other.
   const esc2=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  // Sizes a window around the remote inside it, and it is the same job whichever
+  // kind of window that is. Nothing here assumes what resizeTo means: whether the
+  // number is the outer size or the content, what frame the window carries, and
+  // how a display at 1.75x rounds it are all things that can simply be measured
+  // afterwards. So it asks, looks at what it was actually given, and corrects
+  // once. Guessing at that arithmetic is what made the window creep wider on
+  // every pop-out. If the window still cannot hold the remote — a remote taller
+  // than the screen allows, most often — the remote is scaled down to fit it,
+  // but never past the point where its keys stop being usable.
+  function fitInto(win,el,baseZoom){
+    const doc=win.document;
+    doc.body.style.zoom=baseZoom;
+    const s=fitSize(el);
+    const sane=f=>isFinite(f)&&f>=0&&f<=200?f:0;
+    let tw=s.w+sane(win.outerWidth-win.innerWidth),th=s.h+sane(win.outerHeight-win.innerHeight);
+    const w0=win.innerWidth,h0=win.innerHeight;
+    try{win.resizeTo(tw,th)}catch(e){}
+    setTimeout(()=>{
+      if(win.closed)return;
+      const moved=win.innerWidth!==w0||win.innerHeight!==h0;
+      const ew=win.innerWidth-s.w,eh=win.innerHeight-s.h;
+      // Corrected only if the window actually answered, and only by a plausible
+      // amount. A window that ignored the request has an "error" measured against
+      // a size it never took, and asking for that difference back is how one ends
+      // up absurdly small. One correction, never a loop: repeating it is how a
+      // window walks across the screen.
+      if(moved&&Math.abs(ew)<=200&&Math.abs(eh)<=200&&(Math.abs(ew)>3||Math.abs(eh)>3)){
+        try{win.resizeTo(tw-ew,th-eh)}catch(e){}
+      }
+      setTimeout(()=>{
+        if(win.closed)return;
+        const w=win.innerWidth,h=win.innerHeight;
+        if(!w||!h)return;
+        // A few pixels short is not worth scaling a remote for — that is rounding,
+        // and shrinking everything by 2% to answer it is worse than the gap.
+        if(w>=s.rw-4&&h>=s.rh-4)return;   // it holds the remote; nothing to scale
+        const MINBTN=28;let small=Infinity;
+        el.querySelectorAll('.rmt-btn').forEach(b=>{const q=b.getBoundingClientRect();
+          if(q.width&&q.height)small=Math.min(small,q.width,q.height)});
+        const floor=isFinite(small)&&small>0?Math.min(1,MINBTN/small):0.5;
+        const k=Math.max(floor,Math.min(w/s.rw,h/s.rh,1));
+        if(k<0.999)doc.body.style.zoom=baseZoom*k;
+      },140);
+    },140);
+    return s;
+  }
 
   // Measured from the drawn remote (#rmt-body, not the card, which still has its
   // heading and padding while it is here in the page).
@@ -3164,39 +3214,8 @@ buildKeyboard();
       return;
     }
     lastFit={w:s.w,h:s.h,z:zoom};
-    // resizeTo sets the OUTER size, so the frame this window carries has to be
-    // added — without it the content comes out that much smaller than asked every
-    // single time, and the check below then scales the remote to fit a window that
-    // was never really that small. Bounded, because a window reporting a
-    // nonsensical frame (an iframe reports its parent's) is better ignored.
-    const fw=pipWin.outerWidth-pipWin.innerWidth,fh=pipWin.outerHeight-pipWin.innerHeight;
-    const sane=f=>isFinite(f)&&f>=0&&f<=100?f:0;
-    try{pipWin.resizeTo(s.w+sane(fw),s.h+sane(fh))}catch(e){}
-    setTimeout(()=>{
-      if(!pipWin||pipWin.closed)return;
-      const w=pipWin.innerWidth,h=pipWin.innerHeight;
-      if(!w||!h)return;
-      if(Math.abs(w-s.w)<=4&&Math.abs(h-s.h)<=4)return;   // it took the size
-      // Scaled against the remote's own measurements, NOT against what was asked
-      // for: that figure is clamped to the screen, so a remote taller than the
-      // display would be scaled by far too little and still hang out of the
-      // window. The +4 is the body's 2px of padding, which the zoom scales too.
-      // How far it may shrink is decided by the buttons, not by a flat fraction:
-      // a style of 64px keys can give up a third of itself and still be tappable,
-      // while one already drawn at 36px cannot. So find the smallest key on screen
-      // and never take it below MINBTN. Past that the remote scrolls instead —
-      // a key too small to hit is worse than one that needs scrolling to.
-      const MINBTN=28;
-      let small=Infinity;
-      card.querySelectorAll('.rmt-btn').forEach(el=>{
-        const q=el.getBoundingClientRect();
-        if(q.width&&q.height)small=Math.min(small,q.width,q.height);
-      });
-      // Already at or under the limit: shrinking further is not on the table.
-      const floor=isFinite(small)&&small>0?Math.min(1,MINBTN/small):0.5;
-      const k=Math.max(floor,Math.min(w/s.rw,h/s.rh,1));
-      if(k<0.999)pipWin.document.body.style.zoom=(zoom/100)*k;
-    },150);
+    pipWin.document.body.style.zoom=wasZoom;   // fitInto sets it from scratch
+    fitInto(pipWin,b,zoom/100);
   }
   let fitT=null;
   window.onRemoteResize=function(){
