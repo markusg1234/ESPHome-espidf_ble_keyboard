@@ -2816,10 +2816,29 @@ buildKeyboard();
   // of slack, so a sub-pixel width cannot round up into a scrollbar. Clamped to
   // what still fits on the screen.
   function fitSize(el){
-    const r=el.getBoundingClientRect();
+    // The size the remote WANTS, not the size it has been given. A style that
+    // paints a body of its own carries a max-width, so the two are the same. A
+    // style that paints none is a plain block stretched to whatever holds it —
+    // and its rows spread their keys out to match (the default style pushes them
+    // apart with spacers), so nothing about its rect, or about where its keys
+    // are, describes the remote. Asking for a window that wide gets one the
+    // browser caps, and the fallback then shrinks the keys of the one style that
+    // never needed shrinking. Laying it out at max-content collapses the spacers
+    // and puts each row on a single line, which is the width it actually wants;
+    // a style with its own max-width is unaffected, since max-width still wins.
+    const prev=el.style.width;
+    el.style.width='max-content';
+    const nat=el.getBoundingClientRect();
+    el.style.width=prev;
+    const r=nat.width>0?nat:el.getBoundingClientRect();
+    const w=r.width;
     const maxH=((window.screen&&screen.availHeight)||900)-80;
-    return {w:Math.max(200,Math.min(900,Math.ceil(r.width)+8)),
-            h:Math.max(200,Math.min(maxH,Math.ceil(r.height)+8))};
+    // rw/rh are the measurements before clamping — what the remote actually is,
+    // which is what a scale-to-fit has to divide by. The clamped pair is only what
+    // it is worth asking a window for.
+    return {w:Math.max(200,Math.min(900,Math.ceil(w)+8)),
+            h:Math.max(200,Math.min(maxH,Math.ceil(r.height)+8)),
+            rw:w,rh:r.height};
   }
 
   // ── Inside the pop-up window ──
@@ -3067,7 +3086,6 @@ buildKeyboard();
     const b=card.querySelector('#rmt-body');
     if(!b)return;
     pipWin.document.body.style.zoom=zoom/100;
-    const r=b.getBoundingClientRect();   // what the remote really measures, unclamped
     const s=fitSize(b);
     // Content size, matching the width and height the window was asked for in the
     // first place. No frame arithmetic: outerWidth cannot be trusted to describe
@@ -3095,7 +3113,7 @@ buildKeyboard();
       });
       // Already at or under the limit: shrinking further is not on the table.
       const floor=isFinite(small)&&small>0?Math.min(1,MINBTN/small):0.5;
-      const k=Math.max(floor,Math.min(w/(r.width+4),h/(r.height+4),1));
+      const k=Math.max(floor,Math.min(w/(s.rw+4),h/(s.rh+4),1));
       if(k<0.999)pipWin.document.body.style.zoom=(zoom/100)*k;
     },150);
   }
