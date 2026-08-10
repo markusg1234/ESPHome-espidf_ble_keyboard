@@ -2866,7 +2866,7 @@ buildKeyboard();
     // page draws the default first and corrects it once /hosts answers, and that
     // should be one resize rather than two. Only for a window opened by script:
     // a bookmarked #remote tab is not ours to resize.
-    let fitT=null;
+    let fitT=null,lastFit=null;
     window.onRemoteResize=function(){
       if(!window.opener)return;
       clearTimeout(fitT);
@@ -2874,10 +2874,22 @@ buildKeyboard();
         const b=document.getElementById('rmt-body');
         if(!b)return;
         const s=fitSize(b);
-        // resizeTo takes the outer size, so add whatever frame this window carries.
+        // Asked several times over for one change — the style, then the hidden
+        // set behind its own fetch. Only the first has anything to say, and a
+        // window that jumps once per ask is a window jumping about on screen.
+        if(lastFit&&lastFit.w===s.w&&lastFit.h===s.h)return;
+        lastFit={w:s.w,h:s.h};
+        // resizeTo takes the outer size, so add the frame this window actually
+        // carries. Measured, not guessed: the opener had to guess when it asked
+        // for the window (it allows for borders this one may not have), and being
+        // wider than asked leaves the surplus split down the two sides while the
+        // top keeps its 2px. From in here the frame is simply known.
         try{window.resizeTo(s.w+(outerWidth-innerWidth),s.h+(outerHeight-innerHeight))}catch(e){}
       },250);
     };
+    // Once on load for exactly that reason: the size this window was opened at
+    // came from the opener's guess, and correcting it needs no style change.
+    window.addEventListener('load',()=>window.onRemoteResize());
     localStorage.setItem(KEY,'1');   // and again after a reload of this window
     // Pin back pressed on the page that opened us: a storage event fires in every
     // OTHER document of this origin, which is exactly this one.
