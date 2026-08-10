@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-m</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-n</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -3222,6 +3222,12 @@ buildKeyboard();
           // come out right.
           try{console.log('[blekb fit] requested',opts.width+'x'+opts.height,
                           '| opened as',w.innerWidth+'x'+w.innerHeight)}catch(e){}
+          // Armed straight away, not only once a resize has been refused. Pop out
+          // runs on pointerdown, so the click ending that same press is still to
+          // come — and it is a gesture, which is the one thing that can size this
+          // window. Arming now is what lets a single press open the window AND
+          // put it right, instead of leaving it for whatever gets clicked next.
+          armGestureFit(w,card.querySelector('#rmt-body')||card,zoom/100);
           setTimeout(()=>{if(pipWin===w)fitPip()},250);
           // And again whenever the remote changes size for any reason — the host's
           // real style and its hidden buttons each arrive on their own fetch, well
@@ -3264,7 +3270,12 @@ buildKeyboard();
     poll=setInterval(()=>{if(popRef&&popRef.closed)attach()},1000);
   }
 
-  popBtn.addEventListener('click',popOut);
+  // pointerdown, not click — and the whole reason is the window's size. Opening
+  // on the press means the click that ends that same press is still to come, and
+  // that click is a fresh gesture arriving when the window already exists, which
+  // is the only moment one can be sized. On click, the press is over before the
+  // window is there and the size has to wait for whatever is pressed next.
+  popBtn.addEventListener('pointerdown',popOut);
 
   // Whether always-on-top is worth offering here. The API being present is not
   // enough: an address trusted only through the browser's insecure-origin flag
