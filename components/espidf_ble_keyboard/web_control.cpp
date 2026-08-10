@@ -957,11 +957,15 @@ function refreshActiveTemplate(){
       // The style rides along on this same response, so a host switch made
       // anywhere — another tab, a YAML button, Home Assistant — re-skins the
       // remote here on the next poll.
+      let drew=false;
       if(window.applyTemplate){
         const act=(d.slots||[]).find(s=>s.slot===d.active);
-        window.applyTemplate((act&&act.tpl)||'default');
+        drew=window.applyTemplate((act&&act.tpl)||'default')===true;
       }
-      if(window.applyHidden)window.applyHidden(false);
+      // Only when the style stayed put: drawing a new one has already applied the
+      // hidden set, forced, and asking again is a second identical fetch — and a
+      // second redraw of the same thing a moment later.
+      if(window.applyHidden&&!drew)window.applyHidden(false);
       if(window.applyRepeat)window.applyRepeat(false);
       if(window.applyHold)window.applyHold(false);
       // Tell the other window, if the remote has been popped out into one. It
@@ -2774,6 +2778,9 @@ buildKeyboard();
     // shape — which is what a host switch usually brings — has to take the window
     // with it. Defined by whichever side owns that window; absent when docked.
     if(window.onRemoteResize)window.onRemoteResize();
+    // Says it drew, so the caller knows the hidden set has already been applied
+    // (forced, just above) and need not ask for it a second time.
+    return true;
   };
   // Draw the full remote at once so the card is usable before any fetch lands,
   // then correct it to the active host's style. The host bar can't do this for
@@ -2928,6 +2935,7 @@ buildKeyboard();
     // Cleared first: closing a picture-in-picture window fires its pagehide, which
     // lands back here, and the card has to be home before that window goes.
     ph=null;
+    lastFit=null;   // the next window starts with no history of its own
     const w=pipWin,r=popRef;pipWin=null;popRef=null;
     if(poll){clearInterval(poll);poll=null}
     if(redock){clearTimeout(redock);redock=null}
@@ -3081,12 +3089,25 @@ buildKeyboard();
   // kinds of window and quietly ignored for others, and there is no asking in
   // advance. The zoom is the page's to begin with, and only ever reduced from
   // there, so a window big enough shows the remote at exactly the page's size.
+  let lastFit=null;
   function fitPip(){
     if(!pipWin||pipWin.closed)return;
     const b=card.querySelector('#rmt-body');
     if(!b)return;
+    // Measured at the page's zoom, so reset before measuring rather than after.
+    const wasZoom=pipWin.document.body.style.zoom;
     pipWin.document.body.style.zoom=zoom/100;
     const s=fitSize(b);
+    // Asked several times over for one change — the style, then the hidden set
+    // behind its own fetch — and each of those is a window jumping about on
+    // screen. So the answer is what counts, not the asking: if the remote wants
+    // the size it was last given, there is nothing to do, and any scale-to-fit
+    // already worked out stays exactly as it was.
+    if(lastFit&&lastFit.w===s.w&&lastFit.h===s.h&&lastFit.z===zoom){
+      pipWin.document.body.style.zoom=wasZoom;
+      return;
+    }
+    lastFit={w:s.w,h:s.h,z:zoom};
     // Content size, matching the width and height the window was asked for in the
     // first place. No frame arithmetic: outerWidth cannot be trusted to describe
     // what a window of this kind carries.
