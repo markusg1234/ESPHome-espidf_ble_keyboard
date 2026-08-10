@@ -2959,15 +2959,12 @@ buildKeyboard();
     const doc=win.document;
     doc.body.style.zoom=baseZoom;
     const s=fitSize(el);
-    // Nothing to do when the window already holds the remote without much room
-    // to spare. Every resize is a request the browser answers in its own way —
-    // an always-on-top window comes back a little wider than asked — and asking
-    // again each time it is opened is what let repeated pop-outs ratchet it
-    // wider, a bit per cycle, while the remote inside never changed. A mismatch
-    // worth acting on still is: too small to hold the remote at all, or a
-    // window's worth of slack after switching to a smaller style.
-    const SLACK=40,cw=win.innerWidth,ch=win.innerHeight;
-    if(cw&&ch&&cw>=s.rw-1&&ch>=s.rh-1&&cw-s.rw<=SLACK&&ch-s.rh<=SLACK)return s;
+    // A window with no size yet cannot be measured against: the frame and the
+    // error would both be computed from nothing, and the wrong size asked for —
+    // which the browser then remembers, so the next window opens from there. This
+    // is the difference between fitting on a host switch, where the window has
+    // been open for a while, and fitting the instant it is created.
+    if(!win.innerWidth||!win.innerHeight)return s;
     const sane=f=>isFinite(f)&&f>=0&&f<=200?f:0;
     let tw=s.w+sane(win.outerWidth-win.innerWidth),th=s.h+sane(win.outerHeight-win.innerHeight);
     const w0=win.innerWidth,h0=win.innerHeight;
@@ -3123,10 +3120,13 @@ buildKeyboard();
           // the whole of Pin back for it.
           w.addEventListener('pagehide',attach);
           pipWin=w;
-          // The window was ASKED for the right size; this checks it was given it,
-          // and scales the remote to fit if it wasn't. Without it a browser that
-          // clamps or ignores the request shows a remote cut off from the start.
-          fitPip();
+          // Not immediately: a window created a moment ago has no size to measure
+          // against yet, and fitting one is how the wrong size gets asked for —
+          // and then remembered by the browser, so the next window opens from
+          // there and the one after that from there again. Fitting it once it has
+          // settled is the same thing a host switch does, and that has always
+          // come out right.
+          setTimeout(()=>{if(pipWin===w)fitPip()},250);
           // And again whenever the remote changes size for any reason — the host's
           // real style and its hidden buttons each arrive on their own fetch, well
           // after this window was opened and fitted to whatever was drawn first.
