@@ -3665,9 +3665,17 @@ class BleKbWebHandler : public AsyncWebHandler {
     return std::string(ref.begin(), ref.end());
   }
 
+  // A trailing slash is answered as well as the bare path. Typing the address by
+  // hand, or copying it out of a browser that tidied it up, gets you
+  // /ble_keyboard/ — and matching only the bare form left that silently
+  // unhandled, which looks exactly like the device being unreachable.
+  static bool is_page(const std::string &url) {
+    return url == "/ble_keyboard" || url == "/ble_keyboard/";
+  }
+
   bool canHandle(AsyncWebServerRequest *request) const override {
     std::string url = get_url(request);
-    return url == "/ble_keyboard" ||
+    return is_page(url) ||
            url.rfind("/api/ble_keyboard/", 0) == 0;
   }
 
@@ -3686,7 +3694,7 @@ class BleKbWebHandler : public AsyncWebHandler {
       };
 
     // Serve the page — use Progmem response to avoid heap-copying the large HTML
-    if (url == "/ble_keyboard") {
+    if (is_page(url)) {
       AsyncWebServerResponse* response = request->beginResponse(
           200, "text/html",
           reinterpret_cast<const uint8_t *>(PAGE_HTML), sizeof(PAGE_HTML) - 1);
