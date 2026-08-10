@@ -2959,6 +2959,15 @@ buildKeyboard();
     const doc=win.document;
     doc.body.style.zoom=baseZoom;
     const s=fitSize(el);
+    // Nothing to do when the window already holds the remote without much room
+    // to spare. Every resize is a request the browser answers in its own way —
+    // an always-on-top window comes back a little wider than asked — and asking
+    // again each time it is opened is what let repeated pop-outs ratchet it
+    // wider, a bit per cycle, while the remote inside never changed. A mismatch
+    // worth acting on still is: too small to hold the remote at all, or a
+    // window's worth of slack after switching to a smaller style.
+    const SLACK=40,cw=win.innerWidth,ch=win.innerHeight;
+    if(cw&&ch&&cw>=s.rw-1&&ch>=s.rh-1&&cw-s.rw<=SLACK&&ch-s.rh<=SLACK)return s;
     const sane=f=>isFinite(f)&&f>=0&&f<=200?f:0;
     let tw=s.w+sane(win.outerWidth-win.innerWidth),th=s.h+sane(win.outerHeight-win.innerHeight);
     const w0=win.innerWidth,h0=win.innerHeight;
