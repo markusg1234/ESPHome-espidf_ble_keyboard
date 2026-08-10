@@ -3082,10 +3082,20 @@ buildKeyboard();
       // for: that figure is clamped to the screen, so a remote taller than the
       // display would be scaled by far too little and still hang out of the
       // window. The +4 is the body's 2px of padding, which the zoom scales too.
-      // Floored: shrinking a remote to a fifth of its size to make it fit a window
-      // that will not grow leaves buttons nobody can hit. Past that point a remote
-      // that scrolls is the better of two bad answers.
-      const k=Math.max(0.5,Math.min(w/(r.width+4),h/(r.height+4),1));
+      // How far it may shrink is decided by the buttons, not by a flat fraction:
+      // a style of 64px keys can give up a third of itself and still be tappable,
+      // while one already drawn at 36px cannot. So find the smallest key on screen
+      // and never take it below MINBTN. Past that the remote scrolls instead —
+      // a key too small to hit is worse than one that needs scrolling to.
+      const MINBTN=28;
+      let small=Infinity;
+      card.querySelectorAll('.rmt-btn').forEach(el=>{
+        const q=el.getBoundingClientRect();
+        if(q.width&&q.height)small=Math.min(small,q.width,q.height);
+      });
+      // Already at or under the limit: shrinking further is not on the table.
+      const floor=isFinite(small)&&small>0?Math.min(1,MINBTN/small):0.5;
+      const k=Math.max(floor,Math.min(w/(r.width+4),h/(r.height+4),1));
       if(k<0.999)pipWin.document.body.style.zoom=(zoom/100)*k;
     },150);
   }
