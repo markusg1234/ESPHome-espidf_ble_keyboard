@@ -2992,6 +2992,10 @@ buildKeyboard();
           // the whole of Pin back for it.
           w.addEventListener('pagehide',attach);
           pipWin=w;
+          // The window was ASKED for the right size; this checks it was given it,
+          // and scales the remote to fit if it wasn't. Without it a browser that
+          // clamps or ignores the request shows a remote cut off from the start.
+          fitPip();
           return;
         }catch(e){
           // Never leave an empty always-on-top window floating: the old code
@@ -3063,6 +3067,7 @@ buildKeyboard();
     const b=card.querySelector('#rmt-body');
     if(!b)return;
     pipWin.document.body.style.zoom=zoom/100;
+    const r=b.getBoundingClientRect();   // what the remote really measures, unclamped
     const s=fitSize(b);
     // Content size, matching the width and height the window was asked for in the
     // first place. No frame arithmetic: outerWidth cannot be trusted to describe
@@ -3073,7 +3078,14 @@ buildKeyboard();
       const w=pipWin.innerWidth,h=pipWin.innerHeight;
       if(!w||!h)return;
       if(Math.abs(w-s.w)<=4&&Math.abs(h-s.h)<=4)return;   // it took the size
-      const k=Math.min(w/s.w,h/s.h,1);
+      // Scaled against the remote's own measurements, NOT against what was asked
+      // for: that figure is clamped to the screen, so a remote taller than the
+      // display would be scaled by far too little and still hang out of the
+      // window. The +4 is the body's 2px of padding, which the zoom scales too.
+      // Floored: shrinking a remote to a fifth of its size to make it fit a window
+      // that will not grow leaves buttons nobody can hit. Past that point a remote
+      // that scrolls is the better of two bad answers.
+      const k=Math.max(0.5,Math.min(w/(r.width+4),h/(r.height+4),1));
       if(k<0.999)pipWin.document.body.style.zoom=(zoom/100)*k;
     },150);
   }
