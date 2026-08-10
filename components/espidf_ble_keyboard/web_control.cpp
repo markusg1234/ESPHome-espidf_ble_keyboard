@@ -298,7 +298,11 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    draw no body have page-coloured buttons which would disappear on the page
    colour. So an unshaped remote looks exactly as it does in the page, and a
    shaped one is left as its own silhouette with nothing squared off around it. */
-.popout body{padding:2px;max-width:none;background:var(--card)}
+/* overflow-x, so the window can be asked for exactly the remote plus this padding
+   and no slack: a width a fraction of a pixel short would otherwise bring in a
+   horizontal scrollbar, and the slack that used to guard against that was split
+   by the centring and made the sides twice the top. Vertical scrolling stays. */
+.popout body{padding:2px;max-width:none;background:var(--card);overflow-x:hidden}
 .popout .card:not(#media-card){display:none}
 .popout .toolbar{display:none}
 .popout #media-card{background:none;border:none;padding:0;margin-bottom:0}
@@ -2843,8 +2847,11 @@ buildKeyboard();
     // rw/rh are the measurements before clamping — what the remote actually is,
     // which is what a scale-to-fit has to divide by. The clamped pair is only what
     // it is worth asking a window for.
-    return {w:Math.max(200,Math.min(900,Math.ceil(w)+8)),
-            h:Math.max(200,Math.min(maxH,Math.ceil(r.height)+8)),
+    // +4 is the body's 2px each side and nothing else, so every edge of the window
+    // shows the same margin. No slack: the ceil above already rounds up, and
+    // overflow-x on the body covers the fraction of a pixel that might remain.
+    return {w:Math.max(200,Math.min(900,Math.ceil(w)+4)),
+            h:Math.max(200,Math.min(maxH,Math.ceil(r.height)+4)),
             rw:w,rh:r.height};
   }
 
