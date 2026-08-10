@@ -2866,7 +2866,7 @@ buildKeyboard();
     // page draws the default first and corrects it once /hosts answers, and that
     // should be one resize rather than two. Only for a window opened by script:
     // a bookmarked #remote tab is not ours to resize.
-    let fitT=null,lastFit=null;
+    let fitT=null,lastFit=null,rmtRO=null;
     window.onRemoteResize=function(){
       if(!window.opener)return;
       clearTimeout(fitT);
@@ -2890,6 +2890,20 @@ buildKeyboard();
     // Once on load for exactly that reason: the size this window was opened at
     // came from the opener's guess, and correcting it needs no style change.
     window.addEventListener('load',()=>window.onRemoteResize());
+    // And then whenever the remote actually changes size, whatever the cause —
+    // the host's real style arriving, its hidden buttons collapsing a row, a font
+    // finishing loading. Each of those lands on its own fetch, so a window fitted
+    // once at load is fitted to whichever of them had not happened yet; watching
+    // the remote catches them all without guessing which is last. This cannot
+    // feed itself: fitSize borrows the element's width to measure and gives it
+    // back in the same frame, so the size an observer sees never changed.
+    // Held in a variable deliberately: an observer nothing refers to can be
+    // collected while it is still observing, and then the window quietly stops
+    // following the remote some minutes in.
+    if(window.ResizeObserver){
+      const rb=document.getElementById('rmt-body');
+      if(rb){rmtRO=new ResizeObserver(()=>window.onRemoteResize());rmtRO.observe(rb)}
+    }
     localStorage.setItem(KEY,'1');   // and again after a reload of this window
     // Pin back pressed on the page that opened us: a storage event fires in every
     // OTHER document of this origin, which is exactly this one.
@@ -2908,7 +2922,7 @@ buildKeyboard();
   const onTop=document.getElementById('rmt-ontop');
   const onTopLbl=document.getElementById('rmt-ontop-lbl');
   if(!popBtn)return;
-  let ph=null,popRef=null,pipWin=null,poll=null,redock=null;
+  let ph=null,popRef=null,pipWin=null,poll=null,redock=null,pipRO=null;
   // Cleared the first time this address proves it cannot show one — after that
   // Pop out goes straight to window.open, in the click itself, which is also what
   // keeps the pop-up blocker quiet: an open delayed behind an await reads as
@@ -2955,6 +2969,7 @@ buildKeyboard();
     // lands back here, and the card has to be home before that window goes.
     ph=null;
     lastFit=null;   // the next window starts with no history of its own
+    if(pipRO){pipRO.disconnect();pipRO=null}
     const w=pipWin,r=popRef;pipWin=null;popRef=null;
     if(poll){clearInterval(poll);poll=null}
     if(redock){clearTimeout(redock);redock=null}
@@ -3042,6 +3057,14 @@ buildKeyboard();
           // and scales the remote to fit if it wasn't. Without it a browser that
           // clamps or ignores the request shows a remote cut off from the start.
           fitPip();
+          // And again whenever the remote changes size for any reason — the host's
+          // real style and its hidden buttons each arrive on their own fetch, well
+          // after this window was opened and fitted to whatever was drawn first.
+          if(window.ResizeObserver){
+            const rb=card.querySelector('#rmt-body');
+            if(rb){pipRO=new ResizeObserver(()=>{if(window.onRemoteResize)window.onRemoteResize()});
+                   pipRO.observe(rb)}
+          }
           return;
         }catch(e){
           // Never leave an empty always-on-top window floating: the old code
