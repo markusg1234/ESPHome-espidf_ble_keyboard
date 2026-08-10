@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-c</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-d</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -2974,7 +2974,27 @@ buildKeyboard();
     const w0=win.innerWidth,h0=win.innerHeight;
     log('remote',Math.round(s.rw)+'x'+Math.round(s.rh),'| window',w0+'x'+h0,
         '| outer',win.outerWidth+'x'+win.outerHeight,'| asking',tw+'x'+th);
-    try{win.resizeTo(tw,th)}catch(e){log('resizeTo threw',e&&e.name)}
+    // An always-on-top window will not be resized without a user gesture, and a
+    // fit that runs on a timer has none: requestWindow consumes the activation
+    // from the click that opened it, and the deadline for the rest has passed by
+    // the time the remote has been measured. (A host switch escapes this — that
+    // fit runs inside the activation from the click on the host button, which is
+    // why only that path ever worked.) Refused, then, the size is applied on the
+    // next press inside the window instead: pressing a key on a remote is a
+    // gesture, so it snaps to size the moment it is used, once per window.
+    try{win.resizeTo(tw,th)}catch(e){
+      log('resizeTo threw',e&&e.name,'— deferring to the next press');
+      if(!win.__blekbPending){
+        win.__blekbPending=true;
+        const onGesture=()=>{
+          win.removeEventListener('click',onGesture,true);
+          win.__blekbPending=false;
+          try{win.resizeTo(tw,th);log('applied on gesture',tw+'x'+th)}
+          catch(e2){log('still refused on gesture',e2&&e2.name)}
+        };
+        win.addEventListener('click',onGesture,true);
+      }
+    }
     setTimeout(()=>{
       if(win.closed)return;
       const moved=win.innerWidth!==w0||win.innerHeight!==h0;
