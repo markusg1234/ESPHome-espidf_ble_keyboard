@@ -298,13 +298,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    draw no body have page-coloured buttons which would disappear on the page
    colour. So an unshaped remote looks exactly as it does in the page, and a
    shaped one is left as its own silhouette with nothing squared off around it. */
-/* No padding at all: the window is asked for exactly the remote, so what shows
-   around it is whatever the browser would not take off the size — nothing this
-   page adds. overflow-x because there is no slack left for a width a fraction of
-   a pixel short, which would otherwise bring in a horizontal scrollbar and cost
-   far more room than it saves. Vertical scrolling stays, for the case where a
-   remote is too tall to be scaled into the window it was given. */
-.popout body{padding:0;max-width:none;background:var(--card);overflow-x:hidden}
+/* 2px above and below, none at the sides — the window is asked for the remote's
+   exact width, so anything showing beside it is the browser refusing to go that
+   narrow rather than something this page adds. overflow-x because there is no
+   horizontal slack left: a width a fraction of a pixel short would otherwise
+   bring in a scrollbar costing far more room than it saves. Vertical scrolling
+   stays, for a remote too tall to be scaled into the window it was given. */
+.popout body{padding:2px 0;max-width:none;background:var(--card);overflow-x:hidden}
 .popout .card:not(#media-card){display:none}
 .popout .toolbar{display:none}
 .popout #media-card{background:none;border:none;padding:0;margin-bottom:0}
