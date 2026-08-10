@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-d</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-e</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -2988,11 +2988,17 @@ buildKeyboard();
         win.__blekbPending=true;
         const onGesture=()=>{
           win.removeEventListener('click',onGesture,true);
+          if(win!==window)window.removeEventListener('click',onGesture,true);
           win.__blekbPending=false;
           try{win.resizeTo(tw,th);log('applied on gesture',tw+'x'+th)}
           catch(e2){log('still refused on gesture',e2&&e2.name)}
         };
         win.addEventListener('click',onGesture,true);
+        // The page's clicks count as much as the window's: this call is made from
+        // the page, so it is the page's activation the browser weighs — which is
+        // exactly why clicking Pop out a second time happened to fix the size.
+        // Whichever comes first, a press on the remote or anything on the page.
+        if(win!==window)window.addEventListener('click',onGesture,true);
       }
     }
     setTimeout(()=>{
