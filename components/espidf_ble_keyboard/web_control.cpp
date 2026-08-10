@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-f</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-g</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -2955,6 +2955,43 @@ buildKeyboard();
   // every pop-out. If the window still cannot hold the remote — a remote taller
   // than the screen allows, most often — the remote is scaled down to fit it,
   // but never past the point where its keys stop being usable.
+  // The frame a window carries, in one axis. Bounded, because a window that
+  // reports a nonsensical one (an iframe reports its parent's) is better ignored.
+  function frameOf(win,vert){
+    const f=vert?win.outerHeight-win.innerHeight:win.outerWidth-win.innerWidth;
+    return isFinite(f)&&f>=0&&f<=200?f:0;
+  }
+
+  // An always-on-top window refuses to be resized without a user gesture, so one
+  // that has refused gets a listener for the rest of its life: every click, from
+  // this page or from the window itself, is a chance to put it right.
+  //
+  // It measures afresh each time and does NOTHING when the size is already right.
+  // That second part is the whole trick. The click that switches hosts arrives
+  // before the new style does, so a listener that resized on it would set the old
+  // size and spend the gesture — leaving the real size to wait for another click,
+  // which is exactly the two clicks a host change came to need. Skipping instead
+  // leaves the gesture intact for the fit that follows the style, a moment later.
+  function armGestureFit(win,el,baseZoom){
+    if(win.__blekbArmed)return;
+    win.__blekbArmed=true;
+    const onClick=()=>{
+      if(win.closed){
+        win.removeEventListener('click',onClick,true);
+        if(win!==window)window.removeEventListener('click',onClick,true);
+        return;
+      }
+      const s=fitSize(el);
+      if(Math.abs(win.innerWidth-s.w)<=3&&Math.abs(win.innerHeight-s.h)<=3)return;
+      try{
+        win.resizeTo(s.w+frameOf(win,0),s.h+frameOf(win,1));
+        try{console.log('[blekb fit] put right on a click:',s.w+'x'+s.h)}catch(e){}
+      }catch(e){}
+    };
+    win.addEventListener('click',onClick,true);
+    if(win!==window)window.addEventListener('click',onClick,true);
+  }
+
   function fitInto(win,el,baseZoom){
     const doc=win.document;
     doc.body.style.zoom=baseZoom;
@@ -2969,43 +3006,19 @@ buildKeyboard();
     // for, and what the window actually became. Remove with the -dev-c badge.
     const log=(...a)=>{try{console.log('[blekb fit]',...a)}catch(e){}};
     if(!win.innerWidth||!win.innerHeight){log('window has no size yet — skipped');return s}
-    const sane=f=>isFinite(f)&&f>=0&&f<=200?f:0;
-    let tw=s.w+sane(win.outerWidth-win.innerWidth),th=s.h+sane(win.outerHeight-win.innerHeight);
+    let tw=s.w+frameOf(win,0),th=s.h+frameOf(win,1);
     const w0=win.innerWidth,h0=win.innerHeight;
     log('remote',Math.round(s.rw)+'x'+Math.round(s.rh),'| window',w0+'x'+h0,
         '| outer',win.outerWidth+'x'+win.outerHeight,'| asking',tw+'x'+th);
     // An always-on-top window will not be resized without a user gesture, and a
-    // fit that runs on a timer has none: requestWindow consumes the activation
-    // from the click that opened it, and the deadline for the rest has passed by
-    // the time the remote has been measured. (A host switch escapes this — that
-    // fit runs inside the activation from the click on the host button, which is
-    // why only that path ever worked.) Refused, then, the size is applied on the
-    // next press inside the window instead: pressing a key on a remote is a
-    // gesture, so it snaps to size the moment it is used, once per window.
+    // fit on a timer has none: requestWindow spends the activation from the click
+    // that opened the window. (A host switch escapes it — that fit runs inside
+    // the activation from the click on the host button, which is why that path
+    // alone ever worked.) Refused, it is handed to armGestureFit, which puts the
+    // window right on the next click from anywhere.
     try{win.resizeTo(tw,th)}catch(e){
-      log('resizeTo threw',e&&e.name,'— deferring to the next press');
-      if(!win.__blekbPending){
-        win.__blekbPending=true;
-        const onGesture=()=>{
-          win.removeEventListener('click',onGesture,true);
-          if(win!==window)window.removeEventListener('click',onGesture,true);
-          win.__blekbPending=false;
-          // Measured afresh, and not straight away. The click that wakes this up
-          // is very often the one that switched hosts, and the new style has not
-          // arrived yet — replaying the size worked out for the old remote would
-          // set the window wrong AND spend the gesture doing it, leaving the real
-          // size a click behind for ever after. A gesture is good for some
-          // seconds, so there is room to let the style land first.
-          log('gesture — refitting once the style has settled');
-          setTimeout(()=>{if(!win.closed)fitInto(win,el,baseZoom)},400);
-        };
-        win.addEventListener('click',onGesture,true);
-        // The page's clicks count as much as the window's: this call is made from
-        // the page, so it is the page's activation the browser weighs — which is
-        // exactly why clicking Pop out a second time happened to fix the size.
-        // Whichever comes first, a press on the remote or anything on the page.
-        if(win!==window)window.addEventListener('click',onGesture,true);
-      }
+      log('resizeTo threw',e&&e.name,'— waiting for a click');
+      armGestureFit(win,el,baseZoom);
     }
     setTimeout(()=>{
       if(win.closed)return;
