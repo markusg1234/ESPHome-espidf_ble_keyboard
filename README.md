@@ -1627,11 +1627,13 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 
 ### Popping the remote out
 
-**Pop out** in the Remote heading moves the remote into a window of its own, leaving a placeholder in the page. Closing that window puts the remote back exactly where it was, including wherever you have since dragged it to — or press **Pin back** on the placeholder, which does the same without going to find the window first. What you get is the remote and nothing else — no host bar, no toolbar, no card behind it. The window opens sized to the remote it holds and no larger, so there is as little window around it as a window can have — and it resizes itself when the remote changes shape, so switching to a host whose style is a different size takes the window with it. Where you put the window is remembered; its size always follows the remote. Some browsers refuse to resize an always-on-top window once it is open — where that happens the remote is scaled to fit the window instead, so a bigger style is never left cut off. It is only scaled as far as its keys can take, though: nothing shrinks below a usable button, and past that point the remote scrolls rather than becoming unhittable. It still follows the active host, re-skinning when you switch machines; switching them stays on the page you popped it out of.
+**Pop out** in the Remote heading moves the remote into a window of its own, leaving a placeholder in the page. Closing that window puts the remote back exactly where it was, including wherever you have since dragged it to — or press **Pin back** on the placeholder, which does the same without going to find the window first. What you get is the remote and nothing else — no host bar, no toolbar, no card behind it. The window opens sized to the remote it holds and no larger, so there is as little window around it as a window can have — and it resizes itself when the remote changes shape, so switching to a host whose style is a different size takes the window with it. Where you put the window is remembered; its size always follows the remote. It still follows the active host too, re-skinning when you switch machines; switching them stays on the page you popped it out of.
+
+**The always-on-top window is a little different**, because browsers only allow one to be resized during a click. It therefore settles on your first press rather than the instant it appears: pop it out and it may open with a small margin around the remote, which disappears as soon as you press anything. Switching hosts sizes it within that same press, so it follows the new style straight away. Where a window cannot be sized at all, the remote is scaled to fit it instead — but only as far as its keys can take: nothing shrinks below a usable button, and past that point the remote scrolls rather than becoming unhittable.
 
 That window is this same page at `http://<device>/ble_keyboard#remote`, which shows the remote and nothing else. You can open that address directly — bookmark it, or add it to a phone's home screen — for a remote-only page without popping anything out. It is drawn at whatever zoom the page is set to, so the remote does not change size by being moved; the zoom and theme controls themselves stay on the page.
 
-**on top** keeps that window above your other windows. It needs the browser's Document Picture-in-Picture support, which is a Chromium feature (Chrome, Edge) and only offered on a **secure page** — so on a plain `http://` device address the option is greyed out and Pop out opens an ordinary window instead. Two ways to get it:
+**on top** keeps that window above your other windows. It needs the browser's Document Picture-in-Picture support, which is a Chromium feature (Chrome, Edge) and only offered on a **secure page** — so on a plain `http://` device address the option is greyed out and Pop out opens an ordinary window instead. Two ways to get it, and one that looks like a third but is not:
 
 - **Reach the page through `localhost`, which needs no certificate at all.** Browsers count
   `http://localhost` as a secure context in its own right, so forwarding a local port to the device
@@ -1655,7 +1657,7 @@ That window is this same page at `http://<device>/ble_keyboard#remote`, which sh
   neither pretends nor asks again. (Since that verdict is remembered per address, reaching the same
   device through `localhost` or https asks again from scratch.)
 
-Failing either, any ordinary window can be pinned by the operating system — on Windows, PowerToys' **Always on Top** (`Win+Ctrl+T`).
+Failing both, any ordinary window can be pinned by the operating system — on Windows, PowerToys' **Always on Top** (`Win+Ctrl+T`).
 
 If the browser refuses the always-on-top window for any other reason, the remote still pops out as an ordinary window and the placeholder left in the page names what the browser said, so there is something to act on rather than a button that appears to do nothing.
 

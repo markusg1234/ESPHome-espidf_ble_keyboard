@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-n</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -2988,7 +2988,6 @@ buildKeyboard();
       if(Math.abs(win.innerWidth-s.w)<=3&&Math.abs(win.innerHeight-s.h)<=3)return;
       try{
         win.resizeTo(s.w+frameOf(win,0),s.h+frameOf(win,1));
-        try{console.log('[blekb fit] put right on a click:',s.w+'x'+s.h)}catch(e){}
       }catch(e){}
     };
     const onClick=()=>{
@@ -3029,15 +3028,9 @@ buildKeyboard();
     // which the browser then remembers, so the next window opens from there. This
     // is the difference between fitting on a host switch, where the window has
     // been open for a while, and fitting the instant it is created.
-    // Temporary while a window that grows on every pop-out is being chased: one
-    // line per stage, so a single pop-out says what was measured, what was asked
-    // for, and what the window actually became. Remove with the -dev-c badge.
-    const log=(...a)=>{try{console.log('[blekb fit]',...a)}catch(e){}};
-    if(!win.innerWidth||!win.innerHeight){log('window has no size yet — skipped');return s}
+    if(!win.innerWidth||!win.innerHeight)return s;
     let tw=s.w+frameOf(win,0),th=s.h+frameOf(win,1);
     const w0=win.innerWidth,h0=win.innerHeight;
-    log('remote',Math.round(s.rw)+'x'+Math.round(s.rh),'| window',w0+'x'+h0,
-        '| outer',win.outerWidth+'x'+win.outerHeight,'| asking',tw+'x'+th);
     // An always-on-top window will not be resized without a user gesture, and a
     // fit on a timer has none: requestWindow spends the activation from the click
     // that opened the window. (A host switch escapes it — that fit runs inside
@@ -3045,24 +3038,20 @@ buildKeyboard();
     // alone ever worked.) Refused, it is handed to armGestureFit, which puts the
     // window right on the next click from anywhere.
     try{win.resizeTo(tw,th)}catch(e){
-      log('resizeTo threw',e&&e.name,'— waiting for a click');
       armGestureFit(win,el,baseZoom);
     }
     setTimeout(()=>{
       if(win.closed)return;
       const moved=win.innerWidth!==w0||win.innerHeight!==h0;
       const ew=win.innerWidth-s.w,eh=win.innerHeight-s.h;
-      log('became',win.innerWidth+'x'+win.innerHeight,'| moved',moved,'| off by',ew+'/'+eh);
       // Corrected only if the window actually answered, and only by a plausible
       // amount. A window that ignored the request has an "error" measured against
       // a size it never took, and asking for that difference back is how one ends
       // up absurdly small. One correction, never a loop: repeating it is how a
       // window walks across the screen.
       if(moved&&Math.abs(ew)<=200&&Math.abs(eh)<=200&&(Math.abs(ew)>3||Math.abs(eh)>3)){
-        log('correcting to',(tw-ew)+'x'+(th-eh));
-        try{win.resizeTo(tw-ew,th-eh)}catch(e){log('correction threw',e&&e.name)}
-        setTimeout(()=>{if(!win.closed)log('settled at',win.innerWidth+'x'+win.innerHeight)},120);
-      }else log('no correction (moved',moved+')');
+        try{win.resizeTo(tw-ew,th-eh)}catch(e){}
+      }
       setTimeout(()=>{
         if(win.closed)return;
         const w=win.innerWidth,h=win.innerHeight;
@@ -3220,8 +3209,6 @@ buildKeyboard();
           // there and the one after that from there again. Fitting it once it has
           // settled is the same thing a host switch does, and that has always
           // come out right.
-          try{console.log('[blekb fit] requested',opts.width+'x'+opts.height,
-                          '| opened as',w.innerWidth+'x'+w.innerHeight)}catch(e){}
           // Armed straight away, not only once a resize has been refused. Pop out
           // runs on pointerdown, so the click ending that same press is still to
           // come — and it is a gesture, which is the one thing that can size this
@@ -3287,11 +3274,13 @@ buildKeyboard();
     onTop.disabled=!pipUsable;
     onTop.checked=pipUsable&&localStorage.getItem('blekb_rmt_ontop')==='1';
     if(!onTopLbl)return;
-    onTopLbl.style.opacity=pipUsable?'':'.55';
-    onTopLbl.title=pipUsable
-      ?'Opens in a picture-in-picture window, which stays above other windows'
-      :(PIP?'This address opened one with no size, so it is off here — it needs a real https page'
-           :'Needs a Chromium browser on an https page; the pop-up opens as an ordinary window');
+    // Gone, not greyed, where it cannot work — a control whose only purpose is to
+    // be unavailable is clutter, and this heading has little room on a phone. It
+    // is absent on a plain http:// address, and disappears on one that turns out
+    // to open a window it never shows; that second case is explained where it
+    // happens, on the placeholder left in the page. The README covers the rest.
+    onTopLbl.style.display=pipUsable?'':'none';
+    onTopLbl.title='Opens in a picture-in-picture window, which stays above other windows';
   }
   if(onTop)onTop.addEventListener('change',()=>
     localStorage.setItem('blekb_rmt_ontop',onTop.checked?'1':'0'));
@@ -3326,7 +3315,6 @@ buildKeyboard();
     // window's copy: a fractional CSS width coming back from a whole number of
     // device pixels, rounded up, would walk the window wider on every ask.
     if(lastFit&&Math.abs(lastFit.w-s.w)<=3&&Math.abs(lastFit.h-s.h)<=3&&lastFit.z===zoom){
-      try{console.log('[blekb fit] skipped: remote unchanged at',s.w+'x'+s.h)}catch(e){}
       pipWin.document.body.style.zoom=wasZoom;
       return;
     }
