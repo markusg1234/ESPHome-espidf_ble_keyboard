@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-k</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-l</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -2993,8 +2993,10 @@ buildKeyboard();
     };
     const onClick=()=>{
       if(win.closed){
-        win.removeEventListener('click',onClick,true);
-        if(win!==window)window.removeEventListener('click',onClick,true);
+        ['pointerdown','click'].forEach(ev=>{
+          win.removeEventListener(ev,onClick,true);
+          if(win!==window)window.removeEventListener(ev,onClick,true);
+        });
         return;
       }
       // Now, and again over the next few seconds. The click that switches hosts
@@ -3009,8 +3011,16 @@ buildKeyboard();
       // shorter needs this and a style that got taller never did.
       [0,500,1000,1500,2200,3000].forEach(t=>t?setTimeout(attempt,t):attempt());
     };
-    win.addEventListener('click',onClick,true);
-    if(win!==window)window.addEventListener('click',onClick,true);
+    // Both events of the same press. A correction does not always land the window
+    // exactly the first time — a window fresh from the browser does not report
+    // the frame it will settle with — and a second go finishes the job. pointerdown
+    // and click are each a gesture in their own right, so one press buys two
+    // corrections, and what used to take two clicks takes one press. Each does
+    // nothing when the window is already right, so the second is free.
+    ['pointerdown','click'].forEach(ev=>{
+      win.addEventListener(ev,onClick,true);
+      if(win!==window)window.addEventListener(ev,onClick,true);
+    });
   }
 
   function fitInto(win,el,baseZoom){
