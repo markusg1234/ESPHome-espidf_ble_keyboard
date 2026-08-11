@@ -1748,7 +1748,18 @@ detection, and it is why the MAC already shown in the host bar can't do the same
 The ESP32 can't act on it itself. Presence detection means `ble_presence`, which pulls in
 `esp32_ble_tracker` and `esp32_ble`, and that component initialises the Bluetooth controller
 — which this one already does. Only one of them can own it, so they can't share a firmware.
-(Same reason a Bluetooth proxy won't run alongside this component.) Take the key elsewhere:
+(Same reason a Bluetooth proxy won't run alongside this component.)
+
+> [!CAUTION]
+> Adding `esp32_ble_tracker` to **this** device does not fail loudly — it compiles, boots, and
+> logs nothing wrong. `esp32_ble` sets up first (priority `BLUETOOTH`, against this component's
+> `-200`) and claims the controller; this component's own init calls then return
+> `ESP_ERR_INVALID_STATE` and are discarded, and it goes on to replace the single GAP callback
+> Bluedroid allows. The tracker stops receiving scan results from that moment, so a
+> `ble_presence` sensor sits at "away" forever with nothing to explain it. Put the tracker on a
+> different ESP32.
+
+Take the key elsewhere:
 
 - **Home Assistant's Private BLE Device integration** takes an IRK directly and uses whatever
   Bluetooth receivers HA already has. No firmware changes needed.
