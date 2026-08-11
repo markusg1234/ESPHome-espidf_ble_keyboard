@@ -431,6 +431,19 @@ class EspidfBleKeyboard : public Component
   /// False when the peer is not bonded or sent no ID key — `out` is left alone.
   bool peer_identity_addr(const esp_bd_addr_t addr, esp_bd_addr_t &out) const;
 
+  /// The peer's Identity Resolving Key, 16 bytes, from the same ID key the identity
+  /// address above comes from. It is what lets something else — Home Assistant, a
+  /// second ESP32 — recognise this host from the rotating address it advertises,
+  /// which is the one thing the identity address cannot do: that address is only
+  /// ever sent over an encrypted link at bonding, never broadcast.
+  ///
+  /// Treat what comes out of here as a secret. It de-anonymises that device's random
+  /// address for as long as the bond lives, so it must not go anywhere the identity
+  /// address freely goes (the /hosts poll, backups, logs).
+  ///
+  /// False when the peer is not bonded or sent no ID key — `out` is left alone.
+  bool peer_irk(const esp_bd_addr_t addr, uint8_t out[16]) const;
+
   /// Slot holding this peer, compared by identity so a rotated address still
   /// matches, falling back to the raw address when no identity is available.
   /// -1 when no slot holds it.
@@ -551,6 +564,13 @@ class EspidfBleKeyboard : public Component
   std::atomic<int8_t> pending_rssi_value_{0};
 
  protected:
+  /// The ID key a bonded peer distributed, looked up by either the address it
+  /// connected with or the identity inside that key — callers hold one or the
+  /// other depending on whether the slot has been matched up yet. Backs both
+  /// peer_identity_addr() and peer_irk(), which each want a different field of it.
+  /// False when the peer is not bonded or distributed no ID key.
+  bool peer_id_keys_(const esp_bd_addr_t addr, esp_ble_pid_keys_t &out) const;
+
 #if defined(USE_API) && defined(USE_API_CUSTOM_SERVICES)
   // Auto-registered HA services (api_services: true). Names and arg names must
   // stay in sync with the HA cards (docs/*-card.js) and the README yaml snippets.

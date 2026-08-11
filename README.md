@@ -1708,6 +1708,7 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/buttons` | GET | — | Returns JSON array of programmed buttons |
 | `/api/ble_keyboard/press` | POST | `action` (string) | Trigger a programmed button action |
 | `/api/ble_keyboard/hosts` | GET | — | Returns `{"active":N,"slots":[{"slot":N,"occupied":bool,"addr":"XX:XX:...","tpl":"style1"},...]}`. `tpl` is that host's [remote style](#remote-style-per-host) and is absent when it uses the default |
+| `/api/ble_keyboard/irk` | GET | `slot` (int, default active) | That host's Identity Resolving Key: `{"slot":N,"irk":"<32 hex chars>"}`, or `"irk":null` when the slot is empty or the host sent no key. **Refuses cross-site requests** — see [Identity key](#identity-key-irk) |
 | `/api/ble_keyboard/switch_host` | POST | `slot` (int) | Switch to host slot 0–9 |
 | `/api/ble_keyboard/forget_host` | POST | `slot` (int) | Remove bond for host slot 0–9 |
 | `/api/ble_keyboard/macro_add` | POST | `name`, `action` | Add a new macro (max 16) |
@@ -1734,6 +1735,45 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/set_host_slot` | POST | `slot`, `addr`, `type` | Restore a host slot's address. Returns `OK-NOBOND` if the BLE bond is missing, meaning that host must be re-paired |
 
 Example: `curl -X POST "http://<device-ip>/api/ble_keyboard/string?keys=Hello"`
+
+### Identity key (IRK)
+
+**Host Actions → Identity Key** shows the Identity Resolving Key a paired host handed over
+when it bonded. Phones don't advertise a fixed address — they broadcast a random one that
+changes every few minutes, and the real address is only ever sent over the encrypted link at
+pairing time. The IRK is what turns one into the other: given a random address, it tells you
+whether that address belongs to this host. That is what makes it useful for presence
+detection, and it is why the MAC already shown in the host bar can't do the same job.
+
+The ESP32 can't act on it itself. Presence detection means `ble_presence`, which pulls in
+`esp32_ble_tracker` and `esp32_ble`, and that component initialises the Bluetooth controller
+— which this one already does. Only one of them can own it, so they can't share a firmware.
+(Same reason a Bluetooth proxy won't run alongside this component.) Take the key elsewhere:
+
+- **Home Assistant's Private BLE Device integration** takes an IRK directly and uses whatever
+  Bluetooth receivers HA already has. No firmware changes needed.
+- **A second ESP32** running `esp32_ble_tracker` with a `ble_presence` binary sensor and the
+  `irk:` option. Worth preferring anyway — scanning while connected as a HID peripheral adds
+  latency to keystrokes, so keeping it on another chip is better regardless.
+
+If you only need "is it in the house", you may not need the key at all: a
+[binary sensor](#configuration-variables) with `type: connected` goes on when a bonded host
+connects and off when it drops. Bluetooth range is roughly 10–30 m, and how eagerly a phone
+reconnects to a HID device it isn't actively using varies between iOS and Android.
+
+> [!WARNING]
+> Treat the IRK like a password. Anyone holding it can identify that device from its random
+> address for as long as the pairing lasts, which is exactly the tracking the random address
+> exists to prevent. Don't paste it into an issue, a forum post or a shared config.
+>
+> The device won't hand it out to another website: `/api/ble_keyboard/irk` refuses requests
+> carrying a cross-site `Sec-Fetch-Site` header, because ESPHome's web server allows any
+> origin to read its responses by default. The key is also deliberately kept out of
+> `/hosts` and out of backups. Non-browser clients such as `curl` send no such header and
+> still work.
+
+Only hosts that use address privacy send a key at all. A desktop that pairs with a fixed
+address has none to send, and that slot will report no key.
 
 ---
 

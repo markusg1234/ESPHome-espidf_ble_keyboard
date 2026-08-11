@@ -940,7 +940,7 @@ void format_bd_addr(const esp_bd_addr_t addr, char out[18]) {
              addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
 }
 
-bool EspidfBleKeyboard::peer_identity_addr(const esp_bd_addr_t addr, esp_bd_addr_t &out) const {
+bool EspidfBleKeyboard::peer_id_keys_(const esp_bd_addr_t addr, esp_ble_pid_keys_t &out) const {
     int dev_num = esp_ble_get_bond_device_num();
     if (dev_num <= 0) return false;
     std::vector<esp_ble_bond_dev_t> bonded(static_cast<size_t>(dev_num));
@@ -949,23 +949,47 @@ bool EspidfBleKeyboard::peer_identity_addr(const esp_bd_addr_t addr, esp_bd_addr
 
     for (int i = 0; i < query_num; i++) {
         const auto &dev = bonded[static_cast<size_t>(i)];
-        // A peer sends its ID key only if it distributed one. Without it there is
-        // no stable address to report — say so rather than hand back six zeroes.
+        // A peer sends its ID key only if it distributed one, and everything this
+        // resolves — the identity address, the IRK — lives inside that key.
         if ((dev.bond_key.key_mask & ESP_BLE_ID_KEY_MASK) == 0) continue;
-        bool identity_set = false;
-        for (int b = 0; b < 6; b++) {
-            if (dev.bond_key.pid_key.static_addr[b] != 0) { identity_set = true; break; }
-        }
-        if (!identity_set) continue;
         // Match either way round: callers hold the connection address at connect
         // time, but a stored slot may already have been matched to the identity.
         if (memcmp(dev.bd_addr, addr, sizeof(esp_bd_addr_t)) == 0 ||
             memcmp(dev.bond_key.pid_key.static_addr, addr, sizeof(esp_bd_addr_t)) == 0) {
-            memcpy(out, dev.bond_key.pid_key.static_addr, sizeof(esp_bd_addr_t));
+            memcpy(&out, &dev.bond_key.pid_key, sizeof(esp_ble_pid_keys_t));
             return true;
         }
     }
     return false;
+}
+
+bool EspidfBleKeyboard::peer_identity_addr(const esp_bd_addr_t addr, esp_bd_addr_t &out) const {
+    esp_ble_pid_keys_t keys;
+    if (!peer_id_keys_(addr, keys)) return false;
+    // An ID key with no address in it leaves nothing stable to report — say so
+    // rather than hand back six zeroes.
+    bool identity_set = false;
+    for (int b = 0; b < 6; b++) {
+        if (keys.static_addr[b] != 0) { identity_set = true; break; }
+    }
+    if (!identity_set) return false;
+    memcpy(out, keys.static_addr, sizeof(esp_bd_addr_t));
+    return true;
+}
+
+bool EspidfBleKeyboard::peer_irk(const esp_bd_addr_t addr, uint8_t out[16]) const {
+    esp_ble_pid_keys_t keys;
+    if (!peer_id_keys_(addr, keys)) return false;
+    // Same reasoning as the identity address above: an all-zero key is not one, and
+    // handing back sixteen zeroes would look like a real answer to whatever is
+    // being fed with it.
+    bool irk_set = false;
+    for (int b = 0; b < 16; b++) {
+        if (keys.irk[b] != 0) { irk_set = true; break; }
+    }
+    if (!irk_set) return false;
+    memcpy(out, keys.irk, 16);
+    return true;
 }
 
 int8_t EspidfBleKeyboard::find_slot_for_peer(const esp_bd_addr_t addr) const {

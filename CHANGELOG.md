@@ -7,6 +7,12 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Added
+- **A paired host's identity key can now be read from Host Actions.** Phones broadcast a random
+  address that changes every few minutes, and this key is the only thing that can tie one of those
+  back to a known host — what presence detection needs. Take it to Home Assistant or a second ESP32,
+  which has to do the detecting, since that job and this component both want to own the Bluetooth
+  controller. Shown only when asked for, kept out of backups, and refused to other websites.
+
 - **The web remote can be popped out into a window of its own**, so it stays in reach while you
   scroll the page or work in another app, and pinned back where it was afterwards. The window holds
   the remote and nothing else, sized to it and resized whenever a host switch brings a style of a

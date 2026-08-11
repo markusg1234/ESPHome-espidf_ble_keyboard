@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0-dev-a</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -634,6 +634,15 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div style="font-size:12px;color:var(--muted);margin:8px 0 4px">Roll your own: <strong>Export</strong> a style, change its <code>id</code> and <code>name</code>, rearrange the sections, then <strong>Import</strong>. Sections are <code>["row",…]</code>, <code>["dpad"]</code>, <code>["ring"]</code> for a round nav ring, <code>["strip",["Vol","volume_up",…],…]</code>, <code>["rocker",["Vol","volume_up","volume_down"],…]</code> for one-piece rockers, <code>["media",…]</code>, <code>["apps",…]</code> and <code>["-"]</code> for a divider; <code>"|"</code> spaces a row out. <code>theme</code> is optional and <code>bg</code> takes a gradient. Write a button as <code>["spare1","Netflix"]</code> to label it &mdash; pair that with an override on the same host and the key both reads and does what you want &mdash; or <code>["spare1","Netflix","#e50914 wide"]</code> to colour and size it (<code>light sm lg xl wide sq</code>).</div>
 <div class="macro-form"><textarea id="tpl-json" placeholder="Paste a style JSON here to import&hellip;" rows="4" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="tpl-import">Import</button></div>
 <div id="tpl-msg" style="font-size:11px;color:var(--muted)"></div>
+</div>
+</div>
+<div class="hid-panel" id="irk-panel">
+<button class="hid-toggle" id="irk-toggle">Identity Key &#9662;</button>
+<div class="hid-body" id="irk-body">
+<div style="font-size:12px;color:var(--muted);margin:6px 0">The key this host handed over when it paired. Phones advertise a random address that changes every few minutes, and this is the only thing that can tell you a given random address belongs to <em>this</em> host &mdash; which is what presence detection needs. Take it to Home Assistant's Private BLE Device integration, or a second ESP32 running <code>esp32_ble_tracker</code>. It can't be done on this device: that component and this one both need to own the Bluetooth controller.</div>
+<div style="font-size:12px;color:var(--caps);margin:6px 0"><strong>Treat this like a password.</strong> Anyone holding it can follow that device's random address for as long as the pairing lasts. Don't post it in an issue or a forum thread.</div>
+<div class="macro-form" style="margin-top:0"><button id="irk-show">Show key</button><button id="irk-copy" class="cancel" style="display:none">Copy</button></div>
+<div id="irk-val" style="font-size:12px;color:var(--muted);word-break:break-all;font-family:monospace"></div>
 </div>
 </div>
 </div>
@@ -1390,6 +1399,8 @@ function appendStep(el,val){
     if(rptPanel&&rptPanel.classList.contains('open'))loadRepeat();
     if(hldPanel&&hldPanel.classList.contains('open'))loadHold();
     if(tplPanel&&tplPanel.classList.contains('open')){tplNote('');fillTplSel()}
+    // Never leave a key on screen under a different host's label.
+    irkClear();
   });
 
   saveBtn.addEventListener('click',()=>{
@@ -1603,6 +1614,8 @@ function appendStep(el,val){
     slot=newActive;
     // An armed Forget confirm belonged to the slot it was armed on.
     if(forgetBtn)resetForget();
+    // As on the picker: the slot moved, so any key on screen is the wrong one.
+    irkClear();
     // loadSlots repaints the labels too — the "(active)" marker has moved.
     loadSlots().then(()=>{
       load();
@@ -1881,6 +1894,54 @@ function appendStep(el,val){
     tplPanel.classList.toggle('open');
     tplToggle.innerHTML='Remote Style '+(tplPanel.classList.contains('open')?'▴':'▾');
     if(tplPanel.classList.contains('open')){tplNote('');loadTpl()}
+  });
+
+  // ── Identity key (IRK) ──
+  // Every other panel here loads itself when it is opened. This one does not: the
+  // key is the one secret the page can show, so it is fetched only when somebody
+  // asks for it out loud, and it goes away again on close or on a slot change.
+  const irkPanel=document.getElementById('irk-panel');
+  const irkToggle=document.getElementById('irk-toggle');
+  const irkShow=document.getElementById('irk-show');
+  const irkCopy=document.getElementById('irk-copy');
+  const irkVal=document.getElementById('irk-val');
+  function irkClear(){
+    if(!irkVal)return;
+    irkVal.textContent='';
+    if(irkCopy)irkCopy.style.display='none';
+    if(irkShow)irkShow.textContent='Show key';
+  }
+  if(irkToggle)irkToggle.addEventListener('click',()=>{
+    irkPanel.classList.toggle('open');
+    irkToggle.innerHTML='Identity Key '+(irkPanel.classList.contains('open')?'▴':'▾');
+    irkClear();
+  });
+  if(irkShow)irkShow.addEventListener('click',()=>{
+    irkShow.textContent='Reading…';
+    // slot is null until the first load picks one; let the device fall back to the
+    // active host rather than sending it the string "null" to run through atoi.
+    fetch('/api/ble_keyboard/irk?'+new URLSearchParams(slot!=null?{slot:slot}:{})).then(r=>{
+      if(!r.ok)return r.text().then(t=>{throw new Error(t)});
+      return r.json();
+    }).then(d=>{
+      irkShow.textContent='Show key';
+      if(d.irk){
+        irkVal.textContent=d.irk;
+        if(irkCopy)irkCopy.style.display='';
+      }else{
+        // Not an error. An empty slot looks like this, and so does a host that
+        // paired without handing a key over — most desktops, which have no
+        // rotating address to resolve in the first place.
+        irkVal.textContent='No key for this host. Either the slot is empty, or it paired without sending one — desktops usually do not.';
+      }
+    }).catch(e=>{
+      irkShow.textContent='Show key';
+      irkVal.textContent=e.message||'Could not read the key.';
+    });
+  });
+  if(irkCopy)irkCopy.addEventListener('click',()=>{
+    if(navigator.clipboard)navigator.clipboard.writeText(irkVal.textContent).catch(()=>{});
+    irkCopy.textContent='Copied';setTimeout(()=>irkCopy.textContent='Copy',1200);
   });
 
   // ── Backup / Restore ──
@@ -3879,6 +3940,57 @@ class BleKbWebHandler : public AsyncWebHandler {
         json += "}";
       }
       json += "]}";
+      send_response(200, "application/json", json.c_str());
+      return;
+    }
+
+    if (path == "irk") {
+      // A host's Identity Resolving Key, for feeding to whatever does presence
+      // detection: Home Assistant's private BLE device tracking, or a second ESP32
+      // running esp32_ble_tracker. This device cannot do that job itself —
+      // esp32_ble_tracker pulls in esp32_ble, which initialises the BLE controller,
+      // and so does this component. Only one of the two can own it.
+      //
+      // Unlike everything else this handler serves, the answer is a secret: it
+      // de-anonymises that phone's rotating address for as long as the bond lives.
+      // Hence its own endpoint rather than a field on /hosts, which is polled every
+      // five seconds and read cross-origin by the Home Assistant cards.
+      //
+      // And hence the check below. web_server installs Access-Control-Allow-Origin:*
+      // globally, so without it any page the user happens to have open could read
+      // the key straight off the device. Sec-Fetch-Site is set by the browser and
+      // cannot be forged by page script; a client that sends none is not a browser
+      // being turned against its user, and could already drive every other endpoint
+      // here anyway, so curl keeps working.
+      auto fetch_site = request->get_header("Sec-Fetch-Site");
+      if (fetch_site.has_value() && fetch_site.value() != "same-origin" &&
+          fetch_site.value() != "none") {
+        send_response(400, "text/plain", "Refused: read this from the device's own page");
+        return;
+      }
+      int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : kb_->active_host_slot();
+      if (slot < 0 || slot >= kb_->host_slots()) {
+        send_response(400, "text/plain", "Invalid slot");
+        return;
+      }
+      const auto &h = kb_->get_host_slot((uint8_t) slot);
+      std::string json = "{\"slot\":" + std::to_string(slot) + ",\"irk\":";
+      uint8_t irk[16];
+      // Same fallback order as /hosts: the address the slot stores first, then the
+      // identity it remembered, so a slot matched up either way still resolves.
+      if (h.occupied && (kb_->peer_irk(h.addr, irk) ||
+                         (h.has_identity && kb_->peer_irk(h.identity, irk)))) {
+        char hex[33];
+        for (int i = 0; i < 16; i++) snprintf(hex + i * 2, 3, "%02x", irk[i]);
+        json += "\"";
+        json += hex;
+        json += "\"";
+      } else {
+        // null, not an error: an empty slot and a host that distributed no ID key
+        // are both ordinary states the page explains rather than fails on.
+        json += "null";
+      }
+      json += "}";
       send_response(200, "application/json", json.c_str());
       return;
     }
