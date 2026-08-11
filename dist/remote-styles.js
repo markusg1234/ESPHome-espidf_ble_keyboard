@@ -394,6 +394,8 @@ export const RMT_CSS = `
 .rmt-btn.sq{border-radius:10px}
 .rmt-btn.light{background:var(--rb-light-bg,#e9e9ee);color:var(--rb-light-fg,#16161a);border-color:var(--rb-light-bg,#e9e9ee)}
 .rmt-btn.light:active,.rmt-btn.light.p{background:#fff;color:#000}
+.rmt-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto}
+.rmt-head .macro-edit-btn{margin-left:0}
 `;
 
 export { RI, RMT_BTNS, RMT_VARS, RMT_BUILTIN, RMT_KINDS, RMT_OPTS, RMT_HEX, RMT_CLIP, icon, esc, btnHtml, sectionHtml, validateTpl };
