@@ -2054,11 +2054,38 @@ void EspidfBleKeyboard::setup() {
         nvs_flash_init();
     }
 
+    // This component drives Bluedroid directly rather than going through ESPHome's
+    // esp32_ble, so it needs the stack to itself. Anything else that brings it up —
+    // esp32_ble, esp32_ble_tracker, bluetooth_proxy — sets up at priority BLUETOOTH,
+    // well ahead of this component's -200, and gets there first.
+    //
+    // Caught here because the failure downstream is silent, which is worse than
+    // loud. The four calls below each return a status that used to be discarded, so
+    // they would all fail unnoticed; then the GAP callback registered further down
+    // would succeed and *replace* the other component's, Bluedroid having room for
+    // one. The result was a device that compiled, booted, logged nothing wrong, ran
+    // the keyboard, and quietly starved the other component of every BLE event it
+    // was waiting on. Refuse the configuration instead, and name the way out.
+    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE ||
+        esp_bluedroid_get_status() != ESP_BLUEDROID_STATUS_UNINITIALIZED) {
+        ESP_LOGE(TAG, "Bluetooth is already running — another component (esp32_ble, "
+                      "esp32_ble_tracker or bluetooth_proxy) started it first.");
+        ESP_LOGE(TAG, "This component talks to the BLE stack directly and cannot share it. "
+                      "Remove that component from this device and run it on a separate ESP32.");
+        mark_failed();
+        return;
+    }
+
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-    esp_bt_controller_init(&bt_cfg);
-    esp_bt_controller_enable(ESP_BT_MODE_BLE);
-    esp_bluedroid_init();
-    esp_bluedroid_enable();
+    esp_err_t bt_ret = esp_bt_controller_init(&bt_cfg);
+    if (bt_ret == ESP_OK) bt_ret = esp_bt_controller_enable(ESP_BT_MODE_BLE);
+    if (bt_ret == ESP_OK) bt_ret = esp_bluedroid_init();
+    if (bt_ret == ESP_OK) bt_ret = esp_bluedroid_enable();
+    if (bt_ret != ESP_OK) {
+        ESP_LOGE(TAG, "BLE stack failed to start: %s", esp_err_to_name(bt_ret));
+        mark_failed();
+        return;
+    }
 
     maybe_reset_bonds_after_security_config_change();
     load_host_slots_();

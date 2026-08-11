@@ -49,6 +49,10 @@ web control page shows the matching version badge.
   now comes from the firmware's own definitions rather than a second hand-kept copy.
 
 ### Fixed
+- **Sharing a device with another Bluetooth component now fails loudly instead of quietly.** Adding
+  a tracker or proxy alongside the keyboard used to compile and boot with nothing in the log, then
+  starve whichever one lost the race for the radio. The keyboard now checks whether Bluetooth is
+  already running, says which component to move to another board, and stops rather than half-working.
 - **The web page asks the device for a lot less, so it stops resetting connections.** The position
   finder polled several times a second whatever was on screen; it now stops when its section is
   hidden and slows right down while the map is locked. Any page in the background stops polling
