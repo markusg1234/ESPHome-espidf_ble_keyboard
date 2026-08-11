@@ -988,7 +988,14 @@ bool EspidfBleKeyboard::peer_irk(const esp_bd_addr_t addr, uint8_t out[16]) cons
         if (keys.irk[b] != 0) { irk_set = true; break; }
     }
     if (!irk_set) return false;
-    memcpy(out, keys.irk, 16);
+    // Reversed, deliberately. Bluedroid keeps the IRK in the order it arrived over
+    // the air, which is least-significant byte first — see SMP_Encrypt() in
+    // smp_keys.c, which does REVERSE_ARRAY_TO_STREAM on the key before handing it
+    // to AES. Everything that consumes an IRK as text wants the other order:
+    // ESPHome's resolve_irk() memcpy's the configured hex straight in as the AES
+    // key, and Home Assistant's private_ble_device does the same. Handing over the
+    // stored order produces a key that looks perfectly valid and matches nothing.
+    for (int b = 0; b < 16; b++) out[b] = keys.irk[15 - b];
     return true;
 }
 

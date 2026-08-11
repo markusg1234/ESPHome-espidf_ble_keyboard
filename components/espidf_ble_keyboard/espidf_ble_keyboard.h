@@ -441,6 +441,11 @@ class EspidfBleKeyboard : public Component
   /// address for as long as the bond lives, so it must not go anywhere the identity
   /// address freely goes (the /hosts poll, backups, logs).
   ///
+  /// Handed back most-significant byte first, which is not how the stack stores it
+  /// — see the definition. That is the order every consumer of an IRK as text
+  /// expects, so this is the form to print; the reversed one silently matches
+  /// nothing.
+  ///
   /// False when the peer is not bonded or sent no ID key — `out` is left alone.
   bool peer_irk(const esp_bd_addr_t addr, uint8_t out[16]) const;
 
