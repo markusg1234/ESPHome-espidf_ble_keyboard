@@ -1772,8 +1772,12 @@ reconnects to a HID device it isn't actively using varies between iOS and Androi
 > `/hosts` and out of backups. Non-browser clients such as `curl` send no such header and
 > still work.
 
-Only hosts that use address privacy send a key at all. A desktop that pairs with a fixed
-address has none to send, and that slot will report no key.
+Only hosts that use address privacy send a key at all — but most do, Windows included, since
+it uses a rotating address for Bluetooth LE just as a phone does. A host that pairs with a
+fixed address has none to send, and that slot reports no key.
+
+A key being present doesn't make a host worth tracking, mind: a desktop that never leaves the
+house tells you nothing. The key is only useful for something that comes and goes.
 
 ---
 

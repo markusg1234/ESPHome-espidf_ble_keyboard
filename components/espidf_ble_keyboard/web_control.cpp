@@ -1930,9 +1930,9 @@ function appendStep(el,val){
         if(irkCopy)irkCopy.style.display='';
       }else{
         // Not an error. An empty slot looks like this, and so does a host that
-        // paired without handing a key over — most desktops, which have no
-        // rotating address to resolve in the first place.
-        irkVal.textContent='No key for this host. Either the slot is empty, or it paired without sending one — desktops usually do not.';
+        // paired without distributing an ID key. Most hosts do send one, Windows
+        // included — it uses a rotating address the same way a phone does.
+        irkVal.textContent='No key for this host. Either the slot is empty, or it paired without sending one.';
       }
     }).catch(e=>{
       irkShow.textContent='Show key';
