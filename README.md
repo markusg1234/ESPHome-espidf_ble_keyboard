@@ -1633,7 +1633,9 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 
 That window is this same page at `http://<device>/ble_keyboard#remote`, which shows the remote and nothing else. You can open that address directly — bookmark it, or add it to a phone's home screen — for a remote-only page without popping anything out. It is drawn at whatever zoom the page is set to, so the remote does not change size by being moved; the zoom and theme controls themselves stay on the page.
 
-**on top** keeps that window above your other windows. It needs the browser's Document Picture-in-Picture support, which is a Chromium feature (Chrome, Edge) and only offered on a **secure page** — so on a plain `http://` device address the option is greyed out and Pop out opens an ordinary window instead. Two ways to get it, and one that looks like a third but is not:
+There are two ways to keep that window above your other windows, and they have nothing to do with each other: the page's own **on top** tick box, or the operating system pinning an ordinary window for you. The first is the neater of the two — the window is on top from the moment it opens, sized to the remote, and it holds the live remote rather than a second copy of it — but it needs a secure page, which a plain `http://` device address is not. The second asks nothing of the page at all and works in any browser, at the cost of a keystroke each time you open the window.
+
+**The page's own on top.** The tick box beside **Pop out** needs the browser's Document Picture-in-Picture support, which is a Chromium feature (Chrome, Edge) and only offered on a **secure page** — so on a plain `http://` device address the tick box is not shown at all and Pop out opens an ordinary window instead. Two ways to get a secure page, and one that looks like a third but is not:
 
 - **Reach the page through `localhost`, which needs no certificate at all.** Browsers count
   `http://localhost` as a secure context in its own right, so forwarding a local port to the device
@@ -1657,7 +1659,7 @@ That window is this same page at `http://<device>/ble_keyboard#remote`, which sh
   neither pretends nor asks again. (Since that verdict is remembered per address, reaching the same
   device through `localhost` or https asks again from scratch.)
 
-Failing both, any ordinary window can be pinned by the operating system — on Windows, PowerToys' **Always on Top** (`Win+Ctrl+T`).
+**The operating system pins it.** Any ordinary window can be pinned by the desktop itself, which wants no certificate, no port forwarding and no particular browser — so this is the route when the tick box is not on offer, and the whole of it on a plain `http://` address. On Windows that is PowerToys' **Always on Top**: install PowerToys, click the popped-out window to focus it, and press `Win+Ctrl+T`; the same chord unpins it. It pins whatever window has focus, so it works just as well on the `#remote` address opened in a window of its own, without popping anything out of a page first. Most Linux desktops offer the same from the title-bar menu; macOS has no built-in equivalent and needs a third-party tool.
 
 If the browser refuses the always-on-top window for any other reason, the remote still pops out as an ordinary window and the placeholder left in the page names what the browser said, so there is something to act on rather than a button that appears to do nothing.
 
