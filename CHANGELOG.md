@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
+## v1.8.0 — 2026-08-12
 
 ### Added
 - **A paired host's identity key can now be read from Host Actions.** Phones broadcast a random
@@ -48,6 +48,12 @@ web control page shows the matching version badge.
   can be pasted into the card, where it joins the style list under its own name. The card's layout
   now comes from the firmware's own definitions rather than a second hand-kept copy.
 
+- **Remote keys can now fire Home Assistant actions** — a new action prefix asks HA to run
+  one of its own actions over the native API, so a key remapped in Host Actions can drive
+  an IR blaster, a script, or a scene, from the HA remote card and the web remote alike.
+  Off by default behind a new YAML opt-in, and additionally gated by HA's own per-device
+  permission; Host Actions and Macros gain a ready-to-edit preset once enabled.
+
 ### Fixed
 - **Sharing a device with another Bluetooth component now fails loudly instead of quietly.** Adding
   a tracker or proxy alongside the keyboard used to compile and boot with nothing in the log, then
@@ -61,11 +67,6 @@ web control page shows the matching version badge.
 - **Removing a button from the remote no longer moves the others.** The remaining buttons closed the
   gap, so hiding OK pulled the D-pad arrows out of position; a removed button now leaves its place
   empty. A row or section with nothing left visible still collapses.
-- **Remote keys can now fire Home Assistant actions** — a new action prefix asks HA to run
-  one of its own actions over the native API, so a key remapped in Host Actions can drive
-  an IR blaster, a script, or a scene, from the HA remote card and the web remote alike.
-  Off by default behind a new YAML opt-in, and additionally gated by HA's own per-device
-  permission; Host Actions and Macros gain a ready-to-edit preset once enabled.
 
 ## v1.7.0 — 2026-08-06
 

@@ -957,8 +957,6 @@ Nothing holds by default. The Home Assistant [Media Remote Card](#media-remote-c
 
 ### Remote Style Per Host
 
-> **Unreleased — `main` only.** Not in **v1.7.0 and earlier**, where the web remote had one fixed layout for every host.
-
 The web remote can be drawn in a different **style** per host, so switching to a media box brings up a compact remote shaped for it and switching back to the PC brings back the full one. Open **Remote Style** in the Host Actions card, pick the host, and step through the styles with **−** and **+**. Each press saves straight away, and changing the active host's style redraws the remote as you go — so the quickest way to find the one you want is to press **+** until it looks right. The list wraps, so you can reach the far end from either direction.
 
 | Style | What it shows |
@@ -1257,11 +1255,12 @@ For a tighter loop, skip the version bumping: keep browser devtools open with **
 
 ### Cutting a release
 
-Once a change is ready, cut a release so HACS users receive it — see [Installing the cards via HACS](#installing-the-cards-via-hacs). Three things move together in the same batch:
+Once a change is ready, cut a release so HACS users receive it — see [Installing the cards via HACS](#installing-the-cards-via-hacs). Four things move together in the same batch:
 
-1. The `?v=` on each import in [`dist/ESPHome-espidf_ble_keyboard.js`](dist/ESPHome-espidf_ble_keyboard.js) → the new tag.
+1. Every versioned import in [`dist/`](dist/) → the new tag. That means the three in the entry point [`dist/ESPHome-espidf_ble_keyboard.js`](dist/ESPHome-espidf_ble_keyboard.js) *and* the ones cards make of each other, such as `remote-card.js` importing `remote-styles.js` — `grep -rn "?v=" dist/` finds them all.
 2. The `webver` badge in `web_control.cpp` → the new tag.
 3. A new `## vX.Y.Z` section in [`CHANGELOG.md`](CHANGELOG.md).
+4. Any `main`-only markers cleared from this README — `grep -n "^> \*\*Unreleased" README.md`.
 
 Step 1 is what actually gets the new cards into users' browsers. HACS re-registers the entry point under a fresh `?hacstag=` on every update, so that file always arrives new — but the imports inside it resolve to URLs HACS never varies, and a browser holding a cached card would go on serving it. Versioning the imports makes each release a URL no cache has seen.
 
