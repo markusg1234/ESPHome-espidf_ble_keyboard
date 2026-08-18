@@ -3769,6 +3769,16 @@ static std::string json_escape(const std::string &s) {
   return out;
 }
 
+// Clamp to what a HID relative report can carry, instead of letting the cast
+// wrap. ?x=200 used to arrive as -56 and move the pointer the opposite way,
+// which reads as the device ignoring you rather than as a rejected value. The
+// page clamps before sending, so only direct API callers ever saw it.
+static int8_t clamp_i8(int v) {
+  if (v < -128) return -128;
+  if (v > 127) return 127;
+  return (int8_t) v;
+}
+
 // ── Internal handler class ─────────────────────────────────────────
 // Inherits from the platform-specific AsyncWebHandler via web_server_base
 
@@ -4377,7 +4387,7 @@ class BleKbWebHandler : public AsyncWebHandler {
     if (path == "mouse_move") {
       int x = request->hasArg("x") ? atoi(request->arg("x").c_str()) : 0;
       int y = request->hasArg("y") ? atoi(request->arg("y").c_str()) : 0;
-      kb_->send_mouse_move((int8_t) x, (int8_t) y);
+      kb_->send_mouse_move(clamp_i8(x), clamp_i8(y));
       send_response(200, "text/plain", "OK");
 
     } else if (path == "mouse_click") {
@@ -4419,7 +4429,7 @@ class BleKbWebHandler : public AsyncWebHandler {
 
     } else if (path == "mouse_scroll") {
       int amount = request->hasArg("amount") ? atoi(request->arg("amount").c_str()) : 0;
-      kb_->send_mouse_scroll((int8_t) amount);
+      kb_->send_mouse_scroll(clamp_i8(amount));
       send_response(200, "text/plain", "OK");
 
     } else if (path == "mouse_abs") {

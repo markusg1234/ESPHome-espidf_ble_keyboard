@@ -7,6 +7,11 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Fixed
+- **A too-large mouse movement no longer sends the pointer the other way.** Asking for more travel
+  or scroll than a single report can carry wrapped around, so a large positive value arrived as a
+  negative one and the pointer went backwards. Values are now capped at the maximum instead. The
+  web page already stayed inside the limit, so this only affected controlling the device directly.
+
 - **A mistyped pointer-position request now fails instead of doing something else.** The position
   arguments were passed straight through into an action, so one carrying the separator that
   divides a multi-step action tacked an extra step onto the end — a stray character could type
