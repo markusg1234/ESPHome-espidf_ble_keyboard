@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.1-dev-a</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.1-dev-b</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -2585,11 +2585,20 @@ buildKeyboard();
 
   // Scroll buttons
   let si=null;
-  function startScroll(a){api('mouse_scroll',{amount:a});si=setInterval(()=>api('mouse_scroll',{amount:a}),150)}
+  // stopScroll() first: si is one handle shared by both buttons, so starting a
+  // scroll while one is already running orphans the first interval with nothing
+  // left to clear it. Two fingers, one on each arrow, is how that happens.
+  function startScroll(a){stopScroll();api('mouse_scroll',{amount:a});si=setInterval(()=>api('mouse_scroll',{amount:a}),150)}
   function stopScroll(){if(si){clearInterval(si);si=null}}
   for(const[id,a]of[['su',3],['sd',-3]]){
     const el=document.getElementById(id);
-    el.addEventListener('pointerdown',()=>startScroll(a));
+    // Capture the pointer on the way down. Touch does this implicitly, but mouse
+    // and pen do not: press an arrow, drag off it, release, and pointerup fires
+    // on whatever is under the cursor instead — never here, leaving the interval
+    // scrolling the host until the page is reloaded. Measured in a browser, not
+    // reasoned about: without the capture the release lands on the element the
+    // cursor happens to be over.
+    el.addEventListener('pointerdown',e=>{try{el.setPointerCapture(e.pointerId)}catch(_){}startScroll(a)});
     el.addEventListener('pointerup',stopScroll);
     el.addEventListener('pointercancel',stopScroll);
   }

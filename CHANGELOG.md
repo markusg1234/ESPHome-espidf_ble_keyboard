@@ -7,6 +7,12 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Fixed
+- **The web mouse's scroll arrows no longer keep scrolling after you let go.** Pressing an arrow,
+  dragging the cursor off it and releasing left the host scrolling until the page was reloaded,
+  because the release was delivered to whatever was under the cursor instead. Holding both arrows
+  at once on a touchscreen stranded one of them the same way. Only a mouse or pen could trigger
+  the first; a finger never could.
+
 - **A second remote button pressed while the first is held no longer leaves one repeating forever.**
   Holding a d-pad key and then reaching for the volume rocker started a second repeat over the top
   of the first, and letting go cleared only the newer one — the older kept firing at the repeat
