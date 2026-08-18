@@ -3740,7 +3740,20 @@ class BleKbWebHandler : public AsyncWebHandler {
       // so setting it again emits the header twice — and a browser rejects
       // "*, *" outright, which is worse than having no CORS at all. That broke
       // cross-origin reads of /hosts from the Home Assistant cards.
-      auto send_response = [request](int code, const char* type, const char* content) {
+      // Takes the body by const reference, not as a char*. beginResponse() only
+      // offers a std::string overload, so a char* was built into a temporary
+      // string first — a second full copy of every response alongside the one
+      // the caller already holds, which on the 10-15 KB /backup document was
+      // tens of kilobytes on a heap that also carries the BLE stack. Measured
+      // on device: free heap dips to ~23 KB, so this is worth the const ref.
+      // One copy still remains, inside AsyncWebServerResponseContent, whose
+      // constructor takes its parameter by value; removing that needs internals
+      // this file deliberately keeps out of.
+      //
+      // Note the body is now sent as sized data rather than up to the first NUL.
+      // Only json_escape's unescaped control bytes could put one there, and that
+      // body is malformed JSON either way.
+      auto send_response = [request](int code, const char* type, const std::string &content) {
         AsyncWebServerResponse* response = request->beginResponse(code, type, content);
         response->addHeader("Connection", "close");
         request->send(response);
@@ -3765,6 +3778,7 @@ class BleKbWebHandler : public AsyncWebHandler {
     // GET-only endpoints (read state)
     if (path == "status") {
       std::string json = "{\"connected\":";
+      json.reserve(512);  // one allocation instead of the five doublings this would take
       json += kb_->is_connected() ? "true" : "false";
       json += ",\"paired\":";
       json += kb_->is_paired() ? "true" : "false";
@@ -3786,12 +3800,13 @@ class BleKbWebHandler : public AsyncWebHandler {
         json += "\"}";
       }
       json += "]}";
-      send_response(200, "application/json", json.c_str());
+      send_response(200, "application/json", json);
       return;
     }
 
     if (path == "buttons") {
       std::string json = "[";
+      json.reserve(512);
       bool first = true;
       // YAML-defined buttons (read-only)
       const auto &btns = kb_->get_buttons();
@@ -3829,7 +3844,7 @@ class BleKbWebHandler : public AsyncWebHandler {
         json += "}";
       }
       json += "]";
-      send_response(200, "application/json", json.c_str());
+      send_response(200, "application/json", json);
       return;
     }
 
@@ -3863,7 +3878,7 @@ class BleKbWebHandler : public AsyncWebHandler {
                 ",\"p\":" + (mons[i].primary ? "1" : "0") + "}";
       }
       json += "]}";
-      send_response(200, "application/json", json.c_str());
+      send_response(200, "application/json", json);
       return;
     }
 
@@ -3872,7 +3887,7 @@ class BleKbWebHandler : public AsyncWebHandler {
       // cursor was last sent, from any source. Lightweight — safe to poll.
       std::string json = "{\"x\":" + std::to_string(kb_->last_goto_x()) +
                          ",\"y\":" + std::to_string(kb_->last_goto_y()) + "}";
-      send_response(200, "application/json", json.c_str());
+      send_response(200, "application/json", json);
       return;
     }
 
@@ -3888,6 +3903,7 @@ class BleKbWebHandler : public AsyncWebHandler {
         }
       }
       std::string json = "{\"active\":";
+      json.reserve(512);
       json += std::to_string(kb_->active_host_slot());
       json += ",\"slots\":[";
       for (uint8_t i = 0; i < kb_->host_slots(); i++) {
@@ -3940,7 +3956,7 @@ class BleKbWebHandler : public AsyncWebHandler {
         json += "}";
       }
       json += "]}";
-      send_response(200, "application/json", json.c_str());
+      send_response(200, "application/json", json);
       return;
     }
 
@@ -3991,7 +4007,7 @@ class BleKbWebHandler : public AsyncWebHandler {
         json += "null";
       }
       json += "}";
-      send_response(200, "application/json", json.c_str());
+      send_response(200, "application/json", json);
       return;
     }
 
@@ -4006,6 +4022,7 @@ class BleKbWebHandler : public AsyncWebHandler {
       const auto &nvs = kb_->get_nvs_overrides((uint8_t) slot);
       const auto &yaml = kb_->get_yaml_overrides((uint8_t) slot);
       std::string json = "{\"slot\":";
+      json.reserve(512);
       json += std::to_string(slot);
       json += ",\"active\":";
       json += std::to_string(kb_->active_host_slot());
@@ -4028,7 +4045,7 @@ class BleKbWebHandler : public AsyncWebHandler {
                 "\",\"src\":\"yaml\"}";
       }
       json += "]}";
-      send_response(200, "application/json", json.c_str());
+      send_response(200, "application/json", json);
       return;
     }
 
@@ -4040,12 +4057,13 @@ class BleKbWebHandler : public AsyncWebHandler {
       }
       const auto &h = kb_->get_hidden((uint8_t) slot);
       std::string json = "{\"slot\":" + std::to_string(slot) + ",\"hidden\":[";
+      json.reserve(512);
       for (size_t i = 0; i < h.size(); i++) {
         if (i > 0) json += ",";
         json += "\"" + json_escape(h[i]) + "\"";
       }
       json += "]}";
-      send_response(200, "application/json", json.c_str());
+      send_response(200, "application/json", json);
       return;
     }
 
@@ -4063,12 +4081,13 @@ class BleKbWebHandler : public AsyncWebHandler {
                          ",\"set\":" + (r.set ? "true" : "false") +
                          ",\"delay\":" + std::to_string(r.delay) +
                          ",\"rate\":" + std::to_string(r.rate) + ",\"buttons\":[";
+      json.reserve(512);
       for (size_t i = 0; i < r.names.size(); i++) {
         if (i > 0) json += ",";
         json += "\"" + json_escape(r.names[i]) + "\"";
       }
       json += "]}";
-      send_response(200, "application/json", json.c_str());
+      send_response(200, "application/json", json);
       return;
     }
 
@@ -4083,6 +4102,7 @@ class BleKbWebHandler : public AsyncWebHandler {
       // The repeat set rides along so the editor can grey out the buttons that
       // are already spoken for without a second round trip.
       std::string json = "{\"slot\":" + std::to_string(slot) + ",\"buttons\":[";
+      json.reserve(512);
       for (size_t i = 0; i < h.size(); i++) {
         if (i > 0) json += ",";
         json += "\"" + json_escape(h[i]) + "\"";
@@ -4095,7 +4115,7 @@ class BleKbWebHandler : public AsyncWebHandler {
         }
       }
       json += "]}";
-      send_response(200, "application/json", json.c_str());
+      send_response(200, "application/json", json);
       return;
     }
 
@@ -4103,7 +4123,16 @@ class BleKbWebHandler : public AsyncWebHandler {
       // The user-authored styles, each handed back as the JSON *string* it was
       // stored as rather than inlined: the device never parsed it, so embedding
       // it raw would let one malformed style break the whole response.
+      // Reserve first: growing by += reallocs its way up, doubling and leaving
+      // holes behind in a heap that also carries the BLE stack. Sized from what
+      // is actually stored, not from the caps — over-reserving would raise the
+      // very peak this is here to lower. Doubling each template covers the
+      // escaping, since only " and \ expand and both go to two characters.
+      size_t est = 64;
+      for (uint8_t i = 0; i < EspidfBleKeyboard::MAX_CUSTOM_TEMPLATES; i++)
+        est += kb_->get_custom_template(i).size() * 2 + 24;
       std::string json = "{\"max\":";
+      json.reserve(est);
       json += std::to_string(EspidfBleKeyboard::MAX_CUSTOM_TEMPLATES);
       json += ",\"len\":";
       json += std::to_string(EspidfBleKeyboard::MAX_TEMPLATE_LEN);
@@ -4117,7 +4146,7 @@ class BleKbWebHandler : public AsyncWebHandler {
         json += "{\"index\":" + std::to_string(i) + ",\"tpl\":\"" + json_escape(t) + "\"}";
       }
       json += "]}";
-      send_response(200, "application/json", json.c_str());
+      send_response(200, "application/json", json);
       return;
     }
 
@@ -4127,7 +4156,25 @@ class BleKbWebHandler : public AsyncWebHandler {
       // identity, not settings) and YAML-defined overrides (restoring those as
       // NVS entries would shadow later YAML edits). The browser adds its own
       // "ui" section before saving the file.
+      // The largest document this handler serves, and the one worth reserving
+      // for: built by += it reallocs about ten times on the way to 10-15 KB,
+      // doubling and leaving holes each time. Measured free heap on this device
+      // troughs around 23 KB, so the churn is not free. Estimated from what is
+      // actually stored rather than from the caps, since a reservation larger
+      // than the document raises the peak instead of lowering it.
+      size_t est = 256;  // schema, device name, layout, section punctuation
+      for (const auto &m : kb_->get_macros())
+        est += m.name.size() + m.action.size() + 32;
+      for (uint8_t s = 0; s < kb_->host_slots(); s++) {
+        for (const auto &o : kb_->get_nvs_overrides(s))
+          est += o.name.size() + o.action.size() + 16;
+        for (const auto &h : kb_->get_hidden(s)) est += h.size() + 4;
+        for (const auto &r : kb_->get_repeat(s).names) est += r.size() + 4;
+        for (const auto &h : kb_->get_hold(s)) est += h.size() + 4;
+        est += 96;  // that slot's keys, calibration, style id and host entry
+      }
       std::string json = "{\"schema\":1,\"device\":\"";
+      json.reserve(est);
       json += json_escape(kb_->device_name());
       json += "\",\"layout\":\"";
       json += json_escape(kb_->active_layout_id());
@@ -4243,7 +4290,7 @@ class BleKbWebHandler : public AsyncWebHandler {
         json += buf;
       }
       json += "]}";
-      send_response(200, "application/json", json.c_str());
+      send_response(200, "application/json", json);
       return;
     }
 
@@ -4468,7 +4515,7 @@ class BleKbWebHandler : public AsyncWebHandler {
         // for a while after the cap moved, which is worse than no number.
         std::string msg = "Too many hidden buttons (max " +
                           std::to_string(EspidfBleKeyboard::MAX_HIDDEN) + ")";
-        send_response(400, "text/plain", msg.c_str());
+        send_response(400, "text/plain", msg);
       } else if (!kb_->set_hidden((uint8_t) slot, list)) {
         send_response(400, "text/plain", "Invalid button name in list");
       } else {
@@ -4513,12 +4560,12 @@ class BleKbWebHandler : public AsyncWebHandler {
       } else if (list.size() > EspidfBleKeyboard::MAX_REPEAT_BUTTONS) {
         std::string msg = "Too many repeat buttons (max " +
                           std::to_string(EspidfBleKeyboard::MAX_REPEAT_BUTTONS) + ")";
-        send_response(400, "text/plain", msg.c_str());
+        send_response(400, "text/plain", msg);
       } else if (delay < 0 || rate < 0) {
         send_response(400, "text/plain", "Invalid timing");
       } else if (!clash.empty()) {
         std::string msg = "\"" + clash + "\" is set to hold on this host — untick it there first";
-        send_response(400, "text/plain", msg.c_str());
+        send_response(400, "text/plain", msg);
       } else if (!kb_->set_repeat((uint8_t) slot, (uint16_t) delay, (uint16_t) rate, list)) {
         send_response(400, "text/plain", "Invalid button name in list");
       } else {
@@ -4545,10 +4592,10 @@ class BleKbWebHandler : public AsyncWebHandler {
       } else if (list.size() > EspidfBleKeyboard::MAX_HOLD) {
         std::string msg = "Too many hold buttons (max " +
                           std::to_string(EspidfBleKeyboard::MAX_HOLD) + ")";
-        send_response(400, "text/plain", msg.c_str());
+        send_response(400, "text/plain", msg);
       } else if (!clash.empty()) {
         std::string msg = "\"" + clash + "\" is set to repeat on this host — untick it there first";
-        send_response(400, "text/plain", msg.c_str());
+        send_response(400, "text/plain", msg);
       } else if (!kb_->set_hold((uint8_t) slot, list)) {
         send_response(400, "text/plain", "Invalid button name in list");
       } else {

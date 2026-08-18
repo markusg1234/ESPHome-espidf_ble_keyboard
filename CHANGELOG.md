@@ -7,6 +7,12 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Fixed
+- **The web page's larger replies no longer churn the device's memory.** A reply was built up one
+  piece at a time, reallocating as it grew, and then copied again in full before being sent — tens
+  of kilobytes at once for a settings backup, on memory shared with the Bluetooth stack. Replies
+  are now sized up front and handed over without the extra copy. Free memory on a busy device was
+  measured dipping to about 23 KB, which is what prompted this.
+
 - **A web request that used the wrong method no longer looks like a crash.** Asking one of the
   device's control endpoints for a page — following it from a browser bar, or a script that reads
   where it should write — was answered with an internal-server error, which reads as firmware that
