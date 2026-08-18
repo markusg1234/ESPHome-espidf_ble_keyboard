@@ -1805,7 +1805,12 @@ function appendStep(el,val){
           }
         }
         const a=arr?it[0]:it;
-        if(typeof a!=='string'||!RMT_BTNS[a])return 'Unknown button "'+a+'"';
+        // hasOwnProperty rather than a truthiness test: RMT_BTNS is an object
+        // literal, so RMT_BTNS['constructor'] and ['__proto__'] are inherited and
+        // truthy. ["row",["constructor","Hi"]] used to pass a check that claims
+        // to name every unknown button, and btnHtml then drew a dead key for it.
+        if(typeof a!=='string'||!Object.prototype.hasOwnProperty.call(RMT_BTNS,a))
+          return 'Unknown button "'+a+'"';
       }
     }
     return '';
@@ -2799,7 +2804,10 @@ buildKeyboard();
   function btnHtml(item){
     const arr=Array.isArray(item);
     const a=arr?item[0]:item, lab=arr?item[1]:null, opt=arr?item[2]:null;
-    const b=RMT_BTNS[a];
+    // Own properties only, for the reason validateTpl gives. Repeated inline
+    // rather than shared: that helper lives in the other IIFE, and hoisting one
+    // across is its own job (see the note about esc()).
+    const b=Object.prototype.hasOwnProperty.call(RMT_BTNS,a)?RMT_BTNS[a]:null;
     if(!b)return '';   // a style naming a button this firmware doesn't have
     const face=(lab!=null&&lab!=='')?esc(lab):(b.i?icon(b.i):(b.x||''));
     const tip=(lab!=null&&lab!=='')?esc(lab)+' — runs '+a:b.t;
@@ -2868,8 +2876,12 @@ buildKeyboard();
     // A style change mid-press would strand the key that is down on the host
     // and leave an interval hammering a button that no longer exists.
     endHold();stopRepeat();
-    for(const k in RMT_VARS)body.style.removeProperty(RMT_VARS[k]);
-    if(t.theme)for(const k in RMT_VARS)
+    // Object.keys, not for-in: for-in would also walk anything enumerable that
+    // ended up on Object.prototype and hand its value to setProperty. The theme
+    // side is already safe — k only ever takes RMT_VARS's own names, so a style
+    // cannot reach a key this does not already know.
+    for(const k of Object.keys(RMT_VARS))body.style.removeProperty(RMT_VARS[k]);
+    if(t.theme)for(const k of Object.keys(RMT_VARS))
       if(typeof t.theme[k]==='string')body.style.setProperty(RMT_VARS[k],t.theme[k]);
     body.innerHTML=t.sections.map(sectionHtml).join('');
     // Forced: the buttons are new, so whatever this host hides has to be

@@ -7,6 +7,11 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Fixed
+- **Importing a remote style now rejects button names that only looked valid.** A handful of names
+  borrowed from JavaScript's own vocabulary slipped past the import check that promises to name
+  every unknown button, and the style then drew a dead key with no label and no action behind it.
+  Those names are refused at import now, like any other button the firmware doesn't have.
+
 - **Host names containing punctuation now show correctly on the web page's host bar.** A name with
   a `<` in it lost everything from that character on, and one containing an ampersand escape showed
   the decoded character instead of what you typed — the name was being inserted as markup rather
