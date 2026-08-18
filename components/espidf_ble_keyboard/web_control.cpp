@@ -4539,12 +4539,25 @@ class BleKbWebHandler : public AsyncWebHandler {
       send_response(200, "text/plain", "OK");
 
     } else if (path == "switch_host") {
-      int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : 0;
+      // Checked before the narrowing cast, as every other slot endpoint does.
+      // The cast used to happen first, so ?slot=256 became 0 and quietly
+      // switched to host 0 — and a slot this device simply does not have was
+      // answered OK while nothing happened at all. Missing slot is no longer
+      // treated as slot 0 either; the page has always sent one.
+      int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : -1;
+      if (slot < 0 || slot >= kb_->host_slots()) {
+        send_response(400, "text/plain", "Invalid slot");
+        return;
+      }
       kb_->switch_host((uint8_t) slot);
       send_response(200, "text/plain", "OK");
 
     } else if (path == "forget_host") {
-      int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : 0;
+      int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : -1;
+      if (slot < 0 || slot >= kb_->host_slots()) {
+        send_response(400, "text/plain", "Invalid slot");
+        return;
+      }
       kb_->forget_host((uint8_t) slot);
       send_response(200, "text/plain", "OK");
 

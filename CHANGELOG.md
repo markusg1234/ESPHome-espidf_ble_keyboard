@@ -7,6 +7,12 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Fixed
+- **Host switching and forgetting now refuse a slot the device doesn't have.** Both answered
+  success for any slot number, doing nothing for most of them — but certain values folded back
+  into range and quietly acted on a different host than the one asked for. Worse, forgetting
+  checked against the maximum number of slots rather than the number you configured, so a slot
+  beyond your setting could have its stored pairing erased. Both now refuse anything out of range.
+
 - **The web page no longer runs the device short of network connections.** Loading it opens several
   at once, and the pool they come from was sized without counting the page at all — so a refresh
   could use up every one, leaving the device refusing connections and the browser waiting on
