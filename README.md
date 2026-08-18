@@ -75,7 +75,8 @@ ota:
 wifi:
   ssid: ${wifi_ssid}
   password: ${wifi_password}
-  power_save_mode: light
+  power_save_mode: none   # Keeps the web page quick; `light` sleeps between beacons, which adds a
+                          # noticeable delay to the first load after the device has been idle
   fast_connect: true
 
 external_components:
@@ -2467,4 +2468,4 @@ After the first successful bond, reconnect behavior is typically stable.
 * **Hibernate not working:** Hibernate uses the Windows Run dialog. Ensure the PC is not in a state where it is blocked (e.g., fullscreen app or UAC prompt). Also ensure hibernate is enabled: run `powercfg /hibernate on` in an admin command prompt.
 * **PC not waking from sleep:** Check that **USB Wake Support** (or similar) is enabled in your BIOS/UEFI Power Management settings.
 * **Re-pair after firmware update:** If the HID descriptor changes (e.g. after adding media keys), you must remove and re-pair the device in Windows Bluetooth settings.
-* **Web page slow to load or stalls on refresh, with `httpd_accept_conn: error in accept (23)` in the log:** the device has run out of network connections. Loading the page opens several at once and each finished request holds its connection briefly afterwards, so a refresh can use up the pool. With `web_control: true` the component reserves what the page needs, which raises the pool on its own — no config change required. If you still see it, set a larger value explicitly (it wins over the component's): add `CONFIG_LWIP_MAX_SOCKETS: "16"` (16 is the maximum) to the `sdkconfig_options` block. A page that is slow only after the device has been idle is a different thing — that is Wi-Fi power saving, and `wifi: power_save_mode: none` addresses it at the cost of a little more current.
+* **Web page slow to load or stalls on refresh, with `httpd_accept_conn: error in accept (23)` in the log:** the device has run out of network connections. Loading the page opens several at once and each finished request holds its connection briefly afterwards, so a refresh can use up the pool. With `web_control: true` the component reserves what the page needs, which raises the pool on its own — no config change required. If you still see it, set a larger value explicitly (it wins over the component's): add `CONFIG_LWIP_MAX_SOCKETS: "16"` (16 is the maximum) to the `sdkconfig_options` block. A page that is slow **only after the device has been idle**, with no such error in the log, is a different thing — that is Wi-Fi power saving. The example config above uses `power_save_mode: none` for this reason; if yours is set to `light` or `high`, the radio sleeps between beacons and the first load after a quiet spell pays for waking it up (measured here: 3.6s idle versus 1.3s warm). `none` costs a little more current, so it is the wrong trade on a battery device.
