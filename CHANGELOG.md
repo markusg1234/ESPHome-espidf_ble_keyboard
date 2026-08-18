@@ -96,6 +96,11 @@ web control page shows the matching version badge.
   where it should write — was answered with an internal-server error, which reads as firmware that
   fell over. It now answers with an ordinary bad-request error that says what the endpoint expects.
 
+- **Two README entries described things the firmware doesn't accept.** The presence-detection
+  section suggested a binary sensor type that isn't in the schema, so copying it gave a config that
+  wouldn't validate; the correct type is `paired`. The spare remote buttons were also listed as
+  eight when there have been sixteen since v1.8.0.
+
 ## v1.8.0 — 2026-08-12
 
 ### Added

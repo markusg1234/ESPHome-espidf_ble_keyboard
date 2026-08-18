@@ -493,7 +493,7 @@ espidf_ble_keyboard:
 | `"voice"` | Voice Command (`0x00CF`) — the microphone key. |
 | `"captions"` | Closed Caption (`0x0061`) — subtitles on/off. |
 | `"num0"` … `"num9"` | The keypad, as plain keyboard digits — direct channel entry on a TV, typing a number on a PC. |
-| `"spare1"` … `"spare8"` | Send **nothing** on their own. They exist as names to hang a [per-host override](#host-actions-per-host-overrides) on, for remote keys with no standard HID usage worth guessing — an app launcher, a set-top box's Input, a vendor's own menu. Pressing an unmapped one logs a hint and does nothing. |
+| `"spare1"` … `"spare16"` | Send **nothing** on their own. They exist as names to hang a [per-host override](#host-actions-per-host-overrides) on, for remote keys with no standard HID usage worth guessing — an app launcher, a set-top box's Input, a vendor's own menu. Pressing an unmapped one logs a hint and does nothing. |
 
 > The six keys above are standard Consumer Page usages, but that page is patchily implemented — a host that ignores one leaves the button dead. That is what overrides are for, and it is the same reason `ok` sends Enter rather than Menu Pick.
 | `"left_click"` | Mouse left click. |
@@ -1037,7 +1037,7 @@ An unknown token is refused on import rather than ignored, so a typo shows up ra
 
 Labels are 1–16 characters. A round key fits about four; the wide app pill fits more. Spares are the natural partner here — they send nothing until you give them an override on that host.
 
-Buttons are named by action — any name from the [Action Reference](#action-reference) table below that the remote knows (`remote_power`, `search`, `info`, `mute`, `home`, `back`, the D-pad five, `volume_*`, `channel_*`, the seven transport keys, `color_*`, `app_*`, `menu`, `guide`, `voice`, `captions`, `tv`, `num0`–`num9`, `spare1`–`spare8`). An unknown name is refused on import rather than rendering a dead button.
+Buttons are named by action — any name from the [Action Reference](#action-reference) table below that the remote knows (`remote_power`, `search`, `info`, `mute`, `home`, `back`, the D-pad five, `volume_*`, `channel_*`, the seven transport keys, `color_*`, `app_*`, `menu`, `guide`, `voice`, `captions`, `tv`, `num0`–`num9`, `spare1`–`spare16`). An unknown name is refused on import rather than rendering a dead button.
 
 **Shaping the body.** `theme` is optional. Colours: `bg`, `border`, `btn_bg`, `btn_fg`, `btn_border`, `ok_bg`, `ok_fg`, `ring_bg`, `ring_fg`, `light_bg`, `light_fg`, `label`, `divider`. Geometry: `pad`, `maxw`, `radius`, `btn_radius`, `shadow`, `clip`. Anything else is ignored, so an imported style cannot restyle the rest of the page.
 
@@ -1783,7 +1783,7 @@ Take the key elsewhere:
   latency to keystrokes, so keeping it on another chip is better regardless.
 
 If you only need "is it in the house", you may not need the key at all: a
-[binary sensor](#configuration-variables) with `type: connected` goes on when a bonded host
+[binary sensor](#paired-sensor-default) with `type: paired` goes on when a bonded host
 connects and off when it drops. Bluetooth range is roughly 10–30 m, and how eagerly a phone
 reconnects to a HID device it isn't actively using varies between iOS and Android.
 
