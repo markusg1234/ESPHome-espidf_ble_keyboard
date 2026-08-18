@@ -1738,6 +1738,19 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 
 Example: `curl -X POST "http://<device-ip>/api/ble_keyboard/string?keys=Hello"`
 
+**Requests from other websites are refused.** These `POST` endpoints take their parameters in the
+query string, which is exactly the shape a browser will send to another host without asking
+permission first — so any page you happened to have open could have typed on your paired computer.
+The device now refuses a `POST` that the browser marks as coming from somewhere else, using a
+header the browser sets and page scripts cannot fake. `GET` endpoints are unaffected, so the Home
+Assistant cards keep working.
+
+Requests that carry no such header — `curl`, scripts, Home Assistant automations — are allowed, so
+every example on this page still works. That is deliberate: those callers could already reach the
+device directly, and refusing them would break documented usage without protecting anything. This
+closes the "a web page turns your browser against you" route and nothing more; **on a network you
+don't trust, the thing that actually protects the device is still `web_server:` authentication.**
+
 ### Identity key (IRK)
 
 **Host Actions → Identity Key** shows the Identity Resolving Key a paired host handed over

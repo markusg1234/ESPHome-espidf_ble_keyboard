@@ -6,6 +6,15 @@ web control page shows the matching version badge.
 
 ## Unreleased
 
+### Security
+- **Another website can no longer make your browser drive the keyboard.** The control endpoints
+  take their parameters in the query string, which is the one shape a browser sends to another
+  host without asking permission first — so any page you had open could have typed on your paired
+  computer, whether or not it could read the reply. Such requests are now refused, using a marker
+  the browser sets and page scripts cannot fake. Command-line and Home Assistant callers are
+  unaffected, and so are the dashboard cards. On an untrusted network, web server authentication
+  is still what actually protects the device.
+
 ### Fixed
 - **Host switching and forgetting now refuse a slot the device doesn't have.** Both answered
   success for any slot number, doing nothing for most of them — but certain values folded back

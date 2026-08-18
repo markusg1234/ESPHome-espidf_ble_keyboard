@@ -3779,6 +3779,29 @@ static int8_t clamp_i8(int v) {
   return (int8_t) v;
 }
 
+// Is this request the device's own page, rather than one some other site made
+// the browser send?
+//
+// Every state-changing endpoint here is a *simple* POST — query-string only, no
+// body, no custom headers — so a browser sends it cross-origin with no preflight
+// to ask permission first. CORS then blocks the attacker from *reading* the
+// reply, which is no comfort at all when the request itself is what types on the
+// paired host. Any page in any tab could drive this keyboard.
+//
+// Sec-Fetch-Site is set by the browser itself and cannot be forged by page
+// script, which is what makes it worth checking. A request carrying none is not
+// a browser being turned against its owner — curl, a script, a Home Assistant
+// automation — and all of those could already reach every endpoint here, so they
+// keep working exactly as documented.
+//
+// This is not access control. It closes the "a web page turns your browser
+// against you" route and nothing else; `web_server:` auth is still what protects
+// the device on a network you do not trust.
+static bool same_origin_ok(AsyncWebServerRequest *request) {
+  auto site = request->get_header("Sec-Fetch-Site");
+  return !site.has_value() || site.value() == "same-origin" || site.value() == "none";
+}
+
 // ── Internal handler class ─────────────────────────────────────────
 // Inherits from the platform-specific AsyncWebHandler via web_server_base
 
@@ -4053,13 +4076,9 @@ class BleKbWebHandler : public AsyncWebHandler {
       //
       // And hence the check below. web_server installs Access-Control-Allow-Origin:*
       // globally, so without it any page the user happens to have open could read
-      // the key straight off the device. Sec-Fetch-Site is set by the browser and
-      // cannot be forged by page script; a client that sends none is not a browser
-      // being turned against its user, and could already drive every other endpoint
-      // here anyway, so curl keeps working.
-      auto fetch_site = request->get_header("Sec-Fetch-Site");
-      if (fetch_site.has_value() && fetch_site.value() != "same-origin" &&
-          fetch_site.value() != "none") {
+      // the key straight off the device. Same test the POST gate uses — see
+      // same_origin_ok().
+      if (!same_origin_ok(request)) {
         send_response(400, "text/plain", "Refused: read this from the device's own page");
         return;
       }
@@ -4381,6 +4400,16 @@ class BleKbWebHandler : public AsyncWebHandler {
       // Error", which reads as a firmware crash rather than a request that used
       // the wrong verb. The body is what actually tells the caller what to fix.
       send_response(400, "text/plain", "This endpoint requires POST");
+      return;
+    }
+
+    // Everything past here changes something — types on the host, switches host,
+    // rewrites stored settings. Refuse the ones a browser was made to send from
+    // somewhere else; see same_origin_ok() for why this is checkable at all and
+    // what it does not cover. GET endpoints are above this gate and unaffected,
+    // so the Home Assistant cards, which only read /hosts, keep working.
+    if (!same_origin_ok(request)) {
+      send_response(400, "text/plain", "Refused: cross-site request");
       return;
     }
 
