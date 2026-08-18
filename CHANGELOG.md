@@ -7,6 +7,12 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Fixed
+- **A mistyped pointer-position request now fails instead of doing something else.** The position
+  arguments were passed straight through into an action, so one carrying the separator that
+  divides a multi-step action tacked an extra step onto the end — a stray character could type
+  text or press a key rather than reporting a mistake. Positions must now be numbers, and a
+  request that isn't is refused without running anything.
+
 - **One odd character in a macro name no longer breaks the whole buttons list.** A control
   character — the kind a paste or a copied string can carry invisibly — made the page's reply
   unreadable, so the list showed only "Error loading" with nothing to explain it. Such characters

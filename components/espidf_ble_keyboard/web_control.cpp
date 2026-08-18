@@ -4425,11 +4425,27 @@ class BleKbWebHandler : public AsyncWebHandler {
     } else if (path == "mouse_abs") {
       // Move the pointer to an absolute position. x/y are percent by default,
       // pixels when unit=px; monitor=<idx> selects a declared monitor region.
+      //
+      // These are spliced into an action string, and execute_action() splits on
+      // '|', so an argument carrying one used to append an entire extra step:
+      // ?x=50|string:hello typed "hello" on the host. No privilege was gained —
+      // /press accepts arbitrary actions anyway — but a mistyped parameter did
+      // something surprising instead of failing. Digits, sign and decimal point
+      // only, and not empty, which would build a malformed action of its own.
+      auto numeric_ok = [](const std::string &v) {
+        return !v.empty() && v.find_first_not_of("-0123456789.") == std::string::npos;
+      };
       std::string sx = request->hasArg("x") ? request->arg("x").c_str() : "0";
       std::string sy = request->hasArg("y") ? request->arg("y").c_str() : "0";
+      std::string smon = request->hasArg("monitor") ? request->arg("monitor").c_str() : "";
+      if (!numeric_ok(sx) || !numeric_ok(sy) ||
+          (request->hasArg("monitor") && !numeric_ok(smon))) {
+        send_response(400, "text/plain", "x, y and monitor must be numeric");
+        return;
+      }
       std::string action;
       if (request->hasArg("monitor")) {
-        action = "mouse_abs_mon:" + std::string(request->arg("monitor").c_str()) + ":" + sx + ":" + sy;
+        action = "mouse_abs_mon:" + smon + ":" + sx + ":" + sy;
       } else if (request->hasArg("unit") && std::string(request->arg("unit").c_str()) == "px") {
         action = "mouse_abs_px:" + sx + ":" + sy;
       } else {
