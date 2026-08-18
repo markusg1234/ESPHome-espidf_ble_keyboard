@@ -999,9 +999,19 @@ function refreshActiveTemplate(){
       d.slots.forEach(s=>{
         const b=document.createElement('button');
         b.className='host-btn'+(s.slot===d.active?' active':'')+(s.occupied?' occupied':'');
+        // Built as nodes rather than markup: s.name is the YAML button's name,
+        // so it is whatever the user typed. Through innerHTML a host called
+        // "Work & Home" rendered wrong and "TV <office>" lost its label to an
+        // unknown tag. Every other user string on this page already goes through
+        // textContent — this was the one that got missed.
+        //
         // Prefer the stable identity so this matches the host MAC sensor and the
         // address the phone shows for itself; s.addr rotates on Android.
-        b.innerHTML='<span class="slot-label">'+(s.name||('Host '+(s.slot+1)))+'</span>'+(s.occupied?(s.identity||s.addr):'Empty');
+        const lbl=document.createElement('span');
+        lbl.className='slot-label';
+        lbl.textContent=s.name||('Host '+(s.slot+1));
+        b.appendChild(lbl);
+        b.appendChild(document.createTextNode(s.occupied?(s.identity||s.addr):'Empty'));
         onTap(b,()=>{
           // Mark the new host at once, then re-read as soon as the device has
           // taken the switch. Without this the page waited for the next 5s poll

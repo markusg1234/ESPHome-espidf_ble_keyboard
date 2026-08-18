@@ -7,6 +7,11 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Fixed
+- **Host names containing punctuation now show correctly on the web page's host bar.** A name with
+  a `<` in it lost everything from that character on, and one containing an ampersand escape showed
+  the decoded character instead of what you typed — the name was being inserted as markup rather
+  than as text. Names are now placed as text, the way every other label on the page already was.
+
 - **Raising the web server's URL length limit no longer breaks the build.** One buffer was sized
   with a fixed number that had to match that limit exactly, so changing it failed to compile with
   an error pointing inside the component rather than at the setting that caused it — and raising
