@@ -3737,9 +3737,18 @@ class BleKbWebHandler : public AsyncWebHandler {
   BleKbWebHandler(EspidfBleKeyboard *kb) : kb_(kb) {}
 
   static std::string get_url(AsyncWebServerRequest *request) {
-    char buf[513];
-    std::span<char, 513> span(buf);
-    auto ref = request->url_to(span);
+    // Sized from the web server's own constant rather than the 513 it happens to
+    // equal by default. url_to() takes a fixed-extent span, and those do not
+    // convert across a size mismatch, so hardcoding the number turned any config
+    // that set CONFIG_HTTPD_MAX_URI_LEN into a compile error *in this file* —
+    // which is not one the person who changed the option can edit. Raising that
+    // limit is a natural thing to try, too: style uploads are chunked precisely
+    // because a request carries only ~512 bytes of URL.
+    //
+    // A raw array converts to the span implicitly, which is how web_server_idf.h
+    // calls it itself.
+    char buf[AsyncWebServerRequest::URL_BUF_SIZE];
+    auto ref = request->url_to(buf);
     return std::string(ref.begin(), ref.end());
   }
 

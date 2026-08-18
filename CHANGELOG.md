@@ -7,6 +7,12 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Fixed
+- **Raising the web server's URL length limit no longer breaks the build.** One buffer was sized
+  with a fixed number that had to match that limit exactly, so changing it failed to compile with
+  an error pointing inside the component rather than at the setting that caused it — and raising
+  it is the obvious thing to try, since style uploads are chunked only because a request carries
+  around 500 characters of URL. The buffer now takes its size from the setting.
+
 - **The web mouse's scroll arrows no longer keep scrolling after you let go.** Pressing an arrow,
   dragging the cursor off it and releasing left the host scrolling until the page was reloaded,
   because the release was delivered to whatever was under the cursor instead. Holding both arrows
