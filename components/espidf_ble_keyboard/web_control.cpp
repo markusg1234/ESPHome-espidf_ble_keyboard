@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.1-dev</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.1-dev-a</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -2627,6 +2627,14 @@ buildKeyboard();
   // has sent anything, pointerup must NOT send its usual press on release.
   {let sx,sy,ok,ab,fired=false;
   card.addEventListener('pointerdown',e=>{
+    // Only one repeat at a time. ri/rt are single handles shared by every button,
+    // so pressing a second button while the first is still held used to overwrite
+    // them — and the pointerup that followed cleared only the second, leaving the
+    // first firing at rptRate until the page was reloaded. A thumb on the d-pad
+    // and another on the volume rocker is exactly how a remote gets held. Before
+    // the button lookup, so a finger landing off-button clears it too: that path
+    // clobbers `ab` on its way out and would strand the same interval.
+    stopRepeat();
     ab=e.target.closest('.rmt-btn');if(!ab)return;
     sx=e.clientX;sy=e.clientY;ok=true;fired=false;ab.classList.add('p');
     const act=ab.dataset.action;

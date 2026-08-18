@@ -7,6 +7,11 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Fixed
+- **A second remote button pressed while the first is held no longer leaves one repeating forever.**
+  Holding a d-pad key and then reaching for the volume rocker started a second repeat over the top
+  of the first, and letting go cleared only the newer one — the older kept firing at the repeat
+  rate until the page was reloaded. The most recently pressed button is now the one that repeats.
+
 - **The web page's larger replies no longer churn the device's memory.** A reply was built up one
   piece at a time, reallocating as it grew, and then copied again in full before being sent — tens
   of kilobytes at once for a settings backup, on memory shared with the Bluetooth stack. Replies
