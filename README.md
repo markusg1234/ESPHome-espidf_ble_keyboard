@@ -2324,25 +2324,47 @@ The device has always advertised the BLE Battery Service — a host reads it to 
 beside the keyboard in its Bluetooth settings. Until now it had nothing to report and sat at a
 fixed 100%.
 
+> **This is the ESP32's own battery, not the host's.** The direction is device → host: your phone
+> or PC learns how charged *the keyboard* is. It cannot work the other way — the device is a BLE
+> peripheral, not a client, and a phone doesn't expose its battery to a keyboard it's paired with.
+> To get a *host's* battery into Home Assistant, use the HA Companion app on the phone. On a
+> USB-powered build, leave `battery_level:` unset.
+
 Point `battery_level:` at any sensor that reads a percentage and the host sees the real value:
 
 ```yaml
 sensor:
   - platform: adc
+    # ADC1 only (GPIO32–39 on a classic ESP32). ADC2 pins validate fine but
+    # read nothing once Wi-Fi is up, and this component always has Wi-Fi.
     pin: GPIO35
     id: battery_pct
+    name: "Keyboard Battery"     # gives Home Assistant its own entity
+    device_class: battery
+    unit_of_measurement: "%"
+    state_class: measurement
+    accuracy_decimals: 0
+    attenuation: 12db            # without this the ADC tops out near 1.1 V
     update_interval: 60s
     filters:
       # Divider and cell curve are yours to work out — what reaches the
-      # keyboard just has to be 0–100.
+      # keyboard just has to be 0–100. With a 2:1 divider a full 4.2 V cell
+      # reads about 2.10 V at the pin and an empty 3.3 V one about 1.65 V.
       - calibrate_linear:
           - 1.65 -> 0.0
           - 2.10 -> 100.0
+      - clamp:
+          min_value: 0
+          max_value: 100
 
 espidf_ble_keyboard:
   id: my_keyboard
   battery_level: battery_pct
 ```
+
+The `name:` is what makes it a Home Assistant sensor in its own right; `battery_level:` is
+separately what makes the *host* see it. The two are independent — you can have either without
+the other.
 
 A reading outside 0–100 is clamped, and an unavailable one (NAN) is ignored rather than sent as a
 flat battery. Only a change is transmitted, so a sensor that republishes the same number on every
