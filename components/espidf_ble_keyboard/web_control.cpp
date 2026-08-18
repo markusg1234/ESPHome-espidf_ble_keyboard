@@ -4426,22 +4426,47 @@ class BleKbWebHandler : public AsyncWebHandler {
       // restores the YAML defaults; save persists to the active host (NVS).
       if (request->hasArg("reset")) {
         kb_->reset_goto_scale_for_host();
+        send_response(200, "text/plain", "OK");
       } else {
-        if (request->hasArg("v")) {
-          float v = atof(request->arg("v").c_str());
-          if (v >= 0.05f && v <= 20.0f) kb_->set_mouse_goto_scale(v);
+        // A value outside the range used to be dropped while the endpoint still
+        // answered OK, so the Finder's live preview could not tell a rejected
+        // value from an applied one. Answers like goto_scale_slot now.
+        //
+        // Validated before anything is applied, so a request carrying one good
+        // and one bad axis changes neither — the old code set the good one and
+        // reported success for both. And strtof rather than atof: atof turns
+        // "abc" into 0.0, which the range check rejects with a message about the
+        // range, when the actual problem is that it is not a number.
+        bool bad_number = false, out_of_range = false, anything = false;
+        float fv = 0.0f, fx = 0.0f, fy = 0.0f;
+        auto take = [&](const char *name, float &out) {
+          if (!request->hasArg(name)) return false;
+          anything = true;
+          const std::string s = request->arg(name).c_str();
+          char *end = nullptr;
+          const float parsed = strtof(s.c_str(), &end);
+          if (end == s.c_str() || *end != '\0') { bad_number = true; return false; }
+          if (parsed < 0.05f || parsed > 20.0f) { out_of_range = true; return false; }
+          out = parsed;
+          return true;
+        };
+        const bool has_v = take("v", fv), has_vx = take("vx", fx), has_vy = take("vy", fy);
+        const bool save = request->hasArg("save");
+        if (save) anything = true;
+        if (bad_number) {
+          send_response(400, "text/plain", "Scale must be a number");
+        } else if (out_of_range) {
+          send_response(400, "text/plain", "Scale must be 0.05-20.0");
+        } else if (!anything) {
+          send_response(400, "text/plain", "Nothing to do - pass v, vx, vy, reset or save");
+        } else {
+          if (has_v) kb_->set_mouse_goto_scale(fv);
+          if (has_vx) kb_->set_mouse_goto_scale_x(fx);
+          if (has_vy) kb_->set_mouse_goto_scale_y(fy);
+          if (save) kb_->save_goto_scale_for_host();  // persist to active host
+          send_response(200, "text/plain", "OK");
         }
-        if (request->hasArg("vx")) {
-          float v = atof(request->arg("vx").c_str());
-          if (v >= 0.05f && v <= 20.0f) kb_->set_mouse_goto_scale_x(v);
-        }
-        if (request->hasArg("vy")) {
-          float v = atof(request->arg("vy").c_str());
-          if (v >= 0.05f && v <= 20.0f) kb_->set_mouse_goto_scale_y(v);
-        }
-        if (request->hasArg("save")) kb_->save_goto_scale_for_host();  // persist to active host
       }
-      send_response(200, "text/plain", "OK");
 
     } else if (path == "string") {
       if (request->hasArg("keys")) {

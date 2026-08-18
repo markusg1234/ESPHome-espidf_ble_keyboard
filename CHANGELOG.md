@@ -7,6 +7,12 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Fixed
+- **Pointer calibration values the device refuses now say so.** Sending a scale outside the
+  accepted range, or something that isn't a number at all, was answered with success while the
+  value was quietly dropped — and a request carrying one good axis and one bad one applied half of
+  it. Such a request is now refused with the reason, and nothing is applied unless all of it is
+  valid. Only affects controlling the device directly; the page already checked before sending.
+
 - **Importing a remote style now rejects button names that only looked valid.** A handful of names
   borrowed from JavaScript's own vocabulary slipped past the import check that promises to name
   every unknown button, and the style then drew a dead key with no label and no action behind it.
