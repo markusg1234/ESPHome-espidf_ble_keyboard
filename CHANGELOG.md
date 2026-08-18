@@ -7,6 +7,12 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Fixed
+- **One odd character in a macro name no longer breaks the whole buttons list.** A control
+  character — the kind a paste or a copied string can carry invisibly — made the page's reply
+  unreadable, so the list showed only "Error loading" with nothing to explain it. Such characters
+  are now written in a form the page can read, and accented or emoji names still come through
+  exactly as typed.
+
 - **Pointer calibration values the device refuses now say so.** Sending a scale outside the
   accepted range, or something that isn't a number at all, was answered with success while the
   value was quietly dropped — and a request carrying one good axis and one bad one applied half of

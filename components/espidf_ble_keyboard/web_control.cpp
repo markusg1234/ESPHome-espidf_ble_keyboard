@@ -3745,7 +3745,25 @@ static std::string json_escape(const std::string &s) {
       case '\n': out += "\\n"; break;
       case '\r': out += "\\r"; break;
       case '\t': out += "\\t"; break;
-      default:   out += c; break;
+      default:
+        // Everything else below 0x20 needs escaping too: a raw control byte
+        // inside a JSON string is invalid, so one stray character in a macro
+        // name made the page's JSON.parse throw and the whole buttons list fall
+        // back to "Error loading" with nothing to say why.
+        //
+        // Compared as unsigned deliberately. char is signed here, so every
+        // continuation byte of a UTF-8 sequence is negative, and a plain
+        // `c < 0x20` would escape those too — mangling every name that isn't
+        // pure ASCII. Bytes at 0x80 and above are valid inside a JSON string
+        // and pass through untouched.
+        if (static_cast<unsigned char>(c) < 0x20) {
+          char esc[7];
+          snprintf(esc, sizeof(esc), "\\u%04x", static_cast<unsigned char>(c));
+          out += esc;
+        } else {
+          out += c;
+        }
+        break;
     }
   }
   return out;
@@ -3832,19 +3850,22 @@ class BleKbWebHandler : public AsyncWebHandler {
       json += kb_->is_paired() ? "true" : "false";
       json += ",\"ha_action\":";
       json += kb_->ha_action_enabled() ? "true" : "false";
+      // Escaped like every other endpoint's strings. ESPHome restricts device
+      // names, so this is consistency rather than a live bug — but a /status
+      // that cannot be parsed takes the whole page down with it.
       json += ",\"device_name\":\"";
-      json += kb_->device_name();
+      json += json_escape(kb_->device_name());
       json += "\",\"layout\":\"";
-      json += kb_->active_layout_id();
+      json += json_escape(kb_->active_layout_id());
       json += "\",\"layouts\":[";
       for (size_t i = 0; i < layout_count(); i++) {
         const KeyboardLayout *lay = layout_at(i);
         if (lay == nullptr) continue;
         if (i > 0) json += ",";
         json += "{\"id\":\"";
-        json += lay->id;
+        json += json_escape(lay->id);
         json += "\",\"name\":\"";
-        json += lay->display_name;
+        json += json_escape(lay->display_name);
         json += "\"}";
       }
       json += "]}";
