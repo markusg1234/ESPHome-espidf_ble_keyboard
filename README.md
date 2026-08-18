@@ -21,6 +21,7 @@ This is a custom [ESPHome](https://esphome.io) component that transforms an ESP3
 * **Host MAC Sensor:** Expose the Bluetooth address of the connected host, so automations can act on *which* machine is connected. Reports the stable identity address, so it holds even on Android and iOS where the connection address rotates.
 * **Bonded Slot Protection:** A host slot belongs to its host until you forget it. A stranger that pairs while a bonded slot is active is refused and its bond removed, instead of quietly taking the slot over.
 * **Keyboard LED Feedback:** Expose host-side Num Lock, Caps Lock, and Scroll Lock LED state as ESPHome binary sensors. Updated whenever the host writes a HID output report.
+* **Battery Level:** Report a real charge percentage over the BLE Battery Service, so the host's Bluetooth settings show it like any other wireless keyboard. Point `battery_level:` at any sensor reading 0–100. See [Battery level](#battery-level).
 
 📖 [Keycode Reference](docs/keycodes.md) · [🌐 View Web Page](https://markusg1234.github.io/ESPHome-espidf_ble_keyboard)
 
@@ -298,7 +299,7 @@ binary_sensor:
 * **passkey** (Optional, int): A 6-digit static PIN (000000–999999). If set, the device uses static passkey pairing (legacy MITM bond) and requires this PIN during initial pairing.
 * **passkey_mode** (Optional, string): Passkey security mode. `legacy` (default) uses legacy MITM bonding — tested and recommended for Windows. `secure_connections` uses LE Secure Connections MITM bonding — required for iOS passkey pairing (legacy mode does not work on iOS). Android does not support passkey pairing with BLE HID keyboards.
 * **web_control** (Optional, bool): Enable a built-in web control page with keyboard and mouse UI at `http://<device-ip>/ble_keyboard`. Requires the `web_server` component. Defaults to `false`.
-* **api_services** (Optional, bool): Auto-register all documented Home Assistant services (`run_action`, `run_macro`, `send_string`, `send_key`, `send_consumer`, `mouse_move`, `mouse_scroll`, `mouse_click`, `mouse_hold`, `mouse_release`, `mouse_abs`, `switch_host`, `forget_host`) directly from the component — no `api: services:` yaml needed, and the HA cards work out of the box. Requires the `api:` component. Defaults to `false`. **Don't combine with the manual `api: services:` snippets below** — you'd register the same service names twice; delete the manual copies when enabling this. See [Home Assistant services](#home-assistant-services).
+* **api_services** (Optional, bool): Auto-register all documented Home Assistant services (`run_action`, `run_macro`, `send_string`, `send_key`, `send_consumer`, `mouse_move`, `mouse_scroll`, `mouse_click`, `mouse_hold`, `mouse_release`, `mouse_abs`, `set_battery_level`, `switch_host`, `forget_host`) directly from the component — no `api: services:` yaml needed, and the HA cards work out of the box. Requires the `api:` component. Defaults to `false`. **Don't combine with the manual `api: services:` snippets below** — you'd register the same service names twice; delete the manual copies when enabling this. See [Home Assistant services](#home-assistant-services).
 * **ha_action** (Optional, bool): Allow the `ha_action:` prefix to fire Home Assistant actions from the device — how a remote key reaches things BLE can't, such as an IR blaster's `remote.send_command`. Requires the `api:` component (`api: homeassistant_services: true` is enabled automatically) and Home Assistant's own per-device permission. Defaults to `false` — the web page is unauthenticated, so this is a deliberate opt-in. See [Calling Home Assistant Actions](#calling-home-assistant-actions).
 * **host_slots** (Optional, int): Number of host slots for multi-host switching (1–10). Each slot can store a bonded host. Switch between hosts using buttons, HA services, or the web control page. Defaults to `4`.
 * **mouse_sensitivity** (Optional, float): Web mouse base movement multiplier. Defaults to `1.0`. Range: 0.1–10.0.
@@ -312,6 +313,7 @@ binary_sensor:
 * **custom_text_id** (Optional, ID or list of IDs): Link one or more ESPHome `text` entities for custom text input. Automatically registers a "Send" button in the web UI for each. Use `send_custom_text` or `send_custom_text:N` action to trigger.
 * **expose_buttons** (Optional, boolean): List every non-internal ESPHome `button` in your config on the [web control page](#pressing-other-esphome-buttons), so it can reach things BLE can't — Wake-on-LAN, a relay, a restart. Defaults to `true`.
 * **hide_buttons** (Optional, ID or list of IDs): Buttons to keep *off* the web page. The page has no authentication, so use this for anything destructive (`factory_reset`, `restart`). Hidden buttons also refuse to run if their action is typed by hand.
+* **battery_level** (Optional, ID): A sensor whose value (0–100) is published over the BLE Battery Service, so the host's Bluetooth settings show the keyboard's real charge. Any sensor reading a percentage will do — an ADC with a calibration filter, a fuel-gauge IC, a template sensor. Values outside 0–100 are clamped and an unavailable reading is ignored rather than sent as 0%. Without this the service is still advertised and reports a fixed 100%. See [Battery level](#battery-level).
 * **keyboard_layout** (Optional, string): Default keyboard layout. One of `us` (default), `uk`, `de`, `be`. Controls how `send_string` maps each character to USB HID keycodes — must match the *host's* keyboard layout. Can be overridden at runtime from the web UI (persisted to NVS, survives reboot). See [Keyboard layouts](#keyboard-layouts) below.
 * **hosts** (Optional, list): Per-slot passkey and pairing mode overrides. Each entry has:
   * **slot** (Required, int): Host slot number (0–9).
@@ -726,6 +728,7 @@ Services appear in HA under **Developer Tools → Actions** as `esphome.<device_
 | `mouse_hold` | `btn: int` | Press and hold for dragging — release with `mouse_release`. |
 | `mouse_release` | — | Release all held mouse buttons. |
 | `mouse_abs` | `x: float`, `y: float` | Move cursor to an exact position, percent of screen (0–100). |
+| `set_battery_level` | `level: int` | Set the battery percentage the host sees (0–100). See [Battery level](#battery-level). |
 | `switch_host` | `slot: int` | Switch to host slot N (0–9). |
 | `forget_host` | `slot: int` | Remove the bond for host slot N (0–9). |
 
@@ -2312,6 +2315,60 @@ automation:
 ```
 
 > **Note:** Printable ASCII and Tab are supported on every layout. Non-ASCII characters work when they're part of the active layout's Unicode table (e.g. `£`, `¬`, `€` on `uk`). Unmapped characters and most control characters are silently skipped.
+
+---
+
+## Battery level
+
+The device has always advertised the BLE Battery Service — a host reads it to show a battery icon
+beside the keyboard in its Bluetooth settings. Until now it had nothing to report and sat at a
+fixed 100%.
+
+Point `battery_level:` at any sensor that reads a percentage and the host sees the real value:
+
+```yaml
+sensor:
+  - platform: adc
+    pin: GPIO35
+    id: battery_pct
+    update_interval: 60s
+    filters:
+      # Divider and cell curve are yours to work out — what reaches the
+      # keyboard just has to be 0–100.
+      - calibrate_linear:
+          - 1.65 -> 0.0
+          - 2.10 -> 100.0
+
+espidf_ble_keyboard:
+  id: my_keyboard
+  battery_level: battery_pct
+```
+
+A reading outside 0–100 is clamped, and an unavailable one (NAN) is ignored rather than sent as a
+flat battery. Only a change is transmitted, so a sensor that republishes the same number on every
+update costs nothing.
+
+**For a level that doesn't come from a plain sensor** — computed in a lambda, or pushed from Home
+Assistant — use the action instead:
+
+```yaml
+    on_...:
+      - espidf_ble_keyboard.set_battery_level:
+          id: my_keyboard
+          level: !lambda "return id(some_calculation);"
+```
+
+With `api_services: true` the same thing is reachable from Home Assistant as
+`esphome.<device>_set_battery_level` with a `level` variable, which is also the easiest way to
+check the plumbing without a battery attached.
+
+> **A USB-powered build should leave this unset.** Reporting a made-up 100% is what it already
+> does, and a host has no use for a percentage that never moves.
+
+Hosts differ in when they refresh the reading: some poll, some rely on the notification and update
+within seconds, and some only re-read on reconnect. The device notifies subscribers on every
+change and re-sends the current level when a host subscribes, so anything slower than that is the
+host's own caching.
 
 ---
 

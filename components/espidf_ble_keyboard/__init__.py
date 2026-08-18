@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
-from esphome.components import button
+from esphome.components import button, sensor
 from esphome.const import CONF_ID
 from esphome import automation
 
@@ -45,6 +45,7 @@ CONF_HIDE_BUTTONS = "hide_buttons"
 CONF_KEYBOARD_LAYOUT = "keyboard_layout"
 CONF_LAYOUT = "layout"
 CONF_ACTIONS = "actions"
+CONF_BATTERY_LEVEL = "battery_level"
 # Keep in sync with EspidfBleKeyboard::MAX_OVERRIDES
 MAX_OVERRIDES_PER_HOST = 8
 PASSKEY_MODE_LEGACY = "legacy"
@@ -69,10 +70,12 @@ CONF_THRESHOLD = "threshold"
 KeyHoldAction = espidf_ble_keyboard_ns.class_("KeyHoldAction", automation.Action)
 HoldActionAction = espidf_ble_keyboard_ns.class_("HoldActionAction", automation.Action)
 KeyReleaseAction = espidf_ble_keyboard_ns.class_("KeyReleaseAction", automation.Action)
+SetBatteryLevelAction = espidf_ble_keyboard_ns.class_("SetBatteryLevelAction", automation.Action)
 
 CONF_MODIFIER = "modifier"
 CONF_KEY = "key"
 CONF_ACTION = "action"
+CONF_LEVEL = "level"
 
 
 @automation.register_action(
@@ -120,6 +123,22 @@ async def hold_action_to_code(config, action_id, template_arg, args):
 async def key_release_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, parent)
+
+
+@automation.register_action(
+    "espidf_ble_keyboard.set_battery_level",
+    SetBatteryLevelAction,
+    cv.Schema({
+        cv.GenerateID(): cv.use_id(EspidfBleKeyboard),
+        cv.Required(CONF_LEVEL): cv.templatable(cv.int_range(min=0, max=100)),
+    }),
+    synchronous=True,
+)
+async def set_battery_level_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    cg.add(var.set_level(await cg.templatable(config[CONF_LEVEL], args, cg.uint8)))
+    return var
 
 
 def _web_control_schema(config):
@@ -284,6 +303,10 @@ CONFIG_SCHEMA = cv.All(
         cv.Optional(CONF_MOUSE_GOTO_SCALE_Y): cv.float_range(min=0.05, max=20.0),
         cv.Optional(CONF_MONITORS): cv.ensure_list(MONITOR_SCHEMA),
         cv.Optional(CONF_KEYBOARD_LAYOUT, default="us"): cv.one_of(*SUPPORTED_LAYOUTS, lower=True),
+        # Feed the BLE Battery Service, which hosts show in their Bluetooth
+        # settings. Any sensor reading 0-100 will do; without this the service
+        # is still advertised and reports a fixed 100%.
+        cv.Optional(CONF_BATTERY_LEVEL): cv.use_id(sensor.Sensor),
         cv.Optional(CONF_CUSTOM_TEXT_ID): cv.ensure_list(cv.use_id(cg.EntityBase)),
         # Every non-internal ESPHome button in the config is listed on the web
         # control page. use_id (not a name string) so a typo fails the build.
@@ -333,6 +356,10 @@ async def to_code(config):
     for mon in config.get(CONF_MONITORS, []):
         cg.add(var.add_monitor(mon[CONF_X], mon[CONF_Y], mon[CONF_WIDTH], mon[CONF_HEIGHT], mon[CONF_PRIMARY]))
     cg.add(var.set_keyboard_layout(config[CONF_KEYBOARD_LAYOUT]))
+
+    if CONF_BATTERY_LEVEL in config:
+        battery = await cg.get_variable(config[CONF_BATTERY_LEVEL])
+        cg.add(var.set_battery_sensor(battery))
 
     if CONF_HOSTS in config:
         for host in config[CONF_HOSTS]:

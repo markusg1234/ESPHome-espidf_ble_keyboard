@@ -373,6 +373,19 @@ class EspidfBleKeyboard : public Component
     pending_led_update_.store(true);
   }
 
+  // ── Battery Service ────────────────────────────────────────────────────────
+  // The service is always advertised, so an unfed build reports its initial
+  // 100% forever. `battery_level:` points it at a sensor; the
+  // set_battery_level action and HA service cover values that don't come from
+  // one. Levels outside 0..100 are clamped rather than refused.
+  void set_battery_level(uint8_t percent);
+  uint8_t battery_level() const;
+  /// Follow an existing sensor (a battery voltage-to-percent template, an ADC).
+  void set_battery_sensor(sensor::Sensor *battery);
+  /// Called from the GATTS task when a host subscribes — the send itself has to
+  /// happen on the ESPHome loop, like every other queued BLE update here.
+  void queue_battery_notify() { pending_battery_notify_.store(true); }
+
   void set_connected(bool connected, uint16_t conn_id) {
     is_connected_ = connected;
     conn_id_ = conn_id;
@@ -599,6 +612,9 @@ class EspidfBleKeyboard : public Component
     y = y < 0 ? 0 : (y > 100 ? 100 : y);
     send_mouse_move_abs((uint16_t)(x / 100.0f * 32767.0f), (uint16_t)(y / 100.0f * 32767.0f));
   }
+  void on_api_set_battery_level_(int32_t percent) {
+    set_battery_level((uint8_t) (percent < 0 ? 0 : (percent > 100 ? 100 : percent)));
+  }
   void on_api_switch_host_(int32_t slot) { switch_host((uint8_t) slot); }
   void on_api_forget_host_(int32_t slot) { forget_host((uint8_t) slot); }
 #endif
@@ -621,6 +637,7 @@ class EspidfBleKeyboard : public Component
   binary_sensor::BinarySensor *paired_binary_sensor_{nullptr};
   std::atomic<bool> pending_led_update_{false};
   std::atomic<uint8_t> pending_led_value_{0};
+  std::atomic<bool> pending_battery_notify_{false};
   binary_sensor::BinarySensor *num_lock_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *caps_lock_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *scroll_lock_binary_sensor_{nullptr};
@@ -736,6 +753,7 @@ class EspidfBleKeyboard : public Component
   void load_layout_();
   void save_layout_(const std::string &id);
   void update_led_state_(uint8_t led_byte);
+  void send_battery_notify_();
   void send_mouse_report_(uint8_t buttons, int8_t x, int8_t y, int8_t wheel);
 
   // Non-blocking string typing state machine (driven from loop())

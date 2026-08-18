@@ -6,6 +6,13 @@ web control page shows the matching version badge.
 
 ## Unreleased
 
+### Added
+- **The battery level reported to the host can now be a real one.** The Battery Service was always
+  advertised but had nothing feeding it, so every host showed a fixed 100%. Point the new
+  `battery_level:` option at any sensor reading 0–100 and the host's Bluetooth settings follow it,
+  with a `set_battery_level` action and Home Assistant service for levels that don't come from a
+  sensor. USB-powered builds should leave it unset.
+
 ### Security
 - **Another website can no longer make your browser drive the keyboard.** The control endpoints
   take their parameters in the query string, which is the one shape a browser sends to another

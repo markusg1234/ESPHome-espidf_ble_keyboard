@@ -64,6 +64,17 @@ template<typename... Ts> class KeyReleaseAction : public Action<Ts...> {
   EspidfBleKeyboard *parent_;
 };
 
+/// Feed the BLE Battery Service from a lambda or a template value, for a level
+/// that doesn't come from a plain sensor `battery_level:` can point at.
+template<typename... Ts> class SetBatteryLevelAction : public Action<Ts...> {
+ public:
+  explicit SetBatteryLevelAction(EspidfBleKeyboard *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(uint8_t, level)
+  void play(Ts... x) override { parent_->set_battery_level(this->level_.value(x...)); }
+ protected:
+  EspidfBleKeyboard *parent_;
+};
+
 class RssiAboveTrigger : public Trigger<int> {
  public:
   RssiAboveTrigger(EspidfBleKeyboard *parent, int8_t threshold) {

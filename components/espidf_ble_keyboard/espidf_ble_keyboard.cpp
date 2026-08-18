@@ -12,6 +12,7 @@
 #include "nvs.h"
 #include "esp_random.h"
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -842,6 +843,16 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
                 abs_mouse_ccc_val = static_cast<uint16_t>(param->write.value[0]) |
                                     (static_cast<uint16_t>(param->write.value[1]) << 8);
                 ESP_LOGI(TAG, "GATTS: Abs mouse CCC=0x%04X (absolute pointer)", abs_mouse_ccc_val);
+            }
+            if (param->write.handle == bas_handle_table[BAS_IDX_BAT_CCC] && param->write.len >= 2) {
+                battery_ccc_val = static_cast<uint16_t>(param->write.value[0]) |
+                                  (static_cast<uint16_t>(param->write.value[1]) << 8);
+                ESP_LOGI(TAG, "GATTS: Battery CCC=0x%04X", battery_ccc_val);
+                // A fresh subscriber holds only whatever the attribute read gave
+                // it, which for a host that connected before the first reading is
+                // the startup default. Push the current level now instead of
+                // waiting for it to change.
+                if ((battery_ccc_val & 0x0001) != 0 && s_instance) s_instance->queue_battery_notify();
             }
             if ((param->write.handle == s_hid_output_report_handle || param->write.handle == s_boot_kb_output_handle) &&
                 param->write.len > 0) {
@@ -2046,6 +2057,7 @@ void EspidfBleKeyboard::register_api_services_() {
     register_service(&EspidfBleKeyboard::on_api_mouse_hold_, "mouse_hold", {"btn"});
     register_service(&EspidfBleKeyboard::on_api_mouse_release_, "mouse_release");
     register_service(&EspidfBleKeyboard::on_api_mouse_abs_, "mouse_abs", {"x", "y"});
+    register_service(&EspidfBleKeyboard::on_api_set_battery_level_, "set_battery_level", {"level"});
     register_service(&EspidfBleKeyboard::on_api_switch_host_, "switch_host", {"slot"});
     register_service(&EspidfBleKeyboard::on_api_forget_host_, "forget_host", {"slot"});
     ESP_LOGI(TAG, "Registered Home Assistant API services (esphome.<node>_run_action, _mouse_move, ...)");
@@ -2177,12 +2189,66 @@ void EspidfBleKeyboard::update_led_state_(uint8_t led_byte) {
         scroll_lock_binary_sensor_->publish_state(led_byte & 0x04);
 }
 
+// ── Battery Service ─────────────────────────────────────────────────────────
+// The attribute is the value a host reads; the notification is what makes a
+// host that subscribed update without re-reading. Both are kept in step here so
+// no caller has to remember the pair.
+
+uint8_t EspidfBleKeyboard::battery_level() const { return battery_level_val; }
+
+void EspidfBleKeyboard::set_battery_level(uint8_t percent) {
+    if (percent > 100) percent = 100;
+    // A battery sensor publishes on its own interval whether or not the reading
+    // moved, and every notification is a BLE transmission — so only a genuine
+    // change is worth one.
+    if (percent == battery_level_val) return;
+    battery_level_val = percent;
+    ESP_LOGD(TAG, "Battery level %u%%", (unsigned) battery_level_val);
+    if (bas_handle_table[BAS_IDX_BAT_VAL] != 0)
+        esp_ble_gatts_set_attr_value(bas_handle_table[BAS_IDX_BAT_VAL], 1, &battery_level_val);
+    send_battery_notify_();
+}
+
+// Parameter deliberately not named `sensor`: that would shadow the namespace
+// this class already uses for its own sensor members.
+void EspidfBleKeyboard::set_battery_sensor(sensor::Sensor *battery) {
+    if (battery == nullptr) return;
+    battery->add_on_state_callback([this](float value) {
+        // NAN means the sensor has no reading — reporting that as 0% would tell
+        // the host the battery is flat.
+        if (std::isnan(value)) return;
+        if (value < 0.0f) value = 0.0f;
+        if (value > 100.0f) value = 100.0f;
+        this->set_battery_level(static_cast<uint8_t>(std::lroundf(value)));
+    });
+    // A sensor with a value already (a restored state, or one that published
+    // during setup) would otherwise not reach us until its next update.
+    if (battery->has_state() && !std::isnan(battery->state)) {
+        float v = battery->state;
+        if (v < 0.0f) v = 0.0f;
+        if (v > 100.0f) v = 100.0f;
+        set_battery_level(static_cast<uint8_t>(std::lroundf(v)));
+    }
+}
+
+// Notify only an actual subscriber. An unsubscribed host reads the attribute
+// instead, which set_battery_level has already updated.
+void EspidfBleKeyboard::send_battery_notify_() {
+    if (!is_connected_ || (battery_ccc_val & 0x0001) == 0) return;
+    if (bas_handle_table[BAS_IDX_BAT_VAL] == 0) return;
+    esp_ble_gatts_send_indicate(s_gatts_if, conn_id_, bas_handle_table[BAS_IDX_BAT_VAL],
+                                1, &battery_level_val, false);
+}
+
 void EspidfBleKeyboard::loop() {
     if (pending_paired_update_.exchange(false)) {
         set_paired(pending_paired_state_.load());
     }
     if (pending_led_update_.exchange(false)) {
         update_led_state_(pending_led_value_.load());
+    }
+    if (pending_battery_notify_.exchange(false)) {
+        send_battery_notify_();
     }
     if (pending_rssi_nan_.exchange(false)) {
         if (rssi_sensor_ != nullptr) rssi_sensor_->publish_state(NAN);
