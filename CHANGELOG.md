@@ -16,6 +16,13 @@ web control page shows the matching version badge.
   is still what actually protects the device.
 
 ### Fixed
+- **Restoring a backup too soon after opening the page no longer skips most of it.** The restore
+  worked out which host slots to write by reading the Host Actions picker, so if that card hadn't
+  finished loading it found none and quietly skipped every per-host step — overrides, hidden
+  buttons, repeat, hold and remote styles all left as they were — while still reporting success,
+  and while having already cleared the stored custom styles. It now asks the device which slots
+  exist, and stops with a message if it can't find out.
+
 - **Host switching and forgetting now refuse a slot the device doesn't have.** Both answered
   success for any slot number, doing nothing for most of them — but certain values folded back
   into range and quietly acted on a different host than the one asked for. Worse, forgetting

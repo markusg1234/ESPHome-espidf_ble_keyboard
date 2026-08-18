@@ -2044,8 +2044,19 @@ function appendStep(el,val){
   function restore(d,macros,overrides,scales,hosts,doHosts){
     const notes=[];
     status('Restoring: clearing macros...');
+    // Which slots exist comes from the device, not from the Host Actions
+    // picker. Every clear-then-apply pass below walks this list, and the picker
+    // is populated by a card that may not have loaded yet — a restore started
+    // before it did used to iterate an empty <select>, so each pass quietly did
+    // nothing and "Replace" left the old settings sitting there while still
+    // reporting success.
+    let slots=[];
     // Fetch current state first so we know what to clear.
-    fetch('/api/ble_keyboard/buttons').then(r=>r.json()).then(btns=>{
+    fetch('/api/ble_keyboard/hosts').then(r=>r.json()).then(h=>{
+      slots=(h.slots||[]).map(s=>s.slot).filter(s=>typeof s==='number');
+      if(!slots.length)throw new Error('the device reported no host slots');
+      return fetch('/api/ble_keyboard/buttons');
+    }).then(r=>r.json()).then(btns=>{
       // Delete highest index first so earlier indices don't shift under us.
       const idx=btns.filter(b=>b.editable).map(b=>b.index).sort((a,b)=>b-a);
       let chain=Promise.resolve();
@@ -2063,8 +2074,7 @@ function appendStep(el,val){
       status('Restoring: host actions...');
       // Clear every saved override on every slot, then apply the file's.
       let chain=Promise.resolve();
-      for(let s=0;s<slotSel.options.length;s++){
-        const sl=parseInt(slotSel.options[s].value);
+      slots.forEach(sl=>{
         chain=chain.then(()=>fetch('/api/ble_keyboard/overrides?'+new URLSearchParams({slot:sl}))
           .then(r=>r.json()).then(cur=>{
             let c=Promise.resolve();
@@ -2073,7 +2083,7 @@ function appendStep(el,val){
             });
             return c;
           }));
-      }
+      });
       Object.keys(overrides).forEach(sl=>{
         const map=overrides[sl]||{};
         Object.keys(map).forEach(name=>{
@@ -2087,11 +2097,10 @@ function appendStep(el,val){
       // clears a slot the backup doesn't mention.
       const hid=d.hidden&&typeof d.hidden==='object'?d.hidden:{};
       let chain=Promise.resolve();
-      for(let s=0;s<slotSel.options.length;s++){
-        const sl=parseInt(slotSel.options[s].value);
+      slots.forEach(sl=>{
         const names=Array.isArray(hid[sl])?hid[sl]:(Array.isArray(hid[String(sl)])?hid[String(sl)]:[]);
         chain=chain.then(()=>post('hidden_set',{slot:sl,names:names.join(',')}));
-      }
+      });
       return chain;
     }).then(()=>{
       // Holds are cleared before the repeat pass and written after it: the two
@@ -2099,10 +2108,9 @@ function appendStep(el,val){
       // button from one to the other would otherwise fail on whichever went
       // first. The file itself can never hold a conflicting pair.
       let chain=Promise.resolve();
-      for(let s=0;s<slotSel.options.length;s++){
-        const sl=parseInt(slotSel.options[s].value);
+      slots.forEach(sl=>{
         chain=chain.then(()=>post('hold_set',{slot:sl,names:''}));
-      }
+      });
       return chain;
     }).then(()=>{
       status('Restoring: hold to repeat...');
@@ -2110,8 +2118,7 @@ function appendStep(el,val){
       // is reset rather than emptied — an empty list is itself a setting here.
       const rpt=d.repeat&&typeof d.repeat==='object'?d.repeat:{};
       let chain=Promise.resolve();
-      for(let s=0;s<slotSel.options.length;s++){
-        const sl=parseInt(slotSel.options[s].value);
+      slots.forEach(sl=>{
         const v=rpt[sl]||rpt[String(sl)];
         if(v&&Array.isArray(v.buttons)){
           chain=chain.then(()=>post('repeat_set',
@@ -2119,17 +2126,16 @@ function appendStep(el,val){
         }else{
           chain=chain.then(()=>post('repeat_set',{slot:sl,reset:'1'}));
         }
-      }
+      });
       return chain;
     }).then(()=>{
       status('Restoring: press and hold...');
       const hld=d.hold&&typeof d.hold==='object'?d.hold:{};
       let chain=Promise.resolve();
-      for(let s=0;s<slotSel.options.length;s++){
-        const sl=parseInt(slotSel.options[s].value);
+      slots.forEach(sl=>{
         const names=Array.isArray(hld[sl])?hld[sl]:(Array.isArray(hld[String(sl)])?hld[String(sl)]:[]);
         if(names.length)chain=chain.then(()=>post('hold_set',{slot:sl,names:names.join(',')}));
-      }
+      });
       return chain;
     }).then(()=>{
       status('Restoring: remote styles...');
@@ -2146,10 +2152,9 @@ function appendStep(el,val){
       // Every slot, including ones the file omits, so Replace really does put
       // an unmentioned host back on the full remote.
       const sty=d.remote_styles&&typeof d.remote_styles==='object'?d.remote_styles:{};
-      for(let s=0;s<slotSel.options.length;s++){
-        const sl=parseInt(slotSel.options[s].value);
+      slots.forEach(sl=>{
         chain=chain.then(()=>post('remote_style_set',{slot:sl,id:sty[sl]||sty[String(sl)]||''}));
-      }
+      });
       return chain;
     }).then(()=>{
       if(!d.layout)return;
