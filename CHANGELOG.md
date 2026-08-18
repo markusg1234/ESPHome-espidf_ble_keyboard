@@ -7,6 +7,12 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Fixed
+- **The web page no longer runs the device short of network connections.** Loading it opens several
+  at once, and the pool they come from was sized without counting the page at all — so a refresh
+  could use up every one, leaving the device refusing connections and the browser waiting on
+  retries until things settled. The component now reserves what the page needs. A value you set
+  yourself still takes precedence, and the extra costs 128 bytes of memory.
+
 - **A too-large mouse movement no longer sends the pointer the other way.** Asking for more travel
   or scroll than a single report can carry wrapped around, so a large positive value arrived as a
   negative one and the pointer went backwards. Values are now capped at the maximum instead. The

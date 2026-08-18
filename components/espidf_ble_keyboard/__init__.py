@@ -123,7 +123,7 @@ async def key_release_to_code(config, action_id, template_arg, args):
 
 
 def _web_control_schema(config):
-    """When web_control is true, require web_server_base."""
+    """When web_control is true, require web_server_base and claim its sockets."""
     if config.get(CONF_WEB_CONTROL):
         from esphome.components import web_server_base
         from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
@@ -132,6 +132,25 @@ def _web_control_schema(config):
                 web_server_base.WebServerBase
             ),
         }, extra=cv.ALLOW_EXTRA)(config)
+        # Claim the sockets the control page actually needs. ESP-IDF sizes its
+        # socket pool from what components declare here, and web_server declares
+        # nothing — so the pool stayed at the default 10 no matter how heavy the
+        # page was. Loading this one opens several connections at once, and every
+        # reply carries Connection: close, so each finished request leaves a
+        # socket in TIME_WAIT while the next ones are still arriving. Run out and
+        # the server refuses the connection, which the log shows as
+        # "httpd_accept_conn: error in accept (23)" and the browser shows as a
+        # page that crawls or stalls until it retries.
+        #
+        # Six is the number a browser will open to one host at a time. A value
+        # set in the user's own sdkconfig_options still wins over this.
+        try:
+            from esphome.components import socket
+            socket.consume_sockets(6, "espidf_ble_keyboard web_control")(config)
+        except (ImportError, AttributeError):
+            # ESPHome without the socket-accounting API. Nothing to declare to,
+            # and the build is no worse off than it was before.
+            pass
     return config
 
 
