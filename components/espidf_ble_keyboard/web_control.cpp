@@ -331,7 +331,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.0</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.8.1-dev</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -4249,7 +4249,12 @@ class BleKbWebHandler : public AsyncWebHandler {
 
     // Remaining endpoints — POST only
     if (request->method() != HTTP_POST) {
-      send_response(405, "text/plain", "POST only");
+      // 400 rather than the 405 this deserves. The web server maps a fixed set of
+      // status codes (200, 204, 400, 401, 404, 409, 422) and sends anything else
+      // as 500 — so the 405 that used to be here arrived as "500 Internal Server
+      // Error", which reads as a firmware crash rather than a request that used
+      // the wrong verb. The body is what actually tells the caller what to fix.
+      send_response(400, "text/plain", "This endpoint requires POST");
       return;
     }
 

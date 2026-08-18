@@ -4,6 +4,14 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
+## Unreleased
+
+### Fixed
+- **A web request that used the wrong method no longer looks like a crash.** Asking one of the
+  device's control endpoints for a page — following it from a browser bar, or a script that reads
+  where it should write — was answered with an internal-server error, which reads as firmware that
+  fell over. It now answers with an ordinary bad-request error that says what the endpoint expects.
+
 ## v1.8.0 — 2026-08-12
 
 ### Added
