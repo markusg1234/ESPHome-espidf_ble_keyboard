@@ -4,6 +4,9 @@
 #include "web_control.h"
 #include "espidf_ble_keyboard.h"
 #include "esphome/core/log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_heap_caps.h"
 #include <cstdlib>
 #include <cstring>
 #include <map>
@@ -3807,6 +3810,45 @@ static bool same_origin_ok(AsyncWebServerRequest *request) {
   return !site.has_value() || site.value() == "same-origin" || site.value() == "none";
 }
 
+// ── Stack headroom probe ───────────────────────────────────────────
+// Everything in the handler below runs on the web server's task, including
+// execute_action(), which the press endpoint calls inline — and an action can
+// recurse through repeat:, alternate: and '|' chains before it reaches the HID
+// layer. That task gets ESP-IDF's default httpd stack plus 256 bytes, which is
+// not much to spend on a chain like that while boot-time init is also running.
+//
+// An overflow there does not announce itself: it writes past the end of the
+// stack and the eventual panic reports an impossible exccause with no faulting
+// address, which is what a crash record from 2026-08-21 looked like. Logging
+// the low-water mark as it falls turns the next one into a number seen *before*
+// the crash rather than a backtrace that can't be read after it.
+//
+// FreeRTOS keeps the minimum itself — in bytes on ESP-IDF, unlike stock
+// FreeRTOS, which reports words — so the static exists only to keep an
+// unchanged value from logging on every single request.
+class StackHeadroomProbe {
+ public:
+  explicit StackHeadroomProbe(const char *url) : url_(url) {}
+  ~StackHeadroomProbe() {
+    static UBaseType_t lowest = static_cast<UBaseType_t>(-1);  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+    UBaseType_t headroom = uxTaskGetStackHighWaterMark(nullptr);
+    if (headroom >= lowest)
+      return;
+    lowest = headroom;
+    uint32_t heap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    // Below this, one deeper call chain could run off the end — worth seeing at
+    // the default log level rather than only when someone raises it.
+    if (headroom < 768) {
+      ESP_LOGW(TAG, "Web task stack down to %u B free (%s), heap %u B", (unsigned) headroom, url_, (unsigned) heap);
+    } else {
+      ESP_LOGI(TAG, "Web task stack low-water %u B (%s), heap %u B", (unsigned) headroom, url_, (unsigned) heap);
+    }
+  }
+
+ protected:
+  const char *url_;
+};
+
 // ── Internal handler class ─────────────────────────────────────────
 // Inherits from the platform-specific AsyncWebHandler via web_server_base
 
@@ -3838,6 +3880,10 @@ class BleKbWebHandler : public AsyncWebHandler {
 
   void handleRequest(AsyncWebServerRequest *request) override {
       std::string url = get_url(request);
+      // Declared after url so it is destroyed first, while url is still alive.
+      // Its destructor is the measurement, so it covers every return below —
+      // including the early one that serves the page.
+      StackHeadroomProbe stack_probe(url.c_str());
 
       // Do NOT add Access-Control-Allow-Origin here. ESPHome's web_server (which
       // web_control requires) already installs one globally via DefaultHeaders,
