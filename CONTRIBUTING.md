@@ -15,7 +15,7 @@ Once a change is ready, cut a release so HACS users receive it — see [Installi
 2. The `webver` badge in `web_control.cpp` → the new tag.
 3. A new `## vX.Y.Z` section in [`CHANGELOG.md`](CHANGELOG.md).
 4. Any `main`-only markers cleared from [`README.md`](README.md) — `grep -n "^> \*\*Unreleased" README.md`.
-5. The web-task stack probe in `web_control.cpp` back to quiet: its new-low line drops from `ESP_LOGI` to `ESP_LOGD`, so only the low-headroom warning reaches a user's log at the default level — `grep -n "Web task stack" components/espidf_ble_keyboard/web_control.cpp`.
+5. The web-task stack probe in `web_control.cpp` trimmed to its warning: delete the per-request `ESP_LOGD` line *and* the new-low `ESP_LOGI` line, keeping only the `ESP_LOGW` that fires under 768 bytes. ESPHome's logger defaults to `DEBUG`, so both of the others print for every user — `grep -n "Web task stack" components/espidf_ble_keyboard/web_control.cpp`.
 
 Step 1 is what actually gets the new cards into users' browsers. HACS re-registers the entry point under a fresh `?hacstag=` on every update, so that file always arrives new — but the imports inside it resolve to URLs HACS never varies, and a browser holding a cached card would go on serving it. Versioning the imports makes each release a URL no cache has seen.
 

@@ -3826,12 +3826,18 @@ static bool same_origin_ok(AsyncWebServerRequest *request) {
 // FreeRTOS keeps the minimum itself — in bytes on ESP-IDF, unlike stock
 // FreeRTOS, which reports words.
 //
-// Three levels, so the default log level stays quiet without hiding anything:
-//   WARN  — under the margin below, whatever else it is.
+// Three levels:
+//   WARN  — under the margin below, whatever else it is. The one line worth
+//           shipping: nothing else warns before an overflow corrupts memory.
 //   INFO  — a new low, i.e. this request went deeper than anything before it.
-//   DEBUG — every other request. Set `logger: level: DEBUG` to read a number
-//           per request instead of inferring one from silence: with only the
-//           new-low line, "no output" and "never ran" look identical.
+//   DEBUG — every other request, so a number can be read per request instead
+//           of inferred from silence ("no output" and "never ran" look
+//           identical when only new lows speak).
+//
+// ESPHome's logger defaults to DEBUG, so the last two print for *every* user,
+// not just someone who went looking. They are scaffolding for the stack hunt
+// and both come out before a release — see CONTRIBUTING.md, "Cutting a
+// release", step 5.
 class StackHeadroomProbe {
  public:
   explicit StackHeadroomProbe(const char *url) : url_(url) {}

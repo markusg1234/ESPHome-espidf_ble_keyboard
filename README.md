@@ -64,6 +64,7 @@ esp32:
       CONFIG_BT_ACL_CONNECTIONS: "4"
 
 logger:
+  level: INFO
 
 api:
   encryption:
