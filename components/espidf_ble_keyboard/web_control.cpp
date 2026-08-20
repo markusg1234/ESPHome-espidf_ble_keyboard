@@ -3824,24 +3824,32 @@ static bool same_origin_ok(AsyncWebServerRequest *request) {
 // the crash rather than a backtrace that can't be read after it.
 //
 // FreeRTOS keeps the minimum itself — in bytes on ESP-IDF, unlike stock
-// FreeRTOS, which reports words — so the static exists only to keep an
-// unchanged value from logging on every single request.
+// FreeRTOS, which reports words.
+//
+// Three levels, so the default log level stays quiet without hiding anything:
+//   WARN  — under the margin below, whatever else it is.
+//   INFO  — a new low, i.e. this request went deeper than anything before it.
+//   DEBUG — every other request. Set `logger: level: DEBUG` to read a number
+//           per request instead of inferring one from silence: with only the
+//           new-low line, "no output" and "never ran" look identical.
 class StackHeadroomProbe {
  public:
   explicit StackHeadroomProbe(const char *url) : url_(url) {}
   ~StackHeadroomProbe() {
     static UBaseType_t lowest = static_cast<UBaseType_t>(-1);  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     UBaseType_t headroom = uxTaskGetStackHighWaterMark(nullptr);
-    if (headroom >= lowest)
-      return;
-    lowest = headroom;
     uint32_t heap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    bool new_low = headroom < lowest;
+    if (new_low)
+      lowest = headroom;
     // Below this, one deeper call chain could run off the end — worth seeing at
     // the default log level rather than only when someone raises it.
     if (headroom < 768) {
       ESP_LOGW(TAG, "Web task stack down to %u B free (%s), heap %u B", (unsigned) headroom, url_, (unsigned) heap);
-    } else {
+    } else if (new_low) {
       ESP_LOGI(TAG, "Web task stack low-water %u B (%s), heap %u B", (unsigned) headroom, url_, (unsigned) heap);
+    } else {
+      ESP_LOGD(TAG, "Web task stack %u B free (%s), heap %u B", (unsigned) headroom, url_, (unsigned) heap);
     }
   }
 

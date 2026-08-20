@@ -1257,18 +1257,7 @@ For a tighter loop, skip the version bumping: keep browser devtools open with **
 
 > The device's own web UI has no such problem — it is served with `Cache-Control: no-cache`, so a firmware flash always shows the new interface. That only covers the page served by the ESP32; the Lovelace cards are files in Home Assistant and cache like any other web asset.
 
-### Cutting a release
-
-Once a change is ready, cut a release so HACS users receive it — see [Installing the cards via HACS](#installing-the-cards-via-hacs). Four things move together in the same batch:
-
-1. Every versioned import in [`dist/`](dist/) → the new tag. That means the three in the entry point [`dist/ESPHome-espidf_ble_keyboard.js`](dist/ESPHome-espidf_ble_keyboard.js) *and* the ones cards make of each other, such as `remote-card.js` importing `remote-styles.js` — `grep -rn "?v=" dist/` finds them all.
-2. The `webver` badge in `web_control.cpp` → the new tag.
-3. A new `## vX.Y.Z` section in [`CHANGELOG.md`](CHANGELOG.md).
-4. Any `main`-only markers cleared from this README — `grep -n "^> \*\*Unreleased" README.md`.
-
-Step 1 is what actually gets the new cards into users' browsers. HACS re-registers the entry point under a fresh `?hacstag=` on every update, so that file always arrives new — but the imports inside it resolve to URLs HACS never varies, and a browser holding a cached card would go on serving it. Versioning the imports makes each release a URL no cache has seen.
-
-To test a release before publishing it, tag a **pre-release** (e.g. `v1.5.0-beta.1`); HACS offers it once **Show beta versions** is ticked in the repository's download dialog.
+Publishing a change to HACS users is maintainer process rather than something you need to use the cards — it lives in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
