@@ -13,11 +13,6 @@ web control page shows the matching version badge.
   with a `set_battery_level` action and Home Assistant service for levels that don't come from a
   sensor. USB-powered builds should leave it unset.
 
-### Changed
-- **Presence detection from the identity key no longer needs a second ESP32.** ESPHome 2026.8.0
-  made BLE presence sensors work on other chips too, so the README now points at any BLE-capable
-  ESPHome device. It still can't run on this one, for the same reason as before.
-
 ### Security
 - **Another website can no longer make your browser drive the keyboard.** The control endpoints
   take their parameters in the query string, which is the one shape a browser sends to another
