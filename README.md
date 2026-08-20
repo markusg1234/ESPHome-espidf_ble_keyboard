@@ -1775,15 +1775,16 @@ The ESP32 can't act on it itself. Presence detection means `ble_presence`, which
 > `ESP_ERR_INVALID_STATE` and are discarded, and it goes on to replace the single GAP callback
 > Bluedroid allows. The tracker stops receiving scan results from that moment, so a
 > `ble_presence` sensor sits at "away" forever with nothing to explain it. Put the tracker on a
-> different ESP32.
+> different device.
 
 Take the key elsewhere:
 
 - **Home Assistant's Private BLE Device integration** takes an IRK directly and uses whatever
   Bluetooth receivers HA already has. No firmware changes needed.
-- **A second ESP32** running `esp32_ble_tracker` with a `ble_presence` binary sensor and the
-  `irk:` option. Worth preferring anyway — scanning while connected as a HID peripheral adds
-  latency to keystrokes, so keeping it on another chip is better regardless.
+- **A second BLE-capable ESPHome device** running a `ble_presence` binary sensor with the `irk:`
+  option. It has to be a separate device — this one's Bluetooth controller is already spoken for,
+  as above. (ESPHome 2026.8.0 made `ble_presence` platform-neutral; before that it needed an ESP32
+  running `esp32_ble_tracker`.)
 
 If you only need "is it in the house", you may not need the key at all: a
 [binary sensor](#paired-sensor-default) with `type: paired` goes on when a bonded host
