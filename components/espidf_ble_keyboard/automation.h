@@ -56,6 +56,19 @@ template<typename... Ts> class HoldActionAction : public Action<Ts...> {
   EspidfBleKeyboard *parent_;
 };
 
+/// Run any action string from a YAML automation without a lambda — the same
+/// strings a `button:` entry takes, so a trigger reaches `macro:<name>`, a
+/// multi-step sequence or any named action directly. Blocking, like the rest:
+/// `delay:` steps are vTaskDelay, so the whole sequence finishes inside play().
+template<typename... Ts> class RunActionAction : public Action<Ts...> {
+ public:
+  explicit RunActionAction(EspidfBleKeyboard *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(std::string, action)
+  void play(Ts... x) override { parent_->execute_action(this->action_.value(x...)); }
+ protected:
+  EspidfBleKeyboard *parent_;
+};
+
 template<typename... Ts> class KeyReleaseAction : public Action<Ts...> {
  public:
   explicit KeyReleaseAction(EspidfBleKeyboard *parent) : parent_(parent) {}

@@ -69,6 +69,7 @@ CONF_THRESHOLD = "threshold"
 # which is what a physical push-to-talk key needs.
 KeyHoldAction = espidf_ble_keyboard_ns.class_("KeyHoldAction", automation.Action)
 HoldActionAction = espidf_ble_keyboard_ns.class_("HoldActionAction", automation.Action)
+RunActionAction = espidf_ble_keyboard_ns.class_("RunActionAction", automation.Action)
 KeyReleaseAction = espidf_ble_keyboard_ns.class_("KeyReleaseAction", automation.Action)
 SetBatteryLevelAction = espidf_ble_keyboard_ns.class_("SetBatteryLevelAction", automation.Action)
 
@@ -108,6 +109,24 @@ async def key_hold_to_code(config, action_id, template_arg, args):
     synchronous=True,
 )
 async def hold_action_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    cg.add(var.set_action(await cg.templatable(config[CONF_ACTION], args, cg.std_string)))
+    return var
+
+
+# The no-lambda twin of execute_action(): any trigger can run an action string,
+# including `macro:<name>` and multi-step sequences.
+@automation.register_action(
+    "espidf_ble_keyboard.run_action",
+    RunActionAction,
+    cv.Schema({
+        cv.GenerateID(): cv.use_id(EspidfBleKeyboard),
+        cv.Required(CONF_ACTION): cv.templatable(cv.string_strict),
+    }),
+    synchronous=True,
+)
+async def run_action_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
     cg.add(var.set_action(await cg.templatable(config[CONF_ACTION], args, cg.std_string)))

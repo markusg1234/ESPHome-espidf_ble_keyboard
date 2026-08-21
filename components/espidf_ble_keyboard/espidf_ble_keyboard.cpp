@@ -1900,6 +1900,12 @@ bool EspidfBleKeyboard::delete_macro(uint8_t index) {
     if (index >= macros_.size()) return false;
     ESP_LOGI(TAG, "Deleted macro %u: %s", index, macros_[index].name.c_str());
     macros_.erase(macros_.begin() + index);
+    // Erasing from the middle renumbers everything after it, so any automation
+    // holding one of those indices now points at a different macro. Say so here
+    // — it's the moment the drift happens, and nothing else would show it.
+    if (index < macros_.size())
+        ESP_LOGW(TAG, "Macros %u+ shifted down — index-based run_macro/execute_macro callers now "
+                      "point at a different macro; macro:<name> references are unaffected", index);
     save_macros_();
     return true;
 }
@@ -2048,6 +2054,7 @@ void EspidfBleKeyboard::update_rssi(int8_t rssi) {
 void EspidfBleKeyboard::register_api_services_() {
     register_service(&EspidfBleKeyboard::on_api_run_action_, "run_action", {"action"});
     register_service(&EspidfBleKeyboard::on_api_run_macro_, "run_macro", {"index"});
+    register_service(&EspidfBleKeyboard::on_api_run_macro_name_, "run_macro_name", {"name"});
     register_service(&EspidfBleKeyboard::on_api_send_string_, "send_string", {"keys"});
     register_service(&EspidfBleKeyboard::on_api_send_key_, "send_key", {"modifier", "keycode"});
     register_service(&EspidfBleKeyboard::on_api_send_consumer_, "send_consumer", {"code"});
@@ -3437,9 +3444,22 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
 }
 
 bool EspidfBleKeyboard::execute_macro(uint8_t index) {
-    if (index >= macros_.size()) return false;
+    // Logged, not silent: the caller is usually a lambda that discards the
+    // return, so without this a macro deleted out from under an index-based
+    // automation would do nothing with no trace of why.
+    if (index >= macros_.size()) {
+        ESP_LOGW(TAG, "No macro at index %u (%u stored) — deleting a macro shifts the later ones; "
+                      "use execute_macro(\"<name>\") instead", index, (unsigned) macros_.size());
+        return false;
+    }
     execute_action(macros_[index].action);
     return true;
+}
+
+// The name form of the above, and the one to prefer — it is the identifier
+// `macro:<name>` already uses, and it survives a delete that renumbers the rest.
+bool EspidfBleKeyboard::execute_macro(const std::string &name) {
+    return run_macro_by_name_(name);
 }
 
 // Backs the `macro:<name>` action, so a host override can *reference* a macro
@@ -3448,22 +3468,23 @@ bool EspidfBleKeyboard::execute_macro(uint8_t index) {
 // By name, not index: delete_macro erases from the middle of the vector, so an
 // index would silently repoint at whatever shifted up. Names survive that, and
 // a missing one fails loudly instead of running the wrong thing.
-void EspidfBleKeyboard::run_macro_by_name_(const std::string &name) {
+bool EspidfBleKeyboard::run_macro_by_name_(const std::string &name) {
     // Macros can now call each other, so a cycle is reachable. These run inline
     // (callers depend on the steps completing in order), so the stack is the
     // thing at risk — a depth cap is the guard, not deferral.
     if (macro_depth_ >= MAX_MACRO_DEPTH) {
         ESP_LOGW(TAG, "Macro nesting too deep at '%s' — stopping", name.c_str());
-        return;
+        return false;
     }
     for (const auto &m : macros_) {
         if (m.name != name) continue;
         macro_depth_++;
         execute_action(m.action);
         macro_depth_--;
-        return;
+        return true;
     }
     ESP_LOGW(TAG, "No macro named '%s'", name.c_str());
+    return false;
 }
 
 void EspidfBleKeyboard::press_external_button_(const std::string &object_id) {

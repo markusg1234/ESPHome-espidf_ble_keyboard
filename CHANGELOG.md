@@ -7,6 +7,17 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Added
+- **Macros can now be run by name from YAML and Home Assistant.** Running one by its `[0]`, `[1]`
+  index still works, but those indices shift when a macro above them is deleted, so an automation
+  could silently start running a different macro. A name doesn't move, and one that no longer exists
+  is logged instead of guessed at. Deleting a macro that renumbers others now warns in the log and
+  in the web UI's confirmation.
+
+- **Any automation trigger can run an action string without a lambda.** The new
+  `espidf_ble_keyboard.run_action` takes the same strings a button does — a macro name, a named
+  action, or a multi-step sequence — so a GPIO key, sensor threshold or schedule can drive the
+  keyboard directly. Templatable, for picking the string at runtime.
+
 - **The battery level reported to the host can now be a real one.** The Battery Service was always
   advertised but had nothing feeding it, so every host showed a fixed 100%. Point the new
   `battery_level:` option at any sensor reading 0–100 and the host's Bluetooth settings follow it,

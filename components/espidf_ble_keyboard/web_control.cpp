@@ -1167,6 +1167,9 @@ function appendStep(el,val){
       // Macros are the editable entries. Refresh the shared name list first so
       // a rename or delete immediately re-flags any override referencing it.
       knownMacroNames=btns.filter(b=>b.editable).map(b=>b.name);
+      // Snapshot, so the delete handlers below keep judging "is this the last
+      // macro?" against the list they were rendered from.
+      const macroCount=knownMacroNames.length;
       if(reflagOverrides)reflagOverrides();
       containerBtns.innerHTML='';
       containerMacros.innerHTML='';
@@ -1187,7 +1190,10 @@ function appendStep(el,val){
           el.className='prog-btn';
           const editing=macrosCard.classList.contains('editing');
           el.textContent=editing?'['+b.index+'] '+b.name:b.name;
-          el.title=editing?'Macro #'+b.index+': '+b.action:b.name;
+          // Edit mode shows the reference form too — it's the one worth copying
+          // into a button, an override or an automation, since it survives a
+          // delete that renumbers the indices.
+          el.title=editing?'Macro #'+b.index+' — macro:'+b.name+'\n'+b.action:b.name;
           onTap(el,()=>api('press',{action:b.action}));
           const eb=document.createElement('button');
           eb.className='macro-act';
@@ -1201,7 +1207,15 @@ function appendStep(el,val){
           db.textContent='\u2715';
           db.title='Delete';
           db.addEventListener('click',()=>{
-            if(confirm('Delete macro "'+b.name+'"?')){
+            // Deleting anything but the last row renumbers the ones after it,
+            // which quietly repoints index-based automations at a different
+            // macro. Flag it here rather than letting it be discovered later.
+            let msg='Delete macro "'+b.name+'"?';
+            if(b.index<macroCount-1)
+              msg+='\n\nMacros below it move up a slot, so anything running them by index '
+                  +'(run_macro, execute_macro) will point at a different macro. '
+                  +'macro:'+b.name+' style references are unaffected.';
+            if(confirm(msg)){
               fetch('/api/ble_keyboard/macro_delete?'+new URLSearchParams({index:b.index}),{method:'POST'}).then(()=>{
                 if(editIdx===b.index){editIdx=-1;nameIn.value='';actIn.value=''}
                 loadButtons();

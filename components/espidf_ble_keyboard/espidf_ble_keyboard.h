@@ -339,7 +339,14 @@ class EspidfBleKeyboard : public Component
   /// Used by buttons, macros, web API, and YAML automations.
   void execute_action(const std::string &action);
   /// Execute a macro by index. Returns false if index is out of range.
+  /// Indices shift when an earlier macro is deleted — prefer the name overload
+  /// below, which survives that.
   bool execute_macro(uint8_t index);
+  /// Execute a macro by name — the stable identifier, and the same one
+  /// `macro:<name>` uses. Returns false (and logs) if no macro has that name.
+  /// Overload resolution keeps `execute_macro(0)` on the index form above: an
+  /// integral conversion beats the user-defined const char* -> std::string.
+  bool execute_macro(const std::string &name);
 
 #ifdef USE_BLE_KEYBOARD_WEB_CONTROL
   void set_web_server_base(web_server_base::WebServerBase *base) { web_server_base_ = base; }
@@ -599,6 +606,7 @@ class EspidfBleKeyboard : public Component
   // int32_t, and on xtensa int32_t is a distinct type from int (link error).
   void on_api_run_action_(std::string action) { execute_action(action); }
   void on_api_run_macro_(int32_t index) { execute_macro((uint8_t) index); }
+  void on_api_run_macro_name_(std::string name) { execute_macro(name); }
   void on_api_send_string_(std::string keys) { send_string(keys); }
   void on_api_send_key_(int32_t modifier, int32_t keycode) { send_key_combo((uint8_t) modifier, (uint8_t) keycode); }
   void on_api_send_consumer_(int32_t code) { send_consumer((uint16_t) code); }
@@ -683,7 +691,8 @@ class EspidfBleKeyboard : public Component
 
   /// Backs the `macro:<name>` action — runs a stored macro by name, so an
   /// override references it rather than copying its text. Depth-capped.
-  void run_macro_by_name_(const std::string &name);
+  /// False if the name doesn't resolve or the depth cap stopped it.
+  bool run_macro_by_name_(const std::string &name);
 
   /// Backs the `ha_action:<domain>.<service>;k=v;…` action — fires a Home
   /// Assistant action over the native API. Declared unconditionally; the

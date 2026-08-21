@@ -528,12 +528,25 @@ espidf_ble_keyboard:
 | `"send_custom_text"` | Send the first linked text entity's content. Requires `custom_text_id` in config. |
 | `"send_custom_text:N"` | Send the Nth linked text entity (0-based). E.g. `send_custom_text:1` for the second. |
 
-**Lambda helpers** (for use in YAML automations):
+**From a YAML automation, without a lambda** — any trigger (`on_press`, `on_value`, `on_time`, …) can
+run an action string directly:
+
+```yaml
+- espidf_ble_keyboard.run_action:
+    id: my_keyboard
+    action: "macro:Copy-Paste"      # or any action above, multi-step included
+```
+
+`action:` is templatable, so a lambda can pick the string when you want one. See
+[Triggering macros from YAML](#triggering-macros-from-yaml).
+
+**Lambda helpers** (for automations already inside a lambda):
 
 | Method | Description |
 |--------|-------------|
 | `execute_action("action_string")` | Run any action string from a lambda. Works with all action types above. Supports multi-step with `\|`. |
-| `execute_macro(index)` | Run a web-defined macro by index (0-based, shown as [0], [1] in web UI). Returns `false` if index is out of range. |
+| `execute_macro("name")` | Run a web-defined macro by name. Returns `false` if no macro has that name. Prefer this over the index form — a name survives deletions. |
+| `execute_macro(index)` | Run a web-defined macro by index (0-based, shown as [0], [1] in web UI). Returns `false` if index is out of range. Deleting a macro shifts every later index. |
 
 ---
 
@@ -719,7 +732,8 @@ Services appear in HA under **Developer Tools → Actions** as `esphome.<device_
 | Service | Variables | Description |
 |---------|-----------|-------------|
 | `run_action` | `action: string` | Run any [action string](#usage-example) — single or multi-step with `\|`. Reaches everything below plus every named action. |
-| `run_macro` | `index: int` | Run a stored web macro by its index ([0], [1], … in the web UI). |
+| `run_macro_name` | `name: string` | Run a stored web macro by name. The stable choice — unlike an index, a name doesn't move when another macro is deleted. |
+| `run_macro` | `index: int` | Run a stored web macro by its index ([0], [1], … in the web UI). Deleting a macro shifts every later index. |
 | `send_string` | `keys: string` | Type text (used by the keyboard and remote cards). |
 | `send_key` | `modifier: int`, `keycode: int` | Send a key combination (HID modifier + keycode). |
 | `send_consumer` | `code: int` | Send a HID consumer control code. |
@@ -1184,6 +1198,25 @@ espidf_ble_keyboard:
 As written this still assumes — but `restore_value: yes` carries the state across reboots, and swapping the global for a real `binary_sensor` (a ping probe, a power monitor, anything that actually knows) makes it correct. That's the advantage over `alternate:`; the cost is that changing it needs a reflash.
 
 A button cannot trigger *itself* — that's refused and logged. Chaining to a *different* button is fine, so the lambda above may equally call `id(my_keyboard).execute_action("press_button:samsung_43_m70f_wol")` instead of `.press()`.
+
+**Two directions instead of a toggle — a template switch.** Where the two directions are genuinely different things, a switch says so: Home Assistant gets an on/off entity, and "turn the monitor off" stops meaning "press whatever is next". No lambda needed, because [`espidf_ble_keyboard.run_action`](#action-types) works in `turn_on_action` and `turn_off_action` like any other automation action:
+
+```yaml
+switch:
+  - platform: template
+    name: "Monitor Power"
+    optimistic: true
+    turn_off_action:
+      - espidf_ble_keyboard.run_action:
+          id: my_keyboard
+          action: "consumer:0x30 | delay:1000 | ok"   # sleep over BLE, confirm the prompt
+    turn_on_action:
+      - button.press: button_wake_on_lan_m70f          # wake over the network
+```
+
+`optimistic: true` still *assumes* — it believes whatever it was last told, exactly like `alternate:`. The difference is that a wrong guess only makes the entity's icon wrong, not its next action: "off" always sleeps and "on" always wakes. Swap `optimistic:` for a `lambda:` reading a real sensor and even the icon is right.
+
+> A switch is a Home Assistant and YAML entity only. It is **not** listed on the web control page and cannot back a `remote_power` [host override](#host-actions-per-host-overrides) — `press_button:` reaches buttons, not switches. For the remote's power key, use `alternate:` or the template button above.
 
 ---
 
@@ -2101,7 +2134,7 @@ The web UI provides:
 - **Add form** with name, action textarea, and a preset dropdown (media, system, clipboard, consumer HID, text, delays). Your YAML-defined `espidf_ble_keyboard` buttons also appear here under a **Buttons** group — pick one to reuse its action. The Host Actions card shares this dropdown and additionally lists your saved macros under a **Macros** group, so an override can reuse a macro's actions.
 - **Combo builder** — toggle Ctrl/Shift/Alt/Win modifier buttons, then pick a key (F1-F12, arrows, letters, numbers, etc.) to insert `combo:mod:key`
 - **Edit/Delete** controls on each macro (pencil and X buttons)
-- **Macro index** shown as `[0]`, `[1]`, etc. next to each macro name — use with `execute_macro(N)` in YAML
+- **Macro index** shown as `[0]`, `[1]`, etc. next to each macro name — for the legacy `execute_macro(N)` form. Hovering a macro also shows its `macro:<name>` reference, which is what to use in YAML and automations: indices shift when a macro above them is deleted, names don't
 - YAML-defined buttons appear alongside macros but are not editable
 - Selecting a preset or key appends to the action field with `|`, making it easy to build multi-step macros
 
@@ -2124,7 +2157,20 @@ Multi-step actions work everywhere: web macros, YAML buttons, `execute_action()`
 
 ### Triggering Macros from YAML
 
-Use `execute_macro(index)` to run a macro by its index (0-based), or `execute_action("action_string")` to run any action string:
+No lambda needed. `macro:<name>` is an ordinary [action string](#action-types), so a `button:` entry
+runs a macro directly — and that button appears in Home Assistant as a named entity:
+
+```yaml
+button:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Copy-Paste"
+    action: "macro:Copy-Paste"
+```
+
+For any *other* trigger — a GPIO key, a sensor threshold, a time schedule — use the
+`espidf_ble_keyboard.run_action` automation action. It takes the same strings, so a macro name, a
+named action or a whole multi-step sequence all work:
 
 ```yaml
 binary_sensor:
@@ -2133,28 +2179,47 @@ binary_sensor:
     name: "Macro Button"
     on_press:
       then:
-        - lambda: |-
-            id(my_keyboard).execute_macro(0);  // run first web macro
+        - espidf_ble_keyboard.run_action:
+            id: my_keyboard
+            action: "macro:Copy-Paste"
+    on_release:
+      then:
+        - espidf_ble_keyboard.run_action:
+            id: my_keyboard
+            action: "combo:2:6 | delay:100 | combo:2:25"
 ```
 
+`action:` is templatable, so a lambda can still choose the string at runtime if you need it to:
+
 ```yaml
-button:
-  - platform: template
-    name: "Copy-Paste"
-    on_press:
-      then:
-        - lambda: |-
-            id(my_keyboard).execute_action("combo:2:6 | delay:100 | combo:2:25");
+        - espidf_ble_keyboard.run_action:
+            id: my_keyboard
+            action: !lambda 'return id(pick_macro).state ? "macro:Work" : "macro:Home";'
 ```
+
+The lambda helpers `execute_action("…")` and `execute_macro("name")` remain available for automations
+that are already inside a lambda. `execute_macro(0)` also still works and runs the macro shown as
+`[0]` in the web UI, but deleting a macro moves every macro below it up a slot, so a stored index can
+end up on a different macro. A name can't drift that way, and a name that no longer exists logs a
+warning instead of running the wrong thing.
 
 ### Triggering Macros from Home Assistant
 
-Web macros are created at runtime (stored in NVS), so they don't appear as individual Home Assistant entities — ESPHome entities are fixed at compile time. To reach them from HA, set `api_services: true` on the component — it auto-registers `run_macro` and `run_action` (see [Home Assistant services](#home-assistant-services)). Or define them manually:
+Web macros are created at runtime (stored in NVS), so they don't appear as individual Home Assistant entities — ESPHome entities are fixed at compile time. To reach them from HA, set `api_services: true` on the component — it auto-registers `run_macro_name`, `run_macro` and `run_action` (see [Home Assistant services](#home-assistant-services)). Or define them manually:
 
 ```yaml
 api:
   services:
-    # Run a stored web macro by its index ([0], [1], … shown in the web UI)
+    # Run a stored web macro by name — unaffected by deleting other macros
+    - service: run_macro_name
+      variables:
+        name: string
+      then:
+        - lambda: |-
+            id(my_keyboard).execute_macro(name);
+        - delay: 0ms   # keeps the string arg linkable across ESPHome upgrades, see note
+
+    # Same, by index ([0], [1], … shown in the web UI) — indices shift on delete
     - service: run_macro
       variables:
         index: int
@@ -2177,7 +2242,12 @@ api:
 Then call them from a HA automation, script, or **Developer Tools → Actions**:
 
 ```yaml
-# Run web macro #0
+# Run a stored web macro by name
+action: esphome.<device_name>_run_macro_name
+data:
+  name: "Copy-Paste"
+
+# Or by index, if you'd rather ([0] in the web UI)
 action: esphome.<device_name>_run_macro
 data:
   index: 0
@@ -2188,7 +2258,7 @@ data:
   action: "mouse_abs_save | mouse_abs:0:0 | left_click | mouse_abs_restore"
 ```
 
-> **Tip:** For a permanent, *named* clickable button in HA, define a `button:` platform entry instead (those auto-appear in HA and accept the same action strings, including multi-step). Web macros are best for ad-hoc, web-managed actions reached via `run_macro` / `run_action`.
+> **Tip:** For a permanent, *named* clickable button in HA, define a `button:` platform entry instead (those auto-appear in HA and accept the same action strings, including multi-step). Web macros are best for ad-hoc, web-managed actions reached via `run_macro_name` / `run_action`.
 
 ### Macro REST API
 
