@@ -198,7 +198,10 @@ function esc(s){
 function btnHtml(item){
     const arr=Array.isArray(item);
     const a=arr?item[0]:item, lab=arr?item[1]:null, opt=arr?item[2]:null;
-    const b=RMT_BTNS[a];
+    // Own properties only, for the reason validateTpl gives. Repeated inline
+    // rather than shared: that helper lives in the other IIFE, and hoisting one
+    // across is its own job (see the note about esc()).
+    const b=Object.prototype.hasOwnProperty.call(RMT_BTNS,a)?RMT_BTNS[a]:null;
     if(!b)return '';   // a style naming a button this firmware doesn't have
     const face=(lab!=null&&lab!=='')?esc(lab):(b.i?icon(b.i):(b.x||''));
     const tip=(lab!=null&&lab!=='')?esc(lab)+' — runs '+a:b.t;
@@ -324,7 +327,12 @@ function validateTpl(t){
           }
         }
         const a=arr?it[0]:it;
-        if(typeof a!=='string'||!RMT_BTNS[a])return 'Unknown button "'+a+'"';
+        // hasOwnProperty rather than a truthiness test: RMT_BTNS is an object
+        // literal, so RMT_BTNS['constructor'] and ['__proto__'] are inherited and
+        // truthy. ["row",["constructor","Hi"]] used to pass a check that claims
+        // to name every unknown button, and btnHtml then drew a dead key for it.
+        if(typeof a!=='string'||!Object.prototype.hasOwnProperty.call(RMT_BTNS,a))
+          return 'Unknown button "'+a+'"';
       }
     }
     return '';
@@ -348,7 +356,7 @@ export const RMT_CSS = `
 .rmt-dpad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:4px;justify-content:center;margin:8px 0}
 .rmt-dpad .rmt-btn{border-radius:12px}
 .rmt-dpad .center{background:var(--rb-ok-bg,var(--active));color:var(--rb-ok-fg,#fff);border-color:var(--rb-ok-bg,var(--active));font-size:11px;font-weight:700;border-radius:50%}
-.rmt-dpad .center:active{background:var(--accent)}
+.rmt-dpad .center:active,.rmt-dpad .center.p{background:var(--accent)}
 .rmt-dpad .empty{visibility:hidden}
 .rmt-strip{display:flex;align-items:flex-start;justify-content:center;gap:16px}
 .rmt-strip-group{display:flex;flex-direction:column;align-items:center;gap:4px}

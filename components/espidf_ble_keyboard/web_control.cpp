@@ -222,7 +222,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-dpad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:4px;justify-content:center;margin:8px 0}
 .rmt-dpad .rmt-btn{border-radius:12px}
 .rmt-dpad .center{background:var(--rb-ok-bg,var(--active));color:var(--rb-ok-fg,#fff);border-color:var(--rb-ok-bg,var(--active));font-size:11px;font-weight:700;border-radius:50%}
-.rmt-dpad .center:active{background:var(--accent)}
+/* .p alongside :active, as every other button's press rule has it. It used to
+   be able to skip it: a mouse press sets both, so :active alone covered the
+   flash. A key press only ever sets .p — the browser's own :active is
+   suppressed, or the button would also fire a click — and this rule outranks
+   .rmt-btn.p, so OK was the one button that lit for a finger and not a key. */
+.rmt-dpad .center:active,.rmt-dpad .center.p{background:var(--accent)}
 .rmt-dpad .empty{visibility:hidden}
 /* flex-start, not center: a template may put an unlabelled group beside a
    labelled one, and centring would leave the two columns half a label apart. */
