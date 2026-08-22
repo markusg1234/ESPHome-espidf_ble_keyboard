@@ -2669,6 +2669,18 @@ buildKeyboard();
     holdEl.classList.remove('held');holdEl=null;
     fetch('/api/ble_keyboard/release',{method:'POST'}).catch(()=>{});
   }
+  // Puts a button down on the host and keeps it there. Shared by the pointer
+  // and keyboard paths so the fallback exists once: 400 means this host
+  // remapped the action to something unholdable (a macro, a sequence), and an
+  // ordinary press beats leaving a dead button.
+  function startHold(el,act){
+    endHold();  // a second finger, or a second key: only one hold at a time
+    holdEl=el;el.classList.add('held');
+    const drop=()=>{el.classList.remove('held');if(holdEl===el)holdEl=null};
+    fetch('/api/ble_keyboard/hold_action?'+new URLSearchParams({action:act}),{method:'POST'})
+      .then(r=>{if(!r.ok){drop();api('press',{action:act})}})
+      .catch(drop);
+  }
   // `fired` is what keeps hold and tap from both counting: once the hold timer
   // has sent anything, pointerup must NOT send its usual press on release.
   {let sx,sy,ok,ab,fired=false;
@@ -2687,17 +2699,7 @@ buildKeyboard();
     // Hold wins outright: it goes down now, not after a threshold, because a
     // push-to-talk key that only engages after 400ms clips the first word.
     // fired=true keeps pointerup from also sending the ordinary press.
-    if(holds(act)){
-      endHold();  // a second finger on another button: only one hold at a time
-      fired=true;holdEl=ab;ab.classList.add('held');
-      const drop=()=>{ab.classList.remove('held');if(holdEl===ab)holdEl=null};
-      fetch('/api/ble_keyboard/hold_action?'+new URLSearchParams({action:act}),{method:'POST'})
-        // 400 means this host remapped it to something unholdable (a macro, a
-        // sequence). Send the ordinary press rather than leaving a dead button.
-        .then(r=>{if(!r.ok){drop();api('press',{action:act})}})
-        .catch(drop);
-      return;
-    }
+    if(holds(act)){fired=true;startHold(ab,act);return}
     if(!repeats(ab,act))return;
     // Nothing is sent until the hold threshold passes, so a tap still fires on
     // release and a drag can still cancel it — both were the point of the
@@ -2731,6 +2733,44 @@ buildKeyboard();
     endHold();
   });
   document.addEventListener('visibilitychange',()=>{if(document.hidden)endHold()});
+  }
+
+  // ── Keyboard activation ──
+  // The buttons are real <button>s, so the browser focuses one when it is
+  // clicked and lights it with :active while space is held — which looked
+  // exactly like a working press, except only pointer events ever sent
+  // anything. keydown/keyup mirror pointerdown/pointerup, so a focused button
+  // repeats and holds from the key just as it does from a finger.
+  {let kbEl=null,kbKey='';
+  const kbEnd=()=>{
+    if(!kbEl)return;
+    kbEl.classList.remove('p');kbEl=null;
+    stopRepeat();endHold();
+  };
+  card.addEventListener('keydown',e=>{
+    if(e.key!==' '&&e.key!=='Enter')return;
+    const el=e.target.closest('.rmt-btn');if(!el)return;
+    // Kills the click the browser would synthesise from this key. Nothing
+    // listens for click on a remote button today; this is what keeps a press
+    // from arriving twice if something ever does.
+    e.preventDefault();
+    // The OS repeats a held key by itself. Those extra keydowns are dropped so
+    // the timer below stays the one thing deciding the rate, per host.
+    if(e.repeat||kbEl)return;
+    stopRepeat();  // only one repeat at a time, as on the pointer path
+    kbEl=el;kbKey=e.key;el.classList.add('p');
+    const act=el.dataset.action;
+    if(holds(act)){startHold(el,act);return}
+    // Sent on the way down, unlike the pointer path: a key press has no drag
+    // to cancel it with, so there is nothing to wait for.
+    api('press',{action:act});
+    if(!repeats(el,act))return;
+    rt=setTimeout(()=>{rt=null;ri=setInterval(()=>api('press',{action:act}),rptRate)},rptDelay);
+  });
+  card.addEventListener('keyup',e=>{if(e.key===kbKey)kbEnd()});
+  // Alt-tabbing or clicking elsewhere with the key still down never delivers
+  // keyup, which would leave a repeat running or a key held on the host.
+  card.addEventListener('focusout',kbEnd);
   }
 
   // ── Per-host hold-to-repeat ──

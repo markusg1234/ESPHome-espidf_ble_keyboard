@@ -34,6 +34,11 @@ web control page shows the matching version badge.
   is still what actually protects the device.
 
 ### Fixed
+- **The remote on the web control page now answers the keyboard.** A button keeps focus once you
+  click it and lights up when you press space, exactly as a tap does — but a press was only ever
+  read from a mouse or a finger, so nothing was sent and the lit button looked like it had worked.
+  Space and enter now send it, repeating and holding the same way the button does on screen.
+
 - **Restoring a backup too soon after opening the page no longer skips most of it.** The restore
   worked out which host slots to write by reading the Host Actions picker, so if that card hadn't
   finished loading it found none and quietly skipped every per-host step — overrides, hidden
