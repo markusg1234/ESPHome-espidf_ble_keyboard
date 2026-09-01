@@ -7,6 +7,12 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Added
+- **Macros can be recorded by performing them.** Start recording from the Macros card, press the
+  buttons you want on the remote, keyboard and mouse pad, and stop — the action string is written for
+  you. Typing merges into one step, held buttons record once, and presses are spaced by a fixed
+  delay, so the result is what you meant rather than a literal transcript. The popped-out remote
+  records too. Recording happens in the browser, so the device is unchanged.
+
 - **Macros can now be run by name from YAML and Home Assistant.** Running one by its `[0]`, `[1]`
   index still works, but those indices shift when a macro above them is deleted, so an automation
   could silently start running a different macro. A name doesn't move, and one that no longer exists

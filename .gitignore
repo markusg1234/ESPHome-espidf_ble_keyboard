@@ -11,6 +11,10 @@ __pycache__/
 # Local verification configs
 _verify_*.yaml
 
+# Editor tasks for building locally — machine-specific paths, and building is
+# deliberately not a GitHub concern.
+.vscode/
+
 # Local-only workbench: downloaded reference material, the converted remote-style
 # catalogue and the pages that display it. Never published — the styles in here
 # are data to paste into Remote Style > Import, not part of the firmware.

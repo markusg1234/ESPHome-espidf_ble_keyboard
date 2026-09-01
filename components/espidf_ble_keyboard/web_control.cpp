@@ -150,7 +150,10 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .macro-edit-btn.on{background:var(--active);color:#fff;border-color:var(--active)}
 /* Second button in a heading sits next to the first, not spaced apart —
    .macro-edit-btn's margin-left:auto would otherwise split the free space. */
-#bk-load{margin-left:0}
+#bk-load,#macro-rec{margin-left:0}
+/* Recorder read-out: its own row at the foot of the macro form, so a growing
+   step count never reflows the inputs above it. */
+.rec-status{flex-basis:100%;font-size:11px;color:var(--muted);min-height:14px}
 .macros-card:not(.editing) .macro-act,.macros-card:not(.editing) .macro-form{display:none}
 .ovr-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
 .ovr-row:last-child{border-bottom:none}
@@ -441,7 +444,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </div>
 
 <div class="card macros-card" id="macros-card">
-<h2><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 12h2v2H7v-2zm0-4h2v2H7V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8z"/></svg>Macros<button class="macro-edit-btn" id="macro-edit-toggle">Edit</button></h2>
+<h2><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 12h2v2H7v-2zm0-4h2v2H7V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8z"/></svg>Macros<button class="macro-edit-btn" id="macro-edit-toggle">Edit</button><button class="macro-edit-btn" id="macro-rec" title="Record a macro by performing it: press the remote, keyboard and mouse buttons in order, then press Stop to write the steps into the action box.">Record</button></h2>
 <div class="prog-btns" id="macro-btns"><span class="prog-empty">Loading...</span></div>
 <div class="macro-form" id="macro-form">
 <input id="mn" placeholder="Name" maxlength="31" title="Must be unique and cannot contain '|'.&#10;Host actions reference a macro by name (macro:&lt;name&gt;), so renaming one breaks any override pointing at it.">
@@ -570,6 +573,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </optgroup>
 </select>
 </div>
+<div class="rec-status" id="rec-status"></div>
 </div>
 </div>
 
@@ -677,8 +681,197 @@ function pollEvery(fn,ms){
 
 // API helper
 function api(endpoint,params){
+  if(recSteps)recordStep(endpoint,params);
+  else if(POPOUT)recForward(endpoint,params);
   const url='/api/ble_keyboard/'+endpoint+'?'+new URLSearchParams(params);
   fetch(url,{method:'POST'}).catch(()=>{});
+}
+
+// The popped-out remote is a genuinely separate window — window.open() of
+// /ble_keyboard#remote — so it runs its own copy of this script with its own
+// idle recorder, and the Macros card it would record into is hidden there. Hand
+// its presses to the window that opened it instead, so recording covers the
+// remote whether it is pinned in the page or floating on top.
+//
+// Same origin and no noopener on that window.open, so opener is reachable. The
+// try/catch is for the cases where it isn't: the pop-up-blocked fallback opens
+// an ordinary tab with target="_blank", which modern browsers sever, and the
+// opener may simply have been closed.
+// Asked across the window boundary, so it has to be a function *declaration*:
+// those become properties of window, while the `let` above does not — reading
+// opener.recSteps directly always yields undefined, however plainly it reads.
+function recIsActive(){return !!recSteps}
+
+function recForward(endpoint,params){
+  try{
+    const o=window.opener;
+    if(o&&!o.closed&&typeof o.recIsActive==='function'&&o.recIsActive()&&typeof o.recordStep==='function')
+      o.recordStep(endpoint,params);
+  }catch(e){}
+}
+
+// ── Macro recorder ──
+// Every action this page sends goes through api(), so tapping it once here
+// captures the remote, the on-screen keyboard and the mouse buttons without
+// touching any of their handlers. Recording is entirely browser-side: the
+// firmware never knows, and the result is an ordinary action string typed into
+// the macro form for the existing Save to store.
+//
+// recSteps is null when idle — api()'s guard above costs one null check.
+// recBase is whatever was in the action box when recording started: the steps
+// are painted after it on every press, so the box always shows the recording so
+// far and Save works at any moment, with or without pressing Stop first.
+let recSteps=null,recLastMs=0,recFlag='',recBase='';
+// Below this gap, the same action arriving twice is a held button auto-firing
+// (rptRate is 180ms by default) rather than two deliberate presses. That is all
+// this is used for — the delay between steps is fixed rather than measured, and
+// typed text merges on adjacency rather than on timing.
+const REC_GAP=300;
+// Every recorded press is separated by this, whatever the real timing was.
+// Recording your own hesitation produces ragged values nobody wants to read;
+// one predictable number is easier to keep or edit afterwards.
+const REC_DELAY=500;
+const REC_MAX=255;   // the action limit macro_add/macro_update enforce
+const SCROLL='mouse_scroll:';
+
+// Only action-bearing endpoints record. Everything else the page posts —
+// goto_scale, override_set, switch_host, remote_tpl_*, … — is configuration,
+// not something a macro should replay.
+function recStepFor(endpoint,p){
+  switch(endpoint){
+    case 'press':         return p.action||'';
+    case 'key':           return 'combo:'+(p.modifier|0)+':'+(p.keycode|0);
+    case 'string':        return 'string:'+(p.keys||'');
+    case 'mouse_click':   return 'mouse_click:'+(p.btn|0);
+    case 'mouse_hold':    return 'mouse_hold:'+(p.btn|0);
+    case 'mouse_release': return 'mouse_release';
+    case 'mouse_scroll':  return 'mouse_scroll:'+(p.amount|0);
+  }
+  // mouse_move is deliberately absent: a touchpad drag streams it continuously
+  // and would spend the 255-char budget in about a second.
+  return '';
+}
+
+// How many characters the recording may still use, allowing for whatever was in
+// the action box before it started (the join appendStep() adds costs three).
+// Measured against recBase, not the box: the box now holds the live recording
+// too, so reading it would shrink the budget with every step.
+function recBudget(){
+  return REC_MAX-(recBase?recBase.length+3:0);
+}
+
+// Paint the recording into the action box. Rebuilt from recBase each time
+// rather than appended to, so a step that gets merged or dropped is reflected
+// rather than left behind.
+function recPaint(){
+  const el=document.getElementById('ma');
+  if(!el)return;
+  el.value=recBase;
+  if(recSteps&&recSteps.length)appendStep(el,recSteps.join(' | '));
+}
+
+function recordStep(endpoint,params){
+  const step=recStepFor(endpoint,params||{});
+  if(!step)return;
+  // A '|' typed on the on-screen keyboard would split the macro into two steps
+  // when it ran. Only typed text can carry one — a press: action legitimately
+  // does, and is recorded verbatim.
+  if(endpoint==='string'&&step.indexOf('|')!==-1){
+    recFlag="a typed '|' was skipped";recRender();return;
+  }
+  const now=Date.now(),gap=recSteps.length?now-recLastMs:0;
+  const prev=recSteps.length?recSteps[recSteps.length-1]:'';
+  const next=recSteps.slice();
+  if(step.indexOf('string:')===0&&prev.indexOf('string:')===0){
+    // The keyboard posts one character per keypress, so typing 'hello' arrives
+    // as five calls — merge them into one step rather than five.
+    //
+    // Deliberately not time-gated: typing slowly is still typing, and gating it
+    // put a delay: between individual letters. Text only stops accumulating
+    // when something that isn't text is pressed.
+    next[next.length-1]=prev+step.substring(7);
+  }else if(step.indexOf(SCROLL)===0&&prev.indexOf(SCROLL)===0){
+    // Scrolling is one continuous gesture, so notches accumulate into a single
+    // step rather than one step each: ten clicks of the wheel is mouse_scroll:-30,
+    // not ten copies of mouse_scroll:-3 eating 160 of the 255 characters.
+    //
+    // Checked before the held-button rule below, so a *held* scroll button
+    // accumulates too instead of collapsing to a single notch.
+    const a=parseInt(prev.substring(SCROLL.length),10)||0,
+          b=parseInt(step.substring(SCROLL.length),10)||0,
+          sum=a+b;
+    // Same direction only — reversing is a new gesture, not a cancellation, and
+    // summing it would silently produce a scroll of zero. Capped at the int8 the
+    // HID report carries; past that the run continues in a fresh step.
+    if(a&&b&&(a<0)===(b<0)&&sum>=-127&&sum<=127)next[next.length-1]=SCROLL+sum;
+    else next.push(step);            // still no delay: the gesture is unbroken
+  }else if(gap<REC_GAP&&step===prev){
+    recLastMs=now;return;              // held button auto-firing: keep one press
+  }else{
+    // Fixed spacing between presses, never before the first one.
+    if(next.length)next.push('delay:'+REC_DELAY);
+    next.push(step);
+  }
+  if(next.join(' | ').length>recBudget()){
+    // Stop on the last step that fits rather than letting Save fail server-side.
+    recFlag='stopped: '+REC_MAX+'-character limit reached';
+    recStop();
+    return;
+  }
+  recSteps=next;recLastMs=now;recPaint();recRender();
+}
+
+function recRender(){
+  const btn=document.getElementById('macro-rec'),st=document.getElementById('rec-status');
+  if(!btn||!st)return;
+  const on=!!recSteps;
+  btn.classList.toggle('on',on);
+  btn.textContent=on?'Stop':'Record';
+  if(on){
+    const n=recSteps.length,len=recSteps.join(' | ').length;
+    st.textContent=n?'Recording · '+n+(n===1?' step':' steps')+' · '+len+'/'+recBudget()+' chars'+(recFlag?' · '+recFlag:'')
+                    :'Recording — press the buttons you want, they appear above as you go.';
+  }else{
+    st.textContent=recFlag||'';
+  }
+}
+
+function recStart(){
+  // The form lives behind the card's editing mode, so open it the same way the
+  // user would; the toggle also refreshes the list and updates its own label.
+  const card=document.getElementById('macros-card');
+  if(card&&!card.classList.contains('editing'))document.getElementById('macro-edit-toggle').click();
+  // Whatever is already typed is kept and recorded onto the end, so recording
+  // the tail of a half-built macro works.
+  const el=document.getElementById('ma');
+  recBase=el?el.value.trim():'';
+  recSteps=[];recLastMs=0;recFlag='';
+  recRender();
+}
+
+// Nothing to commit — every step was painted into the box as it happened. This
+// only takes the recorder out of the way so ordinary typing resumes.
+// Nothing to commit — every step was painted into the box as it happened. This
+// only takes the recorder out of the way so ordinary typing resumes.
+function recStop(){
+  if(!recSteps)return;
+  recSteps=null;
+  recRender();
+}
+
+// Leaving editing mode clears the form, so an in-flight recording goes with it
+// rather than being left half-painted in a box that is about to be emptied.
+function recCancel(){
+  if(!recSteps)return;
+  recSteps=null;recFlag='';
+  recRender();
+}
+
+// Not in the popped-out remote: it is a second window with its own api(), and
+// the Macros card is not shown there.
+if(!POPOUT){
+  const recBtn=document.getElementById('macro-rec');
+  if(recBtn)recBtn.addEventListener('click',()=>{recSteps?recStop():recStart()});
 }
 
 // Tap helper: visual feedback on press, fires action on release only if finger didn't scroll
@@ -1136,7 +1329,7 @@ function appendStep(el,val){
     editToggle.classList.toggle('on');
     const editing=macrosCard.classList.contains('editing');
     editToggle.textContent=editing?'Done':'Edit';
-    if(!editing){editIdx=-1;nameIn.value='';actIn.value=''}
+    if(!editing){recCancel();editIdx=-1;nameIn.value='';actIn.value=''}
     loadButtons();
   });
 
@@ -1276,6 +1469,10 @@ function appendStep(el,val){
   }
 
   saveBtn.addEventListener('click',()=>{
+    // Saving means the recording is finished, so take the recorder out of the
+    // way first — otherwise the next press would keep appending to a box that
+    // has just been cleared.
+    recStop();
     const n=nameIn.value.trim(),a=actIn.value.trim();
     if(!n||!a){alert('Name and action are required');return}
     const ep=editIdx>=0?'macro_update':'macro_add';

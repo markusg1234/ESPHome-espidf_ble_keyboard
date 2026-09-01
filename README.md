@@ -2139,6 +2139,45 @@ The web UI provides:
 - YAML-defined buttons appear alongside macros but are not editable
 - Selecting a preset or key appends to the action field with `|`, making it easy to build multi-step macros
 
+### Recording a Macro
+
+Rather than typing an action string, you can perform it. Press **Record** in the Macros card header,
+then use the remote, the on-screen keyboard and the mouse pad as you normally would — every press is
+appended to the action box as a step. Press **Stop** and the recording is ready to name and save.
+The read-out under the form shows the step count and how much of the 255-character limit is left.
+
+Recording captures what you do **on this page**: remote buttons, typed text, keyboard combos, and
+mouse clicks, holds and scroll. It reads the actions the page is already sending, so what you record
+is exactly what will replay.
+
+A few things it does on your behalf, so the result is usable rather than literal:
+
+| Behaviour | Why |
+|---|---|
+| Consecutive typing merges into one `string:` step, however slowly you type | The keyboard sends one character per keypress, so typing `hello` would otherwise be five steps with delays wedged between the letters. Text keeps accumulating until you press something that isn't text |
+| A held button records once | Held buttons auto-repeat; you want the press, not each repeat |
+| Every press is separated by `delay:500` | Recording your own hesitation gives ragged values; one predictable number is easier to keep or edit |
+| Consecutive scrolling accumulates into one step | Scrolling is one continuous gesture, not separate presses. Ten clicks of a 3-notch scroll record as `mouse_scroll:-30`, not ten steps eating 160 of the 255 characters. Reversing direction starts a new step rather than cancelling out |
+| Cursor movement is not recorded | Dragging the mouse pad streams position continuously and would fill the whole macro |
+
+So performing a monitor power-off — press HID Power, then press OK — records as
+`consumer:0x30 | delay:500 | ok`. Edit any delay afterwards if a step needs longer; this monitor
+wants `delay:1000` to give its confirmation dialog time to appear.
+
+Notes and limits:
+- Recording **extends** whatever is already in the action box, so you can record part of a macro,
+  edit it, and record more onto the end.
+- It stops on its own at 255 characters, keeping the last step that fits.
+- A `|` typed on the on-screen keyboard is skipped — it would split the macro into two steps when it
+  ran. Add one by hand if you actually want a step break there.
+- A step can't begin or end with a space; leading and trailing spaces are trimmed when the macro runs.
+- The popped-out remote records too. It's a separate browser window, so its presses are handed back
+  to the page that opened it — watch the action box there fill as you press. If the pop-up was
+  blocked and you opened the remote in an ordinary tab instead, that tab has no link back and won't
+  record.
+- Pressing an existing macro's button records its actions inline rather than as a `macro:<name>`
+  reference, so the new macro stands on its own.
+
 ### Multi-Step Macros
 
 Macros support multiple commands separated by `|`. A 50ms delay is automatically inserted between steps. Use `delay:N` for explicit pauses (max 10000ms). Prefix a macro with `repeat:N:` to run the whole sequence N times (max 1000).
