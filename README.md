@@ -1003,6 +1003,8 @@ Styles are a web-page feature; the [Media Remote Card](#media-remote-card-for-ho
 
 Press **Export** to drop the style currently shown into the box below as JSON, edit it, and press **Import**. Importing over an id that already exists replaces it; a new id adds a style. The device holds **6** custom styles of up to **1500 characters** each.
 
+The remote above the box **redraws as you type**, so the layout is visible before it is saved — the preview lives in the browser, and nothing reaches the device until you press Import. A trailing comma is forgiven; any other syntax error names the line it is on and puts the cursor there.
+
 ```json
 {
   "id": "lounge",

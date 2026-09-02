@@ -30,6 +30,13 @@ web control page shows the matching version badge.
   with a `set_battery_level` action and Home Assistant service for levels that don't come from a
   sensor. USB-powered builds should leave it unset.
 
+### Changed
+- **Remote styles are now edited in front of you.** The remote redraws from the style box as you
+  type, so a layout is seen before it is saved and nothing reaches the device until you import it.
+  Exported styles print one section per line instead of one word per line, the box is monospaced
+  and takes a tab, a trailing comma is forgiven rather than rejected, and an error that remains
+  says which line it is on and puts the cursor there.
+
 ### Security
 - **Another website can no longer make your browser drive the keyboard.** The control endpoints
   take their parameters in the query string, which is the one shape a browser sends to another

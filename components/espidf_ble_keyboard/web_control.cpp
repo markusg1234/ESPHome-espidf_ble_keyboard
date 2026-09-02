@@ -143,6 +143,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .macro-form .tpl-step button{width:30px;height:30px;padding:0;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:17px;font-weight:700}
 .macro-form .tpl-step button:active{background:var(--active);color:#fff;opacity:1}
 .tpl-name{min-width:132px;text-align:center;font-size:12px;color:var(--fg);padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* The style box is the one field on this page that holds code, so it is given
+   code's affordances: a monospace stack, so a section lines up under the one
+   above it, and a tab stop narrow enough that two levels of nesting still fit a
+   phone. Soft wrap stays on — a long row scrolling off the side of a textarea
+   hides worse than one that folds. By id because .macro-form textarea sets
+   font-family:inherit and would otherwise win. */
+#tpl-json{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.5;tab-size:2}
 .combo-row{display:flex;gap:4px;width:100%;align-items:center;flex-wrap:wrap}
 .mod-btn{padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);font-size:11px;font-weight:600;cursor:pointer;user-select:none}
 .mod-btn.on{background:var(--active);color:#fff;border-color:var(--active)}
@@ -643,8 +650,8 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div style="font-size:12px;color:var(--muted);margin:6px 0">Choose the remote layout this host gets &mdash; switch to the host and the remote re-skins to match it. The hidden, repeat and hold settings above still apply on top of whatever style is showing, and every action stays available to macros, buttons and Home Assistant either way.</div>
 <div class="macro-form" style="margin-top:0"><div class="tpl-step"><button id="tpl-prev" title="Previous style">&minus;</button><span class="tpl-name" id="tpl-name" title="The style this host's remote is drawn in">Full remote</span><button id="tpl-next" title="Next style">+</button></div><button id="tpl-export" class="cancel" title="Copy the shown style into the box below as JSON — edit it, give it a new id, and Import it back as your own">Export</button><button id="tpl-export-all" class="cancel" title="Copy every custom style into the box below as one JSON list — paste that into the Home Assistant remote card and they all join its style list">Export all</button></div>
 <div id="tpl-custom"></div>
-<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">Roll your own: <strong>Export</strong> a style, change its <code>id</code> and <code>name</code>, rearrange the sections, then <strong>Import</strong>. Sections are <code>["row",…]</code>, <code>["dpad"]</code>, <code>["ring"]</code> for a round nav ring, <code>["strip",["Vol","volume_up",…],…]</code>, <code>["rocker",["Vol","volume_up","volume_down"],…]</code> for one-piece rockers, <code>["media",…]</code>, <code>["apps",…]</code> and <code>["-"]</code> for a divider; <code>"|"</code> spaces a row out. <code>theme</code> is optional and <code>bg</code> takes a gradient. Write a button as <code>["spare1","Netflix"]</code> to label it &mdash; pair that with an override on the same host and the key both reads and does what you want &mdash; or <code>["spare1","Netflix","#e50914 wide"]</code> to colour and size it (<code>light sm lg xl wide sq</code>).</div>
-<div class="macro-form"><textarea id="tpl-json" placeholder="Paste a style JSON here to import&hellip;" rows="4" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="tpl-import">Import</button></div>
+<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">Roll your own: <strong>Export</strong> a style, change its <code>id</code> and <code>name</code>, rearrange the sections, then <strong>Import</strong>. Sections are <code>["row",…]</code>, <code>["dpad"]</code>, <code>["ring"]</code> for a round nav ring, <code>["strip",["Vol","volume_up",…],…]</code>, <code>["rocker",["Vol","volume_up","volume_down"],…]</code> for one-piece rockers, <code>["media",…]</code>, <code>["apps",…]</code> and <code>["-"]</code> for a divider; <code>"|"</code> spaces a row out. <code>theme</code> is optional and <code>bg</code> takes a gradient. Write a button as <code>["spare1","Netflix"]</code> to label it &mdash; pair that with an override on the same host and the key both reads and does what you want &mdash; or <code>["spare1","Netflix","#e50914 wide"]</code> to colour and size it (<code>light sm lg xl wide sq</code>). The remote above redraws as you type &mdash; nothing is saved until you press Import.</div>
+<div class="macro-form"><textarea id="tpl-json" placeholder="Paste a style JSON here to import&hellip;" rows="8" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="tpl-import">Import</button></div>
 <div id="tpl-msg" style="font-size:11px;color:var(--muted)"></div>
 </div>
 </div>
@@ -1845,6 +1852,9 @@ function appendStep(el,val){
     if(forgetBtn)resetForget();
     // As on the picker: the slot moved, so any key on screen is the wrong one.
     irkClear();
+    // A preview belongs to the host it was opened on, so the new host's own
+    // style comes back with it.
+    tplEndPreview();
     // loadSlots repaints the labels too — the "(active)" marker has moved.
     loadSlots().then(()=>{
       load();
@@ -1898,6 +1908,9 @@ function appendStep(el,val){
   // start — with only a handful of styles that beats a button that goes dead.
   function stepTpl(d){
     if(!tplOpts.length)return;
+    // Whatever is in the box is not what this host is getting, so the preview
+    // goes back to the real style before the step draws over it.
+    tplEndPreview();
     tplIdx=(tplIdx+d+tplOpts.length)%tplOpts.length;
     showTpl();
     const id=tplOpts[tplIdx].id;
@@ -1953,10 +1966,76 @@ function appendStep(el,val){
     const {index,custom,...rest}=t;
     return rest;
   }
-  // What Export writes and Import reads — pretty-printed, because that one is
-  // for editing by hand.
+  // What Export writes and Import reads. Hand-built rather than
+  // JSON.stringify(t,null,2): that puts every string on a line of its own, so a
+  // twenty-line style came out ninety lines long and the row-by-row shape a
+  // style *is* was the first thing lost. Sections print one per line here,
+  // exactly as they are written in RMT_BUILTIN above.
+  //
+  // Only the four keys the import keeps are written, in a fixed order, so the
+  // round trip through the box stays byte-stable — anything else a hand-written
+  // style carries is dropped here, as it would be on save.
   function tplText(t){
-    return JSON.stringify(tplPlain(t),null,2);
+    const p=tplPlain(t),out=['{'];
+    out.push('  "id": '+JSON.stringify(p.id)+',');
+    out.push('  "name": '+JSON.stringify(p.name)+',');
+    const tk=Object.keys(p.theme||{});
+    if(!tk.length)out.push('  "theme": {},');
+    else{
+      out.push('  "theme": {');
+      tk.forEach((k,i)=>out.push('    '+JSON.stringify(k)+': '+JSON.stringify(p.theme[k])+
+                                 (i<tk.length-1?',':'')));
+      out.push('  },');
+    }
+    const ss=p.sections||[];
+    out.push('  "sections": [');
+    ss.forEach((s,i)=>out.push('    '+JSON.stringify(s)+(i<ss.length-1?',':'')));
+    out.push('  ]','}');
+    return out.join('\n');
+  }
+
+  // V8 and WebKit put a character offset in a parse error; Firefox writes
+  // "line 3 column 5" instead. Take the offset where it is there and turn it
+  // into a line, a column and the line itself — "Unexpected token }" followed by
+  // a number three screens long is not something anyone can act on.
+  function tplWhere(text,e){
+    const m=/position (\d+)/.exec(e.message||'');
+    if(!m)return {msg:'Not valid JSON: '+e.message};
+    const at=Math.min(+m[1],text.length),before=text.slice(0,at);
+    const ln=before.split('\n').length,col=at-before.lastIndexOf('\n');
+    const src=(text.split('\n')[ln-1]||'').trim();
+    return {msg:'Not valid JSON — line '+ln+', column '+col+
+                (src?': '+(src.length>48?src.slice(0,48)+'…':src):''),at:at};
+  }
+  // A trailing comma is the one paste error that keeps happening — a section
+  // deleted from the end, an editor's last line removed — and JSON.parse answers
+  // it with "Unexpected token }" and nothing else. A regex would also rewrite
+  // the comma inside a label like "Movies, TV", so this walks the text instead:
+  // a comma is dropped only when it is outside a string with nothing but
+  // whitespace between it and the ] or } that closes the list.
+  function tplStripCommas(s){
+    let out='',str=false,esc=false,com=-1;
+    for(let i=0;i<s.length;i++){
+      const c=s[i];
+      if(str){out+=c;if(esc)esc=false;else if(c==='\\')esc=true;else if(c==='"')str=false;continue}
+      if(c===']'||c==='}'){if(com>=0)out=out.slice(0,com)+out.slice(com+1);com=-1;out+=c;continue}
+      if(c===','){com=out.length;out+=c;continue}
+      if(c==='"'){str=true;com=-1;out+=c;continue}
+      if(c!==' '&&c!=='\t'&&c!=='\n'&&c!=='\r')com=-1;
+      out+=c;
+    }
+    return out;
+  }
+  // {t}, {t,fixed:true} when a trailing comma had to go, or {err,at}. Shared by
+  // Import and the live preview. The message describes the *original* text: the
+  // stripped copy's offsets are short by however many commas came out of it, so
+  // reporting from that would point at the wrong character.
+  function tplParse(text){
+    try{return {t:JSON.parse(text)}}
+    catch(e){
+      try{return {t:JSON.parse(tplStripCommas(text)),fixed:true}}
+      catch(e2){const w=tplWhere(text,e);return {err:w.msg,at:w.at}}
+    }
   }
 
   // Structure only — anything that would render as a broken remote is refused
@@ -2090,8 +2169,15 @@ function appendStep(el,val){
   });
 
   if(tplImport)tplImport.addEventListener('click',()=>{
-    let t;
-    try{t=JSON.parse(tplJson.value)}catch(e){tplNote('Not valid JSON: '+e.message,true);return}
+    const r=tplParse(tplJson.value);
+    if(r.err){
+      tplNote(r.err,true);
+      // Put the caret on the offending character, so the message and the box
+      // agree about where to look.
+      if(typeof r.at==='number'){try{tplJson.focus();tplJson.setSelectionRange(r.at,r.at)}catch(e){}}
+      return;
+    }
+    const t=r.t;
     const why=validateTpl(t);
     if(why){tplNote(why,true);return}
     const compact=JSON.stringify({id:t.id,name:t.name.trim(),theme:t.theme||{},sections:t.sections});
@@ -2110,9 +2196,59 @@ function appendStep(el,val){
     tplNote('Uploading…');
     uploadTpl(index,compact)
       .then(()=>refreshActiveTemplate())
-      .then(()=>{fillTplSel();renderCustomList();
+      // After the refresh, so the style it draws in the preview's place is the
+      // one that was just saved rather than the one being replaced.
+      .then(()=>{tplEndPreview();fillTplSel();renderCustomList();
                  tplNote('Saved "'+t.name.trim()+'". Pick it above to give it to a host.')})
       .catch(e=>tplNote('Import failed: '+e.message,true));
+  });
+
+  // ── Editing aids ──
+  // Tab indents instead of walking out of the box. Shift+Tab and Escape still
+  // leave it: a textarea you cannot tab out of is a keyboard trap.
+  if(tplJson)tplJson.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){tplJson.blur();return}
+    if(e.key!=='Tab'||e.shiftKey||e.ctrlKey||e.altKey||e.metaKey)return;
+    e.preventDefault();
+    const s=tplJson.selectionStart,en=tplJson.selectionEnd,v=tplJson.value;
+    tplJson.value=v.slice(0,s)+'  '+v.slice(en);
+    tplJson.selectionStart=tplJson.selectionEnd=s+2;
+  });
+
+  // ── Live preview ──
+  // The remote redraws from the box as it is typed in, so a style is edited in
+  // front of you rather than blind. Nothing reaches the device until Import —
+  // but the buttons drawn are the real ones, so pressing one still presses it
+  // on the host.
+  let tplPrevT=null,tplPreviewing=false;
+  // Which style the host is really on is the remote's business, not this
+  // panel's — it has kept that current the whole time the preview was up.
+  function tplEndPreview(){
+    if(!tplPreviewing)return;
+    tplPreviewing=false;
+    if(window.endPreviewTemplate)window.endPreviewTemplate();
+  }
+  function tplPreview(){
+    if(!tplJson||!window.previewTemplate)return;
+    const raw=tplJson.value.trim();
+    if(!raw){tplEndPreview();tplNote('');return}
+    const r=tplParse(raw);
+    // A failed parse, or a style that would not render, leaves the last good
+    // drawing where it is. Blanking the remote on whichever keystroke lands
+    // mid-word is worse than a stale preview and a line saying what is wrong.
+    if(r.err){tplNote(r.err,true);return}
+    // Export all writes a list rather than a style. Not an error — just nothing
+    // to draw, and nothing to say about it either.
+    if(Array.isArray(r.t))return;
+    const why=validateTpl(r.t);
+    if(why){tplNote(why,true);return}
+    tplPreviewing=true;
+    window.previewTemplate(r.t);
+    tplNote(r.fixed?'Preview — a trailing comma was ignored. Import to save.'
+                   :'Preview — Import to save.');
+  }
+  if(tplJson)tplJson.addEventListener('input',()=>{
+    clearTimeout(tplPrevT);tplPrevT=setTimeout(tplPreview,300);
   });
 
   function loadTpl(){
@@ -2128,6 +2264,9 @@ function appendStep(el,val){
     tplPanel.classList.toggle('open');
     tplToggle.innerHTML='Remote Style '+(tplPanel.classList.contains('open')?'▴':'▾');
     if(tplPanel.classList.contains('open')){tplNote('');loadTpl()}
+    // Closing the panel puts the host's own style back: a preview that outlived
+    // the editor it belongs to just looks like the remote went wrong.
+    else tplEndPreview();
   });
 
   // ── Identity key (IRK) ──
@@ -3133,10 +3272,9 @@ buildKeyboard();
     return '<div class="rmt-section">'+inner+'</div>';
   }
   let curTplId=null;
-  window.applyTemplate=function(id,force){
-    const t=tplById(id)||tplById('default');
-    if(!force&&t.id===curTplId)return;
-    curTplId=t.id;
+  // Draws a style object. Split out of applyTemplate so the style editor can
+  // show what it is about to save while that style exists nowhere but the box.
+  function drawTemplate(t){
     // A style change mid-press would strand the key that is down on the host
     // and leave an interval hammering a button that no longer exists.
     endHold();stopRepeat();
@@ -3155,9 +3293,31 @@ buildKeyboard();
     // shape — which is what a host switch usually brings — has to take the window
     // with it. Defined by whichever side owns that window; absent when docked.
     if(window.onRemoteResize)window.onRemoteResize();
+  }
+  // The style editor's preview: a style that is in no list and stored nowhere.
+  // Held here rather than merely drawn, so a redraw that arrives mid-edit — the
+  // /hosts poll noticing something unrelated — does not throw the preview away
+  // under the person typing it. curTplId goes on tracking the host's real style
+  // underneath, which is what comes back when the preview ends.
+  let rmtPreview=null;
+  window.applyTemplate=function(id,force){
+    const t=tplById(id)||tplById('default');
+    if(!force&&t.id===curTplId)return;
+    curTplId=t.id;
+    // Nothing is drawn while the editor owns the remote — but the id above is
+    // now current, so ending the preview lands on the right style. Returns
+    // nothing, so the caller still applies the hidden set to what is on screen.
+    if(rmtPreview)return;
+    drawTemplate(t);
     // Says it drew, so the caller knows the hidden set has already been applied
-    // (forced, just above) and need not ask for it a second time.
+    // (forced, inside) and need not ask for it a second time.
     return true;
+  };
+  window.previewTemplate=function(t){rmtPreview=t;drawTemplate(t)};
+  window.endPreviewTemplate=function(){
+    if(!rmtPreview)return;
+    rmtPreview=null;
+    drawTemplate(tplById(curTplId)||tplById('default'));
   };
   // Draw the full remote at once so the card is usable before any fetch lands,
   // then correct it to the active host's style. The host bar can't do this for
