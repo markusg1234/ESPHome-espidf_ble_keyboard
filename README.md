@@ -878,6 +878,20 @@ dashboard, so it costs about 73 KB of flash instead of 243 KB and loads a good d
 browser handles that transparently; a command-line client has to ask for it, so use
 `curl --compressed http://<device-ip>/ble_keyboard` if you want to read the page as text.
 
+**Keys on the on-screen keyboard repeat when held**, the same way they do on a real keyboard: hold a
+key — about a fifth of a second with a mouse, about half a second with a finger, since a tap by hand
+is much longer than a click — and the device leaves it down on the host, which then applies its own
+repeat delay and rate. So the speed follows whatever that machine's keyboard settings say rather
+than anything set here, and it differs per host — which is usually what you want. A shorter press is
+ordinary typing and behaves exactly as it always has. Three things do not repeat: Shift, Ctrl, Alt,
+Win and AltGr (they are sticky toggles here, and a long press on Shift locks it instead), Caps Lock,
+and dead keys such as `^` or `` ` `` on the German layout — those are two keystrokes, so there is no
+single key to hold down. They still type once.
+
+> If the browser vanishes mid-press — a phone locking, a tab killed — the page normally still lifts
+> the key, and a lost press is released after 15 seconds. `max_key_hold_ms` is the device-side
+> backstop for the rest; it defaults to `0`, meaning a held key is never released on its own.
+
 ### Host Actions (Per-Host Overrides)
 
 Paired hosts rarely agree on what a key should do. The clearest example is **Record**: the `record` action sends HID consumer usage `0x00B2`, which an Android TV box or DVR handles natively — but **Windows ignores it completely**. Windows routes Play/Pause/Next/Prev through SystemMediaTransportControls (which is why media keys work on a YouTube tab) and volume straight to the audio endpoint, but nothing subscribes to Record. On a PC the working route is a key combo: Game Bar's `Win+Alt+R`, or whatever global hotkey you bind in OBS or Audacity.

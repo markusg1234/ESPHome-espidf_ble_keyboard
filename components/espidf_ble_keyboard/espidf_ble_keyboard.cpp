@@ -2485,6 +2485,23 @@ void EspidfBleKeyboard::send_string(const std::string &str) {
              str.c_str(), str.size(), strokes.size(), type_queue_.size(),
              active_layout_->id);
 
+    // One character that is already held down types nothing at all: the report
+    // builder drops a keycode it is already holding, so a key whose release went
+    // missing swallows every later tap of itself while every other key works.
+    // Lifting it first is the only way that press can be seen. Scoped to a
+    // single character — the on-screen keyboard's taps — so that pasted text,
+    // which can legitimately contain the letter a push-to-talk key is holding,
+    // is left alone.
+    if (strokes.size() == 1 && is_key_held(strokes[0].keycode)) {
+        ESP_LOGD(TAG, "send_string: 0x%02X was still held — releasing so this press registers",
+                 strokes[0].keycode);
+        release_held();
+        // The gap key_repress explains, without blocking: the queue below is
+        // drained by loop(), so pushing its next step out is enough to keep the
+        // lift from being batched away with the keystroke that follows.
+        type_next_ms_ = millis() + 30;
+    }
+
     xSemaphoreTake(type_mutex_, portMAX_DELAY);
     type_queue_.insert(type_queue_.end(), strokes.begin(), strokes.end());
     xSemaphoreGive(type_mutex_);
@@ -2672,6 +2689,14 @@ void EspidfBleKeyboard::send_key_combo(uint8_t modifiers, uint8_t keycode) {
 
     ESP_LOGD(TAG, "send_key_combo: mod=0x%02X key=0x%02X", modifiers, keycode);
     if (!is_connected_) return;
+    // Same reason as in send_string: this exact key still being held means its
+    // release was lost, and the report builder would drop it, so the press would
+    // do nothing at all. The gap is so the lift is not batched away with the
+    // press below — see key_repress.
+    if (is_key_held(keycode)) {
+        release_held();
+        vTaskDelay(pdMS_TO_TICKS(30));
+    }
     send_kb_report_(modifiers, keycode);
     vTaskDelay(pdMS_TO_TICKS(30));
     send_kb_report_(0, 0);
@@ -2757,6 +2782,50 @@ void EspidfBleKeyboard::key_hold(uint8_t modifiers, uint8_t keycode) {
     send_kb_report_(0, 0);
     ESP_LOGI(TAG, "Key hold: mod=0x%02X key=0x%02X (%u held)", modifiers, keycode,
              (unsigned) held_key_count_());
+}
+
+bool EspidfBleKeyboard::hold_char(const std::string &utf8) {
+    // The web keyboard's character keys carry the character, not a keycode —
+    // which key produces it depends on the layout, and that table lives here.
+    // So the same resolution send_string does is done once, and the key is left
+    // down instead of tapped: the host then repeats it at whatever rate its own
+    // keyboard settings say, which is what makes holding a key on that page feel
+    // like holding one on a real keyboard.
+    if (utf8.empty()) return false;
+    size_t i = 0;
+    HidKeyMapping m = resolve_codepoint_(active_layout_, decode_utf8_(utf8, i));
+    if (m.keycode == 0x00) return false;   // nothing on this layout types it
+    // A dead-key compose is two strokes — the accent, then the letter or a space
+    // — so there is no single key to leave down. Refused rather than half-held,
+    // and the caller types it once instead.
+    if (m.followup_keycode != 0x00) return false;
+    key_repress(m.modifier, m.keycode);
+    return true;
+}
+
+void EspidfBleKeyboard::key_repress(uint8_t modifiers, uint8_t keycode) {
+    // Anything still down means a release that never arrived — a browser closed
+    // mid-press, a second key pressed before the first came up, a request that
+    // died on the way back. This is the on-screen keyboard's press, and that is
+    // driven by one pointer, so exactly one of its keys is ever meant to be down:
+    // whatever is left over is stale and goes.
+    //
+    // Not just this same keycode, which is what it used to check. A left-over
+    // *different* key is worse, not better: the report carries both, so the host
+    // has the old key down as well as the new one and goes on repeating it. Hold
+    // an arrow to move the cursor, then press Space, and the space arrives with
+    // the arrow still down underneath it.
+    if (held_key_count_() > 0 || held_modifiers_ != 0) {
+        // The lift needs to land as a report of its own. Sent back to back the
+        // two arrive in the same batch on a host that groups input per frame,
+        // the key never looks like it came up, and the press that follows does
+        // nothing — which is how recovering a stuck key came to work in one
+        // notes app and not another on the same phone. The same 30ms
+        // send_key_combo already puts between its own down and up.
+        release_held();
+        vTaskDelay(pdMS_TO_TICKS(30));
+    }
+    key_hold(modifiers, keycode);
 }
 
 void EspidfBleKeyboard::consumer_hold(uint16_t usage) {

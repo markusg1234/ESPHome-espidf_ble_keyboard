@@ -1137,7 +1137,10 @@ const RMT_BUILTIN=[
  ['apps',['spare8','App 4','light wide']]]}];
 // User-authored styles, fetched from the device. `index` is the storage slot
 // they came from, which is what an update or a delete addresses.
-let RMT_CUSTOM=[],RMT_CUSTOM_MAX=6,RMT_CUSTOM_LEN=1500;
+// RMT_CUSTOM_LOADED says whether the device has been asked yet, which is what
+// separates "this style hasn't arrived" from "this style is gone" — see the
+// unknown-id branch in applyTemplate.
+let RMT_CUSTOM=[],RMT_CUSTOM_MAX=6,RMT_CUSTOM_LEN=1500,RMT_CUSTOM_LOADED=false;
 function allTemplates(){return RMT_BUILTIN.concat(RMT_CUSTOM)}
 function tplById(id){
   for(const t of allTemplates())if(t.id===id)return t;
@@ -1155,18 +1158,46 @@ function loadCustomTpls(){
         if(t&&t.id&&Array.isArray(t.sections)){t.index=it.index;t.custom=true;out.push(t)}
       }catch(e){}
     });
-    RMT_CUSTOM=out;
+    RMT_CUSTOM=out;RMT_CUSTOM_LOADED=true;
   }).catch(()=>{});
 }
 // Re-reads the styles and redraws the active host's, forcing the render even if
 // the id is unchanged — used after an import, which edits a style in place.
-function refreshActiveTemplate(){
+// Pass false on load, where the drawn style came from the remembered one below
+// and a forced redraw would repaint it for no reason.
+function refreshActiveTemplate(force){
   return loadCustomTpls()
     .then(()=>fetch('/api/ble_keyboard/hosts').then(r=>r.json()))
     .then(d=>{
       const a=(d.slots||[]).find(s=>s.slot===d.active);
-      if(window.applyTemplate)window.applyTemplate((a&&a.tpl)||'default',true);
+      if(window.applyTemplate)window.applyTemplate((a&&a.tpl)||'default',force!==false);
     }).catch(()=>{});
+}
+
+// ── The style this browser last drew ──
+// Which style a host uses is known only after two fetches — the custom styles,
+// then the hosts — so the page used to draw the full default remote first and
+// correct it when they landed. Every reload flashed a remote the host does not
+// use: measured at 130-150ms against a stub answering in 120, and a real device
+// answers slower and has to serve the page at the same time. Remembering the
+// last one costs a localStorage write per host switch and makes a reload come up
+// in the right style straight away. The device still has the final say; this
+// only decides what is on screen while it is being asked.
+const RMT_LAST='blekb_rmt_last';
+function rememberTemplate(t){
+  if(!t||!t.id)return;
+  // A built-in is just its id — the page already has the body. A custom one is
+  // stored whole, because its body lives on the device and arrives on the very
+  // fetch this exists to get ahead of.
+  try{localStorage.setItem(RMT_LAST,JSON.stringify(t.custom?{id:t.id,tpl:t}:{id:t.id}))}catch(e){}
+}
+function rememberedTemplate(){
+  try{
+    const c=JSON.parse(localStorage.getItem(RMT_LAST)||'null');
+    if(!c||!c.id)return null;
+    if(c.tpl)return(c.tpl.id===c.id&&Array.isArray(c.tpl.sections))?c.tpl:null;
+    return RMT_BUILTIN.find(b=>b.id===c.id)||null;   // renamed or gone: draw nothing yet
+  }catch(e){return null}
 }
 
 // ── Host Switcher ──
@@ -1245,7 +1276,23 @@ function refreshActiveTemplate(){
         },'active');
         bar.appendChild(b);
       });
-    }).catch(()=>{bar.style.display='none'});
+    }).catch(()=>{
+      // A request that didn't arrive says nothing about the hosts: they are all
+      // still paired, and the bar already on screen is still right. Hiding it on
+      // any failure is what made the host buttons vanish for the rest of the
+      // session — the next answer is byte for byte the last one, so the guard at
+      // the top returns before ever reaching the line that shows the bar again,
+      // and only a reload brought them back. Measured: one dropped /hosts, gone
+      // until refresh. One dropped request is not rare on a device that is also
+      // serving a popped-out remote polling the same endpoint.
+      //
+      // So leave what is drawn alone, and clear the memo instead, which is what
+      // lets the next answer rebuild the bar whether or not anything changed.
+      // Only a bar that has never been filled stays hidden, which is the state
+      // the markup starts in anyway.
+      lastHostsRaw=null;
+      if(!bar.querySelector('.host-btn'))bar.style.display='none';
+    });
   }
   pollEvery(loadHosts,5000);
   // The other window says the hosts moved: read them now rather than waiting for
@@ -2665,10 +2712,114 @@ function buildKeyboard(){
   }
   let sx,sy,ok,ab,sLockT=null,sLockFired=false;
   function clrSLockT(){if(sLockT){clearTimeout(sLockT);sLockT=null}}
+
+  // ── Press and hold ──
+  // A held key is left DOWN on the host, and the host repeats it at whatever
+  // rate its own keyboard settings say. That is what a real keyboard does, and
+  // it is why there is no repeat timer here: a page-driven one would send a
+  // request and a BLE report per character, at a rate that matched nobody's
+  // machine, and the device drops an identical key within 30ms anyway.
+  //
+  // The release endpoint is the device's global one — it drops a remote
+  // push-to-talk too — so it is only ever called while this card is the thing
+  // holding something, which is what the heldEl guard in endKeyHold is for.
+  // holdArmed says the hold path has claimed this press, which is what stops
+  // pointerup typing the character a second time: when the device refuses to
+  // hold a key, the fallback tap is sent from the reply — and that reply can
+  // arrive long before the finger comes off.
+  let heldEl=null,holdT=null,holdWatch=null,holdArmed=false;
+  // How long a key must be down before it is treated as held rather than
+  // pressed. Ordinary typing never reaches it, so ordinary typing keeps the tap
+  // path it always had — which matters more than it sounds: holding a key that
+  // is already held is a no-op on the device, so a second press whose hold
+  // overtook the first press's release used to be swallowed entirely. Measured
+  // at 25ms between presses: two of five keystrokes lost. Space showed it first
+  // only because space is the key a typist hits fastest.
+  //
+  // Longer for a finger than for a mouse, because the two press for very
+  // different lengths of time. A mouse click is over in well under a fifth of a
+  // second; a deliberate tap with a thumb runs to a third or a half of one, so a
+  // single threshold low enough to feel responsive under a mouse turned ordinary
+  // taps on a phone into holds — one tap of the space bar putting in a run of
+  // spaces, enough of them to wrap the line. The host adds its own repeat delay
+  // on top of whichever is used, so neither wants to be larger than it must be.
+  const HOLD_MOUSE_MS=200,HOLD_TOUCH_MS=450;
+  const holdDelay=e=>e.pointerType==='touch'?HOLD_TOUCH_MS:HOLD_MOUSE_MS;
+  // One request at a time, in the order they were made. A release must never
+  // overtake the hold it belongs to, nor a hold the release before it.
+  let opChain=Promise.resolve();
+  const chainOp=fn=>{opChain=opChain.catch(()=>{}).then(fn);return opChain};
+  function clrHoldT(){if(holdT){clearTimeout(holdT);holdT=null}}
+  function endKeyHold(){
+    clrHoldT();
+    if(!heldEl)return;
+    // Un-light it here rather than only on the pointer paths. Everything else
+    // that lifts a key — the page losing focus, being hidden, the stuck-key
+    // timer — used to leave the button lit while the key was no longer down, so
+    // a repeat that stopped on its own looked like a key still held and gave no
+    // clue what had happened. The lit state now means what it says.
+    setKeyP(heldEl,false);
+    heldEl=null;
+    clearTimeout(holdWatch);holdWatch=null;
+    // Retried once. This is the request that matters most: a release that never
+    // lands leaves the key down on the host, and the device then swallows both a
+    // re-hold and a tap of that key — one lost packet and that key goes quiet
+    // while every other one keeps working.
+    chainOp(()=>fetch('/api/ble_keyboard/release',{method:'POST'})
+      .catch(()=>fetch('/api/ble_keyboard/release',{method:'POST'}).catch(()=>{})));
+    clearStickyMods();
+  }
+  function startKeyHold(k,el){
+    const r=keyRequest(k);
+    if(!r)return;
+    // Special keys carry a keycode; character keys carry the character, because
+    // which key types it depends on the layout — the device resolves those the
+    // same way it resolves typed text.
+    const p=r.ep==='string'?{char:r.params.keys}:r.params;
+    heldEl=el;holdArmed=true;
+    // Type it once instead of holding it. Guarded on this press still being the
+    // one in progress: a finger already lifted has had its release queued, and
+    // typing here as well would put a stray character on the host.
+    const tapInstead=lift=>{
+      if(heldEl!==el)return;
+      setKeyP(heldEl,false);heldEl=null;
+      clearTimeout(holdWatch);holdWatch=null;
+      // Only when it is not known whether the key went down. A refusal is the
+      // device saying it did nothing, but a request that failed on the way back
+      // may well have been carried out — and a key left down is not a key that
+      // simply does not repeat, it is one that goes dead, because the device
+      // drops both a re-hold and a tap of a key it already holds.
+      if(lift)chainOp(()=>fetch('/api/ble_keyboard/release',{method:'POST'}).catch(()=>{}));
+      api(r.ep,r.params);clearStickyMods();
+    };
+    chainOp(()=>fetch('/api/ble_keyboard/hold_key?'+new URLSearchParams(p),{method:'POST'})
+      // Nothing this layout can hold — a dead key, most often, which is two
+      // strokes and so has no single key to leave down. The key still works, it
+      // just does not repeat.
+      .then(res=>{if(!res.ok)tapInstead(false)})
+      // Never arrived. A lost keystroke is worse than a missing repeat.
+      .catch(()=>tapInstead(true)));
+    // Every release below waits on an event of some kind. This one does not: a
+    // key still down because a pointerup never arrived types forever.
+    clearTimeout(holdWatch);
+    holdWatch=setTimeout(endKeyHold,15000);
+  }
   kb.addEventListener('pointerdown',e=>{
     ab=e.target.closest('.k');if(!ab)return;
+    // Lift whatever was still down first. One pointer's worth of state is kept
+    // here, so a second finger — two thumbs on a phone is the ordinary way to
+    // use this — used to overwrite the reference to the key already held and
+    // leave it down on the device with nothing able to release it. That key then
+    // went dead, because the device drops both a re-hold and a tap of a key it
+    // already holds, and only the *next* key's release freed it: press space,
+    // watch it stop, and it stays broken until some other key has been pressed.
+    endKeyHold();
     sx=e.clientX;sy=e.clientY;ok=true;setKeyP(ab,true);
-    sLockFired=false;
+    sLockFired=false;holdArmed=false;
+    // Capture, so a pointer released away from the key still reports here. A
+    // release outside the button never fires pointerup on it otherwise, and with
+    // a key held that is one left down on the host rather than a lost tap.
+    try{ab.setPointerCapture(e.pointerId)}catch(_){}
     const rows=(LAYOUTS[currentLayout]||LAYOUTS.us).ROWS;
     const k=rows[+ab.dataset.r][+ab.dataset.k];
     // Long-press (500 ms) on either Shift locks it sticky until tapped again.
@@ -2680,14 +2831,71 @@ function buildKeyboard(){
         modBtns.rshift.forEach(b=>b.classList.add('shift-lock'));
       },500);
     }
+    // Characters and special keys go down on the host and stay there. Not
+    // modifiers or Caps Lock: those are sticky toggles here, Shift's long press
+    // already owns that gesture, and a real keyboard repeats neither.
+    //
+    // Not while a macro is being recorded either. The recorder captures what
+    // goes through api(), and a hold is not a step it could write down — so
+    // recording keeps the tap path and records the keystrokes it always did.
+    else if(k&&(k.t==='c'||k.t==='s')&&!recSteps){
+      const el=ab;
+      // Only once the key has been down long enough to mean it. A press shorter
+      // than this is typing, and typing goes the way it always did — one tap on
+      // pointerup. That also means a touch that turns into a scroll has long
+      // since been cancelled by the 10px check below, so it types nothing.
+      holdT=setTimeout(()=>{holdT=null;if(ok)startKeyHold(k,el)},holdDelay(e));
+    }
   });
-  kb.addEventListener('pointermove',e=>{if(ok&&(Math.abs(e.clientX-sx)+Math.abs(e.clientY-sy))>10){ok=false;setKeyP(ab,false);clrSLockT()}});
+  kb.addEventListener('pointermove',e=>{
+    if(!ok)return;
+    if((Math.abs(e.clientX-sx)+Math.abs(e.clientY-sy))<=10)return;
+    // Past the slop. Before the key is down, that is a slip or the start of a
+    // scroll, and it cancels the press exactly as it always has.
+    //
+    // Once the key IS down it means nothing at all: the pointer is captured, so
+    // the release will arrive wherever it happens, and a mouse that shifts a few
+    // pixels while a key is held is not a person changing their mind. Cancelling
+    // there is what made a long press give up part-way through and refuse to
+    // start again until it was released — worst on Space and Backspace, because
+    // those are the keys held longest, so they had the most time to drift the
+    // ten pixels. A real keyboard does not stop repeating because the mouse
+    // moved.
+    if(heldEl)return;
+    ok=false;setKeyP(ab,false);clrSLockT();clrHoldT();
+  });
   kb.addEventListener('pointerup',e=>{
-    setKeyP(ab,false);clrSLockT();
-    if(ok&&ab&&!sLockFired){const rows=(LAYOUTS[currentLayout]||LAYOUTS.us).ROWS;const k=rows[+ab.dataset.r][+ab.dataset.k];onKey(k)}
+    setKeyP(ab,false);clrSLockT();clrHoldT();
+    if(heldEl){
+      // It typed once when it went down and has been repeating since, so the
+      // release is the whole of the keystroke — running the tap as well here
+      // would type the character twice.
+      endKeyHold();
+    }else if(holdArmed){
+      // The hold path owns this press: either the device refused to hold the key
+      // and the character has already been typed once, or the reply is still on
+      // its way and will do it. Either way there is nothing to send from here.
+    }else if(ok&&ab&&!sLockFired){
+      const rows=(LAYOUTS[currentLayout]||LAYOUTS.us).ROWS;const k=rows[+ab.dataset.r][+ab.dataset.k];onKey(k);
+    }
     ok=false;ab=null;sLockFired=false;
   });
-  kb.addEventListener('pointercancel',()=>{setKeyP(ab,false);clrSLockT();ok=false;ab=null;sLockFired=false});
+  const kbAbort=()=>{setKeyP(ab,false);clrSLockT();endKeyHold();ok=false;ab=null;sLockFired=false};
+  kb.addEventListener('pointercancel',kbAbort);
+  // Fires after pointerup, so the guard is what keeps this from releasing twice;
+  // it is here for the cases where capture is taken away without a pointerup.
+  kb.addEventListener('lostpointercapture',()=>{if(heldEl)kbAbort()});
+  // A key still down when the page stops being looked at would type into
+  // whatever the host does next, for as long as it takes someone to notice.
+  // Free when nothing is held, so none of these can disturb a remote hold.
+  window.addEventListener('blur',endKeyHold);
+  window.addEventListener('pagehide',endKeyHold);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)endKeyHold()});
+  // Once, on the way in: a previous session that was closed mid-press can have
+  // left a key down on the device, and that key is dead — a re-hold is a no-op
+  // and even a tap of it is dropped from the report — until something lifts it.
+  // Reloading the page is the first thing anyone tries, so make it the cure.
+  fetch('/api/ble_keyboard/release',{method:'POST'}).catch(()=>{});
 }
 
 function toggleMod(mod){
@@ -2705,6 +2913,38 @@ function updateLabels(){
   });
 }
 
+// What a key sends, as an endpoint plus its parameters — or null for a key that
+// sends nothing on its own. Split out of onKey so the press-and-hold path below
+// derives its request from exactly the same arithmetic: a held key and a tapped
+// one can then never disagree about which character or keycode they meant.
+function keyRequest(k){
+  let mb=0;
+  if(ctrl)mb|=0x01;if(alt)mb|=0x04;if(win)mb|=0x08;if(rshift)mb|=0x20;if(altgr)mb|=0x40;
+  if(k.t==='c'){
+    if(mb!==0){
+      if(shift)mb|=0x02;
+      const code=CK[k.c];
+      return code===undefined?null:{ep:'key',params:{modifier:mb,keycode:code}};
+    }
+    const isL=k.c>='a'&&k.c<='z';
+    const sh=isL?((shift||rshift)!==capsLock):(shift||rshift);
+    return {ep:'string',params:{keys:sh?k.sc:k.c}};
+  }
+  if(k.t==='s'){
+    if(shift)mb|=0x02;
+    return {ep:'key',params:{modifier:mb,keycode:k.kc}};
+  }
+  return null;
+}
+// One key consumes the sticky modifiers, whether it was tapped or held.
+function clearStickyMods(){
+  if(shift&&!shiftLock)toggleMod('shift');
+  if(ctrl)toggleMod('ctrl');
+  if(alt)toggleMod('alt');
+  if(win)toggleMod('win');
+  if(rshift&&!shiftLock)toggleMod('rshift');
+  if(altgr)toggleMod('altgr');
+}
 function onKey(k){
   if(k.t==='m'){
     if((k.mod==='shift'||k.mod==='rshift')&&shiftLock){
@@ -2723,29 +2963,9 @@ function onKey(k){
     api('key',{modifier:0,keycode:0x39});
     updateLabels();return;
   }
-  let mb=0;
-  if(ctrl)mb|=0x01;if(alt)mb|=0x04;if(win)mb|=0x08;if(rshift)mb|=0x20;if(altgr)mb|=0x40;
-  if(k.t==='c'){
-    if(mb!==0){
-      if(shift)mb|=0x02;
-      const code=CK[k.c];
-      if(code!==undefined)api('key',{modifier:mb,keycode:code});
-    }else{
-      const isL=k.c>='a'&&k.c<='z';
-      const sh=isL?((shift||rshift)!==capsLock):(shift||rshift);
-      const ch=sh?k.sc:k.c;
-      api('string',{keys:ch});
-    }
-  }else if(k.t==='s'){
-    if(shift)mb|=0x02;
-    api('key',{modifier:mb,keycode:k.kc});
-  }
-  if(shift&&!shiftLock)toggleMod('shift');
-  if(ctrl)toggleMod('ctrl');
-  if(alt)toggleMod('alt');
-  if(win)toggleMod('win');
-  if(rshift&&!shiftLock)toggleMod('rshift');
-  if(altgr)toggleMod('altgr');
+  const r=keyRequest(k);
+  if(r)api(r.ep,r.params);
+  clearStickyMods();
 }
 
 buildKeyboard();
@@ -3278,7 +3498,10 @@ buildKeyboard();
     }
     return '<div class="rmt-section">'+inner+'</div>';
   }
-  let curTplId=null;
+  let curTplId=null,curTplKey=null;
+  // What is actually drawn, not just which style it came from. A style edited in
+  // place keeps its id, so an id-only check would leave the old body on screen.
+  const tplKey=t=>JSON.stringify([t.sections,t.theme||null]);
   // Draws a style object. Split out of applyTemplate so the style editor can
   // show what it is about to save while that style exists nowhere but the box.
   function drawTemplate(t){
@@ -3308,14 +3531,31 @@ buildKeyboard();
   // underneath, which is what comes back when the preview ends.
   let rmtPreview=null;
   window.applyTemplate=function(id,force){
-    const t=tplById(id)||tplById('default');
-    if(!force&&t.id===curTplId)return;
-    curTplId=t.id;
+    let t=tplById(id);
+    if(!t){
+      // An id this page does not know is nearly always a user-authored style
+      // whose body has not arrived yet: the host bar's poll can land before the
+      // styles are fetched, and it names the style the host uses. Falling back
+      // to the default there draws the full remote over the right one and takes
+      // it away again a moment later — the flash on load, in miniature, and it
+      // happened on every host switch to a custom style too. Wait instead. Once
+      // the styles have actually been read, an unknown id really is one that was
+      // deleted, and the default is the right answer.
+      if(id&&id!=='default'&&!RMT_CUSTOM_LOADED)return;
+      t=tplById('default');
+    }
+    const k=tplKey(t);
+    if(!force&&t.id===curTplId&&k===curTplKey)return;
+    curTplId=t.id;curTplKey=k;
     // Nothing is drawn while the editor owns the remote — but the id above is
     // now current, so ending the preview lands on the right style. Returns
     // nothing, so the caller still applies the hidden set to what is on screen.
     if(rmtPreview)return;
     drawTemplate(t);
+    // Only what the device says this host uses reaches here, so this is the one
+    // place worth remembering for the next load. The editor's preview goes
+    // through drawTemplate directly and is deliberately never remembered.
+    rememberTemplate(t);
     // Says it drew, so the caller knows the hidden set has already been applied
     // (forced, inside) and need not ask for it a second time.
     return true;
@@ -3334,11 +3574,24 @@ buildKeyboard();
     rmtPreview=null;
     drawTemplate(tplById(curTplId)||tplById('default'));
   };
-  // Draw the full remote at once so the card is usable before any fetch lands,
-  // then correct it to the active host's style. The host bar can't do this for
-  // us: it caches its first /hosts response before this function exists.
-  window.applyTemplate('default',true);
-  refreshActiveTemplate();
+  // Come up in the style this browser last drew, before anything is fetched.
+  // The host bar can't do this for us: it caches its first /hosts response
+  // before this function exists.
+  const seed=rememberedTemplate();
+  if(seed){
+    // Straight to drawTemplate, and the tracking set by hand, so the answer
+    // below — which is nearly always this same style — finds nothing to redo.
+    curTplId=seed.id;curTplKey=tplKey(seed);
+    drawTemplate(seed);
+  }else{
+    // A first visit, or a remembered style that no longer exists. Nothing is
+    // known yet, and an empty card for the moment the device takes to answer is
+    // better than a remote the host does not use. Not empty forever, though: if
+    // it never answers, draw the default so there is something to press.
+    setTimeout(()=>{if(curTplId===null)window.applyTemplate('default',true)},1500);
+  }
+  // Not forced: if the device names the style already drawn, it stays as it is.
+  refreshActiveTemplate(false);
 })();
 
 // ── Pop out ──
@@ -3518,23 +3771,59 @@ buildKeyboard();
   // size and spend the gesture — leaving the real size to wait for another click,
   // which is exactly the two clicks a host change came to need. Skipping instead
   // leaves the gesture intact for the fit that follows the style, a moment later.
+  //
+  // It also has to remember what it has already asked for. The listener below is
+  // on the page as well as the window, so it runs on every click anywhere — and
+  // a target the window will not take is one it will not take on the hundredth
+  // ask either. Without that memory a pop-out twitched, and flickered a scrollbar
+  // in and out, on every click for the rest of the session: measured at six
+  // resizeTo calls for one click and eighteen for four, every one of them asking
+  // for the identical size the window had already declined. A window has a
+  // minimum of its own, so "the size the remote wants" and "the size this window
+  // can be" are simply different numbers sometimes, and the gap never closes.
   function armGestureFit(win,el,baseZoom){
     if(win.__blekbArmed)return;
     win.__blekbArmed=true;
+    let lastAsk=null;          // the target of the most recent request that went through
+    const refused=new Set();   // targets the window measurably would not take
+    let tries=[];
+    const key=s=>Math.round(s.w)+'x'+Math.round(s.h);
+    const disarm=()=>{
+      tries.forEach(clearTimeout);tries=[];
+      win.removeEventListener('click',onClick,true);
+      if(win!==window)window.removeEventListener('click',onClick,true);
+    };
     const attempt=()=>{
-      if(win.closed)return;
+      if(win.closed){disarm();return}
       const s=fitSize(el);
-      if(Math.abs(win.innerWidth-s.w)<=3&&Math.abs(win.innerHeight-s.h)<=3)return;
+      if(Math.abs(win.innerWidth-s.w)<=3&&Math.abs(win.innerHeight-s.h)<=3){lastAsk=s;return}
+      // The same target as the last request, or one already declined. Asking
+      // again cannot help; a genuinely different size still gets its try, so a
+      // host switch to a differently shaped style resizes exactly as before.
+      if(lastAsk&&Math.abs(lastAsk.w-s.w)<=3&&Math.abs(lastAsk.h-s.h)<=3)return;
+      if(refused.has(key(s)))return;
       try{
         win.resizeTo(s.w+frameOf(win,0),s.h+frameOf(win,1));
-      }catch(e){}
-    };
-    const onClick=()=>{
-      if(win.closed){
-        win.removeEventListener('click',onClick,true);
-        if(win!==window)window.removeEventListener('click',onClick,true);
+      }catch(e){
+        // Refused for want of a gesture, not because of the size — this is the
+        // case the whole listener exists for. Remember nothing, so the next
+        // click tries this same target again.
         return;
       }
+      lastAsk=s;
+      // Did it take? Asked once, a moment later. A window that answered with a
+      // different size has said all it is going to say about this one.
+      setTimeout(()=>{
+        if(win.closed)return;
+        if(Math.abs(win.innerWidth-s.w)>3||Math.abs(win.innerHeight-s.h)>3)refused.add(key(s));
+      },200);
+    };
+    const onClick=()=>{
+      if(win.closed){disarm();return}
+      // One click's worth of tries at a time. The spread below is for a style
+      // that arrives a second after the press, not for stacking six more attempts
+      // on top of the six still pending from whatever was clicked before.
+      tries.forEach(clearTimeout);tries=[];
       // Now, and again over the next few seconds. The click that switches hosts
       // lands before the new style does — the device takes about a second to
       // answer, and the redraw settles a moment after that — so at this instant
@@ -3545,7 +3834,7 @@ buildKeyboard();
       // arrives cost nothing. Chrome grows one of these windows to fit its
       // content by itself but never shrinks it, which is why a style that got
       // shorter needs this and a style that got taller never did.
-      [0,500,1000,1500,2200,3000].forEach(t=>t?setTimeout(attempt,t):attempt());
+      [0,500,1000,1500,2200,3000].forEach(t=>t?tries.push(setTimeout(attempt,t)):attempt());
     };
     // click only, deliberately. Listening to pointerdown as well looks like a way
     // to get two corrections from one press, and it does — but pointerdown lands

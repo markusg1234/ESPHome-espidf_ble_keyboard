@@ -65,6 +65,22 @@ static std::string json_escape(const std::string &s) {
 // wrap. ?x=200 used to arrive as -56 and move the pointer the opposite way,
 // which reads as the device ignoring you rather than as a rejected value. The
 // page clamps before sending, so only direct API callers ever saw it.
+// A 0-255 query argument, or -1 for missing, empty, non-numeric or out of range.
+// Out of line and one argument at a time. Measured with -fstack-usage this did
+// not shrink handleRequest'''s frame — GCC already reuses slots across the
+// endpoint branches — so it is here for readability and because it is reused,
+// not as a stack saving. The frame is 688 bytes either way.
+__attribute__((noinline)) static int parse_byte_arg(AsyncWebServerRequest *request, const char *name,
+                                                    int missing) {
+  if (!request->hasArg(name))
+    return missing;
+  std::string v = request->arg(name);
+  if (v.empty() || v.find_first_not_of("0123456789") != std::string::npos)
+    return -1;
+  long n = atol(v.c_str());
+  return (n >= 0 && n <= 0xFF) ? (int) n : -1;
+}
+
 static int8_t clamp_i8(int v) {
   if (v < -128) return -128;
   if (v > 127) return 127;
@@ -103,43 +119,44 @@ static bool same_origin_ok(AsyncWebServerRequest *request) {
 //
 // An overflow there does not announce itself: it writes past the end of the
 // stack and the eventual panic reports an impossible exccause with no faulting
-// address, which is what a crash record from 2026-08-21 looked like. Logging
-// the low-water mark as it falls turns the next one into a number seen *before*
-// the crash rather than a backtrace that can't be read after it.
+// address, which is what a crash record from 2026-08-21 looked like. Warning as
+// the low-water mark falls turns the next one into a number seen *before* the
+// crash rather than a backtrace that can't be read after it.
+//
+// Measured on the device: ~860 bytes free across the ordinary endpoints, so the
+// 768-byte warning is close enough to the real figure to mean something. If you
+// need the per-request numbers back while chasing something, log `headroom`
+// unconditionally in the destructor below.
 //
 // FreeRTOS keeps the minimum itself — in bytes on ESP-IDF, unlike stock
 // FreeRTOS, which reports words.
 //
-// Three levels:
-//   WARN  — under the margin below, whatever else it is. The one line worth
-//           shipping: nothing else warns before an overflow corrupts memory.
-//   INFO  — a new low, i.e. this request went deeper than anything before it.
-//   DEBUG — every other request, so a number can be read per request instead
-//           of inferred from silence ("no output" and "never ran" look
-//           identical when only new lows speak).
-//
-// ESPHome's logger defaults to DEBUG, so the last two print for *every* user,
-// not just someone who went looking. They are scaffolding for the stack hunt
-// and both come out before a release — see CONTRIBUTING.md, "Cutting a
-// release", step 5.
+// Only the warning is left. It used to log a line per request at DEBUG, and a
+// new low-water mark at INFO — scaffolding for the stack hunt that answered its
+// question, and which ESPHome's default DEBUG level printed for every user: a
+// line for every poll of /status and /hosts, several a second with a page open.
+// The measurement still runs on every request, so the warning below is as much
+// of a tripwire as it ever was.
 class StackHeadroomProbe {
  public:
   explicit StackHeadroomProbe(const char *url) : url_(url) {}
   ~StackHeadroomProbe() {
+    // Only a new low, not every request that happens to be under the margin.
+    // Once the headroom is low it is low on *every* request, so warning each
+    // time buries the log in a repeat of the same fact — which is exactly what
+    // the per-request DEBUG line used to do, and the reason it was removed.
+    // A falling number is the news; the same number again is not.
     static UBaseType_t lowest = static_cast<UBaseType_t>(-1);  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     UBaseType_t headroom = uxTaskGetStackHighWaterMark(nullptr);
-    uint32_t heap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-    bool new_low = headroom < lowest;
-    if (new_low)
-      lowest = headroom;
-    // Below this, one deeper call chain could run off the end — worth seeing at
-    // the default log level rather than only when someone raises it.
+    if (headroom >= lowest)
+      return;
+    lowest = headroom;
+    // Below this, one deeper call chain could run off the end. Nothing else
+    // warns before an overflow corrupts memory silently, so it is worth seeing
+    // at the default log level rather than only when someone raises it.
     if (headroom < 768) {
-      ESP_LOGW(TAG, "Web task stack down to %u B free (%s), heap %u B", (unsigned) headroom, url_, (unsigned) heap);
-    } else if (new_low) {
-      ESP_LOGI(TAG, "Web task stack low-water %u B (%s), heap %u B", (unsigned) headroom, url_, (unsigned) heap);
-    } else {
-      ESP_LOGD(TAG, "Web task stack %u B free (%s), heap %u B", (unsigned) headroom, url_, (unsigned) heap);
+      ESP_LOGW(TAG, "Web task stack down to %u B free (%s), heap %u B", (unsigned) headroom, url_,
+               (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     }
   }
 
@@ -154,7 +171,14 @@ class BleKbWebHandler : public AsyncWebHandler {
  public:
   BleKbWebHandler(EspidfBleKeyboard *kb) : kb_(kb) {}
 
-  static std::string get_url(AsyncWebServerRequest *request) {
+  // Deliberately not inlined. The buffer below is CONFIG_HTTPD_MAX_URI_LEN+1 —
+  // 513 bytes by default — and inlined into handleRequest it would sit in that
+  // function's frame for the whole request, on top of whatever the endpoint
+  // itself needs, instead of being given back the moment the URL has been
+  // copied out. The web task gets 4352 bytes in total (ESP-IDF's 4096 plus the
+  // 256 ESPHome adds, neither of which this component can change), so half a
+  // kilobyte is a large share of what there is.
+  __attribute__((noinline)) static std::string get_url(AsyncWebServerRequest *request) {
     // Sized from the web server's own constant rather than the 513 it happens to
     // equal by default. url_to() takes a fixed-extent span, and those do not
     // convert across a size mismatch, so hardcoding the number turned any config
@@ -805,6 +829,47 @@ class BleKbWebHandler : public AsyncWebHandler {
         send_response(400, "text/plain", "Action cannot be held");
         return;
       }
+      send_response(200, "text/plain", "OK");
+
+    } else if (path == "hold_key") {
+      // The on-screen keyboard's press-and-hold. Unlike hold_action above this
+      // takes a key rather than an action name: nothing here is remappable, and
+      // nothing here is a macro — it is a keyboard, and a keyboard's keys mean
+      // exactly what is printed on them.
+      //
+      // Holding rather than tapping is the whole point. A tap (send_key_combo)
+      // is down-30ms-up, so the host never sees a key held and its own auto
+      // repeat never starts. Left down, the host repeats it at whatever rate its
+      // keyboard settings say — which is what a real keyboard does, and is why
+      // the page does not run a repeat timer of its own.
+      //
+      // Two shapes, because the page knows two kinds of key. Special keys carry
+      // a HID keycode; character keys carry only the character, since which key
+      // types it depends on the layout — so those are resolved device-side, the
+      // same way send_string resolves them.
+      if (request->hasArg("char")) {
+        if (!kb_->hold_char(request->arg("char").c_str())) {
+          send_response(400, "text/plain", "That character cannot be held on this layout");
+          return;
+        }
+        send_response(200, "text/plain", "OK");
+        return;
+      }
+      // Digits only, and not empty: atoi would read a stray "abc" as 0 and hold
+      // a modifier with no key, which looks like a stuck Ctrl rather than a
+      // rejected request. Parsed one argument at a time and straight into an
+      // int — two std::strings held side by side is 60-odd bytes of a stack this
+      // handler has very little of, and adding them is what pushed the headroom
+      // warning below into firing.
+      int mod = parse_byte_arg(request, "modifier", 0);
+      int key = parse_byte_arg(request, "keycode", -1);
+      if (mod < 0 || key <= 0) {
+        send_response(400, "text/plain",
+                      "modifier must be 0-255 and keycode 1-255, or pass char=");
+        return;
+      }
+      // Lifts the key first if it is somehow still down — see key_repress.
+      kb_->key_repress((uint8_t) mod, (uint8_t) key);
       send_response(200, "text/plain", "OK");
 
     } else if (path == "release") {

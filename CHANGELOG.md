@@ -7,6 +7,13 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Added
+- **Keys on the web page's keyboard now repeat when held.** Hold one — about a fifth of a second
+  with a mouse, about half with a finger, because a tap by hand lasts far longer than a click — and
+  the device leaves it down on the host, which repeats it at whatever delay and rate its own
+  keyboard settings use, per host and without the page sending anything meanwhile. Anything shorter
+  is ordinary typing and is unchanged. Modifiers and Caps Lock don't repeat, and neither do
+  dead keys; those still type once. A held key is lifted if the page is closed, hidden or interrupted.
+
 - **Macros can be recorded by performing them.** Start recording from the Macros card, press the
   buttons you want on the remote, keyboard and mouse pad, and stop — the action string is written for
   you. Typing merges into one step, held buttons record once, and presses are spaced by a fixed
@@ -31,6 +38,12 @@ web control page shows the matching version badge.
   sensor. USB-powered builds should leave it unset.
 
 ### Changed
+- **Reloading the page no longer flashes the wrong remote.** It drew the full default remote first
+  and swapped to the host's own style once two requests had come back, so every refresh showed a
+  remote that host does not use. The page now comes up in the style it last drew and only redraws if
+  the device disagrees — which it does after a host switch made while the page was closed. A style
+  you have never loaded before waits a moment rather than showing the wrong one.
+
 - **The control page is compressed, freeing 170 KB of flash and loading much faster.** Stored raw it
   was the largest single thing in the firmware — 15% of the image — and the device had to push all
   243 KB down the wire on every load. It is now gzipped into the build and served that way, which
@@ -53,6 +66,46 @@ web control page shows the matching version badge.
   is still what actually protects the device.
 
 ### Fixed
+- **Pressing a second key while holding one now lifts the first.** Only one key's worth of state was
+  kept, so a second finger — two thumbs on a phone is the ordinary way to use this — left the first
+  key down on the host, repeating underneath whatever was typed next, until that second key was let
+  go. Pressing the held key again did nothing, which is why it seemed to need some other key pressed
+  before it would work.
+
+- **A key whose release went missing no longer goes quiet, or drags another key along.** The device
+  drops a keycode it is already holding — from a second hold and from an ordinary tap alike — so one
+  lost request left that key doing nothing until something else released it; and a left-over
+  *different* key was worse, riding along in every later report, so holding an arrow to move the
+  cursor and then pressing Space sent the space with the arrow still down under it. A press from the
+  on-screen keyboard now lifts whatever it finds still held, with a gap so the host registers the
+  lift instead of batching it away with the press. The release is also retried, and opening the page
+  clears anything a previous session left behind. Holding a key no longer gives up when the mouse
+  moves a few pixels either, which is what stopped long presses part-way through.
+
+- **The log is quiet again while a web page is open.** The web task's stack probe printed a line for
+  every request, and the page polls a few times a second, so simply having it open filled the log at
+  the default level. The measurement still runs on every request, but only a *new* low is logged, and
+  only once it is low enough to be worth knowing about — once the headroom is low it is low on every
+  request, and repeating that is how the warning became its own kind of noise.
+
+- **The host buttons no longer vanish until the page is reloaded.** One request the device was too
+  busy to answer hid the whole bar, and because the answer that followed was identical to the last
+  one the page skipped the work that would have drawn it again — so it stayed gone for the rest of
+  the session. A dropped request now leaves the buttons where they are, and a bar that never got to
+  load appears on its own as soon as the device replies.
+
+- **Switching to a style you authored yourself no longer flashes the default remote first.** The
+  host bar names the style before the styles themselves have been read, and an unknown name fell
+  straight back to the built-in default — so the full remote was drawn over the right one and taken
+  away again. It now waits for the styles to arrive, and only treats a name it still cannot find as
+  one that was deleted.
+
+- **An always-on-top remote no longer resizes itself every time you click the page.** The window
+  catches up to the remote's size on a click, because that is the only moment it is allowed to — but
+  it went on asking for a size the window had already declined, six times per click, so working in
+  any card made it twitch and flicker a scrollbar in and out. It now asks once and remembers the
+  answer; a style that genuinely changes shape still fits the window as before.
+
 - **The remote on the web control page now answers the keyboard.** A button keeps focus once you
   click it and lights up when you press space, exactly as a tap does — but a press was only ever
   read from a mouse or a finger, so nothing was sent and the lit button looked like it had worked.

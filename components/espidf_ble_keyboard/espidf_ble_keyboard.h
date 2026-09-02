@@ -100,11 +100,29 @@ class EspidfBleKeyboard : public Component
   // The key stays down on the host until release_held() — that is what makes
   // push-to-talk possible; every other keyboard path here taps and releases.
   void key_hold(uint8_t modifiers, uint8_t keycode);
+  /// key_hold, but lifting the key first if it is somehow still down — with a
+  /// gap, so the host sees the lift as its own report rather than batching it
+  /// away with the press that follows.
+  void key_repress(uint8_t modifiers, uint8_t keycode);
+  /// Hold whatever the active layout types for the first codepoint of `utf8`.
+  /// False when nothing on this layout types it, or when it needs a dead-key
+  /// compose — that is two strokes, so there is no single key to leave down and
+  /// the caller should type it once instead.
+  bool hold_char(const std::string &utf8);
   void consumer_hold(uint16_t usage);
   /// Release everything currently held — keys, consumer usage and mouse buttons.
   void release_held();
   bool has_held() const { return held_modifiers_ != 0 || held_key_count_() > 0 ||
                                  held_consumer_ != 0 || held_mouse_buttons_ != 0; }
+  /// Is this exact keycode currently down? A caller that is about to press it
+  /// again needs to know: holding an already-held key is a no-op, and even a
+  /// *tap* of one is dropped from the report (see send_kb_report_), so a key
+  /// whose release went missing is dead until something lifts it.
+  bool is_key_held(uint8_t keycode) const {
+    if (keycode == 0) return false;
+    for (uint8_t k : held_keys_) if (k == keycode) return true;
+    return false;
+  }
   /// Hold whatever `action` resolves to. False if it isn't something that can be
   /// held (text, macros, host switching…), leaving the caller to run it normally.
   bool hold_action(const std::string &action);
