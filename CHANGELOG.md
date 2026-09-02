@@ -31,6 +31,12 @@ web control page shows the matching version badge.
   sensor. USB-powered builds should leave it unset.
 
 ### Changed
+- **The control page is compressed, freeing 170 KB of flash and loading much faster.** Stored raw it
+  was the largest single thing in the firmware — 15% of the image — and the device had to push all
+  243 KB down the wire on every load. It is now gzipped into the build and served that way, which
+  takes a `web_control: true` build from 86% of the flash partition to 77%. Browsers handle this
+  transparently; `curl` needs `--compressed`. The page itself now lives in its own `web_page.html`.
+
 - **Remote styles are now edited in front of you.** The remote redraws from the style box as you
   type, so a layout is seen before it is saved and nothing reaches the device until you import it.
   Exported styles print one section per line instead of one word per line, the box is monospaced

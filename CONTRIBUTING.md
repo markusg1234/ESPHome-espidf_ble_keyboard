@@ -12,7 +12,7 @@ customising a card, so it stays there.
 Once a change is ready, cut a release so HACS users receive it — see [Installing the cards via HACS](README.md#installing-the-cards-via-hacs). Five things move together in the same batch:
 
 1. Every versioned import in [`dist/`](dist/) → the new tag. That means the three in the entry point [`dist/ESPHome-espidf_ble_keyboard.js`](dist/ESPHome-espidf_ble_keyboard.js) *and* the ones cards make of each other, such as `remote-card.js` importing `remote-styles.js` — `grep -rn "?v=" dist/` finds them all.
-2. The `webver` badge in `web_control.cpp` → the new tag.
+2. The `webver` badge in `web_page.html` → the new tag.
 3. A new `## vX.Y.Z` section in [`CHANGELOG.md`](CHANGELOG.md).
 4. Any `main`-only markers cleared from [`README.md`](README.md) — `grep -n "^> \*\*Unreleased" README.md`.
 5. The web-task stack probe in `web_control.cpp` trimmed to its warning: delete the per-request `ESP_LOGD` line *and* the new-low `ESP_LOGI` line, keeping only the `ESP_LOGW` that fires under 768 bytes. ESPHome's logger defaults to `DEBUG`, so both of the others print for every user — `grep -n "Web task stack" components/espidf_ble_keyboard/web_control.cpp`.

@@ -2,8 +2,8 @@
 //
 //     node tools/gen-remote-styles.mjs
 //
-// The remote-style catalogue, renderer and validator live in web_control.cpp's
-// PAGE_HTML, because that is what the device serves. The Lovelace card needs the
+// The remote-style catalogue, renderer and validator live in web_page.html,
+// because that is what the device serves. The Lovelace card needs the
 // same code, and a hand-kept second copy would drift the first time a button or
 // a style changed. So it is lifted at build time and committed — users never run
 // this; HACS ships the generated file beside the cards.
@@ -17,18 +17,17 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const here = new URL('./', import.meta.url);
-const CPP = new URL('../components/espidf_ble_keyboard/web_control.cpp', here);
+const PAGE = new URL('../components/espidf_ble_keyboard/web_page.html', here);
 const OUT = new URL('../dist/remote-styles.js', here);
 
-const src = readFileSync(CPP, 'utf8');
-const page = src.slice(src.indexOf('R"rawhtml(') + 10, src.indexOf(')rawhtml"'));
-if (page.length < 1000) throw new Error('PAGE_HTML slice failed — did the raw-string delimiter change?');
+const page = readFileSync(PAGE, 'utf8');
+if (page.length < 1000) throw new Error('web_page.html is too short to be the control page');
 
 /** From `marker` through the balanced bracket pair that follows it. */
 function balanced(marker, open = '{') {
   const close = open === '{' ? '}' : ']';
   const at = page.indexOf(marker);
-  if (at < 0) throw new Error(`not found in web_control.cpp: ${marker}`);
+  if (at < 0) throw new Error(`not found in web_page.html: ${marker}`);
   const start = page.indexOf(open, at + marker.length - 1);
   let depth = 0;
   for (let i = start; i < page.length; i++) {
@@ -41,7 +40,7 @@ function balanced(marker, open = '{') {
 /** A single-line `const NAME = …;` declaration. */
 function oneLine(marker) {
   const at = page.indexOf(marker);
-  if (at < 0) throw new Error(`not found in web_control.cpp: ${marker}`);
+  if (at < 0) throw new Error(`not found in web_page.html: ${marker}`);
   const end = page.indexOf(';', at);
   if (end < 0) throw new Error(`unterminated declaration at ${marker}`);
   return page.slice(at, end + 1);
@@ -117,7 +116,7 @@ const builtins = new Function(`${js}\nreturn RMT_BUILTIN.map(t=>t.id);`)();
 
 const out = `// GENERATED FILE — do not edit by hand.
 //
-// Lifted from components/espidf_ble_keyboard/web_control.cpp so the Home
+// Lifted from components/espidf_ble_keyboard/web_page.html so the Home
 // Assistant card draws remotes with exactly the code the device's own web page
 // uses. Regenerate after any change to the styles, catalogue, renderer or CSS:
 //

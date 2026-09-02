@@ -873,6 +873,11 @@ When `web_control: true` is enabled, a full control page is available at `http:/
 
 <img src="docs/web_server.png" width="427" alt="Web Control Page">
 
+The page is stored and served gzip-compressed, the same way ESPHome's own web UI serves its
+dashboard, so it costs about 73 KB of flash instead of 243 KB and loads a good deal faster. Every
+browser handles that transparently; a command-line client has to ask for it, so use
+`curl --compressed http://<device-ip>/ble_keyboard` if you want to read the page as text.
+
 ### Host Actions (Per-Host Overrides)
 
 Paired hosts rarely agree on what a key should do. The clearest example is **Record**: the `record` action sends HID consumer usage `0x00B2`, which an Android TV box or DVR handles natively — but **Windows ignores it completely**. Windows routes Play/Pause/Next/Prev through SystemMediaTransportControls (which is why media keys work on a YouTube tab) and volume straight to the audio endpoint, but nothing subscribes to Record. On a PC the working route is a key combo: Game Bar's `Win+Alt+R`, or whatever global hotkey you bind in OBS or Audacity.
@@ -2566,7 +2571,7 @@ The layout system is intentionally small. Adding a new layout (e.g. French AZERT
 
 1. **`components/espidf_ble_keyboard/keyboard_layouts.cpp`** — add `HID_ASCII_MAP_XX[128]` + (optionally) `UNICODE_MAP_XX[]` and append one entry to the `LAYOUTS[]` registry array.
 2. **`components/espidf_ble_keyboard/__init__.py`** — append `"xx"` to `SUPPORTED_LAYOUTS`.
-3. **`components/espidf_ble_keyboard/web_control.cpp`** — append an `xx: { ROWS: [...] }` entry to the JS `LAYOUTS` object. If you also ship the HA keyboard card, mirror the entry into `dist/keyboard-card.js`.
+3. **`components/espidf_ble_keyboard/web_page.html`** — append an `xx: { ROWS: [...] }` entry to the JS `LAYOUTS` object. If you also ship the HA keyboard card, mirror the entry into `dist/keyboard-card.js`.
 
 No header changes, no `send_string` changes, no NVS code changes. The web UI dropdown, `/api/ble_keyboard/status` JSON, and YAML validation pick the new layout up automatically.
 

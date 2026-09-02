@@ -1,6 +1,6 @@
 // GENERATED FILE — do not edit by hand.
 //
-// Lifted from components/espidf_ble_keyboard/web_control.cpp so the Home
+// Lifted from components/espidf_ble_keyboard/web_page.html so the Home
 // Assistant card draws remotes with exactly the code the device's own web page
 // uses. Regenerate after any change to the styles, catalogue, renderer or CSS:
 //

@@ -1,8 +1,12 @@
+import gzip
+from pathlib import Path
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
 from esphome.components import button, sensor
 from esphome.const import CONF_ID
+from esphome.core import EsphomeError, HexInt
 from esphome import automation
 
 DEPENDENCIES = ["esp32"]
@@ -18,6 +22,7 @@ CONF_MAX_KEY_HOLD_MS = "max_key_hold_ms"
 CONF_PASSKEY = "passkey"
 CONF_PASSKEY_MODE = "passkey_mode"
 CONF_WEB_CONTROL = "web_control"
+CONF_WEB_PAGE_DATA_ID = "web_page_data_id"
 CONF_API_SERVICES = "api_services"
 CONF_HA_ACTION = "ha_action"
 CONF_HOST_SLOTS = "host_slots"
@@ -301,6 +306,9 @@ CONFIG_SCHEMA = cv.All(
             lower=True,
         ),
         cv.Optional(CONF_WEB_CONTROL, default=False): cv.boolean,
+        # Names the progmem array that carries the gzipped control page. Only
+        # emitted when web_control is on; harmless when it isn't.
+        cv.GenerateID(CONF_WEB_PAGE_DATA_ID): cv.declare_id(cg.uint8),
         # Auto-register the documented HA services (run_action, mouse_move, ...)
         # from C++ — requires the `api:` component. Off by default: configs that
         # pasted the manual `api: services:` snippets would get duplicate names.
@@ -413,6 +421,34 @@ async def to_code(config):
         from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
         base = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
         cg.add(var.set_web_server_base(base))
+
+        # Compress the control page into the firmware. Stored raw it was 243 KB
+        # of flash — the single largest thing in the image, 15% of it — and the
+        # device also had to push all 243 KB down a TCP connection on every page
+        # load. Gzipped it is under a third of that, and the handler serves the
+        # bytes straight from flash with Content-Encoding: gzip, which is how
+        # ESPHome's own web UI serves its index too.
+        #
+        # This is deliberately a codegen step rather than a checked-in blob: the
+        # page changes often, and a generated file committed beside it would
+        # drift the first time someone edited one without the other. It cannot be
+        # written into the build tree either — writer.copy_src_tree() deletes any
+        # source file there that a component doesn't declare.
+        page = Path(__file__).parent / "web_page.html"
+        if not page.is_file():
+            raise EsphomeError(
+                f"web_control needs the control page at {page}, but it is not there. "
+                "If this component came from a git source, the checkout is incomplete."
+            )
+        # Normalised to LF so a Windows checkout with core.autocrlf serves the
+        # same bytes as a Linux one, and mtime=0 so the same page always gzips to
+        # the same array — otherwise every build would look changed.
+        html = page.read_bytes().replace(b"\r\n", b"\n")
+        gz = gzip.compress(html, 9, mtime=0)
+        arr = cg.progmem_array(
+            config[CONF_WEB_PAGE_DATA_ID], [HexInt(b) for b in gz]
+        )
+        cg.add(var.set_web_page(arr, len(gz)))
 
     # set_setup_priority() removed in ESPHome 2026.x
     # Priority is now set via get_setup_priority() override in the C++ header

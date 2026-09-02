@@ -350,6 +350,16 @@ class EspidfBleKeyboard : public Component
 
 #ifdef USE_BLE_KEYBOARD_WEB_CONTROL
   void set_web_server_base(web_server_base::WebServerBase *base) { web_server_base_ = base; }
+
+  /// The control page, gzip-compressed at codegen from web_page.html. It points
+  /// at a progmem array in main.cpp, so the handler can serve it straight out of
+  /// flash without copying it to the heap.
+  void set_web_page(const uint8_t *data, size_t size) {
+    web_page_ = data;
+    web_page_size_ = size;
+  }
+  const uint8_t *web_page() const { return web_page_; }
+  size_t web_page_size() const { return web_page_size_; }
 #endif
 
   void set_paired_binary_sensor(binary_sensor::BinarySensor *sensor) {
@@ -748,6 +758,8 @@ class EspidfBleKeyboard : public Component
 #ifdef USE_BLE_KEYBOARD_WEB_CONTROL
   web_server_base::WebServerBase *web_server_base_{nullptr};
   BleKeyboardWebControl *web_control_{nullptr};
+  const uint8_t *web_page_{nullptr};
+  size_t web_page_size_{0};
 #endif
 
   // RSSI state (interval/timing/callbacks stay protected — only touched by member functions)
