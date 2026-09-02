@@ -2793,7 +2793,13 @@ bool EspidfBleKeyboard::hold_char(const std::string &utf8) {
     // like holding one on a real keyboard.
     if (utf8.empty()) return false;
     size_t i = 0;
-    HidKeyMapping m = resolve_codepoint_(active_layout_, decode_utf8_(utf8, i));
+    uint32_t cp = decode_utf8_(utf8, i);
+    // One character, or nothing. decode_utf8_ leaves i past the first codepoint,
+    // so anything left over means a body like "hello" — which has no single key
+    // to leave down, and would otherwise have quietly held its first letter and
+    // dropped the rest. Refused, so the caller types the whole thing instead.
+    if (i != utf8.size()) return false;
+    HidKeyMapping m = resolve_codepoint_(active_layout_, cp);
     if (m.keycode == 0x00) return false;   // nothing on this layout types it
     // A dead-key compose is two strokes — the accent, then the letter or a space
     // — so there is no single key to leave down. Refused rather than half-held,
@@ -3007,6 +3013,13 @@ bool EspidfBleKeyboard::hold_action(const std::string &action) {
         consumer_hold((uint16_t) a);
         return true;
     }
+    // Hold a character rather than type it, resolved through the active layout —
+    // which key produces it is the layout's business, and only this side knows.
+    // hold_char refuses anything with no single key to leave down: a character
+    // the layout cannot type, a dead-key compose (two strokes), and by way of
+    // decode_utf8_ a body of more than one character. Every refusal comes back
+    // here as false, and the caller types it once instead.
+    if (action.rfind("string:", 0) == 0) return hold_char(action.substr(7));
     if (sscanf(action.c_str(), "mouse_click:%i", &a) == 1 ||
         sscanf(action.c_str(), "mouse_hold:%i", &a) == 1) {
         send_mouse_click_start((uint8_t) a);

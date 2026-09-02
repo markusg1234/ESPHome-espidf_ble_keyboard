@@ -965,31 +965,128 @@ class BleKeyboardCard extends HTMLElement {
     shadow.appendChild(style);
     shadow.appendChild(card);
 
-    // Delegated event handler
+    // Visual press feedback — L-Enter halves stay in sync so the full L
+    // (top + bridge + bottom) highlights as one when either half is pressed.
+    const setPressed = (btn, on) => {
+      if (!btn) return;
+      btn.classList.toggle('pressed', on);
+      let partner = null;
+      if (btn.classList.contains('kb-l-top')) partner = shadow.querySelector('.key.kb-l-bot');
+      else if (btn.classList.contains('kb-l-bot')) partner = shadow.querySelector('.key.kb-l-top');
+      if (partner) partner.classList.toggle('pressed', on);
+    };
+    const keyDefOf = (btn) => {
+      const rows = (LAYOUTS[this._config.layout] || LAYOUTS.us).ROWS;
+      return rows[parseInt(btn.dataset.row)][parseInt(btn.dataset.key)];
+    };
+
+    // Delegated event handler. The key fires on pointerUP, not down: a press
+    // long enough to be a hold puts the key down on the host instead, and if the
+    // tap had already gone on the way down the character would arrive twice.
+    let downBtn = null, sx = 0, sy = 0, live = false;
     card.addEventListener('pointerdown', (e) => {
       const btn = e.target.closest('.key');
       if (!btn) return;
       e.preventDefault();
+      // Lift whatever was still down first. One key's worth of state is kept
+      // here, so a second finger would otherwise overwrite the reference to the
+      // key already held and leave it down on the host with nothing to release
+      // it — two thumbs on a phone is an ordinary way to use this.
+      this._endKeyHold();
+      downBtn = btn; sx = e.clientX; sy = e.clientY; live = true;
+      setPressed(btn, true);
+      // Capture, so a pointer released away from the key still reports here.
+      // Without it a release outside the button never fires pointerup on it, and
+      // with a key held that is one left down on the host rather than a lost tap.
+      try { btn.setPointerCapture(e.pointerId); } catch (_) { /* not fatal */ }
 
-      const rowIdx = parseInt(btn.dataset.row);
-      const keyIdx = parseInt(btn.dataset.key);
-      const rows = (LAYOUTS[this._config.layout] || LAYOUTS.us).ROWS;
-      const keyDef = rows[rowIdx][keyIdx];
-
-      // Visual press feedback — L-Enter halves stay in sync so the full L
-      // (top + bridge + bottom) highlights as one when either half is tapped.
-      let partner = null;
-      if (btn.classList.contains('kb-l-top')) partner = shadow.querySelector('.key.kb-l-bot');
-      else if (btn.classList.contains('kb-l-bot')) partner = shadow.querySelector('.key.kb-l-top');
-      btn.classList.add('pressed');
-      if (partner) partner.classList.add('pressed');
-      setTimeout(() => {
-        btn.classList.remove('pressed');
-        if (partner) partner.classList.remove('pressed');
-      }, 120);
-
-      this._onKeyPress(keyDef);
+      const keyDef = keyDefOf(btn);
+      // Characters and special keys can be held. Not modifiers or Caps Lock:
+      // those are sticky toggles here, and a real keyboard repeats neither.
+      if (keyDef.type !== 'char' && keyDef.type !== 'special') return;
+      // Longer for a finger than for a mouse. A click is over in well under a
+      // fifth of a second; a deliberate tap with a thumb runs to a third or a
+      // half of one, so a single threshold low enough to feel responsive under a
+      // mouse turns ordinary taps on a phone into holds.
+      const wait = e.pointerType === 'touch' ? 450 : 200;
+      this._holdTimer = setTimeout(() => {
+        this._holdTimer = null;
+        if (live) this._startKeyHold(keyDef, btn, setPressed);
+      }, wait);
     });
+    card.addEventListener('pointermove', (e) => {
+      if (!live) return;
+      if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) <= 10) return;
+      // Past the slop. Before the key is down that is a slip or the start of a
+      // scroll and cancels the press. Once it IS down it means nothing: the
+      // pointer is captured, so the release arrives wherever it happens, and a
+      // mouse that shifts a few pixels while a key is held is not someone
+      // changing their mind — cancelling there stops a long press part-way.
+      if (this._heldBtn) return;
+      live = false; setPressed(downBtn, false);
+      clearTimeout(this._holdTimer); this._holdTimer = null;
+    });
+    const endPress = () => {
+      clearTimeout(this._holdTimer); this._holdTimer = null;
+      if (this._heldBtn) {
+        // It typed once on the way down and has been repeating since, so the
+        // release is the whole keystroke — tapping as well would type twice.
+        this._endKeyHold();
+      } else if (live && downBtn) {
+        this._onKeyPress(keyDefOf(downBtn));
+      }
+      setPressed(downBtn, false);
+      live = false; downBtn = null;
+    };
+    card.addEventListener('pointerup', endPress);
+    card.addEventListener('pointercancel', endPress);
+    // Fires after pointerup, so the guard is what stops a double release; it is
+    // here for capture being taken away without one.
+    card.addEventListener('lostpointercapture', () => { if (this._heldBtn) endPress(); });
+  }
+
+  // ── Press and hold ──
+  // The key is left DOWN on the host, which then repeats it at whatever rate its
+  // own keyboard settings say. That is what a real keyboard does, and why there
+  // is no repeat timer here: one driven from the card would send a service call
+  // per repeated character at a rate matching nobody's machine.
+  _startKeyHold(keyDef, btn, setPressed) {
+    const req = this._keyRequest(keyDef);
+    if (!req) return;
+    this._heldBtn = btn;
+    this._holdArmed = true;
+    // Chained so a release can never overtake the hold it belongs to.
+    this._opChain = (this._opChain || Promise.resolve()).catch(() => {})
+      .then(() => this._runAction(req.hold))
+      .catch(() => {
+        // Never landed. A lost keystroke is worse than a missing repeat, and the
+        // key may or may not have gone down — so lift, then type it once.
+        if (this._heldBtn !== btn) return;
+        this._heldBtn = null;
+        setPressed(btn, false);
+        this._runAction('release');
+        req.tap();
+        this._clearStickyMods();
+      });
+    // Every other release waits on an event. This one does not: a key still down
+    // because a pointerup never arrived types forever.
+    clearTimeout(this._holdWatch);
+    this._holdWatch = setTimeout(() => this._endKeyHold(), 15000);
+  }
+
+  _endKeyHold() {
+    clearTimeout(this._holdTimer); this._holdTimer = null;
+    this._holdArmed = false;
+    if (!this._heldBtn) return;
+    this._heldBtn.classList.remove('pressed');
+    this._heldBtn = null;
+    clearTimeout(this._holdWatch); this._holdWatch = null;
+    this._opChain = (this._opChain || Promise.resolve()).catch(() => {})
+      .then(() => this._runAction('release'))
+      // Retried once: a release that never lands leaves the key down on the
+      // host, and the device then swallows both a re-hold and a tap of that key.
+      .catch(() => this._runAction('release'));
+    this._clearStickyMods();
   }
 
   _sendString(text) {
@@ -1093,6 +1190,63 @@ class BleKeyboardCard extends HTMLElement {
     this._hass.callService('esphome', `${this._config.device}_send_key`, { modifier, keycode });
   }
 
+  // Run an action string on the device. The one route that reaches it from a
+  // dashboard on https, where a direct fetch to the device would be blocked.
+  _runAction(action) {
+    if (!this._hass) return Promise.resolve();
+    return this._hass.callService('esphome', `${this._config.device}_run_action`, { action });
+  }
+
+  // What a key sends, as the call that taps it and the action string that holds
+  // the same thing down. Both come from one piece of arithmetic so a held key
+  // and a tapped one can never disagree about which character or keycode they
+  // meant. Null for the keys that send nothing on their own.
+  _keyRequest(keyDef) {
+    let modBits = 0;
+    if (this._ctrl) modBits |= 0x01;
+    if (this._alt) modBits |= 0x04;
+    if (this._win) modBits |= 0x08;
+    if (this._altgr) modBits |= 0x40;
+    if (this._rshift) modBits |= 0x20;
+
+    if (keyDef.type === 'char') {
+      if (modBits !== 0) {
+        // Modifier combo — send as keycode
+        if (this._shift) modBits |= 0x02;
+        const code = CHAR_TO_KEYCODE[keyDef.char];
+        if (code === undefined) return null;
+        return { tap: () => this._sendKey(modBits, code), hold: `key_hold:${modBits}:${code}` };
+      }
+      // Pure typing — use send_string, because which physical key types a
+      // character depends on the layout and only the device knows that. Held,
+      // the device resolves it the same way: hold:string:<char>.
+      const isLetter = keyDef.char >= 'a' && keyDef.char <= 'z';
+      const anyShift = this._shift || this._rshift;
+      const shifted = isLetter ? (anyShift !== this._capsLock) : anyShift;   // XOR for letters
+      const ch = shifted ? keyDef.shiftChar : keyDef.char;
+      return { tap: () => this._sendString(ch), hold: `hold:string:${ch}` };
+    }
+
+    if (keyDef.type === 'special') {
+      if (this._shift) modBits |= 0x02;
+      return {
+        tap: () => this._sendKey(modBits, keyDef.keycode),
+        hold: `key_hold:${modBits}:${keyDef.keycode}`,
+      };
+    }
+    return null;   // modifier and caps are handled by _onKeyPress, and never hold
+  }
+
+  // One key consumes the sticky modifiers, whether it was tapped or held.
+  _clearStickyMods() {
+    if (this._shift) this._toggleModifier('shift');
+    if (this._rshift) this._toggleModifier('rshift');
+    if (this._ctrl) this._toggleModifier('ctrl');
+    if (this._alt) this._toggleModifier('alt');
+    if (this._win) this._toggleModifier('win');
+    if (this._altgr) this._toggleModifier('altgr');
+  }
+
   _onKeyPress(keyDef) {
     if (keyDef.type === 'modifier') {
       this._toggleModifier(keyDef.mod);
@@ -1109,47 +1263,9 @@ class BleKeyboardCard extends HTMLElement {
       return;
     }
 
-    // Build modifier bitmask
-    let modBits = 0;
-    if (this._ctrl) modBits |= 0x01;
-    if (this._alt) modBits |= 0x04;
-    if (this._win) modBits |= 0x08;
-    if (this._altgr) modBits |= 0x40;
-    if (this._rshift) modBits |= 0x20;
-
-    if (keyDef.type === 'char') {
-      if (modBits !== 0) {
-        // Modifier combo — send as keycode
-        if (this._shift) modBits |= 0x02;
-        const code = CHAR_TO_KEYCODE[keyDef.char];
-        if (code !== undefined) {
-          this._sendKey(modBits, code);
-        }
-      } else {
-        // Pure typing — use send_string
-        const isLetter = keyDef.char >= 'a' && keyDef.char <= 'z';
-        const anyShift = this._shift || this._rshift;
-        let shifted;
-        if (isLetter) {
-          shifted = anyShift !== this._capsLock; // XOR
-        } else {
-          shifted = anyShift;
-        }
-        const ch = shifted ? keyDef.shiftChar : keyDef.char;
-        this._sendString(ch);
-      }
-    } else if (keyDef.type === 'special') {
-      if (this._shift) modBits |= 0x02;
-      this._sendKey(modBits, keyDef.keycode);
-    }
-
-    // Auto-release one-shot modifiers (not caps lock)
-    if (this._shift) this._toggleModifier('shift');
-    if (this._rshift) this._toggleModifier('rshift');
-    if (this._ctrl) this._toggleModifier('ctrl');
-    if (this._alt) this._toggleModifier('alt');
-    if (this._win) this._toggleModifier('win');
-    if (this._altgr) this._toggleModifier('altgr');
+    const req = this._keyRequest(keyDef);
+    if (req) req.tap();
+    this._clearStickyMods();
   }
 
   _toggleModifier(mod) {
@@ -1199,11 +1315,28 @@ class BleKeyboardCard extends HTMLElement {
     if (this._initialized && this._config && this._config.host_slots > 1) {
       this._startHostPolling();
     }
+    // A key still down when the dashboard stops being looked at would type into
+    // whatever the host does next, for as long as it takes someone to notice.
+    // Free when nothing is held, so neither can disturb a remote card's
+    // push-to-talk — release lifts everything the device holds.
+    if (!this._releaseOnLeave) {
+      this._releaseOnLeave = () => this._endKeyHold();
+      this._releaseOnHide = () => { if (document.hidden) this._endKeyHold(); };
+    }
+    window.addEventListener('blur', this._releaseOnLeave);
+    window.addEventListener('pagehide', this._releaseOnLeave);
+    document.addEventListener('visibilitychange', this._releaseOnHide);
   }
 
   disconnectedCallback() {
     clearInterval(this._hostPollInterval);
     this._hostPollInterval = null;
+    // Navigating away from the view mid-press is a release that would otherwise
+    // never be sent — the card is gone before any pointer event arrives.
+    this._endKeyHold();
+    window.removeEventListener('blur', this._releaseOnLeave);
+    window.removeEventListener('pagehide', this._releaseOnLeave);
+    document.removeEventListener('visibilitychange', this._releaseOnHide);
   }
 
   // Resolves the ESP's base URL: an explicit host_url wins, otherwise the

@@ -1950,6 +1950,7 @@ Optional configuration:
 Features:
 - **Full QWERTY layout** — letters, numbers, punctuation, all standard keys.
 - **Modifier keys** — Ctrl, Alt, Win, Shift are sticky (toggle on, auto-release after next key).
+- **Keys repeat when held** — the same as on the device's own page: hold a key (about a fifth of a second with a mouse, half a second with a finger) and the device leaves it down on the host, which repeats it at whatever delay and rate *that machine's* keyboard settings use. A shorter press types once. Modifiers and Caps Lock don't repeat, and nor do dead keys — they're two keystrokes, so there's no single key to hold; those still type once. Needs `api_services: true`, like the rest of the card.
 - **Caps Lock** — persistent toggle with visual indicator.
 - **Function keys** — F1–F12 (can be hidden with `show_fkeys: false`).
 - **Paste bar** — paste or type text in the field above the keys and send it as one piece, line breaks included (can be hidden with `show_paste: false`).

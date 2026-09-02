@@ -7,6 +7,13 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Added
+- **Keys repeat when held on the Home Assistant keyboard card too**, the same way and at the same
+  thresholds as the device's own page. It goes through the existing `run_action` service, so it
+  works on an https dashboard and needs no new services. Keys now fire when you let go rather than
+  when you press — a held key has to put itself down on the host, and a tap already sent on the way
+  down would type twice. A new `hold:string:<character>` action makes this reachable from macros and
+  automations as well.
+
 - **Keys on the web page's keyboard now repeat when held.** Hold one — about a fifth of a second
   with a mouse, about half with a finger, because a tap by hand lasts far longer than a click — and
   the device leaves it down on the host, which repeats it at whatever delay and rate its own
