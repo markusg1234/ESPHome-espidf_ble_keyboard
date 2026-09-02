@@ -150,6 +150,20 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    hides worse than one that folds. By id because .macro-form textarea sets
    font-family:inherit and would otherwise win. */
 #tpl-json{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.5;tab-size:2}
+/* The section reference under the box. It was one paragraph with every kind and
+   its example run together between commas, which is unreadable at this size —
+   the kinds now sit in a column of their own beside what each one draws, and
+   the page's only <code> styling makes the fragments look like the code they
+   are. `auto 1fr` lets the widest kind set that column and gives the rest of
+   the width to the prose. */
+.tpl-help{font-size:12px;color:var(--muted);margin:8px 0 4px;line-height:1.55}
+.tpl-help code{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0 3px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
+.tpl-help dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:7px 0}
+.tpl-help dt,.tpl-help dd{margin:0}
+/* .macro-form centres its row, which left Import floating halfway up the side
+   of the tall style box. It sits at the foot of the box instead, where a submit
+   belongs. */
+#tpl-import{align-self:flex-end}
 .combo-row{display:flex;gap:4px;width:100%;align-items:center;flex-wrap:wrap}
 .mod-btn{padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);font-size:11px;font-weight:600;cursor:pointer;user-select:none}
 .mod-btn.on{background:var(--active);color:#fff;border-color:var(--active)}
@@ -650,7 +664,18 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div style="font-size:12px;color:var(--muted);margin:6px 0">Choose the remote layout this host gets &mdash; switch to the host and the remote re-skins to match it. The hidden, repeat and hold settings above still apply on top of whatever style is showing, and every action stays available to macros, buttons and Home Assistant either way.</div>
 <div class="macro-form" style="margin-top:0"><div class="tpl-step"><button id="tpl-prev" title="Previous style">&minus;</button><span class="tpl-name" id="tpl-name" title="The style this host's remote is drawn in">Full remote</span><button id="tpl-next" title="Next style">+</button></div><button id="tpl-export" class="cancel" title="Copy the shown style into the box below as JSON — edit it, give it a new id, and Import it back as your own">Export</button><button id="tpl-export-all" class="cancel" title="Copy every custom style into the box below as one JSON list — paste that into the Home Assistant remote card and they all join its style list">Export all</button></div>
 <div id="tpl-custom"></div>
-<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">Roll your own: <strong>Export</strong> a style, change its <code>id</code> and <code>name</code>, rearrange the sections, then <strong>Import</strong>. Sections are <code>["row",…]</code>, <code>["dpad"]</code>, <code>["ring"]</code> for a round nav ring, <code>["strip",["Vol","volume_up",…],…]</code>, <code>["rocker",["Vol","volume_up","volume_down"],…]</code> for one-piece rockers, <code>["media",…]</code>, <code>["apps",…]</code> and <code>["-"]</code> for a divider; <code>"|"</code> spaces a row out. <code>theme</code> is optional and <code>bg</code> takes a gradient. Write a button as <code>["spare1","Netflix"]</code> to label it &mdash; pair that with an override on the same host and the key both reads and does what you want &mdash; or <code>["spare1","Netflix","#e50914 wide"]</code> to colour and size it (<code>light sm lg xl wide sq</code>). The remote above redraws as you type &mdash; nothing is saved until you press Import.</div>
+<div class="tpl-help"><strong>Roll your own:</strong> Export a style, change its <code>id</code> and <code>name</code>, rearrange its <code>sections</code>, then Import. The remote card redraws as you type &mdash; nothing is saved until you press Import.
+<dl>
+<dt><code>["row",…]</code></dt><dd>A row of round buttons. <code>"|"</code> spaces it out.</dd>
+<dt><code>["dpad"]</code></dt><dd>The arrow cluster.</dd>
+<dt><code>["ring"]</code></dt><dd>The same five keys as a round nav ring.</dd>
+<dt><code>["strip",…]</code></dt><dd>Labelled columns side by side: <code>["strip",["Vol","volume_up","volume_down"],…]</code></dd>
+<dt><code>["rocker",…]</code></dt><dd>The same groups as one-piece rocker keys. <code>["","mute"]</code> is a single key of the same height.</dd>
+<dt><code>["media",…]</code></dt><dd>A row of small transport buttons.</dd>
+<dt><code>["apps",…]</code></dt><dd>A row of wide pills.</dd>
+<dt><code>["-"]</code></dt><dd>A divider.</dd>
+</dl>
+A button is its action name, or <code>["spare1","Netflix"]</code> to label it &mdash; pair that with an override on the same host and the key both reads and does what you want &mdash; or <code>["spare1","Netflix","#e50914 wide"]</code> to colour and size it (<code>light sm lg xl wide sq</code>). <code>theme</code> is optional, and its <code>bg</code> takes a gradient.</div>
 <div class="macro-form"><textarea id="tpl-json" placeholder="Paste a style JSON here to import&hellip;" rows="8" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="tpl-import">Import</button></div>
 <div id="tpl-msg" style="font-size:11px;color:var(--muted)"></div>
 </div>
@@ -2243,9 +2268,12 @@ function appendStep(el,val){
     const why=validateTpl(r.t);
     if(why){tplNote(why,true);return}
     tplPreviewing=true;
-    window.previewTemplate(r.t);
-    tplNote(r.fixed?'Preview — a trailing comma was ignored. Import to save.'
-                   :'Preview — Import to save.');
+    // Saying "preview" while the card is hidden or popped out reads as a bug in
+    // the preview rather than as the card being somewhere else.
+    let n=window.previewTemplate(r.t)?'Preview — Import to save.'
+                                     :'Drawn, but the remote card is not on screen. Import to save.';
+    if(r.fixed)n='A trailing comma was ignored. '+n;
+    tplNote(n);
   }
   if(tplJson)tplJson.addEventListener('input',()=>{
     clearTimeout(tplPrevT);tplPrevT=setTimeout(tplPreview,300);
@@ -3313,7 +3341,15 @@ buildKeyboard();
     // (forced, inside) and need not ask for it a second time.
     return true;
   };
-  window.previewTemplate=function(t){rmtPreview=t;drawTemplate(t)};
+  // Says whether the drawing can actually be seen. The remote card is not
+  // always on this page or even in this document: the toggle bar hides it with
+  // display:none, and popping it out replaces it with a placeholder — moved
+  // into a picture-in-picture window it still shows, detached into a pop-up it
+  // does not. Client rects answer all four cases at once.
+  window.previewTemplate=function(t){
+    rmtPreview=t;drawTemplate(t);
+    return body.getClientRects().length>0;
+  };
   window.endPreviewTemplate=function(){
     if(!rmtPreview)return;
     rmtPreview=null;
