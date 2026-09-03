@@ -1086,7 +1086,11 @@ Labels are 1–16 characters. A round key fits about four; the wide app pill fit
 
 Buttons are named by action — any name from the [Action Reference](#action-reference) table below that the remote knows (`remote_power`, `search`, `info`, `mute`, `home`, `back`, the D-pad five, `volume_*`, `channel_*`, the seven transport keys, `color_*`, `app_*`, `menu`, `guide`, `voice`, `captions`, `tv`, `num0`–`num9`, `spare1`–`spare16`). An unknown name is refused on import rather than rendering a dead button.
 
-**Shaping the body.** `theme` is optional. Colours: `bg`, `border`, `btn_bg`, `btn_fg`, `btn_border`, `ok_bg`, `ok_fg`, `ring_bg`, `ring_fg`, `light_bg`, `light_fg`, `label`, `divider`. Geometry: `pad`, `maxw`, `radius`, `btn_radius`, `shadow`, `clip`. Anything else is ignored, so an imported style cannot restyle the rest of the page.
+**Shaping the body.** `theme` is optional. Colours: `bg`, `border`, `btn_bg`, `btn_fg`, `btn_border`, `ok_bg`, `ok_fg`, `ring_bg`, `ring_fg`, `light_bg`, `light_fg`, `label`, `divider`. Geometry: `pad`, `maxw`, `radius`, `btn_radius`, `shadow`, `clip`, `zoom`. Anything else is ignored, so an imported style cannot restyle the rest of the page.
+
+**Making the buttons bigger or smaller.** `zoom` scales the whole remote — buttons, their icons and labels, the gaps between them, the d-pad and the rockers — by one factor: `"zoom": "1.25"` for a quarter larger, `"0.8"` for smaller. It is the only size control, deliberately: the buttons come in several sizes that are tuned against each other and against the gaps, so scaling them as a set keeps a layout that was designed to fit still fitting.
+
+> `maxw` is measured before the zoom is applied, so it scales with everything else — a `maxw` of `250px` at `"zoom": "1.25"` draws 312px wide. Divide it by the zoom if you want to keep the same overall width and let the buttons grow into it instead: `"maxw": "200px"` at `"zoom": "1.25"` is 250px overall with buttons a quarter larger.
 
 Three of those do more than they look:
 

@@ -255,7 +255,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    renderRemote) to turn the card into a slab shaped like a real remote. Inline
    custom properties rather than per-template CSS classes, so a user-authored
    template can theme itself without the page injecting any CSS. */
-.rmt-body{background:var(--rb-bg,transparent);border:1px solid var(--rb-border,transparent);border-radius:var(--rb-radius,0);padding:var(--rb-pad,0);max-width:var(--rb-maxw,none);margin:0 auto;box-shadow:var(--rb-shadow,none);clip-path:var(--rb-clip,none)}
+/* zoom, not transform: it lays out at the new size instead of merely drawing at it,
+   so the body's box really is bigger, the pop-out's fit measures the size it will
+   have, and nothing overlaps what sits below. One property scales the buttons, their
+   icons and labels, the gaps, the d-pad's grid and the rockers together — button
+   sizes are set in a dozen coupled places, and a single size knob would pull them
+   apart. Note `maxw` is in pre-zoom units, so it scales along with everything else. */
+.rmt-body{zoom:var(--rb-zoom,1);background:var(--rb-bg,transparent);border:1px solid var(--rb-border,transparent);border-radius:var(--rb-radius,0);padding:var(--rb-pad,0);max-width:var(--rb-maxw,none);margin:0 auto;box-shadow:var(--rb-shadow,none);clip-path:var(--rb-clip,none)}
 .rmt-section{margin-bottom:10px}
 .rmt-section:last-child{margin-bottom:0}
 /* Wraps because an imported style decides its own row lengths: a row longer
@@ -725,6 +731,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <dt><code>["media",…]</code></dt><dd>A row of small transport buttons.</dd>
 <dt><code>["apps",…]</code></dt><dd>A row of wide pills.</dd>
 <dt><code>["-"]</code></dt><dd>A divider.</dd>
+<dt><code>"theme"</code></dt><dd>Size and colour, e.g. <code>"maxw": "250px", "zoom": "1.25",</code> &mdash; <code>maxw</code> is how wide the remote may draw, <code>zoom</code> scales all of it at once: buttons, their icons and labels, the gaps, the d&#8209;pad and the rockers. <code>maxw</code> is measured before the zoom, so it grows too &mdash; halve one to hold the width while the buttons get bigger.</dd>
 </dl>
 A button is its action name, or <code>["spare1","Netflix"]</code> to label it &mdash; pair that with an override on the same host and the key both reads and does what you want &mdash; or <code>["spare1","Netflix","#e50914 wide"]</code> to colour and size it (<code>light sm lg xl wide sq</code>). <code>theme</code> is optional, and its <code>bg</code> takes a gradient.</div>
 <div class="macro-form"><textarea id="tpl-json" placeholder="Paste a style JSON here to import&hellip;" rows="8" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="tpl-import">Import</button></div>
@@ -1213,7 +1220,7 @@ const RMT_KINDS=['row','dpad','ring','strip','rocker','media','apps','-'];
 // `bg` and `btn_bg` feed the CSS `background` shorthand, so a gradient string
 // works as well as a flat colour — the cheapest depth a style can have.
 const RMT_VARS={bg:'--rb-bg',border:'--rb-border',radius:'--rb-radius',pad:'--rb-pad',
-maxw:'--rb-maxw',btn_bg:'--rb-btn-bg',btn_fg:'--rb-btn-fg',btn_border:'--rb-btn-border',
+maxw:'--rb-maxw',zoom:'--rb-zoom',btn_bg:'--rb-btn-bg',btn_fg:'--rb-btn-fg',btn_border:'--rb-btn-border',
 btn_radius:'--rb-btn-radius',ok_bg:'--rb-ok-bg',ok_fg:'--rb-ok-fg',
 ring_bg:'--rb-ring-bg',ring_fg:'--rb-ring-fg',light_bg:'--rb-light-bg',light_fg:'--rb-light-fg',shadow:'--rb-shadow',
 label:'--rb-label',divider:'--rb-divider',clip:'--rb-clip'};

@@ -7,6 +7,13 @@ web control page shows the matching version badge.
 ## Unreleased
 
 ### Added
+- **A remote style can scale its buttons.** Add `"zoom": "1.25"` to a style's theme and the whole
+  remote grows by a quarter — buttons, their icons and labels, the gaps between them, the d-pad and
+  the rockers, all together, so a layout that was tuned to fit still fits. Values below 1 shrink it.
+  It is deliberately one control rather than a button-size setting: the several button sizes are
+  tuned against each other and against the gaps. `maxw` is measured before the zoom, so it scales
+  with everything else.
+
 - **Keys repeat when held on the Home Assistant keyboard card too**, the same way and at the same
   thresholds as the device's own page. It goes through the existing `run_action` service, so it
   works on an https dashboard and needs no new services. Keys now fire when you let go rather than
