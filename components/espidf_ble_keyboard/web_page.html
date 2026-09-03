@@ -54,18 +54,27 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .kb-paste-btn{padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap;touch-action:manipulation}
 .kb-paste-btn:active{background:var(--active);color:#fff}
 .kb-paste-btn:disabled{opacity:.55;cursor:default}
-/* top left, everywhere. Zoom grows the page right and down and never off the left edge,
-   which is the only direction a browser can scroll to: scroll positions cannot go negative,
-   so anything scaled past the left edge is unreachable for good. Measured from the centre at
-   200%, the left edge lands at -231px and scrolling right only takes it further away.
+/* top left, everywhere. Centre has now been tried and reverted THREE times — 2026-09-03
+   twice, the third deliberately, to judge it by hand. Please don't make it four.
 
-   Do not "fix" a wide-window side effect by putting the centre back for wide viewports. That
-   was tried on 2026-09-03 and is worse: it reintroduces the unreachable left half at high
-   zoom, which is the actual defect, to soften a cosmetic one. The known side effect is that
-   a phone asked for the desktop site fits the whole layout width to the screen, so widening
-   the document makes it shrink the page back and the zoom steps feel small. The real answer
-   to that is to stop the zoom changing the document's width at all — scale inside a
-   scrolling container — not to change which way it grows. */
+   One mechanism causes every failure: scroll positions cannot go negative, so whatever the
+   scale pushes past the top or left edge is unreachable for good. Top left anchors both of
+   those corners and grows the page right and down, the only directions a browser can scroll
+   back from.
+
+   The third trial found the half that the earlier measurements had missed, and it is the
+   worse half. Centre pushes content off the **top** as well as the left, on a desktop as
+   readily as on a phone — and the toolbar lives inside #scalable, so the zoom controls
+   themselves go out of reach and there is no way left to zoom back out. Clearing
+   blekb_zoom in localStorage is the only way out of that. The left edge was measured at
+   -231px at 200%; the top goes the same way for the same reason.
+
+   The side effect that keeps prompting this change is real, but cosmetic: a phone asked for
+   the desktop site fits the whole layout width to the screen, so widening the document makes
+   it shrink the page back and the zoom steps feel small. What gets both — panning each way
+   *and* steady zoom steps — is to stop the zoom changing the document's width at all, by
+   scaling inside a scrolling container, rather than changing which way it grows. That is the
+   change worth making here; changing the origin is not. */
 .scalable{transform-origin:top left;transition:transform .15s}
 .row{display:flex;gap:3px;margin-bottom:3px}
 .row:last-child{margin-bottom:0}
