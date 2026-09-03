@@ -111,6 +111,20 @@ web control page shows the matching version badge.
   once it is on, and the examples now say so.
 
 ### Fixed
+- **The popped-out remote stays open on a phone instead of closing itself the moment it appears.** The
+  page kept an eye on the window it had opened and took the remote back when that window looked
+  closed — but a phone opens it as a tab and stops answering questions about it, so it looked closed
+  while it was plainly on screen, and the window then read the remote being taken back as the Pin back
+  button and shut itself. The window now says it is alive, and that is believed over how it looks; one
+  that really has gone is still noticed within a few seconds. The Pop out button also no longer sticks
+  after a blocked pop-up, and on a touchscreen it opens on the tap rather than on the press.
+
+- **The popped-out remote sits in the middle of its window at any zoom.** It is drawn at whatever
+  zoom the page is set to, and it grew from the top-left corner, so every step above 100% slid it
+  further to the right — at 200% it was half a window off, with its right edge past the window. It
+  now grows from the top centre, which is what that window wanted all along: unlike the page, it
+  cannot be panned, so there is nothing to keep against the left edge. Unchanged at 100%.
+
 - **Saving a longer macro no longer fails with an error about header fields.** Everything the page
   saved travelled in the URL, which shares one buffer on the device with the browser's own headers —
   so a macro of around 130 characters was refused before it ever reached the device on a phone, while
@@ -122,10 +136,12 @@ web control page shows the matching version badge.
   an address needs — so every one was clipped mid-way. The column count now follows the width, so a
   phone wraps onto more rows and each entry ends up the same size, and as readable, as on a desktop.
 
-- **Zooming past 100% no longer puts part of the page out of reach.** The page grew outward from its
-  centre, so its left portion ended up somewhere no browser will scroll to: you could pan right, but
-  never back to what had gone off the other side. It now grows right and down from the left edge,
-  which is the only direction anything can be scrolled back from. Nothing changes at 100%.
+- **Zooming past 100% no longer puts part of the page out of reach, or shrinks itself back on a
+  phone.** The page grew outward from its centre, so its top and left ended up somewhere no browser
+  will scroll to. It also widened the document as it grew, which made a phone set to "desktop site"
+  re-fit the whole layout to the screen — the steps felt tiny and there was nothing to pan. Zooming
+  now happens inside the page rather than by making it wider: the top-left corner always stays put,
+  and you can pan across at any zoom. Nothing changes at 100%.
 
 - **Pressing a second key while holding one now lifts the first.** Only one key's worth of state was
   kept, so a second finger — two thumbs on a phone is the ordinary way to use this — left the first

@@ -16,7 +16,10 @@
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#1a1e28;--fg:#e2e8f0;--card:#13161e;--border:#252a38;--muted:#7c8aad;--accent:#00d4aa;--active:#03a9f4;--caps:#ff9800;--name:var(--fg)}
 body.light{--bg:#f0f2f5;--fg:#1a1e28;--card:#ffffff;--border:#d0d5dd;--muted:#7c8aad;--accent:#00875a;--active:#0288d1;--caps:#e65100;--name:var(--fg)}
-body{background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:12px;max-width:640px;margin:0 auto;user-select:none;-webkit-user-select:none;transition:background .2s,color .2s}
+/* The page's own geometry — the 12px gutter, the 640px cap and the centring —
+   lives on .scalable rather than here, because the zoom container between them
+   has to span the viewport to scroll in. See the block above .scalable. */
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;user-select:none;-webkit-user-select:none;transition:background .2s,color .2s}
 h2{font-size:15px;font-weight:600;margin:12px 0 8px;color:var(--accent);display:flex;align-items:center;gap:6px}
 h2 svg{width:18px;height:18px;fill:var(--accent)}
 .toolbar{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;flex-wrap:wrap;gap:6px;overflow:hidden}
@@ -54,28 +57,41 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .kb-paste-btn{padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap;touch-action:manipulation}
 .kb-paste-btn:active{background:var(--active);color:#fff}
 .kb-paste-btn:disabled{opacity:.55;cursor:default}
-/* top left, everywhere. Centre has now been tried and reverted THREE times — 2026-09-03
-   twice, the third deliberately, to judge it by hand. Please don't make it four.
+/* Zoom scales inside #zoomport rather than growing the document, which is what makes the
+   page pannable in both directions at any zoom.
 
-   One mechanism causes every failure: scroll positions cannot go negative, so whatever the
-   scale pushes past the top or left edge is unreachable for good. Top left anchors both of
-   those corners and grows the page right and down, the only directions a browser can scroll
-   back from.
+   #scalable takes a transform, and a transform draws bigger without laying out bigger — so
+   on its own nothing can scroll to the parts it pushes off screen. #zoomsizer carries that
+   scaled footprint as real layout (its width and height are set from syncZoom()), and
+   #zoomport scrolls it.
 
-   The third trial found the half that the earlier measurements had missed, and it is the
-   worse half. Centre pushes content off the **top** as well as the left, on a desktop as
-   readily as on a phone — and the toolbar lives inside #scalable, so the zoom controls
-   themselves go out of reach and there is no way left to zoom back out. Clearing
-   blekb_zoom in localStorage is the only way out of that. The left edge was measured at
-   -231px at 200%; the top goes the same way for the same reason.
+   Only the horizontal overflow lives in the port. The port's height is left to grow to the
+   sizer, so it never has vertical overflow of its own and the page still scrolls down as an
+   ordinary document — the phone's scrolling feel is deliberately untouched.
 
-   The side effect that keeps prompting this change is real, but cosmetic: a phone asked for
-   the desktop site fits the whole layout width to the screen, so widening the document makes
-   it shrink the page back and the zoom steps feel small. What gets both — panning each way
-   *and* steady zoom steps — is to stop the zoom changing the document's width at all, by
-   scaling inside a scrolling container, rather than changing which way it grows. That is the
-   change worth making here; changing the origin is not. */
-.scalable{transform-origin:top left;transition:transform .15s}
+   Keeping the document's width fixed is the point of the exercise: a phone asked for the
+   desktop site re-fits the whole layout to the screen, so a zoom that widened the document
+   made the browser shrink the page straight back, the steps felt tiny, and there was nothing
+   to pan. Now the document is always one viewport wide and the growing happens inside.
+
+   transform-origin stays top left, and is not the lever here. It has been changed to centre
+   and reverted THREE times — 2026-09-03 twice, the third deliberately, to judge it by hand.
+   Please don't make it four. One mechanism causes every failure: scroll offsets cannot go
+   negative, so whatever the scale pushes past the top or left edge is unreachable for good
+   (left edge measured at -231px at 200%). The third trial found the half the measurements
+   had missed and it is the worse half — centre loses the **top** as well, on a PC as readily
+   as a phone, and the toolbar is inside #scalable, so the zoom controls themselves go out of
+   reach with no way left to zoom back out. Clearing blekb_zoom in localStorage is the only
+   way out of that one. */
+/* overflow-y:clip, not visible or auto. `visible` is not available — the spec turns it into
+   `auto` the moment the other axis scrolls — and `auto` was measured causing a feedback loop:
+   the sizer's height rounds a sub-pixel short, one stray pixel raises a vertical scrollbar,
+   the scrollbar takes 15px off clientWidth, and syncZoom() then lays the page out 15px
+   narrower. `clip` cannot produce a scrollbar, so vertical scrolling stays the document's
+   job and the width stops depending on it. */
+#zoomport{overflow-x:auto;overflow-y:clip;width:100%}
+#zoomsizer{position:relative;margin:0 auto}
+.scalable{position:absolute;top:0;left:0;box-sizing:border-box;padding:12px;max-width:640px;transform-origin:top left;transition:transform .15s}
 .row{display:flex;gap:3px;margin-bottom:3px}
 .row:last-child{margin-bottom:0}
 .k{flex:1;min-width:0;padding:9px 1px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--fg);font-size:12px;font-weight:500;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .08s;outline:none;-webkit-tap-highlight-color:transparent;position:relative}
@@ -347,7 +363,30 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    horizontal slack left: a width a fraction of a pixel short would otherwise
    bring in a scrollbar costing far more room than it saves. Vertical scrolling
    stays, for a remote too tall to be scaled into the window it was given. */
-.popout body{padding:2px 0;max-width:none;background:var(--card);overflow-x:hidden}
+/* overflow-x back on the body, where it was before the zoom port existed. The port
+   itself goes fully visible below, so it clips nothing: the base rule's overflow-y:clip
+   is right for the page, where the port's height is kept in step with the scaled
+   content, and wrong here, where the port is a plain block whose height is the
+   *unscaled* content — a zoom above 100% then renders taller than the box and had its
+   bottom cut off with nothing to scroll. Vertical scrolling is the document's job here,
+   as it always was, so a remote too tall for its window can still be reached. */
+.popout body{background:var(--card);overflow-x:hidden}
+/* The pop-out neither pans nor scrolls sideways — its window is sized to the remote,
+   and anything left over is clipped below. So the port and the sizer have no work to
+   do here: they go back to being ordinary blocks (syncZoom() returns early in this
+   window, so nothing writes a pixel width to them either), and .scalable fills the
+   body exactly as it did before there was a port.
+
+   transform-origin:top center, and ONLY here. On the page, top left is the only
+   correct answer and three attempts to change it have failed — but that is because
+   the page can be panned and scroll offsets cannot go negative. Neither applies in
+   this window. Scaling from the left corner is actively wrong here: the remote is
+   centred in its width, so a centre at W/2 lands at k·W/2 once scaled, and every
+   zoom above 100% pushed the remote to the right of the window. `top` still, so the
+   remote grows downward and its top is never lost. */
+.popout .scalable{padding:2px 0;max-width:none;position:static;width:auto;transform-origin:top center}
+.popout #zoomport{overflow:visible}
+.popout #zoomsizer{position:static;width:auto;height:auto}
 .popout .card:not(#media-card){display:none}
 .popout .toolbar{display:none}
 .popout #media-card{background:none;border:none;padding:0;margin-bottom:0}
@@ -365,6 +404,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-head .macro-edit-btn{margin-left:0}
 </style></head><body>
 
+<div id="zoomport"><div id="zoomsizer">
 <div id="scalable" class="scalable">
 <div class="toolbar">
 <div class="toolbar-left">
@@ -374,7 +414,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.9.0-dev</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.9.0-dev-b</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -702,6 +742,7 @@ A button is its action name, or <code>["spare1","Netflix"]</code> to label it &m
 </div>
 </div>
 </div>
+</div></div>
 
 <script>
 // True in the pop-up window, which is this same page reloaded under #remote. The
@@ -979,13 +1020,67 @@ thmBtn.addEventListener('click',toggleTheme);
 // ── Zoom ──
 let zoom=100;
 const scalable=document.getElementById('scalable');
+const zoomport=document.getElementById('zoomport');
+const zoomsizer=document.getElementById('zoomsizer');
 const zlbl=document.getElementById('zlbl');
+
+// Gives the scroll container something to scroll. The scale is a transform, so it
+// changes nothing about layout — #zoomsizer is where the scaled size becomes real,
+// and the port scrolls that. Without this the page would draw past its edges with
+// no way to reach what it drew.
+//
+// The height is set for the same reason but the port is left to grow to it, so the
+// port never scrolls vertically and the document still does. That is deliberate:
+// vertical scrolling on a phone is the part that already felt right.
+//
+// #scalable is positioned inside the sizer, so its own width cannot come from the
+// sizer — the sizer is measured from #scalable, and reading it back would be
+// circular. It takes the port's width, and the stylesheet's max-width caps it.
+function syncZoom(){
+  // Nothing to size in the pop-out: it shows one card in a window fitted to it,
+  // with no sideways scrolling to give a footprint to. Leaving the port and sizer
+  // as plain blocks there also keeps the pixel widths written below from fighting
+  // the body zoom that window scales itself down with.
+  if(POPOUT)return;
+  // Guarded because the observer below watches this element: an unconditional
+  // write would retrigger it on every pass.
+  const w=zoomport.clientWidth+'px';
+  if(scalable.style.width!==w)scalable.style.width=w;
+  // Rounded up: offsetHeight is a whole number but the box it measures is not, so
+  // the scaled height lands up to two pixels short at 200% and the last of the page
+  // would sit outside the footprint the port scrolls.
+  const k=zoom/100;
+  const sw=Math.ceil(scalable.offsetWidth*k);
+  zoomsizer.style.width=sw+'px';
+  zoomsizer.style.height=Math.ceil(scalable.offsetHeight*k)+2+'px';
+  // A scroll container only while there is something to scroll. Being one costs
+  // more than a scrollbar on a touchscreen: a press that starts inside a nested
+  // scroller is a candidate pan gesture, and a browser judging one is stricter
+  // about what counts as the deliberate press that may open a window — which is
+  // how the remote's Pop out button opens its window, on pointerdown, to claim
+  // that press. At 100% there is usually nothing to pan, so the page is left
+  // exactly as it behaved before any of this existed.
+  // Both axes together, and back to `visible` rather than to `clip`: a port that
+  // is not a scroll container is an ordinary block, so anything wider than the
+  // screen falls back to scrolling the document, exactly as the page did before
+  // there was a port at all.
+  if(!POPOUT){
+    const scrolls=sw>zoomport.clientWidth+1;
+    zoomport.style.overflowX=scrolls?'auto':'visible';
+    zoomport.style.overflowY=scrolls?'clip':'visible';
+  }
+}
 // The popped-out remote is drawn at whatever the page is set to — it is the same
 // remote, so it should not change size by being moved. It only reads the setting:
 // the controls that write it stay on the page.
-function setZoom(v){zoom=Math.max(50,Math.min(200,v));scalable.style.transform='scale('+(zoom/100)+')';zlbl.textContent=zoom+'%';if(!POPOUT)localStorage.setItem('blekb_zoom',zoom)}
+function setZoom(v){zoom=Math.max(50,Math.min(200,v));scalable.style.transform='scale('+(zoom/100)+')';zlbl.textContent=zoom+'%';syncZoom();if(!POPOUT)localStorage.setItem('blekb_zoom',zoom)}
 document.getElementById('zin').addEventListener('click',()=>setZoom(zoom+5));
 document.getElementById('zout').addEventListener('click',()=>setZoom(zoom-5));
+// The page changes size without the zoom changing at all: cards are toggled off,
+// the remote redraws in another style, the host bar wraps onto a second row.
+// Watching the element covers every one of those without hunting them down.
+if(window.ResizeObserver)new ResizeObserver(syncZoom).observe(scalable);
+window.addEventListener('resize',syncZoom);
 setZoom(parseInt(localStorage.getItem('blekb_zoom'))||100);
 
 // ── Status polling ──
@@ -3721,6 +3816,30 @@ buildKeyboard();
   if(!card)return;
   const KEY='blekb_rmt_popout';   // '1' while the pop-up window is open
   const WKEY='blekb_rmt_win';     // its last size and position
+  // A timestamp the pop-out window refreshes while it is alive, and the only
+  // honest answer to "is it still there?" once this page has no handle to it —
+  // which is every time this page is reloaded, and on a phone every time the
+  // browser quietly discards it. Without this, a window that died without
+  // announcing itself (a tab closed from the switcher; a phone killing a
+  // background tab, where pagehide never arrives) left KEY at '1' for good: every
+  // later load put the placeholder back, and the Pop out button returns early
+  // while a placeholder is showing, so the remote could not be brought back or
+  // popped out again. Clearing the site's storage was the only way out, which is
+  // exactly how it was reported.
+  const AKEY='blekb_rmt_alive';
+  const ALIVE_MS=8000;            // four missed beats; a tab throttled in the
+                                  // background still beats far inside this
+  // Wrapped, like every write to this key. A browser can refuse localStorage
+  // outright — private windows, and a phone with site data blocked — and an
+  // uncaught throw here would take the whole pop-out block down with it, which
+  // looks exactly like the bug this is here to fix. No storage means nothing can
+  // be beating, so "not alive" is also the right answer.
+  function popoutAlive(){
+    try{
+      const t=+localStorage.getItem(AKEY)||0;
+      return Date.now()-t<ALIVE_MS;
+    }catch(_){return false}
+  }
   const NOSIZE='blekb_rmt_nopip'; // this address grants a window it never shows
   const PIP='documentPictureInPicture' in window;
 
@@ -3821,14 +3940,29 @@ buildKeyboard();
       if(rb){rmtRO=new ResizeObserver(()=>window.onRemoteResize());rmtRO.observe(rb)}
     }
     localStorage.setItem(KEY,'1');   // and again after a reload of this window
+    // The heartbeat. Every two seconds, so four of them can be missed before the
+    // page gives up on this window — and immediately, so a page that reloads a
+    // moment from now already has a fresh one to read.
+    const beat=()=>{try{localStorage.setItem(AKEY,String(Date.now()))}catch(_){}};
+    beat();
+    setInterval(beat,2000);
     // Pin back pressed on the page that opened us: a storage event fires in every
     // OTHER document of this origin, which is exactly this one.
     window.addEventListener('storage',e=>{if(e.key===KEY&&e.newValue!=='1')window.close()});
     // Closed by its own X — tell the page, and leave the geometry for next time.
-    window.addEventListener('pagehide',()=>{
+    //
+    // Only when the page is really going. On a desktop pagehide means the window
+    // is gone, but on a phone it also fires when the tab is merely put in the
+    // background, and announcing that as a close made the pop-out kill itself
+    // seconds after opening: this wrote '0', the page took that for a close and
+    // re-docked the card, re-writing '0' as it did — and the listener above read
+    // *that* as Pin back and closed the window. The browser tells the two cases
+    // apart with `persisted`: true means the page is being kept for a return trip.
+    window.addEventListener('pagehide',e=>{
+      // Position is worth saving either way, and costs nothing on a background.
+      try{localStorage.setItem(WKEY,JSON.stringify({x:screenX,y:screenY}))}catch(_){}
+      if(e.persisted)return;   // backgrounded, not closed
       localStorage.setItem(KEY,'0');
-      // Where it sat, not how big it was: the size is the remote's business.
-      try{localStorage.setItem(WKEY,JSON.stringify({x:screenX,y:screenY}))}catch(e){}
     });
     return;
   }
@@ -4061,7 +4195,18 @@ buildKeyboard();
   }
 
   async function popOut(){
-    if(ph)return;
+    // A placeholder normally means the remote is already out and there is nothing
+    // to do. But it also survives a window that died without saying so, and then
+    // this button would be dead for good — so check whether anything is actually
+    // out there, and if not, take the card back first and carry on into the press
+    // the user just made. The picture-in-picture window keeps no heartbeat: it has
+    // no document of its own running this script, and pipWin being set is proof
+    // enough that it is there.
+    if(ph){
+      if(pipWin||popoutAlive())return;
+      attach();
+      if(ph)return;   // refused for some reason; better dead than double-detached
+    }
     // Both measured before anything moves: the remote has to still be in the page
     // to have a size at all.
     const s=remoteSize(),g=geom();
@@ -4185,7 +4330,32 @@ buildKeyboard();
     localStorage.setItem(KEY,'1');
     // Backstop for the window being closed by its X while this page still holds a
     // reference to it; the storage event covers the case where it doesn't.
-    poll=setInterval(()=>{if(popRef&&popRef.closed)attach()},1000);
+    //
+    // Not while this page is out of sight. A phone opens the pop-out as a tab and
+    // backgrounds this one to show it, and a backgrounded page is in no position
+    // to judge whether the other window is still there — `closed` on a reference
+    // held across that transition cannot be relied on, and acting on it re-docks
+    // the card and closes a window the user is looking at. Nothing is lost by
+    // waiting: the check runs on the next tick after this page is looked at again,
+    // which is the first moment a re-docked card would have been any use.
+    poll=setInterval(()=>{
+      if(document.hidden)return;
+      if(!popRef||!popRef.closed)return;
+      // `closed` is not to be believed on its own. A phone opens this as a tab
+      // and severs the reference to it, and the reference then reports the window
+      // closed while the user is looking at it — whereupon this re-docked the
+      // card and wrote '0', which the window read as Pin back and shut itself
+      // down. That is the whole of "it flashes white and closes", and it is why
+      // allowing pop-ups outright never helped: allowing them let this code run,
+      // while the blocked-then-granted path returned early and never started this
+      // timer, so that was the one route where the window survived.
+      //
+      // The window's own heartbeat outranks the reference. A window that is
+      // beating is there, whatever `closed` claims; one that has stopped is gone
+      // within a few seconds even if the reference never notices.
+      if(popoutAlive())return;
+      attach();
+    },1000);
   }
 
   // pointerdown, not click — and the whole reason is the window's size. Opening
@@ -4193,7 +4363,25 @@ buildKeyboard();
   // that click is a fresh gesture arriving when the window already exists, which
   // is the only moment one can be sized. On click, the press is over before the
   // window is there and the size has to wait for whatever is pressed next.
-  popBtn.addEventListener('pointerdown',popOut);
+  //
+  // Mouse only, though. That trade buys a sized window, and a touchscreen has no
+  // window to size — it opens a tab, which the browser lays out itself — so on a
+  // phone it is all cost: a press that has not finished may still turn into a
+  // scroll, and a pop-up blocker weighs a half-finished gesture differently from
+  // a completed tap. Waiting for the click there gives the browser the least
+  // ambiguous gesture there is, and gives up nothing.
+  //
+  // A click with no press before it — a keyboard Enter on the focused button —
+  // now opens it too, where it used to do nothing at all.
+  let openedOnPress=false;
+  popBtn.addEventListener('pointerdown',e=>{
+    openedOnPress=false;
+    if(e.pointerType==='mouse'){openedOnPress=true;popOut()}
+  });
+  popBtn.addEventListener('click',()=>{
+    if(!openedOnPress)popOut();
+    openedOnPress=false;
+  });
 
   // Whether always-on-top is worth offering here. The API being present is not
   // enough: an address trusted only through the browser's insecure-origin flag
@@ -4286,12 +4474,30 @@ buildKeyboard();
     if(e.key!==KEY)return;
     if(e.newValue==='1'){if(redock){clearTimeout(redock);redock=null}return}
     if(redock)clearTimeout(redock);
-    redock=setTimeout(()=>{redock=null;if(ph&&!pipWin)attach()},600);
+    // Same cross-check as the poll: a window still beating has not gone anywhere,
+    // whatever the key it just wrote says. A phone writes that '0' merely by
+    // putting the tab in the background.
+    redock=setTimeout(()=>{redock=null;if(ph&&!pipWin&&!popoutAlive())attach()},600);
   });
 
   // This page reloaded while its pop-up lived on. There is no handle to it any
   // more, but Pin back still reaches it: it is listening for that same key.
-  if(localStorage.getItem(KEY)==='1')detachCard('Open in a window of its own.');
+  // Only if it really did live on, though: a stale flag from a window that is
+  // gone gets cleared instead of putting an empty placeholder up, which is what
+  // made the button stick until the site's storage was wiped by hand.
+  if(localStorage.getItem(KEY)==='1'){
+    if(popoutAlive())detachCard('Open in a window of its own.');
+    else localStorage.setItem(KEY,'0');
+  }
+  // And while a placeholder is up for a window this page cannot see, keep asking.
+  // A window can die at any moment, not only before this page loaded — a phone
+  // dropping a background tab is the ordinary case. Skipped for picture-in-picture,
+  // which keeps no heartbeat and is held by reference instead.
+  setInterval(()=>{
+    if(!ph||pipWin)return;
+    if(localStorage.getItem(KEY)!=='1')return;
+    if(!popoutAlive())attach();
+  },4000);
 })();
 
 // ── Position Finder ──
