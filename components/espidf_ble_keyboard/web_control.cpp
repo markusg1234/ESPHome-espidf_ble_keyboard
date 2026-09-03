@@ -263,8 +263,9 @@ class BleKbWebHandler : public AsyncWebHandler {
     // convert across a size mismatch, so hardcoding the number turned any config
     // that set CONFIG_HTTPD_MAX_URI_LEN into a compile error *in this file* —
     // which is not one the person who changed the option can edit. Raising that
-    // limit is a natural thing to try, too: style uploads are chunked precisely
-    // because a request carries only ~512 bytes of URL.
+    // limit is a natural thing to try, too — though the page no longer has a
+    // reason to: it sends every parameter in the request body, which has a
+    // budget of its own rather than sharing the header buffer.
     //
     // A raw array converts to the span implicitly, which is how web_server_idf.h
     // calls it itself.

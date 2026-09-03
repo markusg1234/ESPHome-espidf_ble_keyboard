@@ -1755,6 +1755,14 @@ Restore is **not atomic**. It replays the file through the same API endpoints th
 
 The web control page uses these local HTTP endpoints (useful for custom integrations):
 
+> **Send POST parameters in the request body, not the query string**, for anything longer than a few
+> characters: `curl -X POST http://<device-ip>/api/ble_keyboard/macro_add -d 'name=tv' -d 'action=home | delay:500 | ok'`.
+> The device reads either, and the body form is what the page itself uses. The reason is that the
+> request line and *all* the request headers share one 1024-byte buffer on the device, so a long
+> query string competes with the caller's own headers for it — cross the total and the request is
+> refused with `431 Header fields are too long` before any endpoint sees it. A request body has its
+> own budget, also 1024 bytes.
+
 | Endpoint | Method | Parameters | Description |
 |---|---|---|---|
 | `/api/ble_keyboard/string` | POST | `keys` (string) | Type text |

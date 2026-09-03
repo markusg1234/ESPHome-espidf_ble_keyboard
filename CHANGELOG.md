@@ -99,6 +99,12 @@ web control page shows the matching version badge.
   the config has no web server section.
 
 ### Fixed
+- **Saving a longer macro no longer fails with an error about header fields.** Everything the page
+  saved travelled in the URL, which shares one buffer on the device with the browser's own headers —
+  so a macro of around 130 characters was refused before it ever reached the device on a phone, while
+  the same macro saved fine from a desktop. Saves now travel in the request body, which has a budget
+  of its own. Long hidden-button, hold-to-repeat, paste and custom-style saves were at the same risk.
+
 - **Pressing a second key while holding one now lifts the first.** Only one key's worth of state was
   kept, so a second finger — two thumbs on a phone is the ordinary way to use this — left the first
   key down on the host, repeating underneath whatever was typed next, until that second key was let
