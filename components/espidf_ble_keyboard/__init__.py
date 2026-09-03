@@ -315,8 +315,37 @@ def _web_final_validate(config):
     elif isinstance(full["web_server"], dict) and "auth" not in full["web_server"]:
         _LOGGER.info(
             "web_control is on and 'web_server:' has no 'auth:' block — the control page "
-            "and its endpoints are open to anything that can reach the device."
+            "and its endpoints are open to anything that can reach the device. Adding "
+            "'auth:' to 'web_server:' puts them behind a username and password."
         )
+
+    # Every non-internal button is listed on the page, and the listing hands out
+    # the names needed to press them. That is the trade expose_buttons makes, and
+    # it is fine for a volume key — less so for one that reboots or wipes the
+    # device. hide_buttons is the answer, and it is easy to forget.
+    #
+    # Checked here rather than on the device because the *platform* only exists
+    # in the YAML. At runtime a button knows its name and object id, and both are
+    # whatever the user called it — a `platform: restart` named after the device
+    # gives nothing away, so matching on those missed exactly the buttons that
+    # matter most.
+    if config.get(CONF_EXPOSE_BUTTONS):
+        hidden = {btn.id for btn in config.get(CONF_HIDE_BUTTONS, [])}
+        risky = ("restart", "factory_reset", "safe_mode")
+        exposed = [
+            btn.get(CONF_NAME) or btn[CONF_ID].id
+            for btn in full.get("button", [])
+            if btn.get("platform") in risky
+            and not btn.get("internal")
+            and btn[CONF_ID].id not in hidden
+        ]
+        if exposed:
+            _LOGGER.warning(
+                "These buttons are on the web control page and can be pressed by anyone who "
+                "can reach it: %s. List them in the component's 'hide_buttons:' if that is not "
+                "intended — hidden buttons are also refused if their action is typed by hand.",
+                ", ".join(repr(name) for name in exposed),
+            )
     return config
 
 

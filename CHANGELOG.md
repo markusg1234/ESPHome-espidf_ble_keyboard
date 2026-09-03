@@ -94,9 +94,15 @@ web control page shows the matching version badge.
   backup, or from the last-used copy in the browser skipped the check entirely. They are checked
   when drawn as well, and two spellings that slipped past before are now caught.
 
-- **The setup warns about what it cannot protect.** A restart or factory-reset button left on the
-  page is called out at startup, and so is a control page that no password can be put on because
-  the config has no web server section.
+- **The build warns about what it cannot protect.** A restart, factory-reset or safe-mode button
+  left on the page is named when you compile, so you can decide whether to hide it — and so is a
+  control page that no password can be put on, because the config has no web server section for one
+  to go in.
+
+- **The page can be put behind a username and password, which the docs previously denied.** The web
+  server's own authentication covers this page and every endpoint it serves — four places said
+  flatly that it could not be protected at all. Command-line and automation callers need credentials
+  once it is on, and the examples now say so.
 
 ### Fixed
 - **Pressing a second key while holding one now lifts the first.** Only one key's worth of state was

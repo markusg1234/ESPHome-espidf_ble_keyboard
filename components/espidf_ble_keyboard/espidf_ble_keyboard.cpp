@@ -3720,22 +3720,13 @@ const std::vector<EspidfBleKeyboard::ButtonInfo> &EspidfBleKeyboard::get_externa
         // .str() on both: these are StringRefs into ESPHome's own storage, and
         // c_str() on one isn't guaranteed null-terminated. str() copies using
         // the length, which is what we want anyway since we keep the strings.
-        std::string object_id = b->get_object_id_to(oid_buf).str();
-        // There is no reboot endpoint here, but a button is one: anything on
-        // this list can be pressed by name over the network, and the listing
-        // itself hands out the names. That is the trade expose_buttons: makes,
-        // and it is fine for a volume key — less so for one that wipes the
-        // pairings. hide_buttons: is the answer and it is easy to forget, so
-        // say so once at startup rather than leaving it to the README.
-        for (const char *risky : {"factory_reset", "restart", "reboot", "safe_mode"}) {
-            if (object_id.find(risky) != std::string::npos) {
-                ESP_LOGW(TAG, "Button '%s' is on the web page and can be pressed by anyone who "
-                              "can reach it — list it in hide_buttons: if that isn't intended",
-                         object_id.c_str());
-                break;
-            }
-        }
-        external_buttons_.push_back({b->get_name().str(), "press_button:" + object_id});
+        // Note: warning about destructive buttons left on the page is done at
+        // codegen instead (see _web_final_validate). Only the YAML knows a
+        // button's platform; here there is just a name and an object id, both
+        // user-chosen, so a `platform: restart` named after the device reads no
+        // differently from a volume key.
+        external_buttons_.push_back({b->get_name().str(),
+                                     "press_button:" + b->get_object_id_to(oid_buf).str()});
     }
     ESP_LOGI(TAG, "Discovered %u external button(s) for the web page",
              (unsigned) external_buttons_.size());

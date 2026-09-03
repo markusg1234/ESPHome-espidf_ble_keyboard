@@ -321,7 +321,7 @@ binary_sensor:
 * **mouse_goto_scale_x** / **mouse_goto_scale_y** (Optional, float): Per-axis override of `mouse_goto_scale`. X and Y often need **different** values (a host can scale the axes differently), so calibrate each independently. Range: 0.05–20.0. Easiest to dial in live via the web Position Finder, which also saves the values per host. See [Absolute mouse positioning](#absolute-mouse-positioning).
 * **custom_text_id** (Optional, ID or list of IDs): Link one or more ESPHome `text` entities for custom text input. Automatically registers a "Send" button in the web UI for each. Use `send_custom_text` or `send_custom_text:N` action to trigger.
 * **expose_buttons** (Optional, boolean): List every non-internal ESPHome `button` in your config on the [web control page](#pressing-other-esphome-buttons), so it can reach things BLE can't — Wake-on-LAN, a relay, a restart. Defaults to `true`.
-* **hide_buttons** (Optional, ID or list of IDs): Buttons to keep *off* the web page. Anything listed there can be pressed by whoever can reach the device — and unless you have set up authentication, that is anyone on the network — so use this for anything destructive (`factory_reset`, `restart`, `safe_mode`). The device logs a warning at startup if it finds such a button exposed. Hidden buttons also refuse to run if their action is typed by hand.
+* **hide_buttons** (Optional, ID or list of IDs): Buttons to keep *off* the web page. Anything listed there can be pressed by whoever can reach the device — and unless you have set up authentication, that is anyone on the network — so use this for anything destructive (`factory_reset`, `restart`, `safe_mode`). Leave one of those platforms exposed and the build names it in a warning, so you can decide rather than discover. Hidden buttons also refuse to run if their action is typed by hand.
 * **battery_level** (Optional, ID): A sensor whose value (0–100) is published over the BLE Battery Service, so the host's Bluetooth settings show the keyboard's real charge. Any sensor reading a percentage will do — an ADC with a calibration filter, a fuel-gauge IC, a template sensor. Values outside 0–100 are clamped and an unavailable reading is ignored rather than sent as 0%. Without this the service is still advertised and reports a fixed 100%. See [Battery level](#battery-level).
 * **keyboard_layout** (Optional, string): Default keyboard layout. One of `us` (default), `uk`, `de`, `be`. Controls how `send_string` maps each character to USB HID keycodes — must match the *host's* keyboard layout. Can be overridden at runtime from the web UI (persisted to NVS, survives reboot). See [Keyboard layouts](#keyboard-layouts) below.
 * **hosts** (Optional, list): Per-slot passkey and pairing mode overrides. Each entry has:
@@ -1152,7 +1152,7 @@ button:
     id: button_wake_on_lan_m70f
 ```
 
-> **Unless you have set up authentication, anyone who can reach the page can press any listed button** — and the button listing itself hands out the names to press. Keep destructive ones off it with `hide_buttons`; the device logs a warning at startup if it finds one exposed. Hidden buttons are also rejected if their action is typed into a macro by hand. See [Securing the web control page](#securing-the-web-control-page).
+> **Unless you have set up authentication, anyone who can reach the page can press any listed button** — and the button listing itself hands out the names to press. Keep destructive ones off it with `hide_buttons`; leave a `restart`, `factory_reset` or `safe_mode` button exposed and the build warns you by name. Hidden buttons are also rejected if their action is typed into a macro by hand. See [Securing the web control page](#securing-the-web-control-page).
 >
 > ```yaml
 > espidf_ble_keyboard:
@@ -1801,6 +1801,15 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 
 Example: `curl -X POST "http://<device-ip>/api/ble_keyboard/string?keys=Hello"`
 
+**If `web_server:` has an `auth:` block, every example here needs credentials** — `-u user:pass`,
+plus `--digest` if that is the scheme you configured. A mismatch is answered with a `401` that does
+not say which was expected, so check the scheme in your YAML rather than guessing. The same applies
+to Home Assistant `shell_command` and `rest_command` automations calling these endpoints.
+
+```bash
+curl --digest -u user:pass -X POST "http://<device-ip>/api/ble_keyboard/string?keys=Hello"
+```
+
 ### Securing the web control page
 
 **This page types on a computer you are logged into. Treat reaching it as reaching that keyboard.**
@@ -1809,25 +1818,18 @@ The first item below is the one that decides *who* may use the device, and it is
 have to set up. The rest are on by default and stop a website turning your own browser against the
 device — worth understanding, but none of them is a substitute for the first.
 
-**Give it a username and password.** `web_server:` has an `auth:` block, and it covers this
-component's page and every endpoint it serves — the handler is registered through the web server,
-so it sits behind the same login as the rest of the ESPHome UI:
+**Give it a username and password.** Add an `auth:` block to `web_server:` — see ESPHome's
+[`web_server`](https://esphome.io/components/web_server.html) documentation for the options and what
+each authentication scheme costs you. The part that matters here is that **it covers this
+component too**: the handler is registered through the web server, so `/ble_keyboard` and every
+`/api/ble_keyboard/…` endpoint sit behind the same login as the rest of the ESPHome UI.
 
-```yaml
-web_server:
-  port: 80
-  auth:
-    username: !secret web_username
-    password: !secret web_password
-```
+Two consequences worth knowing before you turn it on:
 
-Two things worth knowing. The default scheme sends the password in an easily reversible form, so
-prefer `type: digest` under `auth:` if your ESPHome is recent enough to offer it. And there is no
-HTTPS at any setting — on the wire, the password and everything typed are in the clear, which is
-one more reason the device belongs on a network you trust rather than on the open internet.
-
-Turning auth on does **not** break the Home Assistant cards. They read the device directly only to
-populate the host bar, and they already fall back to the component's sensors when that read fails.
+- **The Home Assistant cards keep working.** They read the device directly only to populate the
+  host bar, and they already fall back to this component's sensors when that read fails.
+- **Scripts and automations need credentials**, matching whichever scheme you chose — see
+  [REST API](#rest-api).
 
 **Requests from other websites are refused.** These `POST` endpoints take their parameters in the
 query string, which is exactly the shape a browser will send to another host without asking
