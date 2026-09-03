@@ -7,6 +7,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_heap_caps.h"
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <map>
@@ -87,6 +88,78 @@ static int8_t clamp_i8(int v) {
   return (int8_t) v;
 }
 
+// Is this request addressed to *this device*, or to a name the sender chose?
+//
+// Sec-Fetch-Site below cannot see a DNS rebinding attack. The attacker serves a
+// page from their own domain, then re-points that domain at this device's
+// address; the browser fetches again, and because the origin string has not
+// changed it calls the request same-origin — which, as far as it knows, it is.
+// The one thing still carrying the attacker's name is Host, because the browser
+// fills it in from the URL it was handed.
+//
+// So an address literal or an mDNS name means the device was addressed
+// directly, and anything else has to be named in the config. `web_host_check:
+// false` turns the test off for setups this cannot anticipate — the obvious one
+// being a reverse proxy that fronts the device under a real domain name.
+static bool host_ok(AsyncWebServerRequest *request, EspidfBleKeyboard *kb) {
+  if (!kb->web_host_check())
+    return true;
+  auto header = request->get_header("Host");
+  // No Host at all is HTTP/1.0 or something hand-made, not a browser being
+  // steered — the same reasoning that lets a missing Sec-Fetch-Site through.
+  if (!header.has_value())
+    return true;
+  std::string name = header.value();
+  for (auto &c : name)
+    c = (char) tolower((unsigned char) c);  // host names are case-insensitive
+  // Drop the port. An IPv6 literal is bracketed and full of colons, so only a
+  // colon after the closing bracket separates a port.
+  size_t bracket = name.rfind(']');
+  size_t colon = name.rfind(':');
+  if (colon != std::string::npos && (bracket == std::string::npos || colon > bracket))
+    name.erase(colon);
+  if (name.empty())
+    return true;
+  // A trailing dot is the fully-qualified spelling of the same name. Browsers
+  // usually strip it before sending, but not all of them do, and someone who
+  // types one should not be turned away.
+  if (name.back() == '.')
+    name.pop_back();
+  if (name.empty())
+    return true;
+  if (name.front() == '[')
+    return true;  // IPv6 literal
+  // An IPv4 literal is digits and dots and nothing else, and a host name can
+  // never be — so the character set settles it without parsing the address.
+  if (name.find_first_not_of("0123456789.") == std::string::npos)
+    return true;
+  // No dot at all is not a name anyone can own, so it cannot be the one a
+  // rebinding attack arrives under — every registered domain has a dot in it.
+  // It is also how the device is reached on a network whose DHCP server
+  // publishes short host names, which is common enough to be worth allowing.
+  if (name.find('.') == std::string::npos)
+    return true;
+  if (name.size() >= 6 && name.compare(name.size() - 6, 6, ".local") == 0)
+    return true;
+  for (const auto &allowed : kb->web_allowed_hosts())
+    if (name == allowed)
+      return true;
+  // Worth a line in the log: to the person running a proxy this is a refusal
+  // with no visible cause, and the name they need to add is the one here.
+  //
+  // Once per name, not once per request. A page loaded under a refused name
+  // still sends — the mouse pad alone posts on every movement event — so
+  // warning each time would bury the one line that explains it under hundreds
+  // saying the same thing. Same reasoning as the stack probe below.
+  static std::string warned;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  if (warned != name) {
+    warned = name;
+    ESP_LOGW(TAG, "Refused a request addressed to '%s' — add it to web_allowed_hosts, "
+                  "or set web_host_check: false", name.c_str());
+  }
+  return false;
+}
+
 // Is this request the device's own page, rather than one some other site made
 // the browser send?
 //
@@ -102,10 +175,16 @@ static int8_t clamp_i8(int v) {
 // automation — and all of those could already reach every endpoint here, so they
 // keep working exactly as documented.
 //
+// The other way round the same-origin claim can be false is rebinding, which is
+// what host_ok() above covers, and being framed — an iframe's requests really
+// are same-origin — which the page response answers with X-Frame-Options.
+//
 // This is not access control. It closes the "a web page turns your browser
 // against you" route and nothing else; `web_server:` auth is still what protects
 // the device on a network you do not trust.
-static bool same_origin_ok(AsyncWebServerRequest *request) {
+static bool same_origin_ok(AsyncWebServerRequest *request, EspidfBleKeyboard *kb) {
+  if (!host_ok(request, kb))
+    return false;
   auto site = request->get_header("Sec-Fetch-Site");
   return !site.has_value() || site.value() == "same-origin" || site.value() == "none";
 }
@@ -243,6 +322,22 @@ class BleKbWebHandler : public AsyncWebHandler {
           200, "text/html", kb_->web_page(), kb_->web_page_size());
       response->addHeader("Content-Encoding", "gzip");
       response->addHeader("Connection", "close");
+      // Being framed is the third way a request can be same-origin without
+      // being the user's doing, alongside the two host_ok() and same_origin_ok()
+      // cover. Inside someone else's iframe this page is still on its own
+      // origin, so its requests pass every check above — and a transparent
+      // overlay turns one click on their site into a real keystroke on the
+      // paired host. Nothing in this project frames the page: the pop-out remote
+      // uses window.open and document picture-in-picture, and the Home Assistant
+      // cards are custom elements.
+      //
+      // SAMEORIGIN would not be a softer setting, it would be the same one with
+      // a different failure: a dashboard embedding this page is on its own
+      // origin too, so it is refused either way. Hence an option rather than a
+      // weaker header — someone deliberately framing the page in a dashboard
+      // they run can say so, and accept what that opens.
+      if (!kb_->web_allow_framing())
+        response->addHeader("X-Frame-Options", "DENY");
       // Force the browser to revalidate the page on every load so a firmware
       // flash always brings UI changes (new layouts, fixes, etc.) without
       // needing a manual hard-reload.
@@ -457,7 +552,7 @@ class BleKbWebHandler : public AsyncWebHandler {
       // globally, so without it any page the user happens to have open could read
       // the key straight off the device. Same test the POST gate uses — see
       // same_origin_ok().
-      if (!same_origin_ok(request)) {
+      if (!same_origin_ok(request, kb_)) {
         send_response(400, "text/plain", "Refused: read this from the device's own page");
         return;
       }
@@ -628,6 +723,17 @@ class BleKbWebHandler : public AsyncWebHandler {
     }
 
     if (path == "backup") {
+      // Guarded like /irk, and for a milder version of the same reason. It is
+      // not a secret, but it is every macro, every override and every paired
+      // host's address in one document, and web_server hands out
+      // Access-Control-Allow-Origin: * globally — so without this any page the
+      // user happened to have open could read the lot. The Home Assistant cards
+      // read only /hosts, so nothing legitimate fetches this cross-origin, and
+      // curl still can: it sends no Sec-Fetch-Site, which is allowed.
+      if (!same_origin_ok(request, kb_)) {
+        send_response(400, "text/plain", "Refused: read this from the device's own page");
+        return;
+      }
       // Everything the user can edit at runtime, in one document. Deliberately
       // excludes the passkey and the generated per-slot addresses (device
       // identity, not settings) and YAML-defined overrides (restoring those as
@@ -787,7 +893,7 @@ class BleKbWebHandler : public AsyncWebHandler {
     // somewhere else; see same_origin_ok() for why this is checkable at all and
     // what it does not cover. GET endpoints are above this gate and unaffected,
     // so the Home Assistant cards, which only read /hosts, keep working.
-    if (!same_origin_ok(request)) {
+    if (!same_origin_ok(request, kb_)) {
       send_response(400, "text/plain", "Refused: cross-site request");
       return;
     }

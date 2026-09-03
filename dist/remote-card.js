@@ -76,7 +76,7 @@
 // own web page so this card draws exactly what the device does. Regenerate with
 // `node tools/gen-remote-styles.mjs` after changing styles in web_control.cpp.
 import {
-  RMT_BUILTIN, RMT_BTNS, RMT_VARS, RMT_CSS, sectionHtml, validateTpl,
+  RMT_BUILTIN, RMT_BTNS, RMT_VARS, RMT_CSS, sectionHtml, validateTpl, themeValueBad,
 } from './remote-styles.js?v=1.8.0';
 
 /**
@@ -817,8 +817,14 @@ class BleRemoteCard extends HTMLElement {
 
     for (const k in RMT_VARS) body.style.removeProperty(RMT_VARS[k]);
     if (style.theme) {
+      // Checked here as well as in validateTpl above, because most styles the
+      // card draws never went through it: they arrive from the device's stored
+      // templates or from the card's own configuration, and a theme value is
+      // CSS that can fetch. Same function the device's page uses, so the two
+      // cannot drift apart.
       for (const k in RMT_VARS) {
-        if (typeof style.theme[k] === 'string') body.style.setProperty(RMT_VARS[k], style.theme[k]);
+        if (typeof style.theme[k] === 'string' && !themeValueBad(k, style.theme[k]))
+          body.style.setProperty(RMT_VARS[k], style.theme[k]);
       }
     }
     body.innerHTML = style.sections.map(sectionHtml).join('');

@@ -1055,6 +1055,27 @@ label:'--rb-label',divider:'--rb-divider',clip:'--rb-clip'};
 // `clip` goes further for a genuine taper, and is the one theme value with a
 // grammar of its own, so it is checked against exactly that and nothing else.
 const RMT_CLIP=/^polygon\(\s*[-0-9%.,\s]+\)$/i;
+// A theme value is CSS, and CSS can fetch. url() is the obvious way; image-set()
+// is the one that looks like it can't, and -webkit-image-set() carries the same
+// name so matching the bare one covers the prefix too. Nothing a style needs
+// here fetches anything, so both are simply out.
+const RMT_FETCH=/(url|image-set)\s*\(/i;
+// Why a value is not allowed, or '' if it is. Checked both when a style is
+// imported and again when one is drawn: import is the only place a style used
+// to be examined, but a style can also arrive from the device's own storage,
+// from the last-used copy in localStorage, or through a restored backup — none
+// of which pass through the importer. Checking at the point of use is what
+// makes the three agree without three separate guards.
+function themeValueBad(k,v){
+  // Backslashes go first, because CSS resolves escapes while tokenising: \75 rl(
+  // becomes url( long after a text search for "url" has already said no. No
+  // theme value here has any reason to carry one, so refusing them outright
+  // costs nothing and closes every spelling at once.
+  if(v.indexOf('\\')>=0)return 'theme values cannot contain a backslash — "'+k+'" could hide a url()';
+  if(RMT_FETCH.test(v))return 'theme values cannot load from elsewhere — "'+k+'" would fetch from another host';
+  if(k==='clip'&&!RMT_CLIP.test(v.trim()))return 'clip must be a polygon(), e.g. polygon(0% 0%, 100% 0%, 82% 100%, 18% 100%)';
+  return '';
+}
 // Appearance tokens a button may carry. Top level, not inside either IIFE: the
 // renderer applies them and the importer validates them, and they must agree —
 // keeping them in one place is what stops the two drifting apart.
@@ -2101,14 +2122,13 @@ function appendStep(el,val){
     if(t.theme!==undefined&&(typeof t.theme!=='object'||t.theme===null||Array.isArray(t.theme)))
       return 'theme must be an object';
     // Theme values are handed to setProperty, which rejects malformed CSS on its
-    // own — but url() is well-formed and would have the page fetch from
-    // somewhere else the moment a style is applied. Nothing here needs it.
+    // own — but a fetch is well-formed and would have the page load from
+    // somewhere else the moment a style is applied. Nothing here needs one.
+    // Same test the renderer applies, so what imports is what draws.
     if(t.theme)for(const k in t.theme){
       if(typeof t.theme[k]!=='string')continue;
-      if(/url\s*\(/i.test(t.theme[k]))
-        return 'theme values cannot use url() — "'+k+'" would load from another host';
-      if(k==='clip'&&!RMT_CLIP.test(t.theme[k].trim()))
-        return 'clip must be a polygon(), e.g. polygon(0% 0%, 100% 0%, 82% 100%, 18% 100%)';
+      const bad=themeValueBad(k,t.theme[k]);
+      if(bad)return bad;
     }
     for(const s of t.sections){
       if(!Array.isArray(s)||typeof s[0]!=='string')return 'Each section is an array starting with its kind';
@@ -3513,8 +3533,16 @@ buildKeyboard();
     // side is already safe — k only ever takes RMT_VARS's own names, so a style
     // cannot reach a key this does not already know.
     for(const k of Object.keys(RMT_VARS))body.style.removeProperty(RMT_VARS[k]);
+    // Values are checked here and not only at import. Most styles drawn here
+    // never went through the importer in this browser: they come back from the
+    // device's storage, from the last-used copy in localStorage, or through a
+    // restored backup, and each of those is a way for a value the importer would
+    // have refused to reach setProperty. A bad value is dropped rather than
+    // reported — this runs on every draw, and the style editor is where the
+    // wording belongs.
     if(t.theme)for(const k of Object.keys(RMT_VARS))
-      if(typeof t.theme[k]==='string')body.style.setProperty(RMT_VARS[k],t.theme[k]);
+      if(typeof t.theme[k]==='string'&&!themeValueBad(k,t.theme[k]))
+        body.style.setProperty(RMT_VARS[k],t.theme[k]);
     body.innerHTML=t.sections.map(sectionHtml).join('');
     // Forced: the buttons are new, so whatever this host hides has to be
     // reapplied even though the hidden set itself did not change.

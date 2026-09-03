@@ -1,4 +1,5 @@
 import gzip
+import logging
 from pathlib import Path
 
 import esphome.codegen as cg
@@ -8,6 +9,8 @@ from esphome.components import button, sensor
 from esphome.const import CONF_ID
 from esphome.core import EsphomeError, HexInt
 from esphome import automation
+
+_LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["esp32"]
 # text_sensor is auto-loaded because espidf_ble_keyboard.h includes its header
@@ -22,6 +25,9 @@ CONF_MAX_KEY_HOLD_MS = "max_key_hold_ms"
 CONF_PASSKEY = "passkey"
 CONF_PASSKEY_MODE = "passkey_mode"
 CONF_WEB_CONTROL = "web_control"
+CONF_WEB_HOST_CHECK = "web_host_check"
+CONF_WEB_ALLOWED_HOSTS = "web_allowed_hosts"
+CONF_WEB_ALLOW_FRAMING = "web_allow_framing"
 CONF_WEB_PAGE_DATA_ID = "web_page_data_id"
 CONF_API_SERVICES = "api_services"
 CONF_HA_ACTION = "ha_action"
@@ -288,7 +294,38 @@ def _api_final_validate(config):
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _api_final_validate
+def _web_final_validate(config):
+    """The control page can be put behind `web_server:`'s own auth — the handler
+    is registered through add_handler(), which wraps it whenever auth is set. But
+    that wrapper only exists when the `web_server` component is what pulled in
+    web_server_base; `captive_portal:` provides one too, and in that config the
+    auth support is not compiled in at all, so the page cannot be protected by
+    any means. Legal, and it works — just worth saying out loud, because the
+    difference is invisible from the YAML."""
+    if not config.get(CONF_WEB_CONTROL):
+        return config
+    full = fv.full_config.get()
+    if "web_server" not in full:
+        _LOGGER.warning(
+            "web_control is on without a 'web_server:' section, so the control page "
+            "cannot be given a username and password — anyone who can reach the device "
+            "can type on the paired host. Add 'web_server:' with an 'auth:' block if the "
+            "network is not one you trust."
+        )
+    elif isinstance(full["web_server"], dict) and "auth" not in full["web_server"]:
+        _LOGGER.info(
+            "web_control is on and 'web_server:' has no 'auth:' block — the control page "
+            "and its endpoints are open to anything that can reach the device."
+        )
+    return config
+
+
+def _final_validate(config):
+    config = _api_final_validate(config)
+    return _web_final_validate(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema({
@@ -306,6 +343,21 @@ CONFIG_SCHEMA = cv.All(
             lower=True,
         ),
         cv.Optional(CONF_WEB_CONTROL, default=False): cv.boolean,
+        # Refuse requests addressed to a host name this device does not answer
+        # to. A page on another site can re-point its own domain at this device
+        # and the browser will then call its requests same-origin, which is the
+        # one way round the cross-site check; the name it was addressed by is
+        # what gives it away. An address or a .local name always passes.
+        cv.Optional(CONF_WEB_HOST_CHECK, default=True): cv.boolean,
+        # Extra names that count as this device — a reverse proxy's domain, a
+        # DNS entry, whatever the setup uses. Anything here is trusted as fully
+        # as the device's own address, so list only names you control.
+        cv.Optional(CONF_WEB_ALLOWED_HOSTS, default=[]): cv.ensure_list(cv.string_strict),
+        # Let the page be shown inside a frame. Off by default: a framed page is
+        # still on its own origin, so every same-origin check here is satisfied
+        # while the click that triggered it belongs to whoever built the frame.
+        # Turn it on only to embed the page in a dashboard you run yourself.
+        cv.Optional(CONF_WEB_ALLOW_FRAMING, default=False): cv.boolean,
         # Names the progmem array that carries the gzipped control page. Only
         # emitted when web_control is on; harmless when it isn't.
         cv.GenerateID(CONF_WEB_PAGE_DATA_ID): cv.declare_id(cg.uint8),
@@ -421,6 +473,14 @@ async def to_code(config):
         from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
         base = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
         cg.add(var.set_web_server_base(base))
+
+        cg.add(var.set_web_host_check(config[CONF_WEB_HOST_CHECK]))
+        cg.add(var.set_web_allow_framing(config[CONF_WEB_ALLOW_FRAMING]))
+        # Lowercased here rather than on the device: host names are
+        # case-insensitive, and doing it at codegen keeps the comparison in the
+        # request path a plain string equality.
+        for allowed in config[CONF_WEB_ALLOWED_HOSTS]:
+            cg.add(var.add_web_allowed_host(allowed.lower()))
 
         # Compress the control page into the firmware. Stored raw it was 243 KB
         # of flash — the single largest thing in the image, 15% of it — and the

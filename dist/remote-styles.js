@@ -189,11 +189,24 @@ const RMT_HEX=/^#[0-9a-f]{3,8}$/i;
 
 const RMT_CLIP=/^polygon\(\s*[-0-9%.,\s]+\)$/i;
 
+const RMT_FETCH=/(url|image-set)\s*\(/i;
+
 function icon(i){return '<svg viewBox="0 0 24 24">'+RI[i]+'</svg>'}
 
 function esc(s){
     return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   }
+
+function themeValueBad(k,v){
+  // Backslashes go first, because CSS resolves escapes while tokenising: \75 rl(
+  // becomes url( long after a text search for "url" has already said no. No
+  // theme value here has any reason to carry one, so refusing them outright
+  // costs nothing and closes every spelling at once.
+  if(v.indexOf('\\')>=0)return 'theme values cannot contain a backslash — "'+k+'" could hide a url()';
+  if(RMT_FETCH.test(v))return 'theme values cannot load from elsewhere — "'+k+'" would fetch from another host';
+  if(k==='clip'&&!RMT_CLIP.test(v.trim()))return 'clip must be a polygon(), e.g. polygon(0% 0%, 100% 0%, 82% 100%, 18% 100%)';
+  return '';
+}
 
 function btnHtml(item){
     const arr=Array.isArray(item);
@@ -274,14 +287,13 @@ function validateTpl(t){
     if(t.theme!==undefined&&(typeof t.theme!=='object'||t.theme===null||Array.isArray(t.theme)))
       return 'theme must be an object';
     // Theme values are handed to setProperty, which rejects malformed CSS on its
-    // own — but url() is well-formed and would have the page fetch from
-    // somewhere else the moment a style is applied. Nothing here needs it.
+    // own — but a fetch is well-formed and would have the page load from
+    // somewhere else the moment a style is applied. Nothing here needs one.
+    // Same test the renderer applies, so what imports is what draws.
     if(t.theme)for(const k in t.theme){
       if(typeof t.theme[k]!=='string')continue;
-      if(/url\s*\(/i.test(t.theme[k]))
-        return 'theme values cannot use url() — "'+k+'" would load from another host';
-      if(k==='clip'&&!RMT_CLIP.test(t.theme[k].trim()))
-        return 'clip must be a polygon(), e.g. polygon(0% 0%, 100% 0%, 82% 100%, 18% 100%)';
+      const bad=themeValueBad(k,t.theme[k]);
+      if(bad)return bad;
     }
     for(const s of t.sections){
       if(!Array.isArray(s)||typeof s[0]!=='string')return 'Each section is an array starting with its kind';
@@ -406,4 +418,4 @@ export const RMT_CSS = `
 .rmt-head .macro-edit-btn{margin-left:0}
 `;
 
-export { RI, RMT_BTNS, RMT_VARS, RMT_BUILTIN, RMT_KINDS, RMT_OPTS, RMT_HEX, RMT_CLIP, icon, esc, btnHtml, sectionHtml, validateTpl };
+export { RI, RMT_BTNS, RMT_VARS, RMT_BUILTIN, RMT_KINDS, RMT_OPTS, RMT_HEX, RMT_CLIP, RMT_FETCH, icon, esc, themeValueBad, btnHtml, sectionHtml, validateTpl };

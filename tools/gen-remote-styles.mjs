@@ -56,8 +56,12 @@ const PARTS = [
   ['const RMT_OPTS=', () => oneLine('const RMT_OPTS=')],
   ['const RMT_HEX=', () => oneLine('const RMT_HEX=')],
   ['const RMT_CLIP=', () => oneLine('const RMT_CLIP=')],
+  ['const RMT_FETCH=', () => oneLine('const RMT_FETCH=')],
   ['function icon(', () => balanced('function icon(')],
   ['function esc(', () => balanced('function esc(')],
+  // Before validateTpl, which calls it — and the card's renderer calls it too,
+  // which is the whole point of it being here rather than inline in the importer.
+  ['function themeValueBad(', () => balanced('function themeValueBad(')],
   ['function btnHtml(', () => balanced('function btnHtml(')],
   ['function sectionHtml(', () => balanced('function sectionHtml(')],
   ['function validateTpl(', () => balanced('function validateTpl(')],
@@ -68,7 +72,8 @@ const js = PARTS.map(([, take]) => take()).join('\n\n');
 // by hand is what let RMT_OPTS slip out of the gallery's bundle once, and the
 // symptom was every button rendering as nothing at all — silently.
 const EXPORTS = ['RI', 'RMT_BTNS', 'RMT_VARS', 'RMT_BUILTIN', 'RMT_KINDS', 'RMT_OPTS',
-  'RMT_HEX', 'RMT_CLIP', 'icon', 'esc', 'btnHtml', 'sectionHtml', 'validateTpl'];
+  'RMT_HEX', 'RMT_CLIP', 'RMT_FETCH', 'icon', 'esc', 'themeValueBad', 'btnHtml',
+  'sectionHtml', 'validateTpl'];
 const defined = new Set([...js.matchAll(/(?:^|\n)\s*(?:const|function)\s+([A-Za-z_$][\w$]*)/g)]
   .map(m => m[1]));
 for (const name of EXPORTS) {

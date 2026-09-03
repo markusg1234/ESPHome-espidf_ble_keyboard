@@ -72,6 +72,32 @@ web control page shows the matching version badge.
   unaffected, and so are the dashboard cards. On an untrusted network, web server authentication
   is still what actually protects the device.
 
+- **Two ways around that refusal are now closed.** The control page can no longer be put inside a
+  frame on someone else's site, where a click meant for their page would have landed on your
+  keyboard. And a request addressed to a name this device does not answer to is refused, which
+  stops a website pointing its own domain at the device to make its requests look local. Its
+  address and any `.local` name always pass; anything else can be named in the config, or the
+  check turned off.
+
+- **A nested action string can no longer crash the device.** Repeats and alternates run inside one
+  another, and nesting multiplied rather than limited them, so a single request could recurse
+  further than the web server had stack for and reboot the device before typing anything. Sequences
+  are now bounded at a depth far past anything written by hand.
+
+- **The settings export is no longer readable by other websites.** It carries every macro,
+  override and paired host address in one document, and was readable by any page you had open. It
+  is now treated like the identity key. Backups from the page itself and by command line are
+  unchanged.
+
+- **A style can no longer make the remote load anything from another host.** Values were only
+  checked when a style was imported, so one arriving from the device's own storage, from a restored
+  backup, or from the last-used copy in the browser skipped the check entirely. They are checked
+  when drawn as well, and two spellings that slipped past before are now caught.
+
+- **The setup warns about what it cannot protect.** A restart or factory-reset button left on the
+  page is called out at startup, and so is a control page that no password can be put on because
+  the config has no web server section.
+
 ### Fixed
 - **Pressing a second key while holding one now lifts the first.** Only one key's worth of state was
   kept, so a second finger — two thumbs on a phone is the ordinary way to use this — left the first

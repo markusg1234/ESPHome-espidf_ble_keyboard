@@ -3219,6 +3219,27 @@ void EspidfBleKeyboard::send_hibernate() {
 // ── Centralized action executor ──────────────────────────────────
 
 void EspidfBleKeyboard::execute_action(const std::string &action) {
+    // Depth guard for every recursive path below — repeat:, alternate: and the
+    // '|' split all re-enter here, and nesting them multiplies rather than adds.
+    // Counted once at the entry instead of at each call site, so a path added
+    // later is covered by construction rather than by remembering.
+    //
+    // This matters most for the web endpoint, which runs the whole chain inline
+    // on the server task: an action string is free-form and arrives from the
+    // network, so without a cap a nested one is an unauthenticated way to run
+    // the stack off its end. The counter is decremented on every exit, which is
+    // what the RAII guard is for — this function returns from a dozen places.
+    if (action_depth_ >= MAX_ACTION_DEPTH) {
+        ESP_LOGW(TAG, "Action nested more than %u deep, stopping: %s", (unsigned) MAX_ACTION_DEPTH,
+                 action.c_str());
+        return;
+    }
+    struct DepthGuard {
+        uint8_t &depth;
+        explicit DepthGuard(uint8_t &d) : depth(d) { depth++; }
+        ~DepthGuard() { depth--; }
+    } depth_guard(action_depth_);
+
     // Repeat: run the rest of the action N times. Checked before the '|' split
     // so the count covers the whole remaining sequence. Runs inline/synchronously
     // like other multi-step macros, so the count is capped to bound how long it
@@ -3699,8 +3720,22 @@ const std::vector<EspidfBleKeyboard::ButtonInfo> &EspidfBleKeyboard::get_externa
         // .str() on both: these are StringRefs into ESPHome's own storage, and
         // c_str() on one isn't guaranteed null-terminated. str() copies using
         // the length, which is what we want anyway since we keep the strings.
-        external_buttons_.push_back({b->get_name().str(),
-                                     "press_button:" + b->get_object_id_to(oid_buf).str()});
+        std::string object_id = b->get_object_id_to(oid_buf).str();
+        // There is no reboot endpoint here, but a button is one: anything on
+        // this list can be pressed by name over the network, and the listing
+        // itself hands out the names. That is the trade expose_buttons: makes,
+        // and it is fine for a volume key — less so for one that wipes the
+        // pairings. hide_buttons: is the answer and it is easy to forget, so
+        // say so once at startup rather than leaving it to the README.
+        for (const char *risky : {"factory_reset", "restart", "reboot", "safe_mode"}) {
+            if (object_id.find(risky) != std::string::npos) {
+                ESP_LOGW(TAG, "Button '%s' is on the web page and can be pressed by anyone who "
+                              "can reach it — list it in hide_buttons: if that isn't intended",
+                         object_id.c_str());
+                break;
+            }
+        }
+        external_buttons_.push_back({b->get_name().str(), "press_button:" + object_id});
     }
     ESP_LOGI(TAG, "Discovered %u external button(s) for the web page",
              (unsigned) external_buttons_.size());

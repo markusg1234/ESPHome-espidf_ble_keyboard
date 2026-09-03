@@ -93,6 +93,11 @@ external_components:
 # Required by `web_control: true` below — it hosts the control page.
 web_server:
   port: 80
+  # Without this the page is open to everything on your network, and it types
+  # on whatever computer is paired. See "Securing the web control page".
+  # auth:
+  #   username: !secret web_username
+  #   password: !secret web_password
 
 espidf_ble_keyboard:
   id: my_keyboard
@@ -299,9 +304,12 @@ binary_sensor:
 * **max_key_hold_ms** (Optional, int): Safety net for a held key whose release never arrives — a browser tab closed mid-press, or an `on_release` that didn't fire. After this many milliseconds the device releases everything it is holding, including a held mouse button. Defaults to `0` (never auto-release); otherwise 100–600000. See [Press and hold](#press-and-hold).
 * **passkey** (Optional, int): A 6-digit static PIN (000000–999999). If set, the device uses static passkey pairing (legacy MITM bond) and requires this PIN during initial pairing.
 * **passkey_mode** (Optional, string): Passkey security mode. `legacy` (default) uses legacy MITM bonding — tested and recommended for Windows. `secure_connections` uses LE Secure Connections MITM bonding — required for iOS passkey pairing (legacy mode does not work on iOS). Android does not support passkey pairing with BLE HID keyboards.
-* **web_control** (Optional, bool): Enable a built-in web control page with keyboard and mouse UI at `http://<device-ip>/ble_keyboard`. Requires the `web_server` component. Defaults to `false`.
+* **web_control** (Optional, bool): Enable a built-in web control page with keyboard and mouse UI at `http://<device-ip>/ble_keyboard`. Requires the `web_server` component. Defaults to `false`. The page and its endpoints are **open to anything that can reach the device** unless you give `web_server:` an `auth:` block — see [Securing the web control page](#securing-the-web-control-page).
+* **web_host_check** (Optional, bool): Refuse requests addressed to a host name this device does not answer to. An IP address, any `.local` name, and any name with no dot in it (a short DHCP host name) all pass; add anything else with `web_allowed_hosts`. Defaults to `true`. This is what stops a website re-pointing its own domain at your device and having your browser drive the keyboard from there, so leave it on unless a reverse proxy needs otherwise. See [Securing the web control page](#securing-the-web-control-page).
+* **web_allowed_hosts** (Optional, string or list): Extra host names that count as this device — a reverse proxy's domain, a DNS entry, whatever your setup uses. Names here are trusted as fully as the device's own address, so list only ones you control. Ignored when `web_host_check` is `false`.
+* **web_allow_framing** (Optional, bool): Allow the page to be shown inside a frame — an `iframe` card on a dashboard, for instance. Defaults to `false`, because a framed page is still on its own origin: every same-origin check the device makes is satisfied while the click that triggered it belongs to whoever built the frame. Turn it on only for a dashboard you run yourself.
 * **api_services** (Optional, bool): Auto-register all documented Home Assistant services (`run_action`, `run_macro`, `send_string`, `send_key`, `send_consumer`, `mouse_move`, `mouse_scroll`, `mouse_click`, `mouse_hold`, `mouse_release`, `mouse_abs`, `set_battery_level`, `switch_host`, `forget_host`) directly from the component — no `api: services:` yaml needed, and the HA cards work out of the box. Requires the `api:` component. Defaults to `false`. **Don't combine with the manual `api: services:` snippets below** — you'd register the same service names twice; delete the manual copies when enabling this. See [Home Assistant services](#home-assistant-services).
-* **ha_action** (Optional, bool): Allow the `ha_action:` prefix to fire Home Assistant actions from the device — how a remote key reaches things BLE can't, such as an IR blaster's `remote.send_command`. Requires the `api:` component (`api: homeassistant_services: true` is enabled automatically) and Home Assistant's own per-device permission. Defaults to `false` — the web page is unauthenticated, so this is a deliberate opt-in. See [Calling Home Assistant Actions](#calling-home-assistant-actions).
+* **ha_action** (Optional, bool): Allow the `ha_action:` prefix to fire Home Assistant actions from the device — how a remote key reaches things BLE can't, such as an IR blaster's `remote.send_command`. Requires the `api:` component (`api: homeassistant_services: true` is enabled automatically) and Home Assistant's own per-device permission. Defaults to `false` — the web page is unauthenticated unless you set that up, so this is a deliberate opt-in. See [Calling Home Assistant Actions](#calling-home-assistant-actions).
 * **host_slots** (Optional, int): Number of host slots for multi-host switching (1–10). Each slot can store a bonded host. Switch between hosts using buttons, HA services, or the web control page. Defaults to `4`.
 * **mouse_sensitivity** (Optional, float): Web mouse base movement multiplier. Defaults to `1.0`. Range: 0.1–10.0.
 * **mouse_acceleration** (Optional, float): Web mouse speed-based acceleration factor. Defaults to `0.15`. Range: 0.0–2.0.
@@ -313,7 +321,7 @@ binary_sensor:
 * **mouse_goto_scale_x** / **mouse_goto_scale_y** (Optional, float): Per-axis override of `mouse_goto_scale`. X and Y often need **different** values (a host can scale the axes differently), so calibrate each independently. Range: 0.05–20.0. Easiest to dial in live via the web Position Finder, which also saves the values per host. See [Absolute mouse positioning](#absolute-mouse-positioning).
 * **custom_text_id** (Optional, ID or list of IDs): Link one or more ESPHome `text` entities for custom text input. Automatically registers a "Send" button in the web UI for each. Use `send_custom_text` or `send_custom_text:N` action to trigger.
 * **expose_buttons** (Optional, boolean): List every non-internal ESPHome `button` in your config on the [web control page](#pressing-other-esphome-buttons), so it can reach things BLE can't — Wake-on-LAN, a relay, a restart. Defaults to `true`.
-* **hide_buttons** (Optional, ID or list of IDs): Buttons to keep *off* the web page. The page has no authentication, so use this for anything destructive (`factory_reset`, `restart`). Hidden buttons also refuse to run if their action is typed by hand.
+* **hide_buttons** (Optional, ID or list of IDs): Buttons to keep *off* the web page. Anything listed there can be pressed by whoever can reach the device — and unless you have set up authentication, that is anyone on the network — so use this for anything destructive (`factory_reset`, `restart`, `safe_mode`). The device logs a warning at startup if it finds such a button exposed. Hidden buttons also refuse to run if their action is typed by hand.
 * **battery_level** (Optional, ID): A sensor whose value (0–100) is published over the BLE Battery Service, so the host's Bluetooth settings show the keyboard's real charge. Any sensor reading a percentage will do — an ADC with a calibration filter, a fuel-gauge IC, a template sensor. Values outside 0–100 are clamped and an unavailable reading is ignored rather than sent as 0%. Without this the service is still advertised and reports a fixed 100%. See [Battery level](#battery-level).
 * **keyboard_layout** (Optional, string): Default keyboard layout. One of `us` (default), `uk`, `de`, `be`. Controls how `send_string` maps each character to USB HID keycodes — must match the *host's* keyboard layout. Can be overridden at runtime from the web UI (persisted to NVS, survives reboot). See [Keyboard layouts](#keyboard-layouts) below.
 * **hosts** (Optional, list): Per-slot passkey and pairing mode overrides. Each entry has:
@@ -1144,7 +1152,7 @@ button:
     id: button_wake_on_lan_m70f
 ```
 
-> **The web page has no authentication.** Anyone who can reach it on your network can press any listed button, so keep destructive ones off it with `hide_buttons`. Hidden buttons are also rejected if their action is typed into a macro by hand.
+> **Unless you have set up authentication, anyone who can reach the page can press any listed button** — and the button listing itself hands out the names to press. Keep destructive ones off it with `hide_buttons`; the device logs a warning at startup if it finds one exposed. Hidden buttons are also rejected if their action is typed into a macro by hand. See [Securing the web control page](#securing-the-web-control-page).
 >
 > ```yaml
 > espidf_ble_keyboard:
@@ -1271,7 +1279,7 @@ Syntax rules:
 * It chains and alternates like any action: `alternate:consumer:0x30 || ha_action:remote.send_command;entity_id=remote.tv;command=power` sleeps over BLE one press and wakes over IR the next. One caveat: within a single chain, `ha_action` steps are handed to HA at the **end** (`delay:` blocks the loop they queue on), so space out repeated IR commands with the action's own data — `num_repeats`, `delay_secs`, `hold_secs` — not with `delay:` between two `ha_action` steps.
 * Overrides and macros cap at 255 characters, so a raw `b64:` IR payload doesn't fit — teach the blaster the command and call it by name instead.
 
-> **The web page has no authentication**, and `ha_action:` reaches whatever HA lets the device call — which is why it is off by default. Enable it on a trusted network only, the same consideration as `hide_buttons` above.
+> `ha_action:` reaches whatever HA lets the device call, and the web page is open to the network unless you have given it a password — which is why this is off by default. Enable it on a trusted network, or alongside [authentication](#securing-the-web-control-page).
 
 ---
 
@@ -1619,6 +1627,10 @@ A built-in web page with full keyboard and mouse control, served directly from t
 ```yaml
 web_server:
   port: 80
+  # Strongly recommended — without it the page is open to your whole network.
+  # auth:
+  #   username: !secret web_username
+  #   password: !secret web_password
 
 espidf_ble_keyboard:
   id: my_keyboard
@@ -1626,6 +1638,9 @@ espidf_ble_keyboard:
 ```
 
 2. Flash and open `http://<device-ip>/ble_keyboard` in any browser or phone.
+
+The page can drive the computer you have paired, so read
+[Securing the web control page](#securing-the-web-control-page) before you leave it open.
 
 ### Web Control Link in Home Assistant
 
@@ -1780,24 +1795,73 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/remote_tpl_delete` | POST | `index` (int) | Delete a custom style. Hosts pointing at it fall back to the full remote |
 | `/api/ble_keyboard/hold_action` | POST | `action` (string) | Press and hold an action now — `400` if it isn't something that can be held |
 | `/api/ble_keyboard/release` | POST | — | Release everything held: keys, consumer usage and mouse buttons |
-| `/api/ble_keyboard/backup` | GET | — | All runtime settings as JSON: macros, saved overrides, layout, per-host calibration, and occupied host slots (with a `bonded` flag) |
+| `/api/ble_keyboard/backup` | GET | — | All runtime settings as JSON: macros, saved overrides, layout, per-host calibration, and occupied host slots (with a `bonded` flag). **Refuses cross-site requests** — see [Securing the web control page](#securing-the-web-control-page) |
 | `/api/ble_keyboard/goto_scale_slot` | POST | `slot`, `x`, `y` | Write `mouse_goto` calibration for any slot (`goto_scale` only writes the active one) |
 | `/api/ble_keyboard/set_host_slot` | POST | `slot`, `addr`, `type` | Restore a host slot's address. Returns `OK-NOBOND` if the BLE bond is missing, meaning that host must be re-paired |
 
 Example: `curl -X POST "http://<device-ip>/api/ble_keyboard/string?keys=Hello"`
 
+### Securing the web control page
+
+**This page types on a computer you are logged into. Treat reaching it as reaching that keyboard.**
+
+The first item below is the one that decides *who* may use the device, and it is the only one you
+have to set up. The rest are on by default and stop a website turning your own browser against the
+device — worth understanding, but none of them is a substitute for the first.
+
+**Give it a username and password.** `web_server:` has an `auth:` block, and it covers this
+component's page and every endpoint it serves — the handler is registered through the web server,
+so it sits behind the same login as the rest of the ESPHome UI:
+
+```yaml
+web_server:
+  port: 80
+  auth:
+    username: !secret web_username
+    password: !secret web_password
+```
+
+Two things worth knowing. The default scheme sends the password in an easily reversible form, so
+prefer `type: digest` under `auth:` if your ESPHome is recent enough to offer it. And there is no
+HTTPS at any setting — on the wire, the password and everything typed are in the clear, which is
+one more reason the device belongs on a network you trust rather than on the open internet.
+
+Turning auth on does **not** break the Home Assistant cards. They read the device directly only to
+populate the host bar, and they already fall back to the component's sensors when that read fails.
+
 **Requests from other websites are refused.** These `POST` endpoints take their parameters in the
 query string, which is exactly the shape a browser will send to another host without asking
 permission first — so any page you happened to have open could have typed on your paired computer.
-The device now refuses a `POST` that the browser marks as coming from somewhere else, using a
-header the browser sets and page scripts cannot fake. `GET` endpoints are unaffected, so the Home
-Assistant cards keep working.
+The device refuses a `POST` that the browser marks as coming from somewhere else, using a header
+the browser sets and page scripts cannot fake. Requests that carry no such header — `curl`,
+scripts, Home Assistant automations — are allowed, so every example on this page still works. That
+is deliberate: those callers could already reach the device directly, and refusing them would break
+documented usage without protecting anything.
 
-Requests that carry no such header — `curl`, scripts, Home Assistant automations — are allowed, so
-every example on this page still works. That is deliberate: those callers could already reach the
-device directly, and refusing them would break documented usage without protecting anything. This
-closes the "a web page turns your browser against you" route and nothing more; **on a network you
-don't trust, the thing that actually protects the device is still `web_server:` authentication.**
+**The page cannot be put in a frame,** which is the other way that check could be walked around: a
+page inside a frame is on its own origin, so its requests look entirely legitimate while the clicks
+that trigger them belong to whoever built the frame. If you deliberately embed the page in a
+dashboard of your own, `web_allow_framing: true` lifts this — knowing that it lifts it for every
+site, not only yours.
+
+**Requests addressed to a name the device doesn't answer to are refused.** That closes the third
+way: a site can point its own domain at your device's address, after which the browser treats its
+requests as same-origin because, as far as it can tell, they are. The name it was addressed by is
+what gives it away — an attacker's has to be a domain they own, and every one of those has a dot in
+it. So an IP address, a `.local` name, and a short host name with no dot all pass; if something
+else fronts the device — a reverse proxy, a DNS entry of your own — name it in
+`web_allowed_hosts`, or turn the check off with `web_host_check: false`. A refusal is logged with
+the name that was rejected.
+
+**Reads are more open than writes.** The Home Assistant cards fetch the host list from the device
+across origins, which only works because the web server allows it for every `GET` — so the host
+list, and the rest of the device's read-only endpoints, can be read by any page in any tab. Two
+exceptions are gated like the writes: the [identity key](#identity-key-irk), and `/backup`, which
+would otherwise hand over every macro, override and paired address in one document. Authentication
+is what closes the rest.
+
+**Don't forward a port to this device.** If you need it from outside the house, reach it over a VPN
+or through Home Assistant's own remote access.
 
 ### Identity key (IRK)
 

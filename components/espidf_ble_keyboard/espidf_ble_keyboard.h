@@ -378,6 +378,21 @@ class EspidfBleKeyboard : public Component
   }
   const uint8_t *web_page() const { return web_page_; }
   size_t web_page_size() const { return web_page_size_; }
+
+  /// Whether the handler checks that Host names this device — the part of the
+  /// cross-origin defence a rebinding attack would otherwise walk through.
+  /// Off for setups the check cannot anticipate, a reverse proxy above all.
+  void set_web_host_check(bool on) { web_host_check_ = on; }
+  bool web_host_check() const { return web_host_check_; }
+  /// Extra names this device answers to, beyond an address literal and .local.
+  void add_web_allowed_host(const std::string &host) { web_allowed_hosts_.push_back(host); }
+  const std::vector<std::string> &web_allowed_hosts() const { return web_allowed_hosts_; }
+
+  /// Whether the page may be embedded in a frame. Off by default: a framed page
+  /// is still on its own origin, so a click on the framing site reaches this
+  /// keyboard with every same-origin check satisfied.
+  void set_web_allow_framing(bool on) { web_allow_framing_ = on; }
+  bool web_allow_framing() const { return web_allow_framing_; }
 #endif
 
   void set_paired_binary_sensor(binary_sensor::BinarySensor *sensor) {
@@ -778,6 +793,9 @@ class EspidfBleKeyboard : public Component
   BleKeyboardWebControl *web_control_{nullptr};
   const uint8_t *web_page_{nullptr};
   size_t web_page_size_{0};
+  bool web_host_check_{true};
+  bool web_allow_framing_{false};
+  std::vector<std::string> web_allowed_hosts_;
 #endif
 
   // RSSI state (interval/timing/callbacks stay protected — only touched by member functions)
@@ -854,6 +872,15 @@ class EspidfBleKeyboard : public Component
   // stack when macros reference each other.
   static const uint8_t MAX_MACRO_DEPTH = 4;
   uint8_t macro_depth_{0};
+  // Nesting depth for action strings themselves. repeat:, alternate: and the
+  // '|' split all call back into execute_action(), and nothing bounded that:
+  // the per-level repeat cap multiplies through nesting rather than limiting
+  // it, so a string short enough to fit in one request could recurse far deeper
+  // than the web server task's stack — measured at ~860 bytes free — and run
+  // off the end of it before typing a single key. Eight is past anything
+  // written by hand and well short of what the stack can carry.
+  static const uint8_t MAX_ACTION_DEPTH = 8;
+  uint8_t action_depth_{0};
 };
 
 class EspidfBleKeyboardButton : public button::Button, public Component {
