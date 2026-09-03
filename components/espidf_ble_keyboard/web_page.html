@@ -713,12 +713,52 @@ function pollEvery(fn,ms){
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)fn()});
 }
 
+// Every POST on this page goes through here, and every one of them sends its
+// parameters in the request *body* rather than in the query string.
+//
+// The device parses the request line and all of the request headers into a
+// single 1024-byte buffer, so a long query string is not competing with a limit
+// of its own — it is competing with the browser's own headers for that one
+// budget, and a browser sends a great many of them (user agent, the sec-ch-ua
+// set, accept, referer, origin, and an Authorization header once the page has a
+// password). Cross it and the server answers "Header fields are too long"
+// before any handler runs, which is what saving a macro of about 130 characters
+// did on a phone while the same macro saved from a desktop. Shortening the
+// macro is not the fix: the headroom depends on the browser, so the same macro
+// works on one device and not another.
+//
+// The body is received separately and has a 1024-byte budget entirely of its
+// own, and the device reads parameters from the body before the query string —
+// so nothing on the device changes, and curl calls that pass ?args keep working.
+//
+// `opts` is merged last, for the callers that need an AbortSignal.
+function apiPost(endpoint,params,opts){
+  return fetch('/api/ble_keyboard/'+endpoint,
+               Object.assign({method:'POST'},
+                             params?{body:new URLSearchParams(params)}:null,
+                             opts));
+}
+
+// What one character costs in a body apiPost sends, for the two places that
+// have to split a long value into requests that fit. URLSearchParams leaves
+// only A-Z a-z 0-9 * - . _ as they are, writes a space as '+', and percent-
+// encodes everything else a byte at a time.
+//
+// encodeURIComponent is not a substitute, though it reads like one: it leaves
+// ! ' ( ) ~ alone, so a paste made of those would measure three times short and
+// build a request the device refuses. Iterating with for..of gives whole code
+// points, so an emoji is counted once, as its four bytes.
+function formLen(ch){
+  if(ch===' ')return 1;
+  if(/^[A-Za-z0-9*\-._]$/.test(ch))return 1;
+  return 3*new TextEncoder().encode(ch).length;
+}
+
 // API helper
 function api(endpoint,params){
   if(recSteps)recordStep(endpoint,params);
   else if(POPOUT)recForward(endpoint,params);
-  const url='/api/ble_keyboard/'+endpoint+'?'+new URLSearchParams(params);
-  fetch(url,{method:'POST'}).catch(()=>{});
+  apiPost(endpoint,params).catch(()=>{});
 }
 
 // The popped-out remote is a genuinely separate window — window.open() of
@@ -1320,7 +1360,7 @@ function rememberedTemplate(){
           // this one is over. If the switch fails, the next poll puts it back.
           if(window.applyTemplate)window.applyTemplate(s.tpl||'default');
           if(window.onRemoteFitNow)window.onRemoteFitNow();
-          fetch('/api/ble_keyboard/switch_host?'+new URLSearchParams({slot:s.slot}),{method:'POST'})
+          apiPost('switch_host',{slot:s.slot})
             .then(loadHosts).catch(()=>{});
         },'active');
         bar.appendChild(b);
@@ -1521,7 +1561,7 @@ function appendStep(el,val){
                   +'(run_macro, execute_macro) will point at a different macro. '
                   +'macro:'+b.name+' style references are unaffected.';
             if(confirm(msg)){
-              fetch('/api/ble_keyboard/macro_delete?'+new URLSearchParams({index:b.index}),{method:'POST'}).then(()=>{
+              apiPost('macro_delete',{index:b.index}).then(()=>{
                 if(editIdx===b.index){editIdx=-1;nameIn.value='';actIn.value=''}
                 loadButtons();
               });
@@ -1584,7 +1624,7 @@ function appendStep(el,val){
     if(!n||!a){alert('Name and action are required');return}
     const ep=editIdx>=0?'macro_update':'macro_add';
     const p=editIdx>=0?{index:editIdx,name:n,action:a}:{name:n,action:a};
-    fetch('/api/ble_keyboard/'+ep+'?'+new URLSearchParams(p),{method:'POST'}).then(r=>{
+    apiPost(ep,p).then(r=>{
       if(!r.ok)return r.text().then(t=>{alert(t)});
       nameIn.value='';actIn.value='';presetSel.value='';editIdx=-1;
       loadButtons();
@@ -1691,7 +1731,7 @@ function appendStep(el,val){
           db.className='macro-act del';db.textContent='✕';db.title='Delete (revert to YAML/built-in)';
           db.addEventListener('click',()=>{
             if(confirm('Delete override "'+it.name+'" on slot '+slot+'?')){
-              fetch('/api/ble_keyboard/override_clear?'+new URLSearchParams({slot:slot,name:it.name}),{method:'POST'}).then(load);
+              apiPost('override_clear',{slot:slot,name:it.name}).then(load);
             }
           });
           row.appendChild(db);
@@ -1742,7 +1782,7 @@ function appendStep(el,val){
   saveBtn.addEventListener('click',()=>{
     const n=nameIn.value.trim(),a=actIn.value.trim();
     if(!n||!a){alert('Action name and replacement are required');return}
-    fetch('/api/ble_keyboard/override_set?'+new URLSearchParams({slot:slot,name:n,action:a}),{method:'POST'}).then(r=>{
+    apiPost('override_set',{slot:slot,name:n,action:a}).then(r=>{
       if(!r.ok)return r.text().then(t=>{alert(t)});
       nameIn.value='';actIn.value='';
       load();
@@ -1825,7 +1865,7 @@ function appendStep(el,val){
 
   if(hidSave)hidSave.addEventListener('click',()=>{
     const off=[...hidList.querySelectorAll('input')].filter(c=>!c.checked).map(c=>c.dataset.action);
-    fetch('/api/ble_keyboard/hidden_set?'+new URLSearchParams({slot:slot,names:off.join(',')}),{method:'POST'})
+    apiPost('hidden_set',{slot:slot,names:off.join(',')})
       .then(r=>{
         if(!r.ok)return r.text().then(t=>{alert(t)});
         if(window.applyHidden)window.applyHidden(true);
@@ -1873,8 +1913,8 @@ function appendStep(el,val){
   const rptSave=document.getElementById('rpt-save');
   if(rptSave)rptSave.addEventListener('click',()=>{
     const on=[...rptList.querySelectorAll('input:not(:disabled)')].filter(c=>c.checked).map(c=>c.dataset.action);
-    fetch('/api/ble_keyboard/repeat_set?'+new URLSearchParams({
-        slot:slot,delay:rptDelayIn.value,rate:rptRateIn.value,names:on.join(',')}),{method:'POST'})
+    apiPost('repeat_set',{
+        slot:slot,delay:rptDelayIn.value,rate:rptRateIn.value,names:on.join(',')})
       .then(r=>{
         if(!r.ok)return r.text().then(t=>{alert(t)});
         // Re-read rather than trust the inputs: the device clamps the timings,
@@ -1887,7 +1927,7 @@ function appendStep(el,val){
 
   const rptReset=document.getElementById('rpt-reset');
   if(rptReset)rptReset.addEventListener('click',()=>{
-    fetch('/api/ble_keyboard/repeat_set?'+new URLSearchParams({slot:slot,reset:'1'}),{method:'POST'})
+    apiPost('repeat_set',{slot:slot,reset:'1'})
       .then(r=>{
         if(!r.ok)return r.text().then(t=>{alert(t)});
         if(window.applyRepeat)window.applyRepeat(true);
@@ -1926,7 +1966,7 @@ function appendStep(el,val){
   const hldSave=document.getElementById('hld-save');
   if(hldSave)hldSave.addEventListener('click',()=>{
     const on=[...hldList.querySelectorAll('input:not(:disabled)')].filter(c=>c.checked).map(c=>c.dataset.action);
-    fetch('/api/ble_keyboard/hold_set?'+new URLSearchParams({slot:slot,names:on.join(',')}),{method:'POST'})
+    apiPost('hold_set',{slot:slot,names:on.join(',')})
       .then(r=>{
         if(!r.ok)return r.text().then(t=>{alert(t)});
         if(window.applyHold)window.applyHold(true);
@@ -2017,8 +2057,7 @@ function appendStep(el,val){
     // Stored empty for the default: an unset slot and one explicitly set back
     // to the full remote are the same thing, and empty is what the firmware
     // erases rather than keeps.
-    fetch('/api/ble_keyboard/remote_style_set?'+new URLSearchParams({slot:slot,id:id==='default'?'':id}),
-          {method:'POST'})
+    apiPost('remote_style_set',{slot:slot,id:id==='default'?'':id})
       .then(r=>{
         if(!r.ok)return r.text().then(t=>{tplNote(t,true)});
         slotTpl[slot]=id==='default'?'':id;
@@ -2213,22 +2252,21 @@ function appendStep(el,val){
     return '';
   }
 
-  // Uploaded in pieces: the device's web server takes 512 bytes of URL, and a
-  // style's JSON is several times that once encoded. Same chunking rule as the
-  // paste bar — measure with encodeURIComponent, which is what actually goes
+  // Uploaded in pieces: the device's web server takes 1024 bytes of request
+  // body, and a style's JSON is several times that once encoded. Same chunking
+  // rule as the paste bar — measure with formLen(), which is what actually goes
   // on the wire. seq 0 starts a fresh upload, so a failed one needs no cleanup.
   function uploadTpl(index,text){
     const parts=[];let cur='',len=0;
     for(const ch of text){
-      const el=encodeURIComponent(ch).length;
+      const el=formLen(ch);
       if(len+el>380&&cur){parts.push(cur);cur='';len=0}
       cur+=ch;len+=el;
     }
     if(cur)parts.push(cur);
     let chain=Promise.resolve();
     parts.forEach((p,i)=>{
-      chain=chain.then(()=>fetch('/api/ble_keyboard/remote_tpl_chunk?seq='+i+'&data='+encodeURIComponent(p),
-                                 {method:'POST'})
+      chain=chain.then(()=>apiPost('remote_tpl_chunk',{seq:i,data:p})
         .then(r=>r.text().then(t=>{if(!r.ok)throw new Error(t);})));
     });
     return chain.then(()=>post('remote_tpl_save',{index:index}));
@@ -2459,7 +2497,7 @@ function appendStep(el,val){
 
   // POST a restore step; reject on a non-OK so the run stops with a clear cause.
   function post(ep,params){
-    return fetch('/api/ble_keyboard/'+ep+'?'+new URLSearchParams(params),{method:'POST'})
+    return apiPost(ep,params)
       .then(r=>r.text().then(t=>{
         if(!r.ok)throw new Error(ep+': '+t);
         return t;
@@ -2813,8 +2851,8 @@ function buildKeyboard(){
     // lands leaves the key down on the host, and the device then swallows both a
     // re-hold and a tap of that key — one lost packet and that key goes quiet
     // while every other one keeps working.
-    chainOp(()=>fetch('/api/ble_keyboard/release',{method:'POST'})
-      .catch(()=>fetch('/api/ble_keyboard/release',{method:'POST'}).catch(()=>{})));
+    chainOp(()=>apiPost('release')
+      .catch(()=>apiPost('release').catch(()=>{})));
     clearStickyMods();
   }
   function startKeyHold(k,el){
@@ -2837,10 +2875,10 @@ function buildKeyboard(){
       // may well have been carried out — and a key left down is not a key that
       // simply does not repeat, it is one that goes dead, because the device
       // drops both a re-hold and a tap of a key it already holds.
-      if(lift)chainOp(()=>fetch('/api/ble_keyboard/release',{method:'POST'}).catch(()=>{}));
+      if(lift)chainOp(()=>apiPost('release').catch(()=>{}));
       api(r.ep,r.params);clearStickyMods();
     };
-    chainOp(()=>fetch('/api/ble_keyboard/hold_key?'+new URLSearchParams(p),{method:'POST'})
+    chainOp(()=>apiPost('hold_key',p)
       // Nothing this layout can hold — a dead key, most often, which is two
       // strokes and so has no single key to leave down. The key still works, it
       // just does not repeat.
@@ -2943,7 +2981,7 @@ function buildKeyboard(){
   // left a key down on the device, and that key is dead — a re-hold is a no-op
   // and even a tap of it is dropped from the report — until something lifts it.
   // Reloading the page is the first thing anyone tries, so make it the cure.
-  fetch('/api/ble_keyboard/release',{method:'POST'}).catch(()=>{});
+  apiPost('release').catch(()=>{});
 }
 
 function toggleMod(mod){
@@ -3029,7 +3067,7 @@ buildKeyboard();
   }
   sel.addEventListener('change',()=>{
     const id=sel.value;
-    fetch('/api/ble_keyboard/set_layout?'+new URLSearchParams({id}),{method:'POST'}).then(r=>{
+    apiPost('set_layout',{id}).then(r=>{
       if(r.ok)apply(id);else alert('Layout switch failed');
     }).catch(()=>{});
   });
@@ -3060,13 +3098,13 @@ buildKeyboard();
   // CRLF and bare CR both become LF — the firmware maps BOTH to Enter, so
   // Windows clipboard text would double-Enter without this.
   function norm(t){return t.replace(/\r\n/g,'\n').replace(/\r/g,'\n')}
-  // The whole URL must fit the device's 512-byte buffer. The fetch below uses
-  // encodeURIComponent, so measuring chunks with it is exact; ~420 bytes of
-  // encoded keys= value leaves headroom for the path.
+  // The whole body must fit the device's 1024-byte buffer. formLen() measures
+  // exactly what apiPost puts on the wire; ~420 bytes of encoded keys= value
+  // leaves the rest of the budget spare.
   function chunks(t){
     const out=[];let cur='',len=0;
     for(const ch of t){
-      const el=encodeURIComponent(ch).length;
+      const el=formLen(ch);
       if(len+el>420&&cur){out.push(cur);cur='';len=0}
       cur+=ch;len+=el;
     }
@@ -3093,7 +3131,7 @@ buildKeyboard();
     (function next(){
       if(i>=parts.length){done(true);return}
       if(parts.length>1)sendBtn.textContent=(i+1)+'/'+parts.length+'…';
-      fetch('/api/ble_keyboard/string?keys='+encodeURIComponent(parts[i]),{method:'POST'}).then(r=>{
+      apiPost('string',{keys:parts[i]}).then(r=>{
         if(!r.ok)throw new Error('HTTP '+r.status);
         i++;
         // 35ms+ between chunks: send_string drops an identical string repeated
@@ -3148,7 +3186,7 @@ buildKeyboard();
     if(dx===0&&dy===0)return;
     const cx=Math.max(-127,Math.min(127,dx)),cy=Math.max(-127,Math.min(127,dy));
     accumX-=dx;accumY-=dy;moved=true;sendBusy=true;
-    fetch('/api/ble_keyboard/mouse_move?'+new URLSearchParams({x:cx,y:cy}),{method:'POST',signal:moveAC.signal})
+    apiPost('mouse_move',{x:cx,y:cy},{signal:moveAC.signal})
       .catch(()=>{}).finally(()=>{sendBusy=false;flushMove()});
   }
   function onMove(x,y){
@@ -3197,7 +3235,7 @@ buildKeyboard();
     const s=Math.trunc(wheelAccum);
     if(s===0)return;
     wheelAccum-=s;wheelBusy=true;
-    fetch('/api/ble_keyboard/mouse_scroll?'+new URLSearchParams({amount:Math.max(-127,Math.min(127,s))}),{method:'POST'})
+    apiPost('mouse_scroll',{amount:Math.max(-127,Math.min(127,s))})
       .catch(()=>{}).finally(()=>{wheelBusy=false;flushWheel()});
   }
   pad.addEventListener('wheel',e=>{
@@ -3283,7 +3321,7 @@ buildKeyboard();
   function endHold(){
     if(!holdEl)return;
     holdEl.classList.remove('held');holdEl=null;
-    fetch('/api/ble_keyboard/release',{method:'POST'}).catch(()=>{});
+    apiPost('release').catch(()=>{});
   }
   // Puts a button down on the host and keeps it there. Shared by the pointer
   // and keyboard paths so the fallback exists once: 400 means this host
@@ -3293,7 +3331,7 @@ buildKeyboard();
     endHold();  // a second finger, or a second key: only one hold at a time
     holdEl=el;el.classList.add('held');
     const drop=()=>{el.classList.remove('held');if(holdEl===el)holdEl=null};
-    fetch('/api/ble_keyboard/hold_action?'+new URLSearchParams({action:act}),{method:'POST'})
+    apiPost('hold_action',{action:act})
       .then(r=>{if(!r.ok){drop();api('press',{action:act})}})
       .catch(drop);
   }

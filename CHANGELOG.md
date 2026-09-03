@@ -111,6 +111,12 @@ web control page shows the matching version badge.
   once it is on, and the examples now say so.
 
 ### Fixed
+- **Saving a longer macro no longer fails with an error about header fields.** Everything the page
+  saved travelled in the URL, which shares one buffer on the device with the browser's own headers —
+  so a macro of around 130 characters was refused before it ever reached the device on a phone, while
+  the same macro saved fine from a desktop. Saves now travel in the request body, which has a budget
+  of its own. Long hidden-button, hold-to-repeat, paste and custom-style saves were at the same risk.
+
 - **Host addresses are no longer cut off on a phone.** The host list was laid out in a fixed five
   columns, which suits a desktop window but leaves a phone about sixty pixels per entry — half what
   an address needs — so every one was clipped mid-way. The column count now follows the width, so a
