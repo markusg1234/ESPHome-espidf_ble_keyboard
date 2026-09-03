@@ -94,6 +94,12 @@ web control page shows the matching version badge.
   backup, or from the last-used copy in the browser skipped the check entirely. They are checked
   when drawn as well, and two spellings that slipped past before are now caught.
 
+- **Fixed a login prompt that would not go away once the page had a password on it.** Reopening a
+  phone browser could bring the page back from its cache without asking the device for it, so
+  nothing ever logged in — and every background request the page made was challenged separately,
+  stacking one prompt behind another. The page is no longer stored, so reopening it asks the device
+  properly and signs in once. This costs nothing: it was already re-fetched on every load.
+
 - **The build warns about what it cannot protect.** A restart, factory-reset or safe-mode button
   left on the page is named when you compile, so you can decide whether to hide it — and so is a
   control page that no password can be put on, because the config has no web server section for one
@@ -105,6 +111,16 @@ web control page shows the matching version badge.
   once it is on, and the examples now say so.
 
 ### Fixed
+- **Host addresses are no longer cut off on a phone.** The host list was laid out in a fixed five
+  columns, which suits a desktop window but leaves a phone about sixty pixels per entry — half what
+  an address needs — so every one was clipped mid-way. The column count now follows the width, so a
+  phone wraps onto more rows and each entry ends up the same size, and as readable, as on a desktop.
+
+- **Zooming past 100% no longer puts part of the page out of reach.** The page grew outward from its
+  centre, so its left portion ended up somewhere no browser will scroll to: you could pan right, but
+  never back to what had gone off the other side. It now grows right and down from the left edge,
+  which is the only direction anything can be scrolled back from. Nothing changes at 100%.
+
 - **Pressing a second key while holding one now lifts the first.** Only one key's worth of state was
   kept, so a second finger — two thumbs on a phone is the ordinary way to use this — left the first
   key down on the host, repeating underneath whatever was typed next, until that second key was let

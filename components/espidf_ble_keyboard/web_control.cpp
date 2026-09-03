@@ -338,10 +338,23 @@ class BleKbWebHandler : public AsyncWebHandler {
       // they run can say so, and accept what that opens.
       if (!kb_->web_allow_framing())
         response->addHeader("X-Frame-Options", "DENY");
-      // Force the browser to revalidate the page on every load so a firmware
-      // flash always brings UI changes (new layouts, fixes, etc.) without
-      // needing a manual hard-reload.
-      response->addHeader("Cache-Control", "no-cache");
+      // Force the browser to fetch the page on every load so a firmware flash
+      // always brings UI changes (new layouts, fixes, etc.) without needing a
+      // manual hard-reload.
+      //
+      // no-store rather than no-cache, and the difference matters once
+      // `web_server:` has auth. no-cache still lets the page be *stored*, and a
+      // restored tab can come back from that store without a navigation at all —
+      // measured on a phone, where a whole page-init sequence of API calls
+      // arrived with no request for this document anywhere before it. With no
+      // navigation there is no document-level authentication, so the browser
+      // starts with no credential and challenges every one of those API calls
+      // separately, stacking a login prompt for each. What that looks like is a
+      // prompt that will not go away.
+      //
+      // no-store costs nothing here: this response carries no ETag or
+      // Last-Modified, so a revalidation was always a full re-download anyway.
+      response->addHeader("Cache-Control", "no-store");
       request->send(response);
       return;
     }

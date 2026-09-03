@@ -54,7 +54,19 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .kb-paste-btn{padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap;touch-action:manipulation}
 .kb-paste-btn:active{background:var(--active);color:#fff}
 .kb-paste-btn:disabled{opacity:.55;cursor:default}
-.scalable{transform-origin:top center;transition:transform .15s}
+/* top left, everywhere. Zoom grows the page right and down and never off the left edge,
+   which is the only direction a browser can scroll to: scroll positions cannot go negative,
+   so anything scaled past the left edge is unreachable for good. Measured from the centre at
+   200%, the left edge lands at -231px and scrolling right only takes it further away.
+
+   Do not "fix" a wide-window side effect by putting the centre back for wide viewports. That
+   was tried on 2026-09-03 and is worse: it reintroduces the unreachable left half at high
+   zoom, which is the actual defect, to soften a cosmetic one. The known side effect is that
+   a phone asked for the desktop site fits the whole layout width to the screen, so widening
+   the document makes it shrink the page back and the zoom steps feel small. The real answer
+   to that is to stop the zoom changing the document's width at all — scale inside a
+   scrolling container — not to change which way it grows. */
+.scalable{transform-origin:top left;transition:transform .15s}
 .row{display:flex;gap:3px;margin-bottom:3px}
 .row:last-child{margin-bottom:0}
 .k{flex:1;min-width:0;padding:9px 1px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--fg);font-size:12px;font-weight:500;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .08s;outline:none;-webkit-tap-highlight-color:transparent;position:relative}
@@ -173,16 +185,23 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rpt-times{display:flex;flex-wrap:wrap;gap:6px 16px;margin:8px 0}
 .rpt-times label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg)}
 .rpt-times input{width:70px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg);font-size:12px}
-/* Grid, not flex, and deliberately so. Five fixed 1fr columns: the buttons divide the
-   bar's full width between them, so a full row starts and ends on the same 10px padding
-   as the keyboard keys and the touchpad, with no leftover piling up at either end. The
-   5 is the whole knob — change it to fit more or fewer per line.
-   minmax(0,1fr), not a bare 1fr, because 1fr means minmax(auto,1fr) and refuses to
-   shrink below the widest MAC address; on a narrow phone that would push the row wider
-   than the bar. The 0 lets tracks shrink and .host-btn's overflow:hidden clips instead.
-   A short final row leaves its buttons one track wide, left-aligned under the row
-   above — grid places them in the first columns rather than stretching them. */
-.host-bar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+/* Grid, not flex, and deliberately so. The buttons divide the bar's full width between
+   them, so a full row starts and ends on the same 10px padding as the keyboard keys and
+   the touchpad, with no leftover piling up at either end. That is what the 1fr is for,
+   and why the track is not capped: a short row stretches to the same edges as a full one.
+   A short final row still leaves its buttons left-aligned under the row above — grid
+   places them in the first columns.
+
+   The column *count* is not fixed. It used to be five, which fits the 640px body but
+   gives a phone 64px tiles — measured — against the 107px a MAC address needs, so every
+   address was clipped mid-octet. auto-fill takes as many 110px tracks as fit instead:
+   still five on the desktop width (114px tiles, exactly as before) and three on a 390px
+   phone (111px tiles). Same tile, same full address, just wrapped sooner — which is the
+   point, since the two are meant to look alike.
+
+   auto-fill, not auto-fit: auto-fit collapses the empty tracks on a short row and lets
+   the buttons stretch across them, which would make a lone host as wide as the bar. */
+.host-bar{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 /* Width comes from the grid track above, so no flex/max-width here — a lone host on
    the last row is one track wide, it cannot stretch to fill the bar. */
 .host-btn{padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:11px;font-weight:500;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .15s;overflow:hidden}
@@ -190,6 +209,10 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .host-btn.occupied{border-color:var(--accent)}
 .host-btn .slot-label{font-size:11px;color:var(--fg);display:block}
 .host-btn.active .slot-label{color:rgba(255,255,255,.7)}
+/* The address is the secondary line, so a point smaller — and that is also the headroom
+   that keeps it inside the 110px track when the platform font is wider than the one this
+   was measured against. Roboto on a phone is not the desktop's sans-serif. */
+.host-btn .slot-addr{font-size:10px;display:block}
 /* Deliberately NOT the host bar's 5-column grid: these are content-width labels, and
    forcing them into equal columns stretches short ones like Finder into slabs.
    flex-grow passes the toolbar's spare width down to the buttons instead. */
@@ -1275,7 +1298,12 @@ function rememberedTemplate(){
         lbl.className='slot-label';
         lbl.textContent=s.name||('Host '+(s.slot+1));
         b.appendChild(lbl);
-        b.appendChild(document.createTextNode(s.occupied?(s.identity||s.addr):'Empty'));
+        // Its own element rather than a bare text node, so the address can be sized
+        // independently of the name — see .slot-addr.
+        const addr=document.createElement('span');
+        addr.className='slot-addr';
+        addr.textContent=s.occupied?(s.identity||s.addr):'Empty';
+        b.appendChild(addr);
         onTap(b,()=>{
           // Mark the new host at once, then re-read as soon as the device has
           // taken the switch. Without this the page waited for the next 5s poll
