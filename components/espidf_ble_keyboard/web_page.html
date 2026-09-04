@@ -390,7 +390,19 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    centred in its width, so a centre at W/2 lands at k·W/2 once scaled, and every
    zoom above 100% pushed the remote to the right of the window. `top` still, so the
    remote grows downward and its top is never lost. */
-.popout .scalable{padding:2px 0;max-width:none;position:static;width:auto;transform-origin:top center}
+/* No padding: the remote meets the top and bottom edges of its own window. The 2px
+   that used to sit above and below was 4px the window had to be sized to hold, and
+   it showed as a pale strip under the remote — which is the whole of what a window
+   of its own is for not having. The sides never had any. */
+.popout .scalable{padding:0;max-width:none;position:static;width:auto;transform-origin:top center}
+/* And a few pixels of the remote's own background bleeding past its bottom edge,
+   to swallow the rounding. A window resized to a whole number of device pixels
+   comes back a fraction out on a scaled display, and fitInto deliberately leaves
+   errors under 3px alone — correcting them is what used to walk the window across
+   the screen. So the last three pixels are covered rather than chased. A shadow,
+   because it takes the border radius with it and costs no layout, so nothing that
+   measures the remote sees it; the theme's own shadow is kept alongside. */
+.popout .rmt-body{box-shadow:var(--rb-shadow,0 0 #0000),0 4px 0 var(--rb-bg,transparent)}
 .popout #zoomport{overflow:visible}
 .popout #zoomsizer{position:static;width:auto;height:auto}
 .popout .card:not(#media-card){display:none}
@@ -420,7 +432,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.9.0-dev-b</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.9.0-dev</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -3856,7 +3868,15 @@ buildKeyboard();
   // it is the size actually on screen; the 8 is the body's 2px each side plus 4
   // of slack, so a sub-pixel width cannot round up into a scrollbar. Clamped to
   // what still fits on the screen.
-  function fitSize(el){
+  // `extraV` is what the window has to hold above and below the remote itself.
+  // Zero now: a window of its own puts nothing around the remote. It used to be a
+  // hardcoded 4, for 2px of padding since removed, and that 4 was the sliver of
+  // background under the remote — visible until the first click, because an
+  // always-on-top window will not resize without a gesture and armGestureFit only
+  // puts it right on the next one. fitInto still measures the real figure and
+  // passes it, so padding returning here would be accounted for rather than
+  // assumed.
+  function fitSize(el,extraV){
     // The size the remote WANTS, not the size it has been given. A style that
     // paints a body of its own carries a max-width, so the two are the same. A
     // style that paints none is a plain block stretched to whatever holds it —
@@ -3889,9 +3909,18 @@ buildKeyboard();
     // carries the body's 2px above and below, and must: a window asked for the
     // remote's bare height cannot hold the remote plus that padding, and the 4px
     // it is short by is enough to raise a scrollbar over the whole thing.
+    const xv=extraV==null?0:extraV;
+    // Two pixels of slack on the height asked for. A remote drawn at a style zoom
+    // has a fractional height and the browser rounds the window it hands back, so
+    // ceil() on its own still clipped the last row on a real device. The figure is
+    // by eye on the hardware, not from a measurement — a headless screen reports
+    // availHeight 600, so the maxH clamp below bites first and hides the effect
+    // entirely. They cost nothing: they land under a remote whose own background
+    // bleeds past its bottom edge anyway. Only the request is padded — rh stays the
+    // remote's true height, since that is what decides whether it needs scaling.
     return {w:Math.max(100,Math.min(900,Math.ceil(w))),
-            h:Math.max(100,Math.min(maxH,Math.ceil(r.height)+4)),
-            rw:w,rh:r.height+4};
+            h:Math.max(100,Math.min(maxH,Math.ceil(r.height)+xv+2)),
+            rw:w,rh:r.height+xv};
   }
 
   // ── Inside the pop-up window ──
@@ -3905,9 +3934,20 @@ buildKeyboard();
     // page draws the default first and corrects it once /hosts answers, and that
     // should be one resize rather than two. Only for a window opened by script:
     // a bookmarked #remote tab is not ours to resize.
-    let fitT=null,lastFit=null,rmtRO=null;
+    let fitT=null,lastFit=null,rmtRO=null,fitUntil=0;
     window.onRemoteResize=function(){
       if(!window.opener)return;
+      // Ignore what a fit does to the remote while it is doing it. A fit is not
+      // only a resize of the window: it puts the window's zoom back to 1 and, for
+      // a remote too tall for the window it ends up with, scales it down to fit —
+      // both of which change the remote's size, which is precisely what the
+      // observer below is watching for. So the fit called itself again, measured a
+      // remote it had just scaled, asked for a different size, reset the zoom, and
+      // went round again. On a phone, where the window cannot be resized at all,
+      // the loop had nothing to converge on and the remote resized without
+      // stopping — which is why only the long styles showed it: they are the ones
+      // that do not fit and reach the scaling in the first place.
+      if(Date.now()<fitUntil)return;
       clearTimeout(fitT);
       fitT=setTimeout(()=>{
         const b=document.getElementById('rmt-body');
@@ -3926,7 +3966,23 @@ buildKeyboard();
         // transform on #scalable, and a body zoom on top would apply it twice.
         // fitInto measures what the window actually became and corrects it, which
         // is also what finally stops a tall remote sitting behind a scrollbar.
+        //
+        // Long enough to cover fitInto's own two 140ms passes and the reflow each
+        // of them causes, so none of that comes back here as a fresh change.
+        fitUntil=Date.now()+700;
         fitInto(window,b,1);
+        // And remember where the remote actually ended up, not where it was asked
+        // to go. fitInto scales it down when the window will not grow to hold it —
+        // always, on a phone, where a window cannot be resized at all — so the
+        // remote afterwards is a different size from the one recorded above, and
+        // the very next measurement read as a fresh change and set the whole thing
+        // going again. Comparing against where it settled is what makes it stop.
+        setTimeout(()=>{
+          const b2=document.getElementById('rmt-body');
+          if(!b2)return;
+          const s2=fitSize(b2);
+          lastFit={w:s2.w,h:s2.h};
+        },650);
       },250);
     };
     // Once on load for exactly that reason: the size this window was opened at
@@ -4094,14 +4150,33 @@ buildKeyboard();
   function fitInto(win,el,baseZoom){
     const doc=win.document;
     doc.body.style.zoom=baseZoom;
-    const s=fitSize(el);
+    // What this particular window keeps around the remote, measured rather than
+    // assumed: 4px in the pop-up, which pads 2px top and bottom, and none in a
+    // picture-in-picture window — where that assumed 4px was exactly the sliver of
+    // background left showing under the remote.
+    //
+    // Taken from the gap ABOVE the remote and doubled, because that padding is
+    // symmetrical. Not from the document's height: scrollHeight is never less than
+    // the viewport, so in a window that is already too tall it would report the
+    // very gap being closed as padding, ask for the height it already has, and
+    // settle there for good. Capped either way.
+    const rect0=el.getBoundingClientRect();
+    const around=Math.min(40,2*Math.max(0,Math.round(rect0.top+(win.scrollY||0))));
+    const s=fitSize(el,around);
     // A window with no size yet cannot be measured against: the frame and the
     // error would both be computed from nothing, and the wrong size asked for —
     // which the browser then remembers, so the next window opens from there. This
     // is the difference between fitting on a host switch, where the window has
     // been open for a while, and fitting the instant it is created.
     if(!win.innerWidth||!win.innerHeight)return s;
-    let tw=s.w+frameOf(win,0),th=s.h+frameOf(win,1);
+    // A vertical scrollbar sits INSIDE innerWidth, so a window asked for exactly
+    // the remote's width hands the remote that width minus the scrollbar — and
+    // this remote wraps its app row when it loses fifteen pixels, which makes it
+    // taller, which is what raised the scrollbar in the first place. The row then
+    // never unwraps. Asking for the scrollbar's width on top breaks that loop; it
+    // is zero where the browser draws scrollbars over the content.
+    const sbw=Math.max(0,Math.min(40,win.innerWidth-doc.documentElement.clientWidth));
+    let tw=s.w+sbw+frameOf(win,0),th=s.h+frameOf(win,1);
     const w0=win.innerWidth,h0=win.innerHeight;
     // An always-on-top window will not be resized without a user gesture, and a
     // fit on a timer has none: requestWindow spends the activation from the click

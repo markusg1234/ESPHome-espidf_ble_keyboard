@@ -118,6 +118,17 @@ web control page shows the matching version badge.
   once it is on, and the examples now say so.
 
 ### Fixed
+- **A popped-out remote fills its window, instead of leaving a strip of background around it.** The
+  remote used to sit two pixels clear of the top and bottom and now meets them; the window is sized
+  from what it actually has to hold rather than from those two pixels, which the always-on-top window
+  never had — and which it opened too tall by, coming right only once you pressed something, since a
+  window of that kind will not resize until you do; and the last few pixels of any rounding are
+  covered by the remote's own colour rather
+  than chased with another resize, which used to walk the window across the screen. A vertical
+  scrollbar also sits *inside* the window's width, so a window asked for exactly the remote's width
+  handed it fifteen pixels less — the app row wrapped, that made the remote taller, and the scrollbar
+  it raised never went away. That width is now asked for on top.
+
 - **The popped-out remote stays open on a phone instead of closing itself the moment it appears.** The
   page kept an eye on the window it had opened and took the remote back when that window looked
   closed — but a phone opens it as a tab and stops answering questions about it, so it looked closed
