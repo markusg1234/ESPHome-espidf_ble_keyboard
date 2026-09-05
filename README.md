@@ -534,7 +534,7 @@ espidf_ble_keyboard:
 | `"send_custom_text"` | Send the first linked text entity's content. Requires `custom_text_id` in config. |
 | `"send_custom_text:N"` | Send the Nth linked text entity (0-based). E.g. `send_custom_text:1` for the second. |
 
-> `menu`, `exit`, `captions`, `tv`, `guide` and `voice` are standard Consumer Page usages, but that page is patchily implemented — a host that ignores one leaves the button dead. That is what [per-host overrides](#host-actions-per-host-overrides) are for, and it is the same reason `ok` sends Enter rather than Menu Pick.
+> **Some TV-remote keys do nothing on some hosts.** `menu`, `exit`, `captions`, `tv`, `guide` and `voice` are standard HID Consumer Page usages, but hosts implement that page unevenly — one that ignores a usage simply does nothing when its button is pressed. That is what [per-host overrides](#host-actions-per-host-overrides) are for, and it is the same reason `ok` sends Enter rather than Menu Pick.
 
 **From a YAML automation, without a lambda** — any trigger (`on_press`, `on_value`, `on_time`, …) can
 run an action string directly:
