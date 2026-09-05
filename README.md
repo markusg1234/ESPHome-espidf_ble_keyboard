@@ -87,7 +87,7 @@ external_components:
       url: https://github.com/markusg1234/ESPHome-espidf_ble_keyboard.git
       ref: main            # or pin a release tag, e.g. v1.0.0
       path: components
-    refresh: 0s  
+    refresh: 0s
     components: [ espidf_ble_keyboard ]
 
 # Required by `web_control: true` below — it hosts the control page.
@@ -836,7 +836,7 @@ button:
     name: "Forget Host 3"
     action:
       type: forget_host
-      slot: 3            
+      slot: 3
 ```
 
 String action format is also supported: `"switch_host:0"`, `"forget_host:2"`.
@@ -1649,7 +1649,7 @@ The page can drive the computer you have paired, so read
 ### Web Control Link in Home Assistant
 
 Add this sensor to your YAML to get a clickable link in HA that opens the web control page:
- 
+
 ```yaml
 text_sensor:
   - platform: wifi_info
@@ -2155,7 +2155,7 @@ The style id is also on the device's `/hosts` response, which the card already p
 **To bring several across at once, use Export all.** The plain **Export** button copies the one style the stepper is showing — that one is for editing. **Export all** copies *every* custom style on the device as a single JSON list, which is what the card's box wants:
 
 ```yaml
-remote_style_json: '[{"id":"lounge","name":"Lounge box",…},{"id":"study","name":"Study",…}]'
+remote_style_json: '[{"id":"lounge","name":"Lounge box","sections":[["dpad"],["media","play_pause","stop"]]},{"id":"study","name":"Study","sections":[["ring"],["row","volume_up","volume_down","mute"]]}]'
 ```
 
 Paste that in and every custom remote joins the card's dropdown together. There is no need to send them all — one style is enough if that is all your hosts use, and six of them is roughly 6 KB in the card's YAML.

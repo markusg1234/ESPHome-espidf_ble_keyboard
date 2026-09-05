@@ -291,6 +291,12 @@ web control page shows the matching version badge.
   wouldn't validate; the correct type is `paired`. The spare remote buttons were also listed as
   eight when there have been sixteen since v1.8.0.
 
+- **Two README examples couldn't be copied as they stood.** The media button in the main config
+  example had a slash in its name, which ESPHome now substitutes for with a warning on every build
+  and will refuse outright from 2027.7.0; and the remote-style paste example was abridged with an
+  ellipsis, so pasting it into the card gave a JSON error rather than a style. Both carry literal,
+  working values now. Thanks to cendern for the first.
+
 ## v1.8.0 — 2026-08-12
 
 ### Added
