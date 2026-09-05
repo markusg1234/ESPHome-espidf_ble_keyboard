@@ -210,7 +210,7 @@ button:
 
   - platform: espidf_ble_keyboard
     keyboard_id: my_keyboard
-    name: "Play / Pause"
+    name: "Play ⁄ Pause"
     action: "play_pause"
 
   - platform: espidf_ble_keyboard
