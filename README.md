@@ -505,8 +505,6 @@ espidf_ble_keyboard:
 | `"captions"` | Closed Caption (`0x0061`) — subtitles on/off. |
 | `"num0"` … `"num9"` | The keypad, as plain keyboard digits — direct channel entry on a TV, typing a number on a PC. |
 | `"spare1"` … `"spare16"` | Send **nothing** on their own. They exist as names to hang a [per-host override](#host-actions-per-host-overrides) on, for remote keys with no standard HID usage worth guessing — an app launcher, a set-top box's Input, a vendor's own menu. Pressing an unmapped one logs a hint and does nothing. |
-
-> The six keys above are standard Consumer Page usages, but that page is patchily implemented — a host that ignores one leaves the button dead. That is what overrides are for, and it is the same reason `ok` sends Enter rather than Menu Pick.
 | `"left_click"` | Mouse left click. |
 | `"right_click"` | Mouse right click. |
 | `"middle_click"` | Mouse middle click. |
@@ -535,6 +533,8 @@ espidf_ble_keyboard:
 | `"repeat:N:<action>"` | Run `<action>` N times (max 1000). Put it at the start of a macro to repeat the whole sequence, e.g. `repeat:3:combo:0:40 \| delay:200`. |
 | `"send_custom_text"` | Send the first linked text entity's content. Requires `custom_text_id` in config. |
 | `"send_custom_text:N"` | Send the Nth linked text entity (0-based). E.g. `send_custom_text:1` for the second. |
+
+> `menu`, `exit`, `captions`, `tv`, `guide` and `voice` are standard Consumer Page usages, but that page is patchily implemented — a host that ignores one leaves the button dead. That is what [per-host overrides](#host-actions-per-host-overrides) are for, and it is the same reason `ok` sends Enter rather than Menu Pick.
 
 **From a YAML automation, without a lambda** — any trigger (`on_press`, `on_value`, `on_time`, …) can
 run an action string directly:
