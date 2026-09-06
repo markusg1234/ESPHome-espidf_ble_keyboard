@@ -1,13 +1,39 @@
 # Contributing
 
-Maintainer notes for this repository. If you are *using* the component, everything you need is in
-[README.md](README.md) — this file is only about publishing changes from it.
+If you are *using* the component, everything you need is in [README.md](README.md). This file is
+about changing it: the first half is for anyone sending a pull request, the second is the
+maintainer's release process.
 
-For the edit-and-reload loop while working on the Lovelace cards, see
-[Developing the Cards](README.md#developing-the-cards) in the README; that part is useful to anyone
-customising a card, so it stays there.
+## Sending a pull request
+
+Pull requests are welcome. Branch off `main`, and open the request against `main`. Every one is
+read and considered, though not every one is merged — this is a single-maintainer project with its
+own direction.
+
+**Feature ideas are wanted as issues, not as pull requests.** Say what you want it to do and why —
+that part is genuinely useful. I'd rather write the feature myself, so that it fits the design of
+everything around it and stays maintainable by one person. Please don't build one and send it in
+unannounced; that is the surest way to spend an evening on something I then have to turn down.
+Fixes, documentation corrections and small self-contained changes are what a pull request is for.
+
+**Skip the release machinery.** No version bumps — the `?v=` on the imports in [`dist/`](dist/) and
+the `webver` badge in `web_page.html` — and no `CHANGELOG.md` entry. Those move together in one batch
+when a release is cut, so a PR that touches any of them conflicts with the next one. Whether a change
+earns a release is my call, and a fix does not need its own. If it is merged, your commit lands on
+`main` under your own name, and the changelog entry written for it credits you.
+
+**Say what you tested on.** For firmware (`components/espidf_ble_keyboard/`) that means a real build
+and, for anything touching BLE, a real host — name the operating system, because Windows, Android TV
+and iOS each ignore a different part of the HID spec. For the cards (`dist/`) it means a browser and
+a dashboard; see [Developing the Cards](README.md#developing-the-cards) for the reload loop.
+
+**README examples have to survive being pasted**, because that is what they are for. A config
+example must validate exactly as written, and an entity `name:` cannot contain a `/` — ESPHome
+reserves it as a URL path separator, warns today and refuses outright from 2027.7.0.
 
 ## Cutting a release
+
+*Maintainer only — a pull request never needs any of this.*
 
 Once a change is ready, cut a release so HACS users receive it — see [Installing the cards via HACS](README.md#installing-the-cards-via-hacs). Five things move together in the same batch:
 
