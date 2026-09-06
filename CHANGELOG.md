@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
+## v1.9.0 — 2026-09-06
 
 ### Added
 - **A remote style can scale its buttons.** Add `"zoom": "1.25"` to a style's theme and the whole

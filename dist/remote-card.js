@@ -77,7 +77,7 @@
 // `node tools/gen-remote-styles.mjs` after changing styles in web_control.cpp.
 import {
   RMT_BUILTIN, RMT_BTNS, RMT_VARS, RMT_CSS, sectionHtml, validateTpl, themeValueBad,
-} from './remote-styles.js?v=1.8.0';
+} from './remote-styles.js?v=1.9.0';
 
 /**
  * Parse the card's pasted-style box.
