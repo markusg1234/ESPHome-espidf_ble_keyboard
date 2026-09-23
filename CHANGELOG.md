@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
+## v1.12.0 — 2026-09-23
 
 ### Added
 - **Remote keys for switching hosts, and a few more.** Previous, next and last host can sit on the
@@ -43,12 +43,10 @@ web control page shows the matching version badge.
   advertising and waiting for the host or has gone silent, and `/status` reports it.
 
 ### Fixed
-- **A host could be left waiting after a quick run through the hosts.** Stepping to another host
-  within two seconds of the last one carried the previous host's invitation timer into the new one,
-  which then stopped and restarted the advertising the new host was already answering — an Android
-  phone gives up on that and waits to be connected by hand. The keyboard also now notices when it is
-  meant to be connectable and is not advertising at all, and starts again instead of staying silent
-  until the next host switch.
+- **A host could be left waiting after a quick run through the hosts.** Switching again within two
+  seconds could restart the new host's advertising while it was reconnecting, and an Android phone
+  then waited to be connected by hand. A keyboard that should be connectable but has gone silent now
+  starts advertising again by itself.
 
 ## v1.11.0 — 2026-09-19
 
