@@ -488,6 +488,7 @@
       <tr><td><code>"channel_up"</code> / <code>"channel_down"</code></td><td class="desc">Channel surf — Page Up / Page Down keypress.</td></tr>
       <tr><td><code>"brightness_up"</code> / <code>"brightness_down"</code></td><td class="desc">Screen brightness (<code>0x006F</code> / <code>0x0070</code>) on phones, tablets and laptops. An external monitor ignores it.</td></tr>
       <tr><td><code>"backspace"</code></td><td class="desc">Keyboard Backspace — correcting a digit or a TV search box.</td></tr>
+      <tr><td><code>"caps_lock"</code> / <code>"caps_lock:on"</code> / <code>"caps_lock:off"</code></td><td class="desc">Tap Caps Lock, or set it: on and off tap only when the host reports it the other way. Typed text comes out as written whatever the host's Caps Lock — except on macOS and iPadOS, where <code>caps_lock:off</code> first is the fix.</td></tr>
       <tr><td><code>"color_red"</code> / <code>"color_green"</code> / <code>"color_yellow"</code> / <code>"color_blue"</code></td><td class="desc">Coloured remote keys — F1–F4.</td></tr>
       <tr><td><code>"app_explorer"</code> / <code>"app_browser"</code> / <code>"app_email"</code> / <code>"app_calc"</code></td><td class="desc">App launch keys (<code>0x0194</code>, <code>0x0223</code>, <code>0x018A</code>, <code>0x0192</code>).</td></tr>
       <tr><td><code>"consumer:0x0192"</code></td><td class="desc">Send any HID consumer control code — open apps, control brightness and more. See keycode reference.</td></tr>
@@ -515,6 +516,7 @@
       <tr><td><code>"prev_host"</code> / <code>"next_host"</code> / <code>"last_host"</code></td><td class="desc">The same three as remote keys a style can place, remappable per host.</td></tr>
       <tr><td><code>"next_keyboard"</code> / <code>"prev_host_all"</code> / <code>"next_host_all"</code></td><td class="desc">Web page remote only: move the tab to the next linked keyboard, or through every host of every linked keyboard.</td></tr>
       <tr><td><code>"peer:&lt;name&gt;:&lt;action&gt;"</code></td><td class="desc">Run an action on a linked keyboard listed under <code>peers:</code> — <code>"peer:bedroom:switch_host:1"</code>.</td></tr>
+      <tr><td><code>"back@long"</code></td><td class="desc">What a long press on a remote key sends. A Host Action with this name is that key's second action on that host; without one it does nothing.</td></tr>
       <tr><td><code>"host_action:6:spare1"</code></td><td class="desc">Run slot 6's Host Action for <code>spare1</code> without switching host. A name that slot has no action for runs as an ordinary press on the active host.</td></tr>
       <tr><td><code>"wait:connected"</code></td><td class="desc">Hold a macro until the active host is connected and ready for keys, rather than guessing a delay. Up to 10 s, or <code>"wait:connected:N"</code> ms (max 60000); carries on if the host never connects.</td></tr>
       <tr><td><code>"forget_host:0"</code></td><td class="desc">Remove BLE bond for host slot 0–9 and clear the stored address.</td></tr>

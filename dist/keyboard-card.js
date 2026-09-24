@@ -32,6 +32,7 @@
  *   #   - TV
  *   #   - Phone
  *   # active_host_entity: sensor.bluetooth_keyboard_active_host  # (auto-detected)
+ *   # caps_lock_entity: binary_sensor.bluetooth_keyboard_caps_lock  # (auto-detected)
  *   # show_mac: true               # show the active host's MAC address (default true)
  *   # host_url: http://192.168.1.50  # ESP address (auto-detected from HA)
  *
@@ -491,6 +492,11 @@ function hostSlotList(spec) {
   return [...picked].sort((a, b) => a - b);
 }
 
+// A key Caps Lock acts on: its shifted character is its own capital. The same
+// test the device makes, so German ü counts and Belgian é (Shift gives 2)
+// doesn't.
+const capsKey = (k) => k.shiftChar !== k.char && k.shiftChar === k.char.toUpperCase();
+
 class BleKeyboardCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
@@ -516,6 +522,26 @@ class BleKeyboardCard extends HTMLElement {
         }
       }
     }
+    this._followHostCaps(hass);
+  }
+
+  // The host's own Caps Lock, from the keyboard's caps_lock binary sensor when
+  // there is one: the Caps key lights and the letters relabel to match, and a
+  // CAPS tag says so in the header. It belongs to this keyboard's host, so a
+  // linked keyboard's host keeps the local toggle. A tap here is given a moment
+  // for the host to answer before the sensor may overrule it.
+  _followHostCaps(hass) {
+    if (!this._config || !this._capsTag) return;
+    const entity = this._peerName() ? null : (this._config.caps_lock_entity
+      || Object.keys(hass.states).find(eid =>
+           eid.startsWith('binary_sensor.') && eid.includes(this._config.device) && eid.endsWith('_caps_lock')));
+    const st = entity && hass.states[entity] ? hass.states[entity].state : null;
+    const on = st === 'on' ? true : st === 'off' ? false : null;
+    this._capsTag.hidden = on !== true;
+    if (on === null || on === this._capsLock || Date.now() - (this._capsTapAt || 0) < 2000) return;
+    this._capsLock = on;
+    if (this._capsBtn) this._capsBtn.classList.toggle('caps-active', on);
+    this._updateKeyLabels();
   }
 
   setConfig(config) {
@@ -542,6 +568,7 @@ class BleKeyboardCard extends HTMLElement {
       host_list: hostSlotList(config.host_slots || 0),
       host_names: config.host_names || [],
       active_host_entity: config.active_host_entity || null,
+      caps_lock_entity: config.caps_lock_entity || null,
       show_mac: config.show_mac !== false,
       host_url: config.host_url || null,
       zoom: this._parseZoom(config.zoom),
@@ -721,6 +748,18 @@ class BleKeyboardCard extends HTMLElement {
       }
       /* Small and muted: it answers "which build am I looking at" at a glance
          without competing with the card's name. */
+      .caps-tag {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        padding: 1px 5px;
+        border: 1px solid var(--primary-color, #03a9f4);
+        border-radius: 4px;
+        color: var(--primary-color, #03a9f4);
+      }
+      .caps-tag[hidden] {
+        display: none;
+      }
       .header-ver {
         font-size: 11px;
         font-weight: 400;
@@ -912,7 +951,9 @@ class BleKeyboardCard extends HTMLElement {
       <svg viewBox="0 0 24 24"><path d="M19 10h-2V8h2v2zm0 4h-2v-2h2v2zm-4-4h-2V8h2v2zm0 4h-2v-2h2v2zm0 4H9v-2h6v2zm-8-8H5V8h2v2zm0 4H5v-2h2v2zM20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2z"/></svg>
       <span class="header-name">${this._config.name || defaultName}</span>
       <span class="header-ver" title="Card version — from the ?v= its importer used">${CARD_VER === 'unversioned' ? CARD_VER : 'v' + CARD_VER}</span>
+      <span class="caps-tag" title="Caps Lock is on at the host" hidden>CAPS</span>
     `;
+    this._capsTag = header.querySelector('.caps-tag');
     // Host switcher in header
     if (this._hostChain().length > 1) {
       this._hostSlots = [];
@@ -1323,9 +1364,8 @@ class BleKeyboardCard extends HTMLElement {
       // Pure typing — use send_string, because which physical key types a
       // character depends on the layout and only the device knows that. Held,
       // the device resolves it the same way: hold:string:<char>.
-      const isLetter = keyDef.char >= 'a' && keyDef.char <= 'z';
       const anyShift = this._shift || this._rshift;
-      const shifted = isLetter ? (anyShift !== this._capsLock) : anyShift;   // XOR for letters
+      const shifted = capsKey(keyDef) ? (anyShift !== this._capsLock) : anyShift;   // XOR for letters
       const ch = shifted ? keyDef.shiftChar : keyDef.char;
       return { tap: () => this._sendString(ch), hold: `hold:string:${ch}` };
     }
@@ -1358,6 +1398,7 @@ class BleKeyboardCard extends HTMLElement {
 
     if (keyDef.type === 'caps') {
       this._capsLock = !this._capsLock;
+      this._capsTapAt = Date.now();
       if (this._capsBtn) {
         this._capsBtn.classList.toggle('caps-active', this._capsLock);
       }
@@ -1387,8 +1428,7 @@ class BleKeyboardCard extends HTMLElement {
   _updateKeyLabels() {
     const sh = (this._shift || this._rshift) !== this._capsLock;
     this._charKeys.forEach(({ btn, keyDef }) => {
-      const isLetter = keyDef.char >= 'a' && keyDef.char <= 'z';
-      if (isLetter) {
+      if (capsKey(keyDef)) {
         btn.textContent = sh ? keyDef.shiftLabel : keyDef.label;
       } else {
         btn.textContent = (this._shift || this._rshift) ? keyDef.shiftLabel : keyDef.label;
@@ -1706,6 +1746,7 @@ const KB_EDITOR_SCHEMA = [
   { name: 'host_names', selector: { text: {} } },
   { name: 'peer_hosts', selector: { text: { multiline: true } } },
   { name: 'active_host_entity', selector: { entity: { domain: 'sensor' } } },
+  { name: 'caps_lock_entity', selector: { entity: { domain: 'binary_sensor' } } },
   { name: 'show_mac', selector: { boolean: {} } },
   { name: 'host_url', selector: { text: {} } },
 ];
@@ -1721,6 +1762,7 @@ const KB_EDITOR_LABELS = {
   host_names: 'Host names, comma-separated (optional)',
   peer_hosts: 'Linked keyboards, one per line: bedroom | 2 | Bed TV, Bed PC | Bedroom',
   active_host_entity: 'Active-host sensor (optional)',
+  caps_lock_entity: 'Caps Lock sensor (optional, auto-detected)',
   show_mac: 'Show host MAC address',
   host_url: 'Device URL (optional, auto-detected)',
 };

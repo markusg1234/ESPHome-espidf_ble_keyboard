@@ -96,7 +96,7 @@
 import {
   RMT_BUILTIN, RMT_BTNS, RMT_VARS, RMT_CSS, RMT_VER, RMT_LCD_LABELLED, lcdLabel,
   sectionHtml, validateTpl, themeValueBad, useIcons,
-} from './remote-styles.js?v=1.12.0';
+} from './remote-styles.js?v=1.13.0-dev';
 
 // Which build of this file the browser actually loaded, read from the ?v= its
 // importer wrote rather than from a constant that has to be remembered at
@@ -337,8 +337,12 @@ class BleRemoteCard extends HTMLElement {
     const rawHold = this._peerName() ? '' : read(this._config.hold_entity);
     if (rawHold !== this._lastHold) {
       this._lastHold = rawHold;
-      this._holdSet = rawHold ? rawHold.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const names = rawHold ? rawHold.split(',').map(s => s.trim()).filter(Boolean) : [];
+      // The same sensor carries the keys with a long-press action, as <key>@long.
+      this._holdSet = names.filter(n => !n.endsWith('@long'));
+      this._longSet = names.filter(n => n.endsWith('@long')).map(n => n.slice(0, -5));
       this._endHold();   // whatever is held belonged to the old set
+      this._markLong();
     }
 
     // "<delay>,<rate>,name,name". Empty means this host was never configured,
@@ -368,6 +372,20 @@ class BleRemoteCard extends HTMLElement {
   // which meant an unconfigured host repeated less here than on the device's own
   // remote, and made "reset to defaults" in Host Actions change the card's
   // behaviour rather than leave it alone.
+  // A tap on these waits for the release, so a press held past LONG_MS can send
+  // the key's second action instead. A key in the hold list keeps holding.
+  _longs(action) {
+    return !!this._longSet && this._longSet.includes(action) && !PAGE_ONLY.includes(action);
+  }
+
+  // The dot on keys with a long-press action. After every redraw as well, which
+  // _applyHidden follows.
+  _markLong() {
+    if (!this.shadowRoot) return;
+    this.shadowRoot.querySelectorAll('[data-action]').forEach(el =>
+      el.classList.toggle('has-long', this._longs(el.dataset.action)));
+  }
+
   _repeats(action) {
     if (this._repeatSet) return this._repeatSet.includes(action);
     const b = RMT_BTNS[action];
@@ -411,6 +429,7 @@ class BleRemoteCard extends HTMLElement {
       const off = hide.includes(el.dataset.action) || el.dataset.toggledOff === '1';
       el.style.visibility = off ? 'hidden' : '';
     });
+    this._markLong();
     // Holding the shape stops once there is no shape left to hold: a group or
     // section with nothing visible collapses rather than leaving empty slots.
     // A panel is not a button, so a section holding one is never empty — every
@@ -1017,6 +1036,15 @@ class BleRemoteCard extends HTMLElement {
     if (!card) return;
 
     let interval = null, timer = null, activeEl = null;
+    // A key with a long action, between its press and the decision: where it
+    // went down and when, and whether the long action has already gone.
+    let longEl = null, longAt = 0, longFired = false, sx = 0, sy = 0;
+    const LONG_MS = 500;
+    const longPress = (el, action) => {
+      el.classList.add('long');
+      setTimeout(() => el.classList.remove('long'), 300);
+      this._runAction(action + '@long');
+    };
     const stopRepeat = () => {
       if (interval) { clearInterval(interval); interval = null; }
       if (timer) { clearTimeout(timer); timer = null; }
@@ -1045,6 +1073,20 @@ class BleRemoteCard extends HTMLElement {
         return;
       }
 
+      // Nothing yet for a key with a long action: the release, or LONG_MS
+      // passing, decides which of its two it sends.
+      if (this._longs(action)) {
+        stopRepeat();
+        longEl = el; longAt = Date.now(); longFired = false; sx = e.clientX; sy = e.clientY;
+        timer = setTimeout(() => {
+          timer = null;
+          if (longEl !== el) return;
+          longFired = true;
+          longPress(el, action);
+        }, LONG_MS);
+        return;
+      }
+
       this._runAction(action);
       if (!this._repeats(action)) return;
       // The first repeat waits out the configured delay, so a quick tap stays
@@ -1054,9 +1096,27 @@ class BleRemoteCard extends HTMLElement {
         interval = setInterval(() => this._runAction(action), this._repeatRate);
       }, this._repeatDelay);
     });
-    card.addEventListener('pointerup', end);
-    card.addEventListener('pointerleave', end);
-    card.addEventListener('pointercancel', end);
+    // Released before the long action went: that was a tap.
+    card.addEventListener('pointerup', () => {
+      if (longEl && !longFired) {
+        const action = longEl.dataset.action;
+        if (Date.now() - longAt >= LONG_MS) longPress(longEl, action);
+        else this._runAction(action);
+      }
+      longEl = null;
+      end();
+    });
+    // Leaving, a cancelled gesture or a drag past 10 px sends nothing.
+    const abandon = () => { longEl = null; end(); };
+    card.addEventListener('pointerleave', abandon);
+    card.addEventListener('pointercancel', abandon);
+    card.addEventListener('pointermove', (e) => {
+      if (longEl && Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 10) abandon();
+    });
+    // A phone's own long-press menu would take the gesture away from the key.
+    card.addEventListener('contextmenu', (e) => {
+      if (e.target.closest && e.target.closest('[data-action]')) e.preventDefault();
+    });
   }
 
   // ── Remote style ────────────────────────────────────────────────

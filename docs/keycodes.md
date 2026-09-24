@@ -239,6 +239,7 @@ action:
 | `prev_host` / `next_host` / `last_host` | The same three as remote keys a style can place, remappable per host. |
 | `next_keyboard` / `prev_host_all` / `next_host_all` | Web page remote only: move the tab to the next linked keyboard, or through every host of every linked keyboard. |
 | `peer:<name>:<action>` | Run an action on a linked keyboard listed under `peers:` — `peer:bedroom:switch_host:1`. |
+| `caps_lock:on` / `caps_lock:off` / `caps_lock:toggle` | Set the host's Caps Lock: on and off tap it only when the host reports it the other way, then wait for the host to confirm. |
 | `wait:connected` / `wait:connected:N` | Hold a macro until the active host is connected and ready for keys, for at most N ms (default 10000, max 60000). On timeout the macro carries on. |
 | `forget_host:N` | Remove BLE bond for host slot N (0–9) and clear the stored address. Disconnects the host if currently active. |
 

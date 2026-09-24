@@ -29,6 +29,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .status-dot.paired{background:var(--active)}
 .status-text{font-size:13px;color:var(--muted)}
 .status-text.on{color:var(--accent)}
+.caps-pill{font-size:10px;font-weight:700;letter-spacing:.5px;padding:1px 5px;border:1px solid var(--accent);border-radius:4px;color:var(--accent)}
 .dev-name{font-size:13px;color:var(--name);margin-left:4px;font-weight:500}
 /* flex-grow so this reaches the right-hand card padding instead of stopping at its
    content width — the leftover is what the toggles below share out. */
@@ -299,13 +300,19 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    which never reaches the card's shadow root: there a <button> keeps the
    browser's side padding, the logo's max-width resolved against a box 12px
    narrower, and every logo drew smaller on the card than on this page. */
-.rmt-btn{width:48px;height:48px;padding:0;margin:0;border:1px solid var(--rb-btn-border,var(--border));border-radius:var(--rb-btn-radius,50%);background:var(--rb-btn-bg,var(--bg));color:var(--rb-btn-fg,var(--fg));font-size:12px;font-weight:500;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;transition:background .1s,transform .1s;user-select:none;-webkit-user-select:none}
+.rmt-btn{width:48px;height:48px;padding:0;margin:0;border:1px solid var(--rb-btn-border,var(--border));border-radius:var(--rb-btn-radius,50%);background:var(--rb-btn-bg,var(--bg));color:var(--rb-btn-fg,var(--fg));font-size:12px;font-weight:500;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;transition:background .1s,transform .1s;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .rmt-btn:active,.rmt-btn.p{background:var(--active);color:#fff;border-color:var(--active);transform:scale(.93)}
 .rmt-btn svg{width:20px;height:20px;fill:currentColor;pointer-events:none}
 .rmt-btn.power{background:#c62828;color:#fff;border-color:#c62828}
 .rmt-btn.power:active,.rmt-btn.power.p{background:#e53935}
 /* Currently held down on the host (press and hold). Icons use currentColor. */
 .rmt-btn.held{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* A key with a second action on a long press: a dot at the foot of the key, as a
+   background layer so it needs no positioning (ring keys are absolutely placed)
+   and sits under a logo. !important because the colour rules set the whole
+   background shorthand. .long rings the key when that action goes. */
+.rmt-btn.has-long{background-image:radial-gradient(circle at 50% calc(100% - 6px),var(--accent) 0 2px,transparent 2.5px)!important}
+.rmt-btn.long{box-shadow:0 0 0 3px var(--accent)}
 .rmt-dpad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:4px;justify-content:center;margin:8px 0}
 .rmt-dpad .rmt-btn{border-radius:12px}
 .rmt-dpad .center{background:var(--rb-ok-bg,var(--active));color:var(--rb-ok-fg,#fff);border-color:var(--rb-ok-bg,var(--active));font-size:11px;font-weight:700;border-radius:50%}
@@ -553,11 +560,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="toolbar-left">
 <div class="status-dot" id="sdot"></div>
 <span class="status-text" id="stxt">Disconnected</span>
+<span class="caps-pill" id="capsind" title="Caps Lock is on at the host" hidden>CAPS</span>
 <span class="dev-name" id="dname"></span>
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.12.0</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.13.0-dev</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -713,6 +721,11 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="combo:2:25">Ctrl+V</option>
 <option value="combo:2:29">Ctrl+Z</option>
 </optgroup>
+<optgroup label="Caps Lock">
+<option value="caps_lock:off">Caps Lock Off</option>
+<option value="caps_lock:on">Caps Lock On</option>
+<option value="caps_lock">Toggle Caps Lock</option>
+</optgroup>
 <optgroup label="Consumer HID">
 <option value="consumer:0x0030">HID Power</option>
 <option value="consumer:0x0223">HID Home</option>
@@ -833,11 +846,19 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="spare25"><option value="spare26"><option value="spare27"><option value="spare28"><option value="spare29"><option value="spare30"><option value="spare31"><option value="spare32">
 <option value="ctrl_alt_del"><option value="power"><option value="sleep"><option value="shutdown"><option value="hibernate">
 <option value="left_click"><option value="right_click"><option value="middle_click"><option value="mouse_release">
+<option value="ok@long"><option value="back@long"><option value="home@long"><option value="power@long"><option value="remote_power@long">
 </datalist>
 <textarea id="ov-act" placeholder="Replacement action" maxlength="255" rows="3" title="What this action should do on the selected host.&#10;&#10;Examples:&#10;combo:0x0C:0x15 = Win+Alt+R (Game Bar record)&#10;combo:0x01:0x15 = Ctrl+R (Sound Recorder, needs focus)&#10;consumer:0x00B2 = raw HID usage&#10;play_pause = another named action&#10;string:hello = type text&#10;ha_action:remote.send_command;entity_id=remote.X;command=power = fire a Home Assistant action (needs ha_action: true in YAML)&#10;&#10;Chain steps with a | between them:&#10;combo:0x0C:0x15 | delay:500 | string:rec&#10;&#10;Modifier bits add up: 1=Ctrl, 2=Shift, 4=Alt, 8=Win&#10;so Win+Alt = 12 = 0x0C. Decimal or 0x hex both work."></textarea>
 <select id="ov-preset"><option value="">Preset...</option></select>
 <button id="ov-save">Save</button>
 </div>
+<div style="font-size:12px;color:var(--muted);margin:10px 0 4px">When this host connects</div>
+<div class="macro-form" style="margin-top:0">
+<textarea id="onc-act" placeholder="Action to run when it connects (optional)" maxlength="255" rows="2" title="Runs each time this host connects and is ready for keys &mdash; after a switch, a reboot or waking from sleep. Not again within 30 seconds, and not while a macro is visiting this host.&#10;&#10;Any action works, chained with | as above. Empty = nothing."></textarea>
+<select id="onc-preset"><option value="">Preset...</option></select>
+<button id="onc-save">Save</button>
+</div>
+<div id="onc-note" style="font-size:11px;color:var(--muted);margin-bottom:8px" hidden>This slot doesn&rsquo;t advertise, so its host never connects.</div>
 <div class="hid-panel" id="hid-panel">
 <button class="hid-toggle" id="hid-toggle">Remote Buttons &#9662;</button>
 <div class="hid-body" id="hid-body">
@@ -1329,6 +1350,7 @@ setZoom(parseInt(localStorage.getItem('blekb_zoom'))||100);
 // ── Status polling ──
 const sdot=document.getElementById('sdot');
 const stxt=document.getElementById('stxt');
+const capsInd=document.getElementById('capsind');
 const dname=document.getElementById('dname');
 // The badge, the name beside it and the panels — for this keyboard, or for the
 // linked one the remote drives, whose /status comes inside its cached /state.
@@ -1346,6 +1368,10 @@ function showStatus(d){
   // worth looking into.
   stxt.title=(noBle||c||p)?'':d.advertising===true?'Advertising — waiting for the host':
                                                    'Not advertising';
+  // Caps Lock on at the host. What the keyboard types follows its labels either
+  // way; this says why a real keyboard on that host is typing capitals.
+  capsInd.hidden=d.caps!==true;
+  if(window.syncHostCaps)window.syncHostCaps(d.caps);
   if(d.device_name){dname.textContent='('+d.device_name+')';document.title=d.device_name+(POPOUT?' — Remote':' — BLE Control')}
   // Whatever the style on screen asked for. Sent on every tick rather than
   // only when it changes: the map is a handful of short strings, and the
@@ -1354,6 +1380,7 @@ function showStatus(d){
 }
 function showOffline(text){
   sdot.className='status-dot';
+  capsInd.hidden=true;
   stxt.className='status-text';
   stxt.textContent=text;
 }
@@ -2970,7 +2997,15 @@ function appendStep(el,val){
   const preset=document.getElementById('ov-preset');
   const forgetBtn=document.getElementById('ov-forget');
   const bcastCk=document.getElementById('ov-bcast');
+  const oncIn=document.getElementById('onc-act');
+  const oncPreset=document.getElementById('onc-preset');
+  const oncSave=document.getElementById('onc-save');
+  const oncNote=document.getElementById('onc-note');
   if(!slotSel)return;
+  // What the on-connect box holds belongs to oncSlot. While it has unsaved
+  // edits, a reload (a host switch moves this card) leaves it alone, and Save
+  // still goes to the slot it was typed for.
+  let oncSlot=null,oncDirty=false;
   // Whether each slot advertises, as /hosts last reported it. Kept so the tick
   // can follow the picker without a fetch per slot change.
   let bcastBySlot={};
@@ -3025,8 +3060,11 @@ function appendStep(el,val){
   // A device from before this setting existed answers without the field, and
   // every slot on it advertises — hence !==false rather than a truth test.
   function syncBcast(){
+    // A slot that never advertises never connects, so its action would never run.
+    const quiet=bcastBySlot[slot]===false;
+    if(oncIn){oncIn.disabled=quiet;oncSave.disabled=quiet;oncNote.hidden=!quiet}
     if(!bcastCk)return;
-    bcastCk.checked=bcastBySlot[slot]!==false;
+    bcastCk.checked=!quiet;
   }
   if(bcastCk)bcastCk.addEventListener('change',()=>{
     const on=bcastCk.checked,target=slot;
@@ -3061,8 +3099,17 @@ function appendStep(el,val){
   }
   reflagOverrides=applyMacroFlags;
 
+  // A <key>@long override gives the remote a long-press key (or takes one away),
+  // which the remote learns from its hold list — this one and a popped-out one.
+  function longChanged(name){
+    if(!/@long$/.test(name))return;
+    if(window.applyHold)window.applyHold(true);
+    if(window.popApplyHold)window.popApplyHold();
+  }
+
   function load(){
     apiGetJSON('overrides?'+new URLSearchParams({slot:slot})).then(d=>{
+      if(oncIn&&!oncDirty){oncIn.value=d.on_connect||'';oncSlot=slot}
       list.innerHTML='';
       if(!d.items.length){list.innerHTML='<span class="prog-empty">No overrides — this host uses the built-in actions</span>';return}
       d.items.forEach(it=>{
@@ -3089,7 +3136,7 @@ function appendStep(el,val){
           db.className='macro-act del';db.textContent='✕';db.title='Delete (revert to YAML/built-in)';
           db.addEventListener('click',()=>{
             if(confirm('Delete override "'+it.name+'" on slot '+slot+'?')){
-              apiPost('override_clear',{slot:slot,name:it.name}).then(load);
+              apiPost('override_clear',{slot:slot,name:it.name}).then(()=>{load();longChanged(it.name)});
             }
           });
           row.appendChild(db);
@@ -3126,6 +3173,7 @@ function appendStep(el,val){
 
   slotSel.addEventListener('change',()=>{
     slot=parseInt(slotSel.value);
+    oncDirty=false;   // picking another host shows that host's action
     // An armed confirm belongs to the slot it was armed on, never the new one.
     if(forgetBtn)resetForget();
     syncBcast();
@@ -3145,8 +3193,34 @@ function appendStep(el,val){
       if(!r.ok)return r.text().then(t=>{alert(t)});
       nameIn.value='';actIn.value='';
       load();
+      longChanged(n);
     });
   });
+
+  // ── On-connect action ──
+  if(oncIn){
+    // The same presets as the override box, kept in step with it as its list is
+    // rebuilt (macros, YAML buttons, linked keyboards).
+    const mirror=()=>{oncPreset.innerHTML=preset.innerHTML};
+    mirror();
+    if(window.MutationObserver)new MutationObserver(mirror).observe(preset,{childList:true,subtree:true});
+    oncPreset.addEventListener('change',()=>{
+      if(oncPreset.value==='__alt__')wrapAlternate(oncIn);
+      else if(oncPreset.value==='__br__')newBranch(oncIn);
+      else if(oncPreset.value)appendStep(oncIn,oncPreset.value);
+      oncPreset.value='';
+      oncDirty=true;
+    });
+    oncIn.addEventListener('input',()=>{oncDirty=true});
+    oncSave.addEventListener('click',()=>{
+      const target=oncSlot===null?slot:oncSlot;
+      apiPost('on_connect_set',{slot:target,action:oncIn.value.trim()}).then(r=>{
+        if(!r.ok)return r.text().then(t=>{alert(t)});
+        oncDirty=false;
+        load();
+      });
+    });
+  }
 
   loadSlots().then(load).catch(()=>{list.innerHTML='<span class="prog-empty">Error loading</span>'});
 
@@ -4415,6 +4489,7 @@ function appendStep(el,val){
       const macros=Array.isArray(d.macros)?d.macros:[];
       const overrides=d.overrides&&typeof d.overrides==='object'?d.overrides:{};
       const scales=d.goto_scale&&typeof d.goto_scale==='object'?d.goto_scale:{};
+      const onc=d.on_connect&&typeof d.on_connect==='object'?d.on_connect:{};
       const hosts=Array.isArray(d.hosts)?d.hosts:[];
       let msg='Restore from "'+(d.device||'unknown')+'"?\n\n'
         +'This REPLACES current settings:\n'
@@ -4422,6 +4497,7 @@ function appendStep(el,val){
         +'  • overrides on '+Object.keys(overrides).length+' host slot(s) — existing saved overrides are cleared\n'
         +'  • keyboard layout: '+(d.layout||'unchanged')+'\n'
         +'  • calibration for '+Object.keys(scales).length+' slot(s)\n'
+        +'  • on-connect actions for '+Object.keys(onc).length+' host slot(s) — the rest are cleared\n'
         +'  • '+(d.icons&&typeof d.icons==='object'?Object.keys(d.icons).length:0)+' button icon(s) — existing icons are deleted first\n'
         +'  • UI preferences (theme, zoom, section layout)';
       if(!confirm(msg)){bkFile.value='';return}
@@ -4572,10 +4648,14 @@ function appendStep(el,val){
       // restores as an ordinary host — which is also what a file from before this
       // setting existed means.
       const bc=d.broadcast&&typeof d.broadcast==='object'?d.broadcast:{};
+      // Listed only for slots that have one, so an omitted slot restores as none.
+      const onc=d.on_connect&&typeof d.on_connect==='object'?d.on_connect:{};
       slots.forEach(sl=>{
         chain=chain.then(()=>post('remote_style_set',{slot:sl,id:sty[sl]||sty[String(sl)]||''}));
         const off=bc[sl]===false||bc[String(sl)]===false;
         chain=chain.then(()=>post('broadcast_set',{slot:sl,on:off?0:1}));
+        const act=onc[sl]||onc[String(sl)];
+        chain=chain.then(()=>post('on_connect_set',{slot:sl,action:typeof act==='string'?act.slice(0,255):''}));
       });
       return chain;
     }).then(()=>{
@@ -4919,13 +4999,28 @@ function toggleMod(mod){
   if(mod==='shift'||mod==='rshift')updateLabels();
 }
 
+// A key Caps Lock acts on: its shifted character is its own capital, the same
+// test the firmware makes, so German ü counts and Belgian é (Shift gives 2)
+// doesn't.
+const capsKey=k=>k.sc!==k.c&&k.sc===k.c.toUpperCase();
 function updateLabels(){
   const sh=(shift||rshift)!==capsLock;
   charKeys.forEach(({btn,def})=>{
-    const isLetter=def.c>='a'&&def.c<='z';
-    btn.textContent=isLetter?(sh?def.sl:def.l):((shift||rshift)?def.sl:def.l);
+    btn.textContent=capsKey(def)?(sh?def.sl:def.l):((shift||rshift)?def.sl:def.l);
   });
 }
+// The host's own Caps Lock, from /status. Once the host has said, it wins over
+// the local toggle: a real keyboard on that host can change it behind this
+// page's back. null (never reported) leaves the toggle as it is. A tap here is
+// given a moment for the host to answer, so a poll already on its way with the
+// old state doesn't flip the key straight back.
+let capsTapAt=0;
+window.syncHostCaps=function(on){
+  if((on!==true&&on!==false)||on===capsLock||Date.now()-capsTapAt<2000)return;
+  capsLock=on;
+  if(capsBtn)capsBtn.classList.toggle('caps',capsLock);
+  updateLabels();
+};
 
 // What a key sends, as an endpoint plus its parameters — or null for a key that
 // sends nothing on its own. Split out of onKey so the press-and-hold path below
@@ -4940,8 +5035,7 @@ function keyRequest(k){
       const code=CK[k.c];
       return code===undefined?null:{ep:'key',params:{modifier:mb,keycode:code}};
     }
-    const isL=k.c>='a'&&k.c<='z';
-    const sh=isL?((shift||rshift)!==capsLock):(shift||rshift);
+    const sh=capsKey(k)?((shift||rshift)!==capsLock):(shift||rshift);
     return {ep:'string',params:{keys:sh?k.sc:k.c}};
   }
   if(k.t==='s'){
@@ -4973,6 +5067,7 @@ function onKey(k){
   }
   if(k.t==='caps'){
     capsLock=!capsLock;
+    capsTapAt=Date.now();
     if(capsBtn)capsBtn.classList.toggle('caps',capsLock);
     api('key',{modifier:0,keycode:0x39});
     updateLabels();return;
@@ -5240,6 +5335,25 @@ buildKeyboard();
   // to start doing on a host that didn't ask for it.
   let hldSet=[];
   const holds=a=>hldSet.indexOf(a)>=0;
+  // Keys with a second action on a long press (a <key>@long Host Action), for
+  // this host. A tap waits for the release on these, so the two can be told
+  // apart; a key in the hold list keeps holding instead, and a long action
+  // replaces repeat.
+  const LONG_MS=500;
+  let lngSet=[];
+  const longs=a=>RMT_PAGE_KEYS.indexOf(a)<0&&lngSet.indexOf(a)>=0;
+  function longPress(el,act){
+    el.classList.add('long');setTimeout(()=>el.classList.remove('long'),300);
+    press(act+'@long');
+  }
+  // The dot, on whatever the renderer has drawn. The remote is redrawn on a
+  // style change, so it is re-marked whenever its buttons are replaced.
+  function markLong(){
+    body.querySelectorAll('.rmt-btn[data-action]').forEach(b=>b.classList.toggle('has-long',longs(b.dataset.action)));
+  }
+  if(window.MutationObserver)new MutationObserver(markLong).observe(body,{childList:true,subtree:true});
+  // A phone's own long-press menu would take the gesture away from the key.
+  card.addEventListener('contextmenu',e=>{if(e.target.closest('.rmt-btn'))e.preventDefault()});
 
   let ri=null,rt=null;
   function stopRepeat(){if(ri){clearInterval(ri);ri=null}if(rt){clearTimeout(rt);rt=null}}
@@ -5288,7 +5402,7 @@ buildKeyboard();
   }
   // `fired` is what keeps hold and tap from both counting: once the hold timer
   // has sent anything, pointerup must NOT send its usual press on release.
-  {let sx,sy,ok,ab,fired=false;
+  {let sx,sy,ok,ab,fired=false,downAt=0;
   card.addEventListener('pointerdown',e=>{
     // Only one repeat at a time. ri/rt are single handles shared by every button,
     // so pressing a second button while the first is still held used to overwrite
@@ -5299,12 +5413,19 @@ buildKeyboard();
     // clobbers `ab` on its way out and would strand the same interval.
     stopRepeat();
     ab=e.target.closest('.rmt-btn');if(!ab)return;
-    sx=e.clientX;sy=e.clientY;ok=true;fired=false;ab.classList.add('p');
+    sx=e.clientX;sy=e.clientY;ok=true;fired=false;downAt=Date.now();ab.classList.add('p');
     const act=ab.dataset.action;
     // Hold wins outright: it goes down now, not after a threshold, because a
     // push-to-talk key that only engages after 400ms clips the first word.
     // fired=true keeps pointerup from also sending the ordinary press.
     if(holds(act)){fired=true;startHold(ab,act);return}
+    // A key with a long action: nothing yet. Held past LONG_MS it sends the
+    // long one; let go sooner and pointerup sends the tap.
+    if(longs(act)){
+      const el=ab;
+      rt=setTimeout(()=>{rt=null;if(!ok||ab!==el)return;fired=true;longPress(el,act)},LONG_MS);
+      return;
+    }
     if(!repeats(ab,act))return;
     // Nothing is sent until the hold threshold passes, so a tap still fires on
     // release and a drag can still cancel it — both were the point of the
@@ -5318,7 +5439,13 @@ buildKeyboard();
   card.addEventListener('pointermove',e=>{if(ok&&(Math.abs(e.clientX-sx)+Math.abs(e.clientY-sy))>10){ok=false;if(ab)ab.classList.remove('p');stopRepeat()}});
   card.addEventListener('pointerup',()=>{
     if(ab)ab.classList.remove('p');
-    if(ok&&ab&&!fired){press(ab.dataset.action)}
+    if(ok&&ab&&!fired){
+      const act=ab.dataset.action;
+      // The elapsed time too, not just the timer: a picture-in-picture window's
+      // opener can have its timers held back, and a long press is still one.
+      if(longs(act)&&Date.now()-downAt>=LONG_MS)longPress(ab,act);
+      else press(act);
+    }
     ok=false;ab=null;fired=false;stopRepeat();endHold();
   });
   const abort=()=>{if(ab)ab.classList.remove('p');ok=false;ab=null;fired=false;stopRepeat();endHold()};
@@ -5346,10 +5473,10 @@ buildKeyboard();
   // exactly like a working press, except only pointer events ever sent
   // anything. keydown/keyup mirror pointerdown/pointerup, so a focused button
   // repeats and holds from the key just as it does from a finger.
-  {let kbEl=null,kbKey='';
+  {let kbEl=null,kbKey='',kbLong=false,kbFired=false,kbAt=0;
   const kbEnd=()=>{
     if(!kbEl)return;
-    kbEl.classList.remove('p');kbEl=null;
+    kbEl.classList.remove('p');kbEl=null;kbLong=false;
     stopRepeat();endHold();
   };
   card.addEventListener('keydown',e=>{
@@ -5366,13 +5493,27 @@ buildKeyboard();
     kbEl=el;kbKey=e.key;el.classList.add('p');
     const act=el.dataset.action;
     if(holds(act)){startHold(el,act);return}
+    // A key with a long action waits for the key to come up, as on the pointer
+    // path, to know which of its two actions this is.
+    if(longs(act)){
+      kbLong=true;kbFired=false;kbAt=Date.now();
+      rt=setTimeout(()=>{rt=null;if(kbEl!==el)return;kbFired=true;longPress(el,act)},LONG_MS);
+      return;
+    }
     // Sent on the way down, unlike the pointer path: a key press has no drag
     // to cancel it with, so there is nothing to wait for.
     press(act);
     if(!repeats(el,act))return;
     rt=setTimeout(()=>{rt=null;ri=setInterval(()=>press(act),rptRate)},rptDelay);
   });
-  card.addEventListener('keyup',e=>{if(e.key===kbKey)kbEnd()});
+  card.addEventListener('keyup',e=>{
+    if(e.key!==kbKey)return;
+    if(kbEl&&kbLong&&!kbFired){
+      const act=kbEl.dataset.action;
+      if(Date.now()-kbAt>=LONG_MS)longPress(kbEl,act);else press(act);
+    }
+    kbEnd();
+  });
   // Alt-tabbing or clicking elsewhere with the key still down never delivers
   // keyup, which would leave a repeat running or a key held on the host.
   card.addEventListener('focusout',kbEnd);
@@ -5405,10 +5546,13 @@ buildKeyboard();
   // this one has no markup fallback: an unconfigured host holds nothing.
   let lastHldKey=null;
   function useHold(d,force){
-    const key=d.slot+':'+(d.buttons||[]).join(',');
+    const key=d.slot+':'+(d.buttons||[]).join(',')+'|'+(d.long||[]).join(',');
     if(!force&&key===lastHldKey)return;
     lastHldKey=key;
     hldSet=d.buttons||[];
+    // Older firmware sends no "long": no key has a second action there.
+    lngSet=d.long||[];
+    markLong();
     endHold();  // whatever was held belonged to the old set
   }
   window.applyHold=function(force){
@@ -5579,6 +5723,8 @@ buildKeyboard();
   // Falls back to the catalogue's own name, then to the action itself.
   function lcdLabel(t,action){
     if(!action)return '';
+    // A long press: the key's own label, marked, since the style names only the key.
+    if(/.@long$/.test(action))return lcdLabel(t,action.slice(0,-5))+' (long)';
     if(t&&Array.isArray(t.sections))for(const s of t.sections){
       // An lcd line is [label, key], the opposite order, and its key is not an
       // action at all — scanning it would match the wrong half.
@@ -6107,6 +6253,10 @@ buildKeyboard();
   // directly — same origin, and everything called here is a property of its
   // window. A remote in picture-in-picture is still this document's and needs
   // nothing.
+  window.popApplyHold=function(){
+    if(!popRef||popRef.closed)return;
+    try{if(popRef.applyHold)popRef.applyHold(true)}catch(e){}
+  };
   window.onStyleLock=function(kind,value){
     if(!popRef||popRef.closed)return;
     try{

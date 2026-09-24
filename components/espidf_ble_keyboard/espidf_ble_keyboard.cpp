@@ -1445,6 +1445,8 @@ EspidfBleKeyboard::OverrideSave EspidfBleKeyboard::set_override(uint8_t slot, co
         return OverrideSave::WRITE_FAILED;
     }
     ESP_LOGI(TAG, "Override slot %u: %s -> %s", (unsigned) slot, name.c_str(), action.c_str());
+    // A new long-press key: the card learns it from the hold sensor.
+    if (is_long_name(name) && slot == style_slot()) publish_hold_();
     return OverrideSave::OK;
 }
 
@@ -1455,6 +1457,7 @@ bool EspidfBleKeyboard::clear_override(uint8_t slot, const std::string &name) {
             nvs_overrides_[slot].erase(nvs_overrides_[slot].begin() + i);
             save_overrides_(slot);
             ESP_LOGI(TAG, "Cleared override slot %u: %s", (unsigned) slot, name.c_str());
+            if (is_long_name(name) && slot == style_slot()) publish_hold_();
             return true;
         }
     }
@@ -2096,6 +2099,49 @@ void EspidfBleKeyboard::load_remote_style_() {
     nvs_close(handle);
 }
 
+const std::string &EspidfBleKeyboard::get_on_connect(uint8_t slot) const {
+    static const std::string none;
+    return slot < MAX_HOST_SLOTS ? on_connect_[slot] : none;
+}
+
+// Same rules as an override's action — a line break would end the stored value
+// early — and written before it is kept, so a failed write is reported rather
+// than lost at the next reboot.
+bool EspidfBleKeyboard::set_on_connect(uint8_t slot, const std::string &action) {
+    if (slot >= MAX_HOST_SLOTS || action.size() > MAX_ACTION_LEN ||
+        action.find_first_of("\r\n") != std::string::npos)
+        return false;
+    nvs_handle_t handle;
+    if (nvs_open("espidf_ble_kb", NVS_READWRITE, &handle) != ESP_OK) return false;
+    char key[12];
+    snprintf(key, sizeof(key), "onc%u", slot);
+    esp_err_t err = action.empty() ? nvs_erase_key(handle, key) : nvs_set_str(handle, key, action.c_str());
+    if (err == ESP_ERR_NVS_NOT_FOUND) err = ESP_OK;   // clearing one that was never set
+    if (err == ESP_OK) err = nvs_commit(handle);
+    nvs_close(handle);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "On-connect action for host %u not saved: %s", (unsigned) slot, esp_err_to_name(err));
+        return false;
+    }
+    on_connect_[slot] = action;
+    ESP_LOGI(TAG, "On-connect action for host %u: %s", (unsigned) slot,
+             action.empty() ? "(none)" : action.c_str());
+    return true;
+}
+
+void EspidfBleKeyboard::load_on_connect_() {
+    nvs_handle_t handle;
+    if (nvs_open("espidf_ble_kb", NVS_READONLY, &handle) != ESP_OK) return;
+    for (uint8_t slot = 0; slot < MAX_HOST_SLOTS; slot++) {
+        char key[12];
+        snprintf(key, sizeof(key), "onc%u", slot);
+        char buf[MAX_ACTION_LEN + 1];
+        size_t len = sizeof(buf);
+        if (nvs_get_str(handle, key, buf, &len) == ESP_OK) on_connect_[slot] = buf;
+    }
+    nvs_close(handle);
+}
+
 void EspidfBleKeyboard::save_remote_style_(uint8_t slot) {
     if (slot >= MAX_HOST_SLOTS) return;
     nvs_handle_t handle;
@@ -2357,7 +2403,27 @@ std::string EspidfBleKeyboard::hold_csv(uint8_t slot) const {
         if (i > 0) csv += ",";
         csv += hold_[slot][i];
     }
+    // The keys with a long-press action ride along as <key>@long, after the
+    // holds so the sensor's 255-character cut takes them first. A card from
+    // before long presses matches no key to them and ignores them.
+    for (const auto &k : long_keys(slot)) {
+        if (!csv.empty()) csv += ",";
+        csv += k + "@long";
+    }
     return csv;
+}
+
+std::vector<std::string> EspidfBleKeyboard::long_keys(uint8_t slot) const {
+    std::vector<std::string> out;
+    if (slot >= MAX_HOST_SLOTS) return out;
+    auto add = [&out](const std::string &name) {
+        if (!is_long_name(name)) return;
+        std::string key = name.substr(0, name.size() - 5);
+        if (std::find(out.begin(), out.end(), key) == out.end()) out.push_back(key);
+    };
+    for (const auto &o : nvs_overrides_[slot]) add(o.name);
+    for (const auto &o : yaml_overrides_[slot]) add(o.name);
+    return out;
 }
 
 // Home Assistant rejects state strings over 255 chars. Truncating on a name
@@ -2957,6 +3023,7 @@ void EspidfBleKeyboard::setup() {
     load_hold_();
     load_broadcast_();
     load_remote_style_();
+    load_on_connect_();
     load_templates_();
     load_icon_names_();
     // Publish after loading, not just when the sensors are attached: the
@@ -3157,6 +3224,7 @@ void EspidfBleKeyboard::loop() {
             bond_log_record(pending_bond_log_[i].cause, pending_bond_log_[i].reason,
                             pending_bond_log_[i].slot, pending_bond_log_[i].addr);
     }
+    check_on_connect_();
 
     if (is_connected_) {
         s_directed_adv_active = false;
@@ -3207,8 +3275,8 @@ void EspidfBleKeyboard::loop() {
     if (xSemaphoreTake(type_mutex_, 0) != pdTRUE) return;
     bool queue_empty = type_queue_.empty();
     bool key_up = type_key_up_pending_;
-    HidKeyMapping mapping{0, 0};
-    if (!queue_empty && !key_up) mapping = type_queue_[type_index_];
+    TypedStroke stroke{0, 0, false};
+    if (!queue_empty && !key_up) stroke = type_queue_[type_index_];
     xSemaphoreGive(type_mutex_);
 
     if (queue_empty) return;
@@ -3232,7 +3300,9 @@ void EspidfBleKeyboard::loop() {
     } else {
         // Send key-down for the current keystroke. Layout resolution happened
         // at enqueue time (see send_string), so unmapped chars never reach here.
-        if (send_kb_report_(mapping.modifier, mapping.keycode) != ESP_OK) return;
+        // Caps Lock is read now rather than then: it is whatever the host says
+        // at the moment the key goes out.
+        if (send_kb_report_(caps_corrected_(stroke.modifier, stroke.letter), stroke.keycode) != ESP_OK) return;
         xSemaphoreTake(type_mutex_, portMAX_DELAY);
         type_key_up_pending_ = true;
         type_next_ms_ = now + half_delay;
@@ -3339,6 +3409,41 @@ static HidKeyMapping resolve_codepoint_(const KeyboardLayout *layout, uint32_t c
     return {0, 0, 0, 0};
 }
 
+// The other case of a letter, for the scripts the layouts cover (ASCII and
+// Latin-1); 0 when it has none a layout could type (ß, µ, ÿ).
+static uint32_t case_partner_(uint32_t cp) {
+    if (cp >= 'a' && cp <= 'z') return cp - 0x20;
+    if (cp >= 'A' && cp <= 'Z') return cp + 0x20;
+    if (cp >= 0xE0 && cp <= 0xFE && cp != 0xF7) return cp - 0x20;
+    if (cp >= 0xC0 && cp <= 0xDE && cp != 0xD7) return cp + 0x20;
+    return 0;
+}
+
+// Whether Caps Lock changes what `cp`'s key types on this layout: it has a case
+// partner, and the partner is the same key with only Shift different. That is a
+// property of the key rather than of the character — German ä's key gives Ä
+// with Shift, so Caps Lock reaches it, while Belgian é's gives 2 and it doesn't.
+// For a dead-key compose the question is about the letter that follows the
+// accent, so the whole stroke pair has to match apart from that letter's Shift.
+static bool caps_affects_(const KeyboardLayout *layout, uint32_t cp, const HidKeyMapping &m) {
+    const uint32_t other = case_partner_(cp);
+    if (other == 0) return false;
+    const HidKeyMapping o = resolve_codepoint_(layout, other);
+    if (m.followup_keycode != 0x00)
+        return o.modifier == m.modifier && o.keycode == m.keycode && o.followup_keycode == m.followup_keycode &&
+               (o.followup_modifier ^ m.followup_modifier) == 0x02;
+    return o.followup_keycode == 0x00 && o.keycode == m.keycode && (o.modifier ^ m.modifier) == 0x02;
+}
+
+// A letter typed while the host has Caps Lock on comes out in the other case on
+// Windows, Android, Linux and ChromeOS, where Caps Lock inverts what Shift does
+// to a letter key, so the opposite Shift gives the character that was asked
+// for. macOS and iPadOS ignore Shift under Caps Lock and type capitals either
+// way; there caps_lock:off before the text is the answer.
+uint8_t EspidfBleKeyboard::caps_corrected_(uint8_t modifier, bool letter) const {
+    return (letter && host_caps() == 1) ? (uint8_t) (modifier ^ 0x02) : modifier;
+}
+
 void EspidfBleKeyboard::send_string(const std::string &str) {
     // Dedup: ESPHome API can deliver the same service call twice within ~5ms
     uint32_t now = millis();
@@ -3354,20 +3459,22 @@ void EspidfBleKeyboard::send_string(const std::string &str) {
 
     // Pre-resolve keystrokes now so a mid-type layout switch can't garble what
     // was already queued. Skip unmapped codepoints rather than queuing zeros.
-    std::vector<HidKeyMapping> strokes;
+    std::vector<TypedStroke> strokes;
     strokes.reserve(str.size());
     size_t i = 0;
     while (i < str.size()) {
         uint32_t cp = decode_utf8_(str, i);
         HidKeyMapping m = resolve_codepoint_(active_layout_, cp);
         if (m.keycode != 0x00) {
-            strokes.push_back(m);
+            const bool compose = m.followup_keycode != 0x00;
+            strokes.push_back({m.modifier, m.keycode, !compose && caps_affects_(active_layout_, cp, m)});
             // Dead-key compose: emit the followup stroke after the dead key.
             // Used either to emit a bare literal accent (followup = space) or
             // to compose an accented letter (followup = a/e/i/o/u with optional
-            // Shift for uppercase variants like Â Ê).
-            if (m.followup_keycode != 0x00) {
-                strokes.push_back({m.followup_modifier, m.followup_keycode, 0x00, 0x00});
+            // Shift for uppercase variants like Â Ê). The letter is the stroke
+            // Caps Lock acts on, not the accent.
+            if (compose) {
+                strokes.push_back({m.followup_modifier, m.followup_keycode, caps_affects_(active_layout_, cp, m)});
             }
         } else {
             ESP_LOGD(TAG, "send_string: skipped unmapped codepoint U+%04X", (unsigned) cp);
@@ -3698,7 +3805,7 @@ bool EspidfBleKeyboard::hold_char(const std::string &utf8) {
     // — so there is no single key to leave down. Refused rather than half-held,
     // and the caller types it once instead.
     if (m.followup_keycode != 0x00) return false;
-    key_repress(m.modifier, m.keycode);
+    key_repress(caps_corrected_(m.modifier, caps_affects_(active_layout_, cp, m)), m.keycode);
     return true;
 }
 
@@ -3846,6 +3953,7 @@ static const NamedCombo NAMED_COMBOS[] = {
     {"num7", 0, 0x24}, {"num8", 0, 0x25}, {"num9", 0, 0x26},
     {"num0", 0, 0x27},
     {"backspace", 0, 0x2A},     // fixing a digit or a TV search box
+    {"caps_lock", 0, 0x39},     // a tap toggles it; caps_lock:on / :off look at the host first
 };
 
 bool EspidfBleKeyboard::execute_remote_action_(const std::string &action) {
@@ -4259,12 +4367,57 @@ __attribute__((noinline)) void EspidfBleKeyboard::run_if_(const std::string &act
 // brings the keyboard home. Both readiness flags are written on the Bluetooth
 // task, so this works on the action task and, for the YAML run_action that runs
 // inline, on the loop too — where the watchdog is fed while it waits.
+// Connected on the link made for the active slot, and able to take keys: either
+// encrypted, or already subscribed to a report. Here rather than in the header
+// because the subscription flags are this file's.
+bool EspidfBleKeyboard::host_ready_() const {
+    return is_connected_ && link_slot_.load() == (int8_t) active_slot_ &&
+           (link_secure_.load() || ((report_ccc_val | boot_kb_in_ccc_val | consumer_ccc_val) & 0x0001));
+}
+
+// A slot's on-connect action runs once its host has been ready for 400 ms — the
+// settle wait:connected gives, since keys sent before a host subscribes are
+// lost. It goes through the action queue, never here: a delay: in it would
+// stall the loop. Skipped while an action chain is running, because a macro
+// visiting a host has its own plan for it, and for 30 s after the slot last ran
+// it, so two hosts whose actions switch to each other, or one that reconnects
+// its own host, stop after one round.
+void EspidfBleKeyboard::check_on_connect_() {
+    if (!host_ready_()) {
+        ready_since_ms_ = 0;
+        on_connect_checked_ = false;
+        return;
+    }
+    if (on_connect_checked_) return;
+    const uint32_t now = millis();
+    if (ready_since_ms_ == 0) {
+        ready_since_ms_ = now | 1;
+        return;
+    }
+    if (now - ready_since_ms_ < 400) return;
+    on_connect_checked_ = true;
+    const uint8_t slot = active_slot_;
+    if (on_connect_[slot].empty()) return;
+    // Not the slot's own host — a stranger in the moment before it is refused.
+    if (find_slot_for_peer(peer_addr_) != (int8_t) slot) return;
+    if (style_hold_.load() >= 0) {
+        ESP_LOGI(TAG, "Host slot %u connected during an action; its on-connect action is skipped",
+                 (unsigned) slot);
+        return;
+    }
+    if (on_connect_ran_ms_[slot] != 0 && now - on_connect_ran_ms_[slot] < 30000) {
+        ESP_LOGW(TAG, "Host slot %u connected again within 30 s; its on-connect action is skipped",
+                 (unsigned) slot);
+        return;
+    }
+    on_connect_ran_ms_[slot] = now | 1;
+    ESP_LOGI(TAG, "Host slot %u connected — running its on-connect action", (unsigned) slot);
+    queue_action(on_connect_[slot]);
+}
+
 bool EspidfBleKeyboard::wait_host_ready_(uint32_t timeout_ms) {
     if (!slot_broadcasts(active_slot_)) return false;   // nothing will ever connect
-    auto ready = [this]() {
-        return is_connected_ && link_slot_.load() == (int8_t) active_slot_ &&
-               (link_secure_.load() || ((report_ccc_val | boot_kb_in_ccc_val | consumer_ccc_val) & 0x0001));
-    };
+    auto ready = [this]() { return host_ready_(); };
     if (ready()) return true;
     const bool on_loop = xTaskGetCurrentTaskHandle() != action_task_;
     const uint32_t start = millis();
@@ -4281,6 +4434,38 @@ bool EspidfBleKeyboard::wait_host_ready_(uint32_t timeout_ms) {
     }
     ESP_LOGW(TAG, "wait:connected gave up after %u ms; carrying on with the macro", (unsigned) timeout_ms);
     return false;
+}
+
+// caps_lock:on|off|toggle. On and off tap Caps Lock only when the host reports
+// it the other way, then wait for the host's LED report, so text queued next is
+// corrected against the new state rather than the old one. That is the way to
+// type lowercase on a Mac, where Shift can't undo Caps Lock. A host that has
+// never reported its locks is left alone: a tap would be a guess.
+void EspidfBleKeyboard::set_caps_lock_(const std::string &how) {
+    if (how == "toggle") {
+        send_key_combo(0, 0x39);
+        return;
+    }
+    if (how != "on" && how != "off") {
+        ESP_LOGW(TAG, "caps_lock: takes on, off or toggle — got '%s'", how.c_str());
+        return;
+    }
+    const int want = how == "on" ? 1 : 0;
+    const int now = host_caps();
+    if (now < 0) {
+        ESP_LOGW(TAG, "caps_lock:%s — the host hasn't reported its Caps Lock, so it is left alone", how.c_str());
+        return;
+    }
+    if (now == want) return;
+    send_key_combo(0, 0x39);
+    const bool on_loop = xTaskGetCurrentTaskHandle() != action_task_;
+    const uint32_t start = millis();
+    while (millis() - start < 500) {
+        vTaskDelay(pdMS_TO_TICKS(20));
+        if (on_loop) App.feed_wdt();
+        if (host_caps() == want) return;
+    }
+    ESP_LOGW(TAG, "caps_lock:%s — the host did not confirm it within 500 ms", how.c_str());
 }
 
 // Kept out of execute_action's frame, for the reason run_alternate_ gives: the
@@ -4448,7 +4633,10 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
             last_action_ = pressed;
             pending_lcd_publish_.store(true);
         }
-        if (is_spare_action(pressed) && last_spare_ != pressed) {
+        // A long press on a spare picks a station too. Kept with its @long, so
+        // the panel can tell it from a tap on the same key.
+        const bool spare = is_spare_action(is_long_name(pressed) ? pressed.substr(0, pressed.size() - 5) : pressed);
+        if (spare && last_spare_ != pressed) {
             last_spare_ = pressed;
             pending_lcd_publish_.store(true);
         }
@@ -4518,6 +4706,7 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
         wait_host_ready_((uint32_t) std::clamp(ms, 100, 60000));
         return;
     }
+    if (action.find("caps_lock:") == 0) { set_caps_lock_(action.substr(10)); return; }
     // Parametric actions
     if (action.find("combo:") == 0) {
         int mod = 0, key = 0;
@@ -4735,6 +4924,12 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
             override_depth_--;
             return;
         }
+    }
+    // A long press on a key this host gives no second action. The name must not
+    // reach the typed-text fallback below, or the host would receive it as text.
+    if (is_long_name(action)) {
+        ESP_LOGD(TAG, "%s: no long-press action on this host", action.c_str());
+        return;
     }
 
     // Named actions

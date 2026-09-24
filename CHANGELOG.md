@@ -4,6 +4,25 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
+## Unreleased
+
+### Added
+- **Caps Lock shows where you type.** When the host has Caps Lock on, the web page shows a CAPS
+  tag and its keyboard lights Caps and shows capitals; the keyboard card does the same from the
+  `caps_lock` sensor. New `caps_lock:on`, `caps_lock:off` and `caps_lock` actions set or tap it.
+- **A host can run an action when it connects.** Set it in Host Actions: it runs whenever that host
+  connects and is ready — after a switch, a reboot or a wake — but not twice within 30 seconds, nor
+  while a macro is visiting it. Saved on the device and included in backups.
+- **Remote keys can have a second action on a long press.** A Host Action named after the key with
+  `@long` runs when the key is held for half a second; a tap still does its usual job. Such keys show
+  a dot. On the web page and the Home Assistant card alike.
+
+### Fixed
+- **Text typed while the host has Caps Lock on came out in the wrong case.** Macros, paste,
+  `send_string` and the on-screen keyboards now type what was asked for on Windows, Android and
+  Linux. On a Mac or iPad, start with `caps_lock:off`. The lock sensors now clear when a host
+  disconnects instead of showing the last host's state.
+
 ## v1.12.0 — 2026-09-23
 
 ### Added

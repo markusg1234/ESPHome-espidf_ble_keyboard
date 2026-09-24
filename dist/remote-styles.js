@@ -428,6 +428,8 @@ function btnHtml(item){
 
 function lcdLabel(t,action){
     if(!action)return '';
+    // A long press: the key's own label, marked, since the style names only the key.
+    if(/.@long$/.test(action))return lcdLabel(t,action.slice(0,-5))+' (long)';
     if(t&&Array.isArray(t.sections))for(const s of t.sections){
       // An lcd line is [label, key], the opposite order, and its key is not an
       // action at all — scanning it would match the wrong half.
@@ -829,12 +831,14 @@ export const RMT_CSS = `
 .rmt-section:last-child{margin-bottom:0}
 .rmt-row{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;margin-bottom:8px}
 .rmt-row:last-child{margin-bottom:0}
-.rmt-btn{width:48px;height:48px;padding:0;margin:0;border:1px solid var(--rb-btn-border,var(--border));border-radius:var(--rb-btn-radius,50%);background:var(--rb-btn-bg,var(--bg));color:var(--rb-btn-fg,var(--fg));font-size:12px;font-weight:500;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;transition:background .1s,transform .1s;user-select:none;-webkit-user-select:none}
+.rmt-btn{width:48px;height:48px;padding:0;margin:0;border:1px solid var(--rb-btn-border,var(--border));border-radius:var(--rb-btn-radius,50%);background:var(--rb-btn-bg,var(--bg));color:var(--rb-btn-fg,var(--fg));font-size:12px;font-weight:500;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;transition:background .1s,transform .1s;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .rmt-btn:active,.rmt-btn.p{background:var(--active);color:#fff;border-color:var(--active);transform:scale(.93)}
 .rmt-btn svg{width:20px;height:20px;fill:currentColor;pointer-events:none}
 .rmt-btn.power{background:#c62828;color:#fff;border-color:#c62828}
 .rmt-btn.power:active,.rmt-btn.power.p{background:#e53935}
 .rmt-btn.held{background:var(--accent);color:#fff;border-color:var(--accent)}
+.rmt-btn.has-long{background-image:radial-gradient(circle at 50% calc(100% - 6px),var(--accent) 0 2px,transparent 2.5px)!important}
+.rmt-btn.long{box-shadow:0 0 0 3px var(--accent)}
 .rmt-dpad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:4px;justify-content:center;margin:8px 0}
 .rmt-dpad .rmt-btn{border-radius:12px}
 .rmt-dpad .center{background:var(--rb-ok-bg,var(--active));color:var(--rb-ok-fg,#fff);border-color:var(--rb-ok-bg,var(--active));font-size:11px;font-weight:700;border-radius:50%}

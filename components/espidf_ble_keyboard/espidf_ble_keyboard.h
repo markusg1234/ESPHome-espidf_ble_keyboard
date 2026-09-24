@@ -89,6 +89,16 @@ struct HidKeyMapping {
   uint8_t followup_modifier; // modifier on the second stroke (e.g. Shift for uppercase accented vowels)
 };
 
+// One queued keystroke of typed text. `letter` marks a key whose character Caps
+// Lock changes. That is decided from the character when the text is queued: a
+// keycode alone can't say, since the key that is M in the US layout types a
+// comma in the Belgian one.
+struct TypedStroke {
+  uint8_t modifier;
+  uint8_t keycode;
+  bool letter;
+};
+
 struct UnicodeKeyMapping {
   uint32_t codepoint;
   uint8_t modifier;
@@ -310,6 +320,12 @@ class EspidfBleKeyboard : public Component
   // for roughly 13 KB: enough to use, and not enough to take the ~25 KB
   // free-heap trough down to where an allocation fails.
   static const uint16_t MAX_OVERRIDE_TEXT = 8000;
+  // The longest action string a slot stores: an override's, or its on-connect action.
+  static const size_t MAX_ACTION_LEN = 255;
+  /// What a host slot runs each time its host connects and is ready for keys;
+  /// empty for nothing. Stored in NVS, so it is set from the page, not YAML.
+  const std::string &get_on_connect(uint8_t slot) const;
+  bool set_on_connect(uint8_t slot, const std::string &action);
   void set_host_slot_override(uint8_t slot, const std::string &name, const std::string &action);
   enum class OverrideSave : uint8_t { OK, BAD, HOST_FULL, TEXT_FULL, WRITE_FAILED };
   OverrideSave set_override(uint8_t slot, const std::string &name, const std::string &action);
@@ -385,6 +401,13 @@ class EspidfBleKeyboard : public Component
                                    bool checking_hold) const;
   /// The active slot's hold list as a comma-separated string, for the text sensor.
   std::string hold_csv(uint8_t slot) const;
+  /// A long press sends `<key>@long`, and a Host Action of that name is the
+  /// key's second action. The keys that have one on this slot, saved or YAML,
+  /// without the suffix — what the page and the card time a long press for.
+  static bool is_long_name(const std::string &name) {
+    return name.size() > 5 && name.compare(name.size() - 5, 5, "@long") == 0;
+  }
+  std::vector<std::string> long_keys(uint8_t slot) const;
 
   // Per-host remote style: which template the web remote is drawn from for this
   // host, so a media-box slot gets a compact remote shaped for it while a PC
@@ -558,8 +581,15 @@ class EspidfBleKeyboard : public Component
   void set_caps_lock_binary_sensor(binary_sensor::BinarySensor *sensor) { caps_lock_binary_sensor_ = sensor; }
   void set_scroll_lock_binary_sensor(binary_sensor::BinarySensor *sensor) { scroll_lock_binary_sensor_ = sensor; }
   void queue_led_state(uint8_t led_byte) {
+    host_leds_.store(led_byte);
     pending_led_value_.store(led_byte);
     pending_led_update_.store(true);
+  }
+  /// The connected host's Caps Lock as it last reported it: 1 on, 0 off, -1 not
+  /// reported on this connection yet — some hosts never write the LED report.
+  int host_caps() const {
+    const int v = host_leds_.load();
+    return v < 0 ? -1 : (v & 0x02) ? 1 : 0;
   }
 
   // ── Battery Service ────────────────────────────────────────────────────────
@@ -583,6 +613,14 @@ class EspidfBleKeyboard : public Component
     link_slot_.store(connected ? (int8_t) active_slot_ : (int8_t) -1);
     link_secure_.store(false);
     pending_lcd_publish_.store(true);   // @state
+    // Lock states belong to the host: unknown until this one reports them, and
+    // the LED sensors go dark on a disconnect rather than showing the last
+    // host's Caps Lock against the next one.
+    host_leds_.store(-1);
+    if (!connected) {
+      pending_led_value_.store(0);
+      pending_led_update_.store(true);
+    }
     // Drop held state rather than releasing it: the link is already gone, so no
     // report would reach the host anyway, and a host releases everything itself
     // when a HID device disconnects.
@@ -934,6 +972,7 @@ class EspidfBleKeyboard : public Component
   binary_sensor::BinarySensor *paired_binary_sensor_{nullptr};
   std::atomic<bool> pending_led_update_{false};
   std::atomic<uint8_t> pending_led_value_{0};
+  std::atomic<int16_t> host_leds_{-1};  // written on the Bluetooth task, so a waiter sees it at once
   std::atomic<bool> pending_battery_notify_{false};
   binary_sensor::BinarySensor *num_lock_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *caps_lock_binary_sensor_{nullptr};
@@ -1069,6 +1108,7 @@ class EspidfBleKeyboard : public Component
   std::atomic<int8_t> link_slot_{-1};
   std::atomic<bool> link_secure_{false};
   bool wait_host_ready_(uint32_t timeout_ms);
+  void set_caps_lock_(const std::string &how);
   // The slot the remote stays drawn for while an action that switched host is
   // still running; -1 when it simply follows the active slot. Written by the
   // task running the action, read by the web task serving /hosts.
@@ -1098,6 +1138,17 @@ class EspidfBleKeyboard : public Component
   std::string remote_style_[MAX_HOST_SLOTS];
   void load_remote_style_();
   void save_remote_style_(uint8_t slot);
+
+  // Per-host on-connect action (NVS key "onc<slot>"). loop() watches the link
+  // become ready: ready_since_ms_ is when it did (0 while it isn't), and
+  // on_connect_ran_ms_ when each slot last ran its action, to space runs out.
+  std::string on_connect_[MAX_HOST_SLOTS];
+  void load_on_connect_();
+  bool host_ready_() const;
+  void check_on_connect_();
+  uint32_t ready_since_ms_{0};
+  bool on_connect_checked_{false};
+  uint32_t on_connect_ran_ms_[MAX_HOST_SLOTS]{};
 
   // Custom remote styles (NVS key "ctpl<index>"), and the buffer a chunked
   // upload fills before commit_template() moves it into one of the slots.
@@ -1233,6 +1284,7 @@ class EspidfBleKeyboard : public Component
   void load_layout_();
   void save_layout_(const std::string &id);
   void update_led_state_(uint8_t led_byte);
+  uint8_t caps_corrected_(uint8_t modifier, bool letter) const;
   void send_battery_notify_();
   void send_mouse_report_(uint8_t buttons, int8_t x, int8_t y, int8_t wheel);
 
@@ -1240,7 +1292,7 @@ class EspidfBleKeyboard : public Component
   // Keystrokes are pre-resolved (UTF-8 decoded + layout-mapped) at enqueue time,
   // so a mid-type layout switch can't garble already-queued text.
   SemaphoreHandle_t type_mutex_{nullptr};
-  std::vector<HidKeyMapping> type_queue_;
+  std::vector<TypedStroke> type_queue_;
   size_t type_index_{0};
   bool type_key_up_pending_{false};
   uint32_t type_next_ms_{0};

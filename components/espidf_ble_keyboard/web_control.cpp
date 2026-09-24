@@ -288,6 +288,13 @@ __attribute__((noinline)) static void append_status_json(std::string &json, Espi
   json += kb->is_connected() ? "true" : "false";
   json += ",\"paired\":";
   json += kb->is_paired() ? "true" : "false";
+  // The host's Caps Lock, for the keyboard's indicator; null until this host
+  // has reported it, and some never do.
+  json += ",\"caps\":";
+  {
+    const int caps = kb->host_caps();
+    json += caps < 0 ? "null" : caps ? "true" : "false";
+  }
   json += ",\"ha_action\":";
   json += kb->ha_action_enabled() ? "true" : "false";
   // Whether the active slot has a radio at all. Without it the badge reads
@@ -462,6 +469,11 @@ __attribute__((noinline)) static void append_hold_json(std::string &json, Espidf
   json += "],\"repeat\":[";
   if (r.set)
     append_name_list(json, r.names);
+  // Keys with a long-press action here (a <key>@long Host Action), so the page
+  // times a press on them. Rides on /hold because a linked keyboard's /state
+  // carries it too, and a keyboard from before this sends none, which is safe.
+  json += "],\"long\":[";
+  append_name_list(json, kb->long_keys(slot));
   json += "]}";
 }
 
@@ -711,7 +723,7 @@ class BleKbWebHandler : public AsyncWebHandler {
     // few seconds while a page is looking at it, instead of five requests.
     if (path == "state") {
       const uint8_t slot = kb_->style_slot();
-      const size_t want = status_json_size(kb_) + hosts_json_size(kb_) + 1024;
+      const size_t want = status_json_size(kb_) + hosts_json_size(kb_) + 1536;
       if (heap_short(want, "State", ""))
         return;
       std::string json;
@@ -959,7 +971,8 @@ class BleKbWebHandler : public AsyncWebHandler {
       // Reserved from what is stored, as /backup does: a slot of 48 long
       // ha_action: strings would otherwise realloc its way up on the shared heap.
       // Counted exactly, escaping included, and refused when it doesn't fit.
-      size_t est = 64;
+      const std::string &on_connect = kb_->get_on_connect((uint8_t) slot);
+      size_t est = 80 + json_escaped_size(on_connect);
       for (const auto &o : nvs) est += json_escaped_size(o.name) + json_escaped_size(o.action) + 40;
       for (const auto &o : yaml) est += json_escaped_size(o.name) + json_escaped_size(o.action) + 40;
       if (heap_short(est, "Host Actions", ""))
@@ -993,7 +1006,9 @@ class BleKbWebHandler : public AsyncWebHandler {
         json_escape_append(json, o.action);
         json += "\",\"src\":\"yaml\"}";
       }
-      json += "]}";
+      json += "],\"on_connect\":\"";
+      json_escape_append(json, on_connect);
+      json += "\"}";
       send_response(200, "application/json", json);
       return;
     }
@@ -1162,6 +1177,7 @@ class BleKbWebHandler : public AsyncWebHandler {
         for (const auto &r : kb_->get_repeat(s).names) est += r.size() + 4;
         for (const auto &h : kb_->get_hold(s)) est += h.size() + 4;
         est += 96;  // that slot's keys, calibration, style id and host entry
+        est += json_escaped_size(kb_->get_on_connect(s)) + 8;
       }
       // The custom styles, which nothing above covers and which are by far the
       // largest thing in here: six of them is 9 KB stored and more once
@@ -1261,6 +1277,17 @@ class BleKbWebHandler : public AsyncWebHandler {
         if (!first_bcast) json += ",";
         first_bcast = false;
         json += "\"" + std::to_string(s) + "\":false";
+      }
+      json += "},\"on_connect\":{";
+      bool first_onc = true;
+      for (uint8_t s = 0; s < kb_->host_slots(); s++) {
+        const std::string &a = kb_->get_on_connect(s);
+        if (a.empty()) continue;  // an absent slot restores as none
+        if (!first_onc) json += ",";
+        first_onc = false;
+        json += "\"" + std::to_string(s) + "\":\"";
+        json_escape_append(json, a);
+        json += "\"";
       }
       json += "},\"remote_templates\":[";
       bool first_tpl = true;
@@ -1612,6 +1639,20 @@ class BleKbWebHandler : public AsyncWebHandler {
         } else {
           send_response(200, "text/plain", "OK");
         }
+      }
+
+    } else if (path == "on_connect_set") {
+      // What a host runs each time it connects. An empty action clears it.
+      int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : -1;
+      std::string action = request->hasArg("action") ? request->arg("action").c_str() : "";
+      if (slot < 0 || slot >= kb_->host_slots()) {
+        send_response(400, "text/plain", "Invalid slot");
+      } else if (action.size() > EspidfBleKeyboard::MAX_ACTION_LEN) {
+        send_response(400, "text/plain", "Action max 255 chars");
+      } else if (!kb_->set_on_connect((uint8_t) slot, action)) {
+        send_response(400, "text/plain", "Could not save the on-connect action to storage");
+      } else {
+        send_response(200, "text/plain", "OK");
       }
 
     } else if (path == "override_set") {

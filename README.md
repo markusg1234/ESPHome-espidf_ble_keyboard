@@ -370,7 +370,7 @@ Expose the host-side keyboard LED state, as reported by the connected host via t
 State behavior:
 
 * **ON** = the corresponding lock LED is currently lit on the host.
-* **OFF** = the lock is off, or no host has sent an LED report yet.
+* **OFF** = the lock is off, no host is connected, or the host hasn't sent an LED report yet.
 
 ```yaml
 binary_sensor:
@@ -390,7 +390,11 @@ binary_sensor:
     name: "BLE Keyboard Scroll Lock"
 ```
 
-Note: LED state reflects what the *host* thinks the lock state is. After re-pairing or host switching, sensors may briefly show stale values until the host sends a fresh LED report.
+Note: LED state reflects what the *host* thinks the lock state is. The sensors go OFF when a host disconnects and follow the next one once it sends its LED report. The `caps_lock` sensor also lights the [keyboard card](#keyboard-control-card-for-home-assistant)'s Caps key.
+
+#### Caps Lock and typed text
+
+While the host reports Caps Lock on, typed text still comes out as written: letters are sent with the opposite Shift, which Windows, Android, Linux and ChromeOS turn back into the case asked for. This covers macros, `send_string`, paste, and the on-screen keyboards, whose keys also show capitals while it is on. **macOS and iPadOS** don't let Shift undo Caps Lock, so text there still comes out in capitals — start the macro with `caps_lock:off`.
 
 ### `sensor` (Platform: `espidf_ble_keyboard`)
 
@@ -515,6 +519,8 @@ espidf_ble_keyboard:
 | `"captions"` | Closed Caption (`0x0061`) — subtitles on/off. |
 | `"num0"` … `"num9"` | The keypad, as plain keyboard digits — direct channel entry on a TV, typing a number on a PC. |
 | `"backspace"` | Keyboard Backspace — correcting a digit or a TV search box. |
+| `"caps_lock"` | Tap Caps Lock. |
+| `"caps_lock:on"` / `"caps_lock:off"` / `"caps_lock:toggle"` | Set the host's Caps Lock. On and off tap it only when the host reports it the other way, then wait for the host to confirm; a host that has never reported it is left alone. |
 | `"prev_host"` / `"next_host"` / `"last_host"` | Remote keys for `switch_host:prev`, `switch_host:next` and `switch_host:back` below. |
 | `"next_keyboard"` / `"prev_host_all"` / `"next_host_all"` | Web page remote only: move the tab to the next [linked keyboard](#linking-a-second-keyboard), or step through every host of every linked keyboard. Anywhere else they do nothing. |
 | `"spare1"` … `"spare32"` | Send **nothing** on their own. They exist as names to hang a [per-host override](#host-actions-per-host-overrides) on, for remote keys with no standard HID usage worth guessing — an app launcher, a set-top box's Input, a vendor's own menu. Pressing an unmapped one logs a hint and does nothing. |
@@ -977,6 +983,11 @@ Win and AltGr (they are sticky toggles here, and a long press on Shift locks it 
 and dead keys such as `^` or `` ` `` on the German layout — those are two keystrokes, so there is no
 single key to hold down. They still type once.
 
+**Caps Lock follows the host.** When the host turns Caps Lock on — from this page, a card or a real
+keyboard — a **CAPS** tag appears beside the connection badge, the Caps key lights and the letters
+show capitals. What gets typed matches the labels either way; see
+[Caps Lock and typed text](#caps-lock-and-typed-text).
+
 > If the browser vanishes mid-press — a phone locking, a tab killed — the page normally still lifts
 > the key, and a lost press is released after 15 seconds. `max_key_hold_ms` is the device-side
 > backstop for the rest; it defaults to `0`, meaning a held key is never released on its own.
@@ -1017,6 +1028,8 @@ The replacement can be any action string, including a multi-step chain: `record:
 - An override body is executed with overrides disabled, so `record: "record"` safely runs the built-in Record rather than looping.
 - Overrides apply everywhere the named action is used — remote buttons, macros, YAML `button` actions, and the `run_action` HA service — not just the remote.
 
+**A second action on a long press.** Name an override `<key>@long` — `back@long` → `home` — and holding that key for half a second on the web remote or the remote card runs it, while a tap still does the key's usual job. Keys with one show a small dot. They send when released rather than when pressed, so the two can be told apart, and they don't repeat; a key in the [Press and Hold](#press-and-hold-per-host) list keeps holding, and its long action is ignored. It works on a tab showing another host's page and on a linked keyboard, which uses its own. The remote card learns these keys from the `hold_buttons` sensor, where they appear as `<key>@long`. Spares take one like any other key (`spare5@long`), and an [LCD panel](#lcd-panels)'s `@last` and `@station` show a long press as the key's label marked *(long)*.
+
 **Reusing a macro:** picking a macro from the Host Actions preset dropdown inserts `macro:<name>` — a **reference**, not a copy. Edit the macro afterwards and every override pointing at it follows automatically. Because the link is by name, renaming a macro breaks it: the override then logs "no macro named …" and does nothing rather than silently running something else. Macro names must be unique and cannot contain `|`.
 
 A dangling reference is flagged: any override row pointing at a macro that no longer exists gets a red **⚠** whose tooltip names the missing macro. It updates live, so renaming or deleting a macro immediately marks the rows that referred to it.
@@ -1030,6 +1043,8 @@ A dangling reference is flagged: any override row pointing at a macro that no lo
 **Forget Host** sits next to the slot picker and removes the BLE bond for whichever slot the picker shows — including one that isn't the active host. It takes two taps: the first turns it red and reads `Confirm?`, the second does it, and it disarms itself after three seconds or if you change slot.
 
 **Advertise over Bluetooth** is a tick under the picker, and it too applies to the slot shown rather than the active one. Untick it to turn that slot into [a remote page with no host behind it](#a-slot-that-never-advertises).
+
+**When this host connects** holds one action the slot runs each time its host connects and is ready for keys — after a switch, a reboot or waking from sleep. Anything an override can do works here, chains and macros included, e.g. `consumer:0x00E9 | delay:500 | macro:Open Kodi`. It doesn't run again for the same host within 30 seconds, nor while a macro is visiting that host, so two hosts whose actions switch to each other stop after one round. Saved on the device like the overrides and included in [Backup and restore](#backup-and-restore); a slot that doesn't advertise never connects, so its box is disabled. Fixed automations belong in YAML instead: the `paired` binary sensor and the `active_host` sensor already fire on every connect and switch.
 
 A line under the card's heading shows the keyboard's free RAM — now, the lowest since it started, and the largest block — and how much storage is left for macros, styles, icons and pairing keys. It updates once a minute.
 
@@ -2064,6 +2079,7 @@ Macros, host actions and `mouse_goto` calibration only exist in the device's NVS
 - Per-host hidden remote buttons
 - Per-host hold-to-repeat settings (a host left on the defaults is simply absent, and restores as "reset to defaults")
 - Per-host press-and-hold buttons
+- Per-host on-connect actions
 - Per-host remote styles, and any custom styles stored on the device
 - Imported button icons
 - Occupied host slots — address, address type, and whether the device still holds a Bluetooth bond for it
@@ -2343,12 +2359,13 @@ Optional configuration:
 | `active_host_entity` | Auto | Entity ID of the [active host sensor](#active-host-sensor). Auto-detected by name pattern (`sensor.*_active_host`). Set explicitly if auto-detection fails. |
 | `show_mac` | `true` | Show the active host's MAC address to the left of the switcher. |
 | `host_url` | Auto | Address of the ESP32 (e.g. `http://192.168.1.50`), used to read slot MACs. Auto-detected from the device's HA registry entry. |
+| `caps_lock_entity` | Auto | Entity ID of the [Caps Lock sensor](#led-state-sensors-num-lock--caps-lock--scroll-lock). Auto-detected by name pattern (`binary_sensor.*_caps_lock`). |
 
 Features:
 - **Full QWERTY layout** — letters, numbers, punctuation, all standard keys.
 - **Modifier keys** — Ctrl, Alt, Win, Shift are sticky (toggle on, auto-release after next key).
 - **Keys repeat when held** — the same as on the device's own page: hold a key (about a fifth of a second with a mouse, half a second with a finger) and the device leaves it down on the host, which repeats it at whatever delay and rate *that machine's* keyboard settings use. A shorter press types once. Modifiers and Caps Lock don't repeat, and nor do dead keys — they're two keystrokes, so there's no single key to hold; those still type once. Needs `api_services: true`, like the rest of the card.
-- **Caps Lock** — persistent toggle with visual indicator.
+- **Caps Lock** — sends a real Caps Lock to the host. With the device's `caps_lock` sensor configured, the key and a **CAPS** tag in the header follow the host's own Caps Lock, however it was turned on.
 - **Function keys** — F1–F12 (can be hidden with `show_fkeys: false`).
 - **Paste bar** — paste or type text in the field above the keys and send it as one piece, line breaks included (can be hidden with `show_paste: false`).
 - **Arrow keys** — Up, Down, Left, Right + Delete.
@@ -2356,8 +2373,6 @@ Features:
 - **Host switcher** — prev/next buttons to switch hosts, shows current host name and MAC address (requires `host_slots` and the `switch_host` ESPHome service). Also available on the mouse and remote cards — see [Host switcher on the cards](#host-switcher-on-the-cards).
 - **Auto device name** — card title is auto-detected from Home Assistant's device registry.
 - **Keyboard layouts** — `layout: us` (default), `layout: uk`, `layout: de`, or `layout: be` renders the matching ANSI/ISO/QWERTZ/AZERTY shape with the correct shifted labels.
-
-> **Note:** Caps Lock state is tracked locally in the card. If Caps Lock is toggled from another keyboard, the card indicator may be out of sync.
 
 ![Keyboard HA Card](docs/keyboard_ha_card.png)
 
@@ -3102,6 +3117,7 @@ After the first successful bond, reconnect behavior is typically stable.
 * **Wrong symbols on Android (`#` shows as `\`, `"` shows as `@`, etc.):** Android defaults connected BLE keyboards to US layout. Change it under *Settings → System → Languages & input → Physical keyboard → [device name] → Set up keyboard layouts → English (UK)*. See [Matching the host's layout](#matching-the-hosts-layout).
 * **iOS not pairing:** Set `passkey_mode: secure_connections`, remove old Bluetooth bonds on both devices, then pair again.
 * **iOS pairs but no typing/control:** Ensure you are using `passkey_mode: secure_connections`. Remove the bond on both the iOS device and the ESP32 (reboot/reflash), then pair again. After pairing, check the log for `Consumer CCC=0x0001` and `System CCC=0x0001` — if these are missing, iOS has not fully subscribed to the HID reports. Reflash and re-pair from a clean state.
+* **Typed text in the wrong case:** Caps Lock is on at the host, and the host is a Mac or iPad, where Shift can't undo it — start the macro with `caps_lock:off`. See [Caps Lock and typed text](#caps-lock-and-typed-text).
 * **Typing speed / dropped characters:** The default `key_delay_ms: 80` (40ms key-down + 40ms key-up) suits most connections. If characters are dropped on a slow BLE connection, increase this value (e.g. `key_delay_ms: 120`). If typing feels too slow, it can be reduced.
 * **Hibernate not working:** Hibernate uses the Windows Run dialog. Ensure the PC is not in a state where it is blocked (e.g., fullscreen app or UAC prompt). Also ensure hibernate is enabled: run `powercfg /hibernate on` in an admin command prompt.
 * **PC not waking from sleep:** Check that **USB Wake Support** (or similar) is enabled in your BIOS/UEFI Power Management settings.
