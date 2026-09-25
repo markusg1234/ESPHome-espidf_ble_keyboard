@@ -562,6 +562,14 @@ class EspidfBleKeyboard : public Component
     }
   }
 
+  /// A paired sensor tied to one slot: ON only while that slot's host holds the
+  /// link. Keyed on link_slot_, not active_slot_, so a switch_host doesn't
+  /// claim the new slot before the old link has actually dropped.
+  void add_slot_paired_binary_sensor(uint8_t slot, binary_sensor::BinarySensor *sensor) {
+    slot_paired_sensors_.emplace_back(slot, sensor);
+    sensor->publish_state(is_paired_ && link_slot_.load() == (int8_t) slot);
+  }
+
   void set_paired(bool paired) {
     is_paired_ = paired;
     // @state is one of the panel values, and nothing else would notice.
@@ -569,6 +577,9 @@ class EspidfBleKeyboard : public Component
     if (paired_binary_sensor_ != nullptr) {
       paired_binary_sensor_->publish_state(paired);
     }
+    const int8_t link = link_slot_.load();
+    for (auto &s : slot_paired_sensors_)
+      s.second->publish_state(paired && link == (int8_t) s.first);
   }
   bool is_paired() const { return is_paired_; }
 
@@ -970,6 +981,7 @@ class EspidfBleKeyboard : public Component
   void remember_host_identity_();
   void reject_host_();
   binary_sensor::BinarySensor *paired_binary_sensor_{nullptr};
+  std::vector<std::pair<uint8_t, binary_sensor::BinarySensor *>> slot_paired_sensors_;
   std::atomic<bool> pending_led_update_{false};
   std::atomic<uint8_t> pending_led_value_{0};
   std::atomic<int16_t> host_leds_{-1};  // written on the Bluetooth task, so a waiter sees it at once

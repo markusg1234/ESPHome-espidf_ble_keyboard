@@ -352,11 +352,12 @@ Reports whether the keyboard has completed BLE pairing with a host on the curren
 
 * **keyboard_id** (Required, ID): The ID of the `espidf_ble_keyboard` component.
 * **type** (Optional, string): `paired` (default).
+* **slot** (Optional, 0–9): Follow one host slot instead of whichever is active. ON only while that slot's host is connected and paired, so it tells you whether a host that drops Bluetooth when it sleeps (a TV or monitor in standby) is awake — as long as it is the active slot. Declare one per slot you want to watch.
 * **name** (Optional, string): Friendly entity name shown in Home Assistant.
 
 State behavior:
 
-* **ON** = a `GAP: Pairing Successful` event occurred on the current connection.
+* **ON** = a `GAP: Pairing Successful` event occurred on the current connection (with `slot:`, only if that connection belongs to the slot).
 * **OFF** = keyboard is disconnected (including host-side unpair) or not yet paired in this session.
 
 #### LED State Sensors (Num Lock / Caps Lock / Scroll Lock)
@@ -1534,6 +1535,8 @@ if:monitor: consumer:0x30 | delay:1000 | ok || press_button:samsung_43_m70f_wol
 Same `||` grammar as `alternate:`, so switching an existing button over is a one-word edit — first branch while the source reads `on`, second while it reads `off`. Turn the monitor off with its own remote and the next press still does the right thing, which is the case `alternate:` gets wrong.
 
 **Until the source has a state, the button does nothing** — no guess at boot before Home Assistant has connected, which matters when the off-branch sends Wake-on-LAN. A single branch means "do this when on, nothing when off". Give the key `lit:monitor` and it lights up while the monitor is on, so the remote shows the state as well as following it.
+
+If the monitor is one of the keyboard's hosts and drops Bluetooth in standby, the keyboard can tell for itself: a [paired sensor with `slot:`](#paired-sensor-default) set to the monitor's slot is on only while it is connected. Some Samsung monitors report standby to Home Assistant while lit, which sends the Wake-on-LAN branch to a monitor that is already on — the slot sensor doesn't have that problem. It reads off while another host is active, so the press then falls to the wake branch.
 
 **Real state — a template button.** For a toggle that can't drift, let a template button hold the decision. It appears on the web page automatically, so it works exactly like any other button:
 

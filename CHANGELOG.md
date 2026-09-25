@@ -16,6 +16,9 @@ web control page shows the matching version badge.
 - **Remote keys can have a second action on a long press.** A Host Action named after the key with
   `@long` runs when the key is held for half a second; a tap still does its usual job. Such keys show
   a dot. On the web page and the Home Assistant card alike.
+- **The paired sensor can follow one host slot.** With `slot:` it is on only while that slot's host
+  is connected, so a monitor or TV that drops Bluetooth in standby can drive `if:` and `lit:`
+  directly, with no template sensor in between.
 
 ### Fixed
 - **Text typed while the host has Caps Lock on came out in the wrong case.** Macros, paste,
