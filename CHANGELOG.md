@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
+## v1.13.0 — 2026-09-29
 
 ### Added
 - **Caps Lock shows where you type.** When the host has Caps Lock on, the web page shows a CAPS
