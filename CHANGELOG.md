@@ -4,6 +4,24 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
+## Unreleased
+
+### Fixed
+- **A long paste could restart the keyboard.** It went to the device all at once and needed one
+  large block of memory; the web page now feeds it in as it types, and a paste's memory is no
+  longer kept until the next restart.
+- **Switching host no longer sends unfinished typing to the next host.** What was still waiting to
+  be typed is dropped, and a paste in progress on the web page stops.
+- **In a macro, the step after typed text waits for it.** A Tab, an Enter or a host switch after
+  `string:` used to land in the middle of the text.
+- **Long macros on the keyboard's own YAML buttons no longer restart it.** Pressed from Home
+  Assistant, a few seconds of `delay:` or `repeat:` used to trip the watchdog.
+- **Two host switches in quick succession could flood the log** with advertising timeouts until the
+  next switch to a Bluetooth slot.
+- **Remote panels now follow a host switch made while no host is connected.**
+- **Caps Lock is held long enough for macOS**, which ignores very short presses.
+- Keys set to press and hold no longer show the long-press dot.
+
 ## v1.13.0 — 2026-09-29
 
 ### Added

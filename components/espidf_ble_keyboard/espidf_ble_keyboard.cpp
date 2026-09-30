@@ -333,6 +333,23 @@ static void apply_security_params(bool use_static_passkey) {
 }
 
 static void do_start_advertising() {
+    s_adv_attempt_ms = millis();
+    // A slot can be marked as never advertising — a remote page whose keys drive
+    // Home Assistant rather than a connected host. Gated here rather than at each
+    // caller: advertising starts from four places (services up at boot, after a
+    // disconnect, a host switch, and the directed-advertising timeout), and a
+    // fifth added later is covered by being here.
+    if (s_instance != nullptr && !s_instance->slot_broadcasts(s_instance->active_host_slot())) {
+        // Nothing to invite here. An invitation left over from a switch that was
+        // overtaken before its link dropped would otherwise mark a directed cycle
+        // as running, and loop()'s timeout would stop and restart it on every
+        // pass until the next switch to a slot that advertises.
+        s_directed_adv_pending = false;
+        s_directed_adv_active = false;
+        ESP_LOGD(TAG, "ADV: slot %u does not advertise; staying quiet",
+                 s_instance->active_host_slot());
+        return;
+    }
     // Each cycle owns this: set for a directed one, cleared for an undirected
     // one. It used to be set where directed advertising began and cleared only
     // by a connect or by its own 2 s timeout, so switching host again inside
@@ -341,17 +358,6 @@ static void do_start_advertising() {
     // host was already answering. A phone that has its advertising pulled away
     // mid-reconnect waits to be told to connect by hand.
     s_directed_adv_active = s_directed_adv_pending;
-    s_adv_attempt_ms = millis();
-    // A slot can be marked as never advertising — a remote page whose keys drive
-    // Home Assistant rather than a connected host. Gated here rather than at each
-    // caller: advertising starts from four places (services up at boot, after a
-    // disconnect, a host switch, and the directed-advertising timeout), and a
-    // fifth added later is covered by being here.
-    if (s_instance != nullptr && !s_instance->slot_broadcasts(s_instance->active_host_slot())) {
-        ESP_LOGD(TAG, "ADV: slot %u does not advertise; staying quiet",
-                 s_instance->active_host_slot());
-        return;
-    }
     // Set per-slot random address so each slot appears as a different BLE device.
     // This prevents hosts bonded to other slots from auto-reconnecting.
     if (s_instance) {
@@ -467,8 +473,10 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
             if (param->ble_security.auth_cmpl.success) {
                 ESP_LOGI(TAG, "GAP: Pairing Successful");
                 if (s_instance) {
-                    s_instance->queue_paired_state(true);
-                    s_instance->mark_link_secure();
+                    // Settled before anything is announced: a peer turned away
+                    // because its slot is taken must not flash the paired sensors
+                    // on, or count as a link ready for keys, on its way out.
+                    bool refused = false;
                     // Matched by identity, so a phone that reconnected on a fresh
                     // resolvable address is still recognised as the slot's owner.
                     int8_t known = s_instance->find_slot_for_peer(param->ble_security.auth_cmpl.bd_addr);
@@ -485,6 +493,7 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
                         if (s_instance->get_host_slot(slot).occupied && s_instance->host_slot_bonded(slot) &&
                             s_instance->host_slot_identifiable(slot)) {
                             s_instance->queue_host_reject(param->ble_security.auth_cmpl.bd_addr, slot);
+                            refused = true;
                         } else {
                             // New host — assign to the active slot
                             s_instance->assign_host_slot_(
@@ -494,10 +503,14 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
                             s_instance->save_host_slots_();
                         }
                     }
-                    // Identity is only available once keys have been exchanged, so
-                    // the address published at connect time may have been the
-                    // rotating one — republish now that it can be resolved.
-                    s_instance->queue_host_mac_update();
+                    if (!refused) {
+                        s_instance->queue_paired_state(true);
+                        s_instance->mark_link_secure();
+                        // Identity is only available once keys have been exchanged, so
+                        // the address published at connect time may have been the
+                        // rotating one — republish now that it can be resolved.
+                        s_instance->queue_host_mac_update();
+                    }
                 }
             } else {
                 uint8_t fail_reason = param->ble_security.auth_cmpl.fail_reason;
@@ -1446,7 +1459,7 @@ EspidfBleKeyboard::OverrideSave EspidfBleKeyboard::set_override(uint8_t slot, co
     }
     ESP_LOGI(TAG, "Override slot %u: %s -> %s", (unsigned) slot, name.c_str(), action.c_str());
     // A new long-press key: the card learns it from the hold sensor.
-    if (is_long_name(name) && slot == style_slot()) publish_hold_();
+    if (is_long_name(name) && slot == style_slot()) request_publish_(PUB_HOLD);
     return OverrideSave::OK;
 }
 
@@ -1457,7 +1470,7 @@ bool EspidfBleKeyboard::clear_override(uint8_t slot, const std::string &name) {
             nvs_overrides_[slot].erase(nvs_overrides_[slot].begin() + i);
             save_overrides_(slot);
             ESP_LOGI(TAG, "Cleared override slot %u: %s", (unsigned) slot, name.c_str());
-            if (is_long_name(name) && slot == style_slot()) publish_hold_();
+            if (is_long_name(name) && slot == style_slot()) request_publish_(PUB_HOLD);
             return true;
         }
     }
@@ -1574,7 +1587,7 @@ bool EspidfBleKeyboard::set_hidden(uint8_t slot, const std::vector<std::string> 
     }
     hidden_[slot] = names;
     save_hidden_(slot);
-    if (slot == style_slot()) publish_hidden_();
+    if (slot == style_slot()) request_publish_(PUB_HIDDEN);
     ESP_LOGI(TAG, "Hidden buttons for host %u: %u", (unsigned) slot, (unsigned) names.size());
     return true;
 }
@@ -1660,9 +1673,10 @@ void EspidfBleKeyboard::reject_host_() {
     esp_ble_remove_bond_device(reject_addr_);
     bond_log_record(BOND_LOSS_REJECT, 0, reject_slot_, reject_addr_);
     if (is_connected_) esp_ble_gatts_close(s_gatts_if, conn_id_);
-    // The close is asynchronous, so is_connected_ is still true this pass. Drop the
-    // publish that pairing queued rather than announce a host we just refused; the
-    // disconnect will queue its own and the sensor clears then.
+    // The close is asynchronous, so is_connected_ is still true this pass. Drop any
+    // publish still queued for this peer rather than announce a host we just
+    // refused (pairing no longer queues one for it); the disconnect will queue its
+    // own and the sensor clears then.
     pending_host_mac_update_.store(false);
 }
 
@@ -1744,7 +1758,7 @@ bool EspidfBleKeyboard::set_remote_style(uint8_t slot, const std::string &id) {
     if (!id.empty() && !valid_style_id(id)) return false;
     remote_style_[slot] = id;
     save_remote_style_(slot);
-    if (slot == style_slot()) publish_remote_style_();
+    if (slot == style_slot()) request_publish_(PUB_STYLE);
     ESP_LOGI(TAG, "Remote style for host %u: %s", (unsigned) slot,
              id.empty() ? "(default)" : id.c_str());
     return true;
@@ -2466,7 +2480,7 @@ bool EspidfBleKeyboard::set_hold(uint8_t slot, const std::vector<std::string> &n
     if (!hold_repeat_conflict(slot, names, true).empty()) return false;
     hold_[slot] = names;
     save_hold_(slot);
-    if (slot == style_slot()) publish_hold_();
+    if (slot == style_slot()) request_publish_(PUB_HOLD);
     ESP_LOGI(TAG, "Hold-to-send for host %u: %u button(s)",
              (unsigned) slot, (unsigned) names.size());
     return true;
@@ -2565,7 +2579,7 @@ bool EspidfBleKeyboard::set_repeat(uint8_t slot, uint16_t delay, uint16_t rate,
     repeat_[slot].rate = rate;
     repeat_[slot].names = names;
     save_repeat_(slot);
-    if (slot == style_slot()) publish_repeat_();
+    if (slot == style_slot()) request_publish_(PUB_REPEAT);
     ESP_LOGI(TAG, "Repeat for host %u: %u button(s), %ums then every %ums",
              (unsigned) slot, (unsigned) names.size(), (unsigned) delay, (unsigned) rate);
     return true;
@@ -2575,7 +2589,7 @@ void EspidfBleKeyboard::clear_repeat(uint8_t slot) {
     if (slot >= MAX_HOST_SLOTS) return;
     repeat_[slot] = RepeatCfg{};
     save_repeat_(slot);  // .set is false now, so this erases the key
-    if (slot == style_slot()) publish_repeat_();
+    if (slot == style_slot()) request_publish_(PUB_REPEAT);
     ESP_LOGI(TAG, "Repeat for host %u reset to defaults", (unsigned) slot);
 }
 
@@ -2803,7 +2817,7 @@ void EspidfBleKeyboard::publish_remote_lists_() {
 // publish, which is the whole point of holding it.
 void EspidfBleKeyboard::release_style_hold_() {
     const int8_t held = style_hold_.exchange(-1);
-    if (held >= 0 && (uint8_t) held != active_slot_) publish_remote_lists_();
+    if (held >= 0 && (uint8_t) held != active_slot_) request_publish_(PUB_LISTS);
 }
 
 bool EspidfBleKeyboard::is_advertising() const { return s_adv_running.load(); }
@@ -2817,6 +2831,9 @@ void EspidfBleKeyboard::switch_host(uint8_t slot, bool from_action) {
     // Let go of anything held before the link to the old host drops, or it is
     // left holding the key until it notices the disconnect.
     release_held();
+    // Text still waiting to be typed was meant for the host being left. Kept, it
+    // would go to whichever host connects next.
+    if (slot != active_slot_) drop_typing_("switched host");
 
     // A switch made inside an action string leaves the remote drawn for the slot
     // it was showing until that whole action has run (release_style_hold_), so a
@@ -2836,13 +2853,16 @@ void EspidfBleKeyboard::switch_host(uint8_t slot, bool from_action) {
     if (!same_slot) previous_slot_ = (int8_t) active_slot_;
     active_slot_ = slot;
     save_host_slots_();
-    if (active_host_sensor_ != nullptr)
-        active_host_sensor_->publish_state(slot);
+    // Published by loop(): this runs on the web task and the action task too.
+    request_publish_(PUB_ACTIVE_HOST);
     // The new host may hide, hold and repeat a different set of buttons, and
     // may draw its remote in a different style — unless the remote is being
     // held on the slot it started this action on.
-    if (style_hold_.load() < 0) publish_remote_lists_();
-    publish_lcd_();   // @host, @slot and @mac all just changed
+    if (style_hold_.load() < 0) request_publish_(PUB_LISTS);
+    // @host, @slot and @mac all just changed. A rebuild, not a publish: the panel
+    // string is only rebuilt when this is set, and a switch made with no host
+    // connected has no disconnect to set it.
+    pending_lcd_publish_.store(true);
 
     // Re-apply security params for the new slot's passkey config
     bool slot_has_pk; uint32_t slot_pk; bool slot_sc;
@@ -2858,6 +2878,9 @@ void EspidfBleKeyboard::switch_host(uint8_t slot, bool from_action) {
     // A resolvable private address — bits [7:6] of its first byte are 01 — is a
     // phone's, and has rotated since it was stored, so directed advertising at
     // it would never be answered. Everything else can be invited directly.
+    // An invitation still waiting from an earlier switch — one overtaken before
+    // its link dropped — was for that slot's host, not this one's.
+    s_directed_adv_pending = false;
     const bool rpa = hosts_[slot].occupied && (hosts_[slot].addr[0] >> 6) == 0x01;
     if (hosts_[slot].occupied && slot_broadcasts(slot) && !rpa) {
         s_directed_adv_pending = true;
@@ -2968,6 +2991,8 @@ void EspidfBleKeyboard::register_api_services_() {
 
 void EspidfBleKeyboard::setup() {
     s_instance = this;
+    // ESPHome runs setup() and every loop() on the same task.
+    loop_task_ = xTaskGetCurrentTaskHandle();
     type_mutex_ = xSemaphoreCreateMutex();
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -3170,6 +3195,15 @@ void EspidfBleKeyboard::loop() {
     if (pending_battery_notify_.exchange(false)) {
         send_battery_notify_();
     }
+    // Asked for from the web task and the action task; see request_publish_().
+    if (const uint8_t pub = pending_publish_.exchange(0)) {
+        if ((pub & PUB_ACTIVE_HOST) && active_host_sensor_ != nullptr)
+            active_host_sensor_->publish_state(active_slot_);
+        if (pub & PUB_HIDDEN) publish_hidden_();
+        if (pub & PUB_HOLD) publish_hold_();
+        if (pub & PUB_REPEAT) publish_repeat_();
+        if (pub & PUB_STYLE) publish_remote_style_();
+    }
     // LCD values, coalesced. Several sources can move within the same second and
     // each publish is an API state update; nothing here is urgent — the web
     // page's own poll is 3 s — so once a second is as often as it can matter.
@@ -3256,12 +3290,10 @@ void EspidfBleKeyboard::loop() {
         release_held();
     }
 
-    // Non-blocking string typing: one keystroke step per loop() call, paced by timer.
-    if (!is_connected_ || type_mutex_ == nullptr) return;
-
-    uint32_t now = millis();
+    if (!is_connected_) return;
 
     // RSSI polling: read signal strength of connected host on configured interval.
+    const uint32_t now = millis();
     if (rssi_sensor_ != nullptr && !rssi_pending_) {
         if (now - rssi_last_poll_ms_ >= rssi_update_interval_ms_) {
             rssi_last_poll_ms_ = now;
@@ -3269,44 +3301,108 @@ void EspidfBleKeyboard::loop() {
             esp_ble_gap_read_rssi(peer_addr_);
         }
     }
-    if (now < type_next_ms_) return;
 
-    // Snapshot queue state under mutex (non-blocking try-lock).
+    // Non-blocking string typing: one keystroke step per loop() call, paced by timer.
+    type_step_();
+}
+
+// One step of the typing queue: the current keystroke's key down, or its key up.
+// Everything happens under the lock, sends included, so dropping the queue from
+// another task (drop_typing_) always finds a key either down or not — never one
+// on its way down, whose key up nothing would then send.
+void EspidfBleKeyboard::type_step_() {
+    if (type_mutex_ == nullptr) return;
+    const uint32_t now = millis();
+    // A try, not a wait: this runs on every loop pass.
     if (xSemaphoreTake(type_mutex_, 0) != pdTRUE) return;
-    bool queue_empty = type_queue_.empty();
-    bool key_up = type_key_up_pending_;
-    TypedStroke stroke{0, 0, false};
-    if (!queue_empty && !key_up) stroke = type_queue_[type_index_];
-    xSemaphoreGive(type_mutex_);
-
-    if (queue_empty) return;
-
-    uint32_t half_delay = key_delay_ms_ / 2;
-
-    if (key_up) {
-        // Send key-up. Anything being held stays down (send_kb_report_), so
-        // typing while push-to-talk is held doesn't cut the held key.
-        // Retry next loop() if the BLE stack queue is full.
-        if (send_kb_report_(0, 0) != ESP_OK) return;
-        xSemaphoreTake(type_mutex_, portMAX_DELAY);
-        type_key_up_pending_ = false;
-        type_index_++;
-        if (type_index_ >= type_queue_.size()) {
-            type_queue_.clear();
-            type_index_ = 0;
+    // How far ahead the next step is scheduled. Never more than half a key delay
+    // or the 30 ms after a lift, so anything larger is a time already past — a
+    // comparison that keeps working when millis() wraps, which `now < next` did
+    // not: a step booked just before the wrap stalled typing for 49 days.
+    const uint32_t ahead = type_next_ms_ - now;
+    const bool due = ahead == 0 || ahead > key_delay_ms_ / 2 + 30;
+    if (due && !type_queue_.empty()) {
+        const uint32_t half_delay = key_delay_ms_ / 2;
+        if (type_key_up_pending_) {
+            // Send key-up. Anything being held stays down (send_kb_report_), so
+            // typing while push-to-talk is held doesn't cut the held key.
+            // Retried next loop() if the BLE stack queue is full.
+            if (send_kb_report_(0, 0) == ESP_OK) {
+                type_key_up_pending_ = false;
+                // Each block goes back to the heap as soon as it has been typed.
+                type_queue_.pop_front();
+                type_next_ms_ = now + half_delay;
+            }
+        } else {
+            // Send key-down for the current keystroke. Layout resolution happened
+            // at enqueue time (see send_string), so unmapped chars never reach here.
+            // Caps Lock is read now rather than then: it is whatever the host says
+            // at the moment the key goes out.
+            const TypedStroke &stroke = type_queue_.front();
+            if (send_kb_report_(caps_corrected_(stroke.modifier, stroke.letter), stroke.keycode) == ESP_OK) {
+                type_key_up_pending_ = true;
+                type_next_ms_ = now + half_delay;
+            }
         }
-        type_next_ms_ = now + half_delay;
-        xSemaphoreGive(type_mutex_);
-    } else {
-        // Send key-down for the current keystroke. Layout resolution happened
-        // at enqueue time (see send_string), so unmapped chars never reach here.
-        // Caps Lock is read now rather than then: it is whatever the host says
-        // at the moment the key goes out.
-        if (send_kb_report_(caps_corrected_(stroke.modifier, stroke.letter), stroke.keycode) != ESP_OK) return;
-        xSemaphoreTake(type_mutex_, portMAX_DELAY);
-        type_key_up_pending_ = true;
-        type_next_ms_ = now + half_delay;
-        xSemaphoreGive(type_mutex_);
+    }
+    xSemaphoreGive(type_mutex_);
+}
+
+size_t EspidfBleKeyboard::typing_left() {
+    if (type_mutex_ == nullptr) return 0;
+    xSemaphoreTake(type_mutex_, portMAX_DELAY);
+    const size_t left = type_queue_.size();
+    xSemaphoreGive(type_mutex_);
+    return left;
+}
+
+void EspidfBleKeyboard::drop_typing_(const char *why) {
+    if (type_mutex_ == nullptr) return;
+    xSemaphoreTake(type_mutex_, portMAX_DELAY);
+    size_t left = type_queue_.size();
+    if (type_key_up_pending_) {
+        // The key that is down comes up first, or the host keeps repeating it
+        // for as long as its link takes to close.
+        if (is_connected_) send_kb_report_(0, 0);
+        type_key_up_pending_ = false;
+        if (left > 0) left--;   // that one was typed
+    }
+    type_queue_.clear();
+    xSemaphoreGive(type_mutex_);
+    if (left > 0) ESP_LOGI(TAG, "Dropped %u keystroke(s) not yet typed: %s", (unsigned) left, why);
+}
+
+// Typed text goes out from loop(), a key every key_delay_ms, so the step after
+// a string: used to run while the text was still going — a Tab or an Enter
+// landed in the middle of it, and a host switch took the rest to the next host.
+// Called between the steps of a chain. On the action task loop() types while
+// this sleeps; on the main loop nothing else would, so it types here — the loop
+// stalls for that long, as it already does for a delay: there. Any other task
+// (the web task, when the action task could not be started) leaves the old
+// behaviour alone. Gives up when the link drops: nothing more can go out.
+void EspidfBleKeyboard::wait_typed_() {
+    const TaskHandle_t self = xTaskGetCurrentTaskHandle();
+    const bool on_loop = self == loop_task_;
+    if (!on_loop && (action_task_ == nullptr || self != action_task_)) return;
+    size_t left = typing_left();
+    if (left == 0) return;
+    // Two steps a key, each paced by half a delay and landing on a loop pass,
+    // plus slack. Only a host that stops taking reports ever reaches it.
+    const uint32_t limit = (uint32_t) left * (key_delay_ms_ + 40) + 2000;
+    const uint32_t start = millis();
+    while (left > 0 && is_connected_) {
+        if (millis() - start > limit) {
+            ESP_LOGW(TAG, "Typing did not finish in %u ms; the macro carries on", (unsigned) limit);
+            return;
+        }
+        if (on_loop) {
+            type_step_();
+            App.feed_wdt();
+            vTaskDelay(pdMS_TO_TICKS(5));
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+        left = typing_left();
     }
 }
 
@@ -3447,43 +3543,16 @@ uint8_t EspidfBleKeyboard::caps_corrected_(uint8_t modifier, bool letter) const 
 void EspidfBleKeyboard::send_string(const std::string &str) {
     // Dedup: ESPHome API can deliver the same service call twice within ~5ms
     uint32_t now = millis();
-    if (str == last_send_string_ && (now - last_send_string_ms_) < 30) {
+    const size_t hash = std::hash<std::string>{}(str);
+    if (hash == last_send_string_hash_ && (now - last_send_string_ms_) < 30) {
         ESP_LOGD(TAG, "send_string dedup: \"%s\" (duplicate after %ums)", str.c_str(), (unsigned) (now - last_send_string_ms_));
         return;
     }
-    last_send_string_ = str;
+    last_send_string_hash_ = hash;
     last_send_string_ms_ = now;
 
-    if (type_mutex_ == nullptr) return;
+    if (type_mutex_ == nullptr || str.empty()) return;
     if (active_layout_ == nullptr) active_layout_ = default_layout();
-
-    // Pre-resolve keystrokes now so a mid-type layout switch can't garble what
-    // was already queued. Skip unmapped codepoints rather than queuing zeros.
-    std::vector<TypedStroke> strokes;
-    strokes.reserve(str.size());
-    size_t i = 0;
-    while (i < str.size()) {
-        uint32_t cp = decode_utf8_(str, i);
-        HidKeyMapping m = resolve_codepoint_(active_layout_, cp);
-        if (m.keycode != 0x00) {
-            const bool compose = m.followup_keycode != 0x00;
-            strokes.push_back({m.modifier, m.keycode, !compose && caps_affects_(active_layout_, cp, m)});
-            // Dead-key compose: emit the followup stroke after the dead key.
-            // Used either to emit a bare literal accent (followup = space) or
-            // to compose an accented letter (followup = a/e/i/o/u with optional
-            // Shift for uppercase variants like Â Ê). The letter is the stroke
-            // Caps Lock acts on, not the accent.
-            if (compose) {
-                strokes.push_back({m.followup_modifier, m.followup_keycode, caps_affects_(active_layout_, cp, m)});
-            }
-        } else {
-            ESP_LOGD(TAG, "send_string: skipped unmapped codepoint U+%04X", (unsigned) cp);
-        }
-    }
-
-    ESP_LOGD(TAG, "send_string: \"%s\" (len=%u, strokes=%u, queue=%u, layout=%s)",
-             str.c_str(), str.size(), strokes.size(), type_queue_.size(),
-             active_layout_->id);
 
     // One character that is already held down types nothing at all: the report
     // builder drops a keycode it is already holding, so a key whose release went
@@ -3492,19 +3561,53 @@ void EspidfBleKeyboard::send_string(const std::string &str) {
     // single character — the on-screen keyboard's taps — so that pasted text,
     // which can legitimately contain the letter a push-to-talk key is holding,
     // is left alone.
-    if (strokes.size() == 1 && is_key_held(strokes[0].keycode)) {
-        ESP_LOGD(TAG, "send_string: 0x%02X was still held — releasing so this press registers",
-                 strokes[0].keycode);
-        release_held();
-        // The gap key_repress explains, without blocking: the queue below is
-        // drained by loop(), so pushing its next step out is enough to keep the
-        // lift from being batched away with the keystroke that follows.
-        type_next_ms_ = millis() + 30;
+    bool lift = false;
+    {
+        size_t i = 0;
+        const uint32_t cp = decode_utf8_(str, i);
+        const HidKeyMapping m = resolve_codepoint_(active_layout_, cp);
+        if (i == str.size() && m.keycode != 0x00 && m.followup_keycode == 0x00 && is_key_held(m.keycode)) {
+            ESP_LOGD(TAG, "send_string: 0x%02X was still held — releasing so this press registers", m.keycode);
+            release_held();
+            lift = true;
+        }
     }
 
+    // Pre-resolve keystrokes now so a mid-type layout switch can't garble what
+    // was already queued. Skip unmapped codepoints rather than queuing zeros.
+    // Straight into the queue, under the lock: a copy built first was a second
+    // block the size of the whole text.
     xSemaphoreTake(type_mutex_, portMAX_DELAY);
-    type_queue_.insert(type_queue_.end(), strokes.begin(), strokes.end());
+    // The gap key_repress explains, without blocking: the queue is drained by
+    // loop(), so pushing its next step out is enough to keep the lift from being
+    // batched away with the keystroke that follows.
+    if (lift) type_next_ms_ = millis() + 30;
+    const size_t before = type_queue_.size();
+    size_t i = 0;
+    while (i < str.size()) {
+        uint32_t cp = decode_utf8_(str, i);
+        HidKeyMapping m = resolve_codepoint_(active_layout_, cp);
+        if (m.keycode != 0x00) {
+            const bool compose = m.followup_keycode != 0x00;
+            type_queue_.push_back({m.modifier, m.keycode, !compose && caps_affects_(active_layout_, cp, m)});
+            // Dead-key compose: emit the followup stroke after the dead key.
+            // Used either to emit a bare literal accent (followup = space) or
+            // to compose an accented letter (followup = a/e/i/o/u with optional
+            // Shift for uppercase variants like Â Ê). The letter is the stroke
+            // Caps Lock acts on, not the accent.
+            if (compose) {
+                type_queue_.push_back({m.followup_modifier, m.followup_keycode, caps_affects_(active_layout_, cp, m)});
+            }
+        } else {
+            ESP_LOGD(TAG, "send_string: skipped unmapped codepoint U+%04X", (unsigned) cp);
+        }
+    }
+    const size_t queued = type_queue_.size();
     xSemaphoreGive(type_mutex_);
+
+    ESP_LOGD(TAG, "send_string: \"%s\" (len=%u, strokes=%u, queue=%u, layout=%s)",
+             str.c_str(), str.size(), (unsigned) (queued - before), (unsigned) queued,
+             active_layout_->id);
 }
 
 // ── Keyboard layout: setters + NVS persistence ──────────────────────────────
@@ -3524,6 +3627,7 @@ void EspidfBleKeyboard::set_runtime_layout(const std::string &id, bool persist) 
     }
     active_layout_ = lay;
     if (persist) save_layout_(id);
+    pending_lcd_publish_.store(true);   // @layout
     ESP_LOGI(TAG, "Keyboard layout (runtime%s): %s", persist ? "" : ", ephemeral", active_layout_->id);
 }
 
@@ -3698,7 +3802,9 @@ void EspidfBleKeyboard::send_key_combo(uint8_t modifiers, uint8_t keycode) {
         vTaskDelay(pdMS_TO_TICKS(30));
     }
     send_kb_report_(modifiers, keycode);
-    vTaskDelay(pdMS_TO_TICKS(30));
+    // Caps Lock stays down longer: macOS ignores a press of it as short as 30 ms,
+    // its guard against brushing the key. Every other host toggles once either way.
+    vTaskDelay(pdMS_TO_TICKS(keycode == 0x39 ? 150 : 30));
     send_kb_report_(0, 0);
 }
 
@@ -4440,23 +4546,28 @@ bool EspidfBleKeyboard::wait_host_ready_(uint32_t timeout_ms) {
 // it the other way, then wait for the host's LED report, so text queued next is
 // corrected against the new state rather than the old one. That is the way to
 // type lowercase on a Mac, where Shift can't undo Caps Lock. A host that has
-// never reported its locks is left alone: a tap would be a guess.
+// never reported its locks is left alone: a tap would be a guess. Toggle always
+// taps, and waits like on and off whenever the host has said where it stands.
 void EspidfBleKeyboard::set_caps_lock_(const std::string &how) {
+    const int now = host_caps();
+    int want;
     if (how == "toggle") {
-        send_key_combo(0, 0x39);
-        return;
-    }
-    if (how != "on" && how != "off") {
+        if (now < 0) {
+            send_key_combo(0, 0x39);
+            return;
+        }
+        want = now ? 0 : 1;
+    } else if (how == "on" || how == "off") {
+        want = how == "on" ? 1 : 0;
+        if (now < 0) {
+            ESP_LOGW(TAG, "caps_lock:%s — the host hasn't reported its Caps Lock, so it is left alone", how.c_str());
+            return;
+        }
+        if (now == want) return;
+    } else {
         ESP_LOGW(TAG, "caps_lock: takes on, off or toggle — got '%s'", how.c_str());
         return;
     }
-    const int want = how == "on" ? 1 : 0;
-    const int now = host_caps();
-    if (now < 0) {
-        ESP_LOGW(TAG, "caps_lock:%s — the host hasn't reported its Caps Lock, so it is left alone", how.c_str());
-        return;
-    }
-    if (now == want) return;
     send_key_combo(0, 0x39);
     const bool on_loop = xTaskGetCurrentTaskHandle() != action_task_;
     const uint32_t start = millis();
@@ -4466,6 +4577,22 @@ void EspidfBleKeyboard::set_caps_lock_(const std::string &how) {
         if (host_caps() == want) return;
     }
     ESP_LOGW(TAG, "caps_lock:%s — the host did not confirm it within 500 ms", how.c_str());
+}
+
+// A delay: on the main loop is slept in slices with the watchdog fed between
+// them — ten seconds of it in one piece is what rebooted the device from a card
+// press, before chains had a task of their own. Anywhere else, one sleep.
+void EspidfBleKeyboard::sleep_ms_(uint32_t ms) {
+    if (xTaskGetCurrentTaskHandle() != loop_task_) {
+        vTaskDelay(pdMS_TO_TICKS(ms));
+        return;
+    }
+    while (ms > 0) {
+        const uint32_t slice = ms > 100 ? 100 : ms;
+        vTaskDelay(pdMS_TO_TICKS(slice));
+        App.feed_wdt();
+        ms -= slice;
+    }
 }
 
 // Kept out of execute_action's frame, for the reason run_alternate_ gives: the
@@ -4483,8 +4610,10 @@ __attribute__((noinline)) void EspidfBleKeyboard::run_steps_(const std::string &
             execute_action(step);
         }
         start = end + 1;
-        if (start < action.size() && step.find("delay:") != 0) {
-            vTaskDelay(pdMS_TO_TICKS(50));
+        if (start < action.size()) {
+            // Text a step queued is typed before the next step runs.
+            wait_typed_();
+            if (step.find("delay:") != 0) vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
 }
@@ -4612,6 +4741,11 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
         if (left < act_low_) act_low_ = left;
         if (action_depth_ > act_deepest_) act_deepest_ = action_depth_;
     }
+    // A chain run on the main loop — one of this component's buttons pressed from
+    // Home Assistant, or the YAML run_action — holds the loop for as long as it
+    // takes, and the task watchdog reboots the device after five seconds of that.
+    // Every step feeds it, as do delay: and the waits.
+    if (xTaskGetCurrentTaskHandle() == loop_task_) App.feed_wdt();
 
     // Remember the outermost press, for the @last and @station panel values.
     // Depth 1 here because the guard above has already counted this call: any
@@ -4695,7 +4829,7 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
     if (action.find("delay:") == 0) {
         int ms = 0;
         if (sscanf(action.c_str(), "delay:%i", &ms) == 1 && ms > 0 && ms <= 10000)
-            vTaskDelay(pdMS_TO_TICKS(ms));
+            sleep_ms_((uint32_t) ms);
         return;
     }
     // wait:connected[:ms] — hold the macro until the host is ready for keys,

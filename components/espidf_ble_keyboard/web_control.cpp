@@ -1534,6 +1534,25 @@ class BleKbWebHandler : public AsyncWebHandler {
       }
 
     } else if (path == "string") {
+      // The page's paste bar names the host it started typing on, and only a
+      // caller that does is paced — it knows to send a turned-away piece again.
+      // Anything else (curl, a linked keyboard passing text on) queues as before.
+      const int slot = parse_byte_arg(request, "slot", -1);
+      if (slot >= 0) {
+        // Moved on since the paste began: the rest is not for this host, and
+        // switch_host() already dropped what was queued for the old one.
+        if (slot != kb_->active_host_slot()) {
+          send_response(422, "text/plain", "The keyboard switched host; the rest was not typed");
+          return;
+        }
+        // A long paste arrives piece by piece far faster than it types. Past the
+        // backlog the next piece is turned away and sent again shortly, so a
+        // whole paste never sits in RAM at once.
+        if (kb_->typing_left() > EspidfBleKeyboard::MAX_TYPE_BACKLOG) {
+          send_response(409, "text/plain", "Still typing; send the rest shortly");
+          return;
+        }
+      }
       if (request->hasArg("keys")) {
         std::string keys = request->arg("keys").c_str();
         ESP_LOGD(TAG, "WEB /string keys=\"%s\"", keys.c_str());
@@ -1649,6 +1668,9 @@ class BleKbWebHandler : public AsyncWebHandler {
         send_response(400, "text/plain", "Invalid slot");
       } else if (action.size() > EspidfBleKeyboard::MAX_ACTION_LEN) {
         send_response(400, "text/plain", "Action max 255 chars");
+      } else if (action.find_first_of("\r\n") != std::string::npos) {
+        // Refused by the setter too, which could only call it a storage failure.
+        send_response(400, "text/plain", "No line breaks — separate steps with |");
       } else if (!kb_->set_on_connect((uint8_t) slot, action)) {
         send_response(400, "text/plain", "Could not save the on-connect action to storage");
       } else {
@@ -1667,6 +1689,8 @@ class BleKbWebHandler : public AsyncWebHandler {
                       "actions can be overridden (e.g. record, play_pause, stop).");
       } else if (action.empty() || action.size() > 255) {
         send_response(400, "text/plain", "Action required, max 255 chars");
+      } else if (action.find_first_of("\r\n") != std::string::npos) {
+        send_response(400, "text/plain", "No line breaks — separate steps with |");
       } else {
         switch (kb_->set_override((uint8_t) slot, name, action)) {
           case EspidfBleKeyboard::OverrideSave::OK:

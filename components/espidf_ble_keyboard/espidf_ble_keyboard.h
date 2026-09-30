@@ -13,6 +13,7 @@
 #endif
 #include <atomic>
 #include <cstring>
+#include <deque>
 #include <functional>
 #include <map>
 #include <memory>
@@ -130,6 +131,12 @@ class EspidfBleKeyboard : public Component
   void loop() override;
   float get_setup_priority() const override { return -200.0f; }
   void send_string(const std::string &str);
+  /// Keystrokes queued and not yet typed, counting the one that is down.
+  size_t typing_left();
+  /// How far the web page's paste may run ahead of the typing: past this many
+  /// keystrokes still to go, /string asks it to send the next piece later. A
+  /// 5000-character paste otherwise sat in RAM whole for the minutes it types.
+  static const size_t MAX_TYPE_BACKLOG = 1000;
   void send_ctrl_alt_del();
   void send_key_combo(uint8_t modifiers, uint8_t keycode);
   void send_sleep();
@@ -1127,9 +1134,28 @@ class EspidfBleKeyboard : public Component
   std::atomic<int8_t> style_hold_{-1};
   void release_style_hold_();
   void publish_remote_lists_();
+  // Entity states the web task and the action task want sent. They set a bit and
+  // loop() publishes: ESPHome's API is only safe to feed from the main loop, which
+  // is also why press_button: and ha_action: defer to it.
+  enum : uint8_t {
+    PUB_ACTIVE_HOST = 1,
+    PUB_HIDDEN = 2,
+    PUB_HOLD = 4,
+    PUB_REPEAT = 8,
+    PUB_STYLE = 16,
+    PUB_LISTS = PUB_HIDDEN | PUB_HOLD | PUB_REPEAT | PUB_STYLE,
+  };
+  std::atomic<uint8_t> pending_publish_{0};
+  void request_publish_(uint8_t what) { pending_publish_.fetch_or(what); }
   static const uint8_t ACTION_QUEUE_DEPTH = 8;
   QueueHandle_t action_queue_{nullptr};
   TaskHandle_t action_task_{nullptr};
+  // The task running setup() and loop() — ESPHome's main loop. A chain there
+  // must type its own text and feed the watchdog while it waits.
+  TaskHandle_t loop_task_{nullptr};
+  /// vTaskDelay, fed to the task watchdog in slices when the main loop is the
+  /// one waiting.
+  void sleep_ms_(uint32_t ms);
   static void action_task_entry_(void *arg);
   UBaseType_t act_low_{(UBaseType_t) -1};
   uint8_t act_deepest_{0};
@@ -1303,15 +1329,25 @@ class EspidfBleKeyboard : public Component
   // Non-blocking string typing state machine (driven from loop())
   // Keystrokes are pre-resolved (UTF-8 decoded + layout-mapped) at enqueue time,
   // so a mid-type layout switch can't garble already-queued text.
+  //
+  // A deque, not a vector: it grows in 512-byte blocks and hands each back as it
+  // is typed. A vector wanted the whole paste in one block — 20 KB for 5000
+  // characters, doubled on the way up — and a refresh-squeezed heap aborted there.
   SemaphoreHandle_t type_mutex_{nullptr};
-  std::vector<TypedStroke> type_queue_;
-  size_t type_index_{0};
+  std::deque<TypedStroke> type_queue_;
   bool type_key_up_pending_{false};
   uint32_t type_next_ms_{0};
+  /// One step of typing when one is due: the next key down, or its key up.
+  void type_step_();
+  /// Forget whatever is still to be typed, and the memory it held.
+  void drop_typing_(const char *why);
+  /// Hold a chain's next step until the text an earlier one queued is typed.
+  void wait_typed_();
 
-  // Dedup guard — ESPHome API can deliver service calls twice
+  // Dedup guard — ESPHome API can deliver service calls twice. The text is kept
+  // as a hash: a copy of it kept the last paste, up to 5000 characters, in RAM.
   uint32_t last_send_string_ms_{0};
-  std::string last_send_string_;
+  size_t last_send_string_hash_{0};
   uint32_t last_send_key_ms_{0};
   uint16_t last_send_key_id_{0};  // (modifier << 8) | keycode
   uint32_t last_consumer_ms_{0};

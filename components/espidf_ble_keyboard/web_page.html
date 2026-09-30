@@ -565,7 +565,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.13.0</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.13.1-dev-b</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -5144,24 +5144,44 @@ buildKeyboard();
     }
     const parts=chunks(text);
     sending=true;sendBtn.disabled=true;clipBtn.disabled=true;
-    let i=0;
+    let i=0,waits=0,slot=null;
     function done(ok){
       sending=false;sendBtn.disabled=false;clipBtn.disabled=false;
       sendBtn.textContent='Send';
       if(ok){if(fromField)ta.value=''}
       else ta.value=parts.slice(i).join('');  // unsent remainder, for retry
     }
-    (function next(){
+    function next(){
       if(i>=parts.length){done(true);return}
       if(parts.length>1)sendBtn.textContent=(i+1)+'/'+parts.length+'…';
-      apiPost('string',{keys:parts[i]}).then(r=>{
+      const p={keys:parts[i]};
+      if(slot!==null)p.slot=slot;
+      apiPost('string',p).then(r=>{
+        // Still typing what it has: the same piece again once it has caught up.
+        // The device holds only so much at a time, so a long paste goes at the
+        // speed it types rather than sitting in its RAM whole.
+        if(r.status===409){
+          if(++waits>120)throw new Error('the keyboard has stopped typing (is the host still connected?)');
+          setTimeout(next,1500);return;
+        }
+        // The keyboard switched host since this began, and the rest was not
+        // meant for the new one. Nothing is left in the box to send there.
+        if(r.status===422){
+          done(true);ta.value='';sendBtn.textContent='Stopped';
+          setTimeout(()=>{if(!sending)sendBtn.textContent='Send'},2000);
+          return;
+        }
         if(!r.ok)throw new Error('HTTP '+r.status);
-        i++;
+        waits=0;i++;
         // 35ms+ between chunks: send_string drops an identical string repeated
         // within 30ms (dedup), which repetitive text would otherwise trigger.
         setTimeout(next,35);
       }).catch(e=>{done(false);alert('Send failed — '+e.message+'. Unsent text left in the box.')});
-    })();
+    }
+    // The host this paste is for, so the device can stop it if it switches. A tab
+    // driving a linked keyboard passes the text on, and names no host of its own.
+    (peerLock()!==null?Promise.resolve(null):
+      hostsJSON().then(d=>typeof d.active==='number'?d.active:null,()=>null)).then(s=>{slot=s;next()});
   }
   sendBtn.addEventListener('click',()=>send(ta.value,true));
   // Physical Enter sends; Shift+Enter inserts a newline.
@@ -5347,9 +5367,13 @@ buildKeyboard();
     press(act+'@long');
   }
   // The dot, on whatever the renderer has drawn. The remote is redrawn on a
-  // style change, so it is re-marked whenever its buttons are replaced.
+  // style change, so it is re-marked whenever its buttons are replaced. Not on a
+  // key in the hold list: that one holds, and its long action never runs.
   function markLong(){
-    body.querySelectorAll('.rmt-btn[data-action]').forEach(b=>b.classList.toggle('has-long',longs(b.dataset.action)));
+    body.querySelectorAll('.rmt-btn[data-action]').forEach(b=>{
+      const a=b.dataset.action;
+      b.classList.toggle('has-long',longs(a)&&!holds(a));
+    });
   }
   if(window.MutationObserver)new MutationObserver(markLong).observe(body,{childList:true,subtree:true});
   // A phone's own long-press menu would take the gesture away from the key.

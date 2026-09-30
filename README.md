@@ -821,7 +821,9 @@ The keyboard supports up to 10 bonded hosts and can switch between them on the f
 
 Each host slot uses a unique BLE address, so other bonded hosts won't interfere during pairing.
 
-Switching takes 1–3 seconds depending on the host OS.
+Switching takes 1–3 seconds depending on the host OS. Text still waiting to be typed when you switch — the rest of a long paste — is dropped rather than typed on the next host.
+
+> **Unreleased — `main` only.** In **v1.13.0 and earlier** the rest is typed on the next host.
 
 ### YAML Configuration
 
@@ -913,7 +915,7 @@ Keys sent before a host is ready are lost, so put `wait:connected` after every s
 
 **The remote keeps its style throughout.** A host switch made inside an action — a macro, a per-host override, a remote key — re-skins the remote only once that action has finished, so one that comes back leaves the [style](#remote-style-per-host) and the hidden, hold and repeat lists exactly as they were, and one that stays on the new host re-skins when it ends. The host bar still marks the host keys are going to while it runs. Switching by hand, from the host bar or Home Assistant's `switch_host` service, re-skins straight away.
 
-> Run such macros from the web page, a remote key or Home Assistant's `run_action`, which all use the keyboard's own action task. The YAML `espidf_ble_keyboard.run_action` automation action runs on ESPHome's main loop, which stalls for as long as the wait lasts.
+> Run such macros from the web page, a remote key or Home Assistant's `run_action`, which all use the keyboard's own action task. The YAML `espidf_ble_keyboard.run_action` automation action, and pressing one of the keyboard's own YAML `button:` entities, run on ESPHome's main loop, which stalls for as long as the wait lasts.
 
 ### A Slot That Never Advertises
 
@@ -1619,7 +1621,7 @@ Syntax rules:
 * Records split on `;` — the first is the action name (`domain.action`), the rest are data pairs.
 * Pairs split at the **first** `=`, so values may contain `=`. Keys and values are trimmed of surrounding spaces; inner spaces survive.
 * `|` (the chain separator) and `;` cannot appear inside a value, and there is no escaping — the same limitation as every other action string.
-* It chains and alternates like any action: `alternate:consumer:0x30 || ha_action:remote.send_command;entity_id=remote.tv;command=power` sleeps over BLE one press and wakes over IR the next. One caveat: within a single chain, `ha_action` steps are handed to HA at the **end** (`delay:` blocks the loop they queue on), so space out repeated IR commands with the action's own data — `num_repeats`, `delay_secs`, `hold_secs` — not with `delay:` between two `ha_action` steps.
+* It chains and alternates like any action: `alternate:consumer:0x30 || ha_action:remote.send_command;entity_id=remote.tv;command=power` sleeps over BLE one press and wakes over IR the next. One caveat: in a chain that runs on ESPHome's main loop — the YAML `run_action` action, or one of the keyboard's own YAML `button:` entities — `ha_action` steps are handed to HA at the **end** (`delay:` blocks the loop they queue on), so space out repeated IR commands there with the action's own data — `num_repeats`, `delay_secs`, `hold_secs` — not with `delay:` between two `ha_action` steps.
 * Overrides and macros cap at 255 characters, so a raw `b64:` IR payload doesn't fit — teach the blaster the command and call it by name instead.
 
 > `ha_action:` reaches whatever HA lets the device call, and the web page is open to the network unless you have given it a password — which is why this is off by default. Enable it on a trusted network, or alongside [authentication](#securing-the-web-control-page).
@@ -1980,7 +1982,7 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 ### Features
 
 - **Full QWERTY keyboard** — letters, numbers, symbols, F-keys, modifiers, arrows
-- **Paste bar** — paste or type text in the keyboard header field and press Send to type the whole thing at once, line breaks included. Tick **auto** to type text the moment it is pasted. When the page is reached over HTTPS a clipboard button appears that reads and sends the clipboard in one tap (browsers don't allow clipboard reading over plain HTTP — pasting into the field works everywhere)
+- **Paste bar** — paste or type text in the keyboard header field and press Send to type the whole thing at once, line breaks included. A long paste is fed to the keyboard as it types, and stops — box cleared, the button reading *Stopped* — if the keyboard switches to another host meanwhile. Tick **auto** to type text the moment it is pasted. When the page is reached over HTTPS a clipboard button appears that reads and sends the clipboard in one tap (browsers don't allow clipboard reading over plain HTTP — pasting into the field works everywhere)
 - **Mouse touchpad** — 16:9 aspect ratio, drag to move cursor, tap for left click (5px dead zone prevents accidental clicks)
 - **Mouse acceleration** — slow movements are precise, fast swipes cover more ground (up to 4x)
 - **Mouse buttons** — Left, Middle, Right click; long-press a button to hold it for dragging (drag the touchpad or run `mouse_goto` while held), tap the held button to release
@@ -2643,7 +2645,9 @@ Notes and limits:
 
 ### Multi-Step Macros
 
-Macros support multiple commands separated by `|`. A 50ms delay is automatically inserted between steps. Use `delay:N` for explicit pauses (max 10000ms). Prefix a macro with `repeat:N:` to run the whole sequence N times (max 1000).
+Macros support multiple commands separated by `|`. A 50ms delay is automatically inserted between steps, and a step that types text finishes typing before the next one starts. Use `delay:N` for explicit pauses (max 10000ms). Prefix a macro with `repeat:N:` to run the whole sequence N times (max 1000).
+
+> **Unreleased — `main` only.** In **v1.13.0 and earlier** the next step can start while the text is still being typed.
 
 Examples:
 | Action string | Description |

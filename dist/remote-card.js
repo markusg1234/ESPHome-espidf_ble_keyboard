@@ -96,7 +96,7 @@
 import {
   RMT_BUILTIN, RMT_BTNS, RMT_VARS, RMT_CSS, RMT_VER, RMT_LCD_LABELLED, lcdLabel,
   sectionHtml, validateTpl, themeValueBad, useIcons,
-} from './remote-styles.js?v=1.13.0';
+} from './remote-styles.js?v=1.13.1-dev';
 
 // Which build of this file the browser actually loaded, read from the ?v= its
 // importer wrote rather than from a constant that has to be remembered at
@@ -379,11 +379,13 @@ class BleRemoteCard extends HTMLElement {
   }
 
   // The dot on keys with a long-press action. After every redraw as well, which
-  // _applyHidden follows.
+  // _applyHidden follows. Not on a key in the hold list: that one holds, and its
+  // long action never runs.
   _markLong() {
     if (!this.shadowRoot) return;
+    const held = this._holdSet || [];
     this.shadowRoot.querySelectorAll('[data-action]').forEach(el =>
-      el.classList.toggle('has-long', this._longs(el.dataset.action)));
+      el.classList.toggle('has-long', this._longs(el.dataset.action) && !held.includes(el.dataset.action)));
   }
 
   _repeats(action) {
