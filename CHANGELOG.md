@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
+## v1.13.1 — 2026-10-01
 
 ### Fixed
 - **A long paste could restart the keyboard.** It went to the device all at once and needed one

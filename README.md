@@ -823,8 +823,6 @@ Each host slot uses a unique BLE address, so other bonded hosts won't interfere 
 
 Switching takes 1–3 seconds depending on the host OS. Text still waiting to be typed when you switch — the rest of a long paste — is dropped rather than typed on the next host.
 
-> **Unreleased — `main` only.** In **v1.13.0 and earlier** the rest is typed on the next host.
-
 ### YAML Configuration
 
 ```yaml
@@ -2646,8 +2644,6 @@ Notes and limits:
 ### Multi-Step Macros
 
 Macros support multiple commands separated by `|`. A 50ms delay is automatically inserted between steps, and a step that types text finishes typing before the next one starts. Use `delay:N` for explicit pauses (max 10000ms). Prefix a macro with `repeat:N:` to run the whole sequence N times (max 1000).
-
-> **Unreleased — `main` only.** In **v1.13.0 and earlier** the next step can start while the text is still being typed.
 
 Examples:
 | Action string | Description |

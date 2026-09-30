@@ -20,6 +20,6 @@
  * Installing by hand instead? You can ignore this file and add whichever cards
  * you want as individual resources — see the README.
  */
-import './keyboard-card.js?v=1.13.1-dev';
-import './mouse-card.js?v=1.13.1-dev';
-import './remote-card.js?v=1.13.1-dev';
+import './keyboard-card.js?v=1.13.1';
+import './mouse-card.js?v=1.13.1';
+import './remote-card.js?v=1.13.1';
