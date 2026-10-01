@@ -4466,6 +4466,66 @@ static bool split_host_action(const std::string &action, int &slot, std::string 
     return true;
 }
 
+// Splits "<key>=<number>": a key named as a Host Action is (a-z, 0-9 and _ —
+// a Host Action's name can never hold '=', so there is no mistaking one), and a
+// plain number: an optional minus, up to nine digits, up to six after a point.
+// Nothing else gets through, so a value can never carry a second step or slip
+// another field into a Home Assistant call.
+static bool split_valued(const std::string &action, std::string &name, std::string &value) {
+    const size_t eq = action.find('=');
+    if (eq == std::string::npos || eq == 0 || eq > 31 || eq + 1 >= action.size()) return false;
+    for (size_t i = 0; i < eq; i++) {
+        const char c = action[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) return false;
+    }
+    size_t i = eq + 1, digits = 0, frac = 0;
+    if (action[i] == '-') i++;
+    for (; i < action.size() && action[i] >= '0' && action[i] <= '9'; i++) digits++;
+    if (i < action.size() && action[i] == '.') {
+        for (i++; i < action.size() && action[i] >= '0' && action[i] <= '9'; i++) frac++;
+        if (frac == 0) return false;
+    }
+    if (i != action.size() || digits == 0 || digits > 9 || frac > 6) return false;
+    name = action.substr(0, eq);
+    value = action.substr(eq + 1);
+    return true;
+}
+
+// A key pressed with a value is still that key, for the panels that name the
+// last one. Out of line so its strings stay off execute_action's own frame,
+// which every level of a chain pays for.
+__attribute__((noinline)) static void drop_value(std::string &pressed) {
+    std::string name, value;
+    if (split_valued(pressed, name, value)) pressed = name;
+}
+
+// "<key>=<number>" — how a remote-style pot or slider hands a level over
+// in one go: Home Assistant gets brightness_pct=40 in one call instead of a run
+// of steps. The key's Host Action on `slot` runs with every {value} in it
+// replaced by the number; split_valued has already made sure the number is
+// nothing else. Applied at override depth 0 only, as every Host Action is: a
+// Host Action's own body names keys, it doesn't resolve them again.
+bool EspidfBleKeyboard::run_valued_(uint8_t slot, const std::string &action) {
+    std::string name, value;
+    if (!split_valued(action, name, value)) return false;
+    const std::string *ovr = override_depth_ == 0 ? find_override_(slot, name) : nullptr;
+    if (ovr == nullptr) {
+        if (override_depth_ == 0)
+            ESP_LOGW(TAG, "%s: no Host Action for %s on this host to take the value", action.c_str(), name.c_str());
+        else
+            ESP_LOGW(TAG, "%s: a Host Action cannot hand another one a value", action.c_str());
+        return true;
+    }
+    // Copied, then filled in: the stored action stays as written.
+    std::string body = *ovr;
+    for (size_t at = body.find("{value}"); at != std::string::npos; at = body.find("{value}", at + value.size()))
+        body.replace(at, 7, value);
+    override_depth_++;
+    execute_action(body);
+    override_depth_--;
+    return true;
+}
+
 // Hold whatever `action` resolves to, instead of tapping it.
 //
 // Deliberately a separate dispatcher rather than a "hold mode" flag threaded
@@ -5097,6 +5157,7 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
         std::string pressed = action;
         int page_slot = 0;
         if (action.rfind("host_action:", 0) == 0) split_host_action(action, page_slot, pressed);
+        drop_value(pressed);
         if (last_action_ != pressed) {
             last_action_ = pressed;
             pending_lcd_publish_.store(true);
@@ -5315,6 +5376,8 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
                      action.c_str());
             return;
         }
+        // A key with a value takes that slot's Host Action too.
+        if (run_valued_((uint8_t) slot, name)) return;
         if (override_depth_ == 0) {
             const std::string *ovr = find_override_((uint8_t) slot, name);
             if (ovr != nullptr) {
@@ -5372,6 +5435,10 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
         }
         return;
     }
+
+    // A key with a value, "spare12=40": the active host's Host Action for the
+    // key, the number put into it. Never a name to type.
+    if (run_valued_(active_slot_, action)) return;
 
     // Per-host override: a named action can be remapped for the active host slot
     // (e.g. "record" -> Game Bar's Win+Alt+R on a Windows host, while a TV host

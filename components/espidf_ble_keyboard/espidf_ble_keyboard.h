@@ -1134,6 +1134,10 @@ class EspidfBleKeyboard : public Component
   void run_alternate_(const std::string &body);
   void run_if_(const std::string &action);
   void run_steps_(const std::string &action);
+  /// "<key>=<number>": `key`'s Host Action on `slot`, with each {value} in it
+  /// replaced by the number. False when `action` is not of that form; true once
+  /// handled, dropped included — the typed-text fallback must never see one.
+  bool run_valued_(uint8_t slot, const std::string &action);
   // Stack accounting for a whole action chain — see report_action_stack_().
   void report_action_stack_();
   /// Resolve a macro index to its action string and queue that.

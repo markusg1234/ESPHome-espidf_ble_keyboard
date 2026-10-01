@@ -330,7 +330,7 @@ binary_sensor:
 * **custom_text_id** (Optional, ID or list of IDs): Link one or more ESPHome `text` entities for custom text input. Automatically registers a "Send" button in the web UI for each. Use `send_custom_text` or `send_custom_text:N` action to trigger.
 * **expose_buttons** (Optional, boolean): List every non-internal ESPHome `button` in your config on the [web control page](#pressing-other-esphome-buttons), so it can reach things BLE can't — Wake-on-LAN, a relay, a restart. Defaults to `true`.
 * **hide_buttons** (Optional, ID or list of IDs): Buttons to keep *off* the web page. Anything listed there can be pressed by whoever can reach the device — and unless you have set up authentication, that is anyone on the network — so use this for anything destructive (`factory_reset`, `restart`, `safe_mode`). Hidden buttons also refuse to run if their action is typed by hand.
-* **sources** (Optional, list): Entities a remote style may read — to show on an [LCD panel](#lcd-panels), to branch on with [`if:`](#branching-on-real-state), or to light a button with `lit:`. Each entry names exactly one of `sensor:`, `text_sensor:`, `text:` or `binary_sensor:` by id, plus an optional `key:` (what the style calls it — defaults to the entity's id) and, for a numeric sensor, `unit:` and `decimals:` overrides. A `binary_sensor:` publishes the literal `on`/`off`. At most 8.
+* **sources** (Optional, list): Entities a remote style may read — to show on an [LCD panel](#lcd-panels) or a [pot](#pots), to branch on with [`if:`](#branching-on-real-state), or to light a button with `lit:`. Each entry names exactly one of `sensor:`, `text_sensor:`, `text:` or `binary_sensor:` by id, plus an optional `key:` (what the style calls it — defaults to the entity's id) and, for a numeric sensor, `unit:` and `decimals:` overrides. A `binary_sensor:` publishes the literal `on`/`off`. At most 8.
 * **battery_level** (Optional, ID): A sensor whose value (0–100) is published over the BLE Battery Service, so the host's Bluetooth settings show the keyboard's real charge. Any sensor reading a percentage will do — an ADC with a calibration filter, a fuel-gauge IC, a template sensor. Values outside 0–100 are clamped and an unavailable reading is ignored rather than sent as 0%. Without this the service is still advertised and reports a fixed 100%. See [Battery level](#battery-level).
 * **presence_scan** (Optional, bool): Listen for paired hosts nearby, all the time — for the `presence`, `presence_count` and `presence_rssi` sensors, and for the web page's green dots, which the **Green dot** tick box under **Host Actions → Identity Key (IRK)** shows or hides in each browser; the **IRK** and **MAC** boxes beside it choose what counts as hearing a host. The radio spends about a tenth of its time listening. Defaults to `false`. See [Paired hosts nearby](#paired-hosts-nearby).
 * **keyboard_layout** (Optional, string): Default keyboard layout. One of `us` (default), `uk`, `de`, `be`. Controls how `send_string` maps each character to USB HID keycodes — must match the *host's* keyboard layout. Can be overridden at runtime from the web UI (persisted to NVS, survives reboot). See [Keyboard layouts](#keyboard-layouts) below.
@@ -1095,6 +1095,7 @@ The replacement can be any action string, including a multi-step chain: `record:
 - **Every button on both remotes is remappable.** All of them — D-pad, Power, Channel, Rewind/FF, the colour keys and app launchers — fire named actions for exactly this reason. The one exception is the number pad, which types digits rather than sending a fixed HID code.
 - Only **named** actions can be overridden (`record`, `up`, `channel_up`, `play_pause`, …) — the ones in the [Action Types](#action-types) table with no `:` parameter. Parametric forms like `combo:` and `consumer:` are dispatched before the override lookup, so they always mean exactly what they say. That's deliberate: `consumer:0x00B5` must never silently become something else.
 - Resolution order is **web-UI override → YAML `actions:` → built-in behaviour**.
+- **A Host Action can take a number.** Put `{value}` in it and run the key as `<key>=<number>` — `spare12=40` runs `spare12`'s Host Action with every `{value}` replaced by 40. A [pot](#pots) with `set` sends exactly that. The number is all that gets in: digits, a minus and a point.
 - Max 48 overrides per host slot, and 8000 characters of overrides across all hosts together — they are kept in memory, and the shared limit stops a few full hosts from running the keyboard out of it. Names are max 31 characters and may not contain `=`, `|`, or whitespace; replacements are max 255 characters.
 - An override body is executed with overrides disabled, so `record: "record"` safely runs the built-in Record rather than looping.
 - Overrides apply everywhere the named action is used — remote buttons, macros, YAML `button` actions, and the `run_action` HA service — not just the remote.
@@ -1232,12 +1233,15 @@ The remote card **redraws as you type**, so the layout is visible before it is s
 | `["row", …]` | A centred row of round buttons. `"\|"` inserts a stretching gap, which is what pushes Power to the far left. |
 | `["dpad"]` | A square D-pad cluster. List five actions — `["dpad","up","left","ok","right","down"]` — to substitute your own. |
 | `["ring"]` | The same five keys as a **circular navigation ring** with a centre button, which is what most modern remotes have. Takes the same optional five actions. An optional settings object first sizes it: `["ring", {"size": 200, "center": 96}]` — the ring's diameter, 120–320 px (168 by default), and the centre button's, 40–200 px (84), leaving 40 px each side for the arrows. Arrows and centre take button options such as `sm` or `md` and stay centred |
+| `["pot"]` | **A dial you turn** — drag round it, tap either side for one step, or click it and use the mouse wheel or arrow keys. Each step clockwise presses the first action, each step back the second, and the middle is an ordinary key for the third: `["pot"]` is `volume_up`, `volume_down` and `mute`, and `["pot","spare1","spare2"]` has no key in the middle. See [Pots](#pots). |
 | `["strip", ["Vol","volume_up","volume_down"], …]` | Labelled vertical columns side by side. The first entry of each group is its label; `""` for none. |
-| `["rocker", ["Vol","volume_up","volume_down"], …]` | **One-piece rocker keys** — a tall pill with two halves and the label between them, as a remote carries volume and channel. A two-entry group, `["","mute"]`, is a single key at the same height, which is how mute sits between two rockers. |
+| `["rocker", ["Vol","volume_up","volume_down"], …]` | **One-piece rocker keys** — a tall pill with two halves and the label between them, as a remote carries volume and channel. A two-entry group, `["","mute"]`, is a single key at the same height, which is how mute sits between two rockers. A rocker is as wide as its keys, so `md` keys make a narrower one; a settings object first sizes it instead: `["rocker", {"width": 60, "h": 48}, …]` — each column's width and each half's height, 24–160 px. |
 | `["media", …]` | A row of the smaller transport-sized buttons. |
 | `["apps", …]` | A row of wide pill buttons. |
 | `["grid", {"cols":2,"h":56,"opts":"sq"}, …]` | **Equal rectangles in columns**, the layout said once so each key is just `["spare1","Copy"]` — a page of 32 named keys fits a stored style easily. The settings are optional: `cols` 1–8 (2 if left out), `h` 24–160 pixels, and `opts`, the [button options](#making-your-own) every key takes. A key's own options add to those; `"|"` leaves a cell empty. |
 | `["lcd", ["Room","temp"], …]` | **A small screen** showing live values — see [LCD panels](#lcd-panels). Each line is a label and the value to show; up to four per panel. |
+| `["slider", {…}]` | **A slider** — pressed or dragged to a value and sent when let go, the way a pot with `set` or a reading is. Upright unless `"horizontal": true`. See [Sliders](#sliders). |
+| `["side", […], […], …]` | **Sections side by side** instead of one under another, each its own size and centred: `["side", ["strip",["Vol","volume_up","volume_down"]], ["pot",{"size":100}], ["strip",["Ch","channel_up","channel_down"]]]` puts a pot between the volume and channel keys. Any kind but a divider or another `side`; a part that doesn't fit the body's width wraps under. |
 | `["-"]` | A horizontal divider. |
 
 **Colouring and sizing a button.** A third element carries appearance tokens, space-separated:
@@ -1272,7 +1276,7 @@ Labels are 1–16 characters. A round key fits about four; the wide app pill fit
 
 Buttons are named by action — any name from the [Action Reference](#action-reference) table below that the remote knows (`remote_power`, `search`, `info`, `mute`, `home`, `back`, the D-pad five, `volume_*`, `channel_*`, `brightness_*`, the seven transport keys plus `play` and `pause`, `color_*`, `app_*`, `menu`, `guide`, `voice`, `captions`, `tv`, `num0`–`num9`, `backspace`, `prev_host`, `next_host`, `last_host`, `next_keyboard`, `prev_host_all`, `next_host_all`, `spare1`–`spare32`). An unknown name is refused on import rather than rendering a dead button.
 
-**Shaping the body.** `theme` is optional. Colours: `bg`, `border`, `btn_bg`, `btn_fg`, `btn_border`, `ok_bg`, `ok_fg`, `ring_bg`, `ring_fg`, `light_bg`, `light_fg`, `label`, `divider`, for a [panel](#lcd-panels) `lcd_bg`, `lcd_fg`, `lcd_label`, `lcd_border`, and for a `lit:` button `lit_bg`, `lit_fg`. Geometry: `pad`, `maxw`, `radius`, `btn_radius`, `shadow`, `clip`, `zoom`, `lcd_radius`. Anything else is ignored, so an imported style cannot restyle the rest of the page.
+**Shaping the body.** `theme` is optional. Colours: `bg`, `border`, `btn_bg`, `btn_fg`, `btn_border`, `ok_bg`, `ok_fg`, `ring_bg`, `ring_fg`, `light_bg`, `light_fg`, `label`, `divider`, for a [panel](#lcd-panels) `lcd_bg`, `lcd_fg`, `lcd_label`, `lcd_border`, and for a `lit:` button `lit_bg`, `lit_fg` — `lit_bg` also fills a [level pot](#pots)'s track. Geometry: `pad`, `maxw`, `radius`, `btn_radius`, `shadow`, `clip`, `zoom`, `lcd_radius`. Anything else is ignored, so an imported style cannot restyle the rest of the page.
 
 **Making the buttons bigger or smaller.** `zoom` scales the whole remote — buttons, their icons and labels, the gaps between them, the d-pad and the rockers — by one factor: `"zoom": "1.25"` for a quarter larger, `"0.8"` for smaller. It is the only size control, deliberately: the buttons come in several sizes that are tuned against each other and against the gaps, so scaling them as a set keeps a layout that was designed to fit still fitting.
 
@@ -1431,6 +1435,72 @@ lcd_entities:
 
 A key named there wins over the device's value for the same key.
 
+#### Pots
+
+A pot is turned, not pressed. Drag round its ring and every `step` degrees presses its first action clockwise or its second anticlockwise; a tap on its right or left half is one step, and holding it there goes on stepping; once clicked or tabbed to, the mouse wheel and arrow keys turn it too. The middle is an ordinary key for the third action, so a long press, a hold or `lit:` work on it as on any other; with no third action the middle turns and taps like the ring. A quick spin reaches the device as one `repeat:`, so no step is lost.
+
+```json
+["pot", {"show": "setpoint", "label": "Heating"}, ["spare1", "Warmer"], ["spare2", "Cooler"], ["spare3", "Boost"]]
+```
+
+| Key | Effect |
+|---|---|
+| `size` | The pot's diameter, 32–320 px (150) — down to the size of a key. |
+| `center` | The middle's, 16–280 px — half the size unless set, and at least 8 px of ring each side. |
+| `step` | Degrees per step, 10–90 (30). The dots round the rim are a step apart. |
+| `show` | A value for the middle, named as an [LCD panel](#lcd-panels) line names one — an `@` value or a `sources:` key. |
+| `label` | A caption over the pot, up to 16 characters — level with a strip's labels when the pot sits between strips. |
+| `label_at` | `"bottom"` puts the caption under the pot instead. |
+| `marks` | `false` hides the − and + either side of the middle; a ring under 12 px wide leaves them off anyway. A tap on either half still steps. |
+| `level` | A reading for the pointer to follow, named the same way as `show` — see below. |
+| `min` `max` | The level's scale, 0 and 100 unless set — any numbers, `max` above `min`. |
+| `sweep` | Degrees from `min` to `max`, 90–360 (270). |
+| `inc` | How much one step moves the level, so the pointer moves as you turn instead of waiting for the next reading. |
+| `analogue` | `true` makes the pot's position the level, as on a real one, instead of stepping it — see below. `analog` works too. `inc` is 1 unless set. |
+| `set` | A key whose Host Action takes the value — the pot sends it once instead of steps. See below. |
+
+That one is a thermostat: list the set point under `sources:` as `setpoint`, and give `spare1` and `spare2` per-host overrides such as `ha_action:script.heating_up` and `ha_action:script.heating_down`. Turn actions take a label — the tooltip, and the name on an `@last` line — but no options. The ring takes the style's `ring_bg` and `ring_fg`, the middle `ok_bg` and `ok_fg`. Hiding both turn actions for a host under Remote Buttons stops the pot turning there; a level pot still shows its reading.
+
+**A pot that shows a level.** With `level`, the pointer follows a reading instead of the turns, along a track that fills up to it — `min` at the start of the sweep, `max` at its end, so with the usual 270° a volume of 100 is the pot turned fully clockwise. The keyboard cannot read a host's volume (Bluetooth HID only sends), so the reading comes from `sources:` — a TV's volume from Home Assistant, say — and on the Home Assistant card from the `lcd` sensor or `lcd_entities`, as a panel's does. A number at the front of the value is the reading, so `45 %` is 45; a media player's `volume_level` runs 0–1, so give that `"max": 1`. Each step flashes the side it went until the reading catches up; give `inc` — `1` for a TV's 0–100 volume — and the pointer moves with you. The − and + move to the two ends of the track.
+
+```json
+["pot", {"level": "tv_volume", "inc": 1}]
+```
+
+**Analogue.** Add `"analogue": true` and the pot sets a level instead of stepping it, as a real one does: press anywhere on the track and the pointer goes there, drag and it follows your finger, stopping at either end as a real pot does. Let go and the keyboard sends the difference from the reading as that many presses, `inc` a press — a keyboard can only go up and down, so 40 from 15 is 25 volume-ups, sent as one `repeat:`. The pointer waits there for the reading to catch up. The wheel, the arrow keys and a tap on the − or + still step. Without a reading there is nothing to work the difference out from, and it steps like any other.
+
+**Setting a value.** For anything that takes a number — a Home Assistant light's brightness, a fan's speed, a media player's volume — name a key with `set` and give that key a Host Action with `{value}` in it:
+
+```json
+["pot", {"set": "spare12", "label": "Lamp", "inc": 5}]
+```
+
+```
+spare12 → ha_action:light.turn_on;entity_id=light.lamp;brightness_pct={value}
+```
+
+The pot is then analogue and sends the value once — `spare12=40` — and the keyboard runs the Host Action with `{value}` replaced by 40: one call however far it moved. Every way of moving it sets a value, the wheel and the − and + included, on `inc`'s grid from `min` (0–100 unless set); the one action it may list is the key in its middle. It needs no reading: the pointer stays where you set it, and follows `level` if you give it one. Each pot needs only a spare of its own, so each extra one costs a Host Action.
+
+#### Sliders
+
+A slider is an analogue pot laid along a straight track: press anywhere on it and it goes there, drag and it follows, let go and it sends — the value itself to the key named by `set`, or, with a `level` reading, the difference as presses of its two actions (`volume_up` and `volume_down` unless you list others). It needs one of the two. The − and + at its ends step by `inc` — held, they go on stepping — as do the wheel and arrow keys once it has been clicked.
+
+```json
+["slider", {"set": "spare12", "label": "Lamp", "max": 255, "inc": 5}]
+```
+
+It takes a pot's settings, so changing `"pot"` to `"slider"` is all a swap takes: `size` becomes its length, a pot's middle key becomes a tap on the slider's thumb, which wears its icon — `["slider",{…},"volume_up","volume_down","mute"]` mutes when the thumb is tapped — and `center`, `step`, `sweep` and `analogue` have nothing to do and are left alone. Its own:
+
+| Key | Effect |
+|---|---|
+| `horizontal` | `true` lays it across; upright otherwise. `"vertical": false` says the same. |
+| `length` | The track's length, 30–480 px (160), in place of `size`. |
+| `width` | How thick it is across the track, 10–120 px (28); the rail and the thumb grow with it. |
+| `thumb` | The thumb's own size, 8–120 px, apart from the width — a big key on a thin rail. |
+| `show` | A reading beside the caption. |
+
+`set`, `level`, `min`, `max`, `inc`, `label`, `label_at` and `marks` work as on a [pot](#pots). In a [side](#making-your-own) section an upright slider fits between two strips.
+
 #### A complete example
 
 This is **Style 6**, the built-in with a screen and logo keys, written out so you can see how one is put together — and copy it as the starting point for your own. The screen shows which host the keyboard is on and whether it is connected: both `@` values, so **it needs no `sources:` at all**. Add the `lcd` text sensor only if you want the panel filled on the Home Assistant card too.
@@ -1495,6 +1565,7 @@ The panel is a deliberate 16 characters wide, so it sits inside the 280px body a
 | `"alternate:<a> \|\| <b> \|\| …"` | Run **one branch** per press, advancing each time. Branches split on `\|\|`; a single `\|` still means "next step", so a branch can be a whole sequence. See [Toggling one button between two actions](#toggling-one-button-between-two-actions). |
 | `"macro:<name>"` | Run a stored [web macro](#web-macros) by name — a live reference, so editing the macro updates everything pointing at it. Macros may call each other (nesting is capped). |
 | `"if:<source>: <when on> \|\| <when off>"` | Branch on something the device actually knows, instead of `alternate:`'s blind counter. Branches split on `\|\|` and each may be a whole sequence. Nothing runs until the source has a state. See [Branching on real state](#branching-on-real-state). |
+| `"<key>=<number>"` | Run that key's [Host Action](#host-actions-per-host-overrides) with each `{value}` in it replaced by the number — `spare12=40`. What a [pot](#pots) with `set` sends. |
 | `"lcd:<text>"` | Write text to an [LCD panel](#lcd-panels)'s `@msg` line, so a key can name where it just took you — `consumer:0x0223 \| lcd:Netflix`. Up to 64 characters. |
 | `"ha_action:<domain>.<action>;<key>=<value>;…"` | Ask Home Assistant to run one of its own actions — e.g. an IR blaster's `remote.send_command`. Needs `ha_action: true`. See [Calling Home Assistant Actions](#calling-home-assistant-actions). |
 

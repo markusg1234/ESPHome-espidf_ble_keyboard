@@ -61,6 +61,9 @@ const PARTS = [
   ['const RMT_KEY_H=', () => oneLine('const RMT_KEY_H=')],
   ['const RMT_ICON_H=', () => oneLine('const RMT_ICON_H=')],
   ['const RMT_RING=', () => oneLine('const RMT_RING=')],
+  ['const RMT_KNOB=', () => oneLine('const RMT_KNOB=')],
+  ['const RMT_SLIDER=', () => oneLine('const RMT_SLIDER=')],
+  ['const KNOB_SET=', () => oneLine('const KNOB_SET=')],
   ['const RMT_LCD_OPTS=', () => oneLine('const RMT_LCD_OPTS=')],
   ['const RMT_LCD_COLOURS=', () => oneLine('const RMT_LCD_COLOURS=')],
   ['const RMT_LCD_LABELLED=', () => oneLine('const RMT_LCD_LABELLED=')],
@@ -80,6 +83,11 @@ const PARTS = [
   ['function useIcons(', () => balanced('function useIcons(')],
   ['function iconNames(', () => balanced('function iconNames(')],
   ['function icon(', () => balanced('function icon(')],
+  // The knob's gestures. The card wires its own remote with it, so a knob turns
+  // the same on both surfaces.
+  ['function knobShow(', () => balanced('function knobShow(')],
+  ['function knobLevel(', () => balanced('function knobLevel(')],
+  ['function knobWire(', () => balanced('function knobWire(')],
   ['function esc(', () => balanced('function esc(')],
   // Before validateTpl, which calls it — and the card's renderer calls it too,
   // which is the whole point of it being here rather than inline in the importer.
@@ -97,7 +105,7 @@ const js = PARTS.map(([, take]) => take()).join('\n\n');
 const EXPORTS = ['RI', 'RMT_BTNS', 'RMT_VARS', 'RMT_BUILTIN', 'RMT_KINDS', 'RMT_OPTS', 'RMT_KEY_H',
   'RMT_LCD_OPTS', 'RMT_LCD_COLOURS', 'RMT_LCD_KEYS', 'RMT_LCD_LABELLED', 'lcdLabel', 'RMT_HEX', 'RMT_CLIP', 'RMT_FETCH', 'icon', 'esc',
   'RMT_ICON_NAME', 'RMT_ICON_LEN', 'RMT_ICON_MAX', 'RMT_ICONS', 'iconBad', 'useIcons', 'iconNames',
-  'themeValueBad', 'btnHtml', 'sectionHtml', 'validateTpl'];
+  'themeValueBad', 'btnHtml', 'sectionHtml', 'validateTpl', 'knobWire', 'knobLevel'];
 const defined = new Set([...js.matchAll(/(?:^|\n)\s*(?:const|function)\s+([A-Za-z_$][\w$]*)/g)]
   .map(m => m[1]));
 for (const name of EXPORTS) {
@@ -130,7 +138,7 @@ const css = rules.filter(r => {
   const sel = r.split('{')[0];
   return /(^|[,\s])\.rmt-/.test(sel) || (/^@supports\b/.test(sel.trim()) && /\.rmt-/.test(r));
 }).join('\n');
-for (const need of ['.rmt-btn{', '.rmt-ring{', '.rmt-rocker-col{', '.rmt-body{', '.rmt-lcd{']) {
+for (const need of ['.rmt-btn{', '.rmt-ring{', '.rmt-knob-ring{', '.rmt-rocker-col{', '.rmt-body{', '.rmt-lcd{']) {
   if (!css.includes(need)) throw new Error(`CSS is missing ${need}`);
 }
 // The cards build their styles inside a JS template literal, so a stray
@@ -205,6 +213,89 @@ if (!gridProbe.includes('class="rmt-grid" style="grid-template-columns:repeat(3,
     !/data-action="spare2" style="background:#336699;border-color:#336699;height:60px"/.test(gridProbe) ||
     !/class="rmt-btn sq" data-action="spare1"/.test(gridProbe)) {
   throw new Error(`grid renders incorrectly:\n${gridProbe}`);
+}
+// A knob: its defaults, its settings reaching the inline style in range and
+// dropped outside it, a reading as the middle key's face, no key at all when it
+// lists only the two it turns by, a key-sized one with its marks hidden, and
+// a caption over the knob unless it is asked to go under.
+const knobProbe = new Function(`${js}
+return [sectionHtml(['pot']),
+        sectionHtml(['pot',{size:200,center:90,step:15,show:'temp',label:'Heat'},['spare1','Warmer'],'spare2','spare3']),
+        sectionHtml(['pot',{size:9999,center:5,step:1},'volume_up','volume_down']),
+        sectionHtml(['pot',{size:42,marks:false},'volume_up','volume_down']),
+        sectionHtml(['pot',{label:'Vol'}]), sectionHtml(['pot',{label:'Vol',label_at:'bottom'}])];`)();
+const KNOB_DEFAULT = 'style="--rb-knob:150px;--rb-knob-c:75px;';
+if (!knobProbe[0].includes('data-up="volume_up" data-down="volume_down" data-step="30" ' + KNOB_DEFAULT) ||
+    !knobProbe[0].includes('stroke-dasharray="0 30"') || !/class="rmt-btn" data-action="mute"/.test(knobProbe[0]) ||
+    !knobProbe[1].includes('style="--rb-knob:200px;--rb-knob-c:90px;') || !knobProbe[1].includes('stroke-dasharray="0 15"') ||
+    !/data-action="spare3"[^>]*><span class="rmt-knob-val" data-lcd="temp">--<\/span><\/button>/.test(knobProbe[1]) ||
+    !knobProbe[1].includes('<span class="rmt-knob-label">Heat</span>') || !knobProbe[1].includes('Warmer') ||
+    !knobProbe[2].includes(KNOB_DEFAULT) || knobProbe[2].includes('data-action=') ||
+    !knobProbe[2].includes('<div class="rmt-knob-cap"></div>') || !knobProbe[0].includes('rmt-knob-mk dn') ||
+    !knobProbe[3].includes('style="--rb-knob:42px;--rb-knob-c:21px;') || knobProbe[3].includes('rmt-knob-mk') ||
+    !knobProbe[3].includes('stroke-width="2.1"') ||
+    !/px"><span class="rmt-knob-label">Vol<\/span><div class="rmt-knob-dial">/.test(knobProbe[4]) ||
+    !/<\/div><\/div><span class="rmt-knob-label">Vol<\/span><\/div>/.test(knobProbe[5])) {
+  throw new Error(`knob renders incorrectly:\n${knobProbe.join('\n')}`);
+}
+// A level knob: its scale in data attributes, a gauge in place of the dots, and
+// drawn without a reading until one arrives; a scale that runs backwards is no
+// level at all.
+const levelProbe = new Function(`${js}
+return [sectionHtml(['pot',{level:'vol',max:1,inc:0.02}]), sectionHtml(['pot',{level:'vol',min:5,max:1}])];`)();
+if (!levelProbe[0].includes('class="rmt-knob nolevel"') ||
+    !levelProbe[0].includes('data-level="vol" data-min="0" data-max="1" data-sweep="270" data-inc="0.02"') ||
+    !levelProbe[0].includes('class="rmt-knob-gauge"') || levelProbe[0].includes('class="tk"') ||
+    levelProbe[1].includes('data-level') || !levelProbe[1].includes('class="tk"')) {
+  throw new Error(`level knob renders incorrectly:\n${levelProbe.join('\n')}`);
+}
+// A slider: upright unless told across, its length from length or a knob's
+// size (held to the slider's bounds), a third action pressed by its thumb, and
+// a value to send ("set") or a reading to step to ("level").
+const sliderProbe = new Function(`${js}
+return [sectionHtml(['slider',{set:'spare12',label:'Lamp'}]),
+        sectionHtml(['slider',{level:'vol',horizontal:true,length:200},'volume_up','volume_down','mute']),
+        sectionHtml(['slider',{size:42,center:20,step:30,analogue:true,level:'vol'}]),
+        sectionHtml(['slider',{set:'spare12',width:40}]), sectionHtml(['slider',{set:'spare12',width:999}])];`)();
+if (!/class="rmt-slider nolevel vert" data-up="" data-down="" data-set="spare12"/.test(sliderProbe[0]) ||
+    !sliderProbe[0].includes('--rb-sl-len:160px') || !sliderProbe[0].includes('<span class="rmt-knob-label">Lamp</span>') ||
+    !/class="rmt-slider nolevel" data-up="volume_up" data-down="volume_down" data-level="vol"/.test(sliderProbe[1]) ||
+    !sliderProbe[1].includes('--rb-sl-len:200px') || !sliderProbe[1].includes('data-press="mute"') ||
+    !/<div class="rmt-slider-thumb" title="Tap: Mute"><svg/.test(sliderProbe[1]) || sliderProbe[1].includes('data-action=') ||
+    !sliderProbe[2].includes('--rb-sl-len:42px') || !sliderProbe[2].includes('rmt-slider nolevel vert') ||
+    !sliderProbe[3].includes('style="--rb-sl-len:160px;--rb-sl-w:40px;--rb-sl-rail:9px;--rb-sl-th:29px"') ||
+    sliderProbe[4].includes('--rb-sl-w')) {
+  throw new Error(`slider renders incorrectly:\n${sliderProbe.join('\n')}`);
+}
+// A rocker's settings: width and h reach the style in range and are dropped
+// outside it, and the groups after them are the ones drawn.
+const rockerProbe = new Function(`${js}
+return [sectionHtml(['rocker',{width:60,h:48},['Vol','volume_up','volume_down'],['','mute']]),
+        sectionHtml(['rocker',{width:999},['Vol','volume_up','volume_down']]),
+        sectionHtml(['rocker',['Vol','volume_up','volume_down']]),
+        sectionHtml(['rocker',{h:30},['Vol','volume_up','volume_down']])];`)();
+if (!rockerProbe[0].includes('<div class="rmt-rocker rk-w rk-h" style="--rb-rk-w:60px;--rb-rk-h:48px">') ||
+    !rockerProbe[0].includes('data-action="mute"') || !rockerProbe[1].includes('<div class="rmt-rocker"><div') ||
+    !rockerProbe[2].includes('<div class="rmt-rocker"><div') || !rockerProbe[2].includes('data-action="volume_down"') ||
+    !rockerProbe[3].includes('<div class="rmt-rocker rk-h" style="--rb-rk-h:30px">')) {
+  throw new Error(`rocker renders incorrectly:\n${rockerProbe.join('\n')}`);
+}
+// A side section: its parts drawn in a row, one level deep only (a side inside a
+// side and a divider draw nothing), and the walkers that read a style through
+// it — icon names and the labels an @last line shows — reaching its parts.
+const sideProbe = new Function(`${js}
+return [sectionHtml(['side',['strip',['Vol','volume_up','volume_down']],['pot',{size:100}],['strip',['Ch','channel_up','channel_down']]]),
+        sectionHtml(['side',['side',['row','mute']],['-'],['row','home']]),
+        iconNames({sections:[['side',['row',['spare1','A','icon:logo']]]]}).join(),
+        lcdLabel({sections:[['side',['strip',['Vol',['volume_up','Louder']]]]]},'volume_up'),
+        validateTpl({id:'s',name:'S',sections:[['side',['row','home'],['side',['row','mute']]]]}),
+        validateTpl({id:'s',name:'S',sections:[['side',['row','home'],['pot']]]})];`)();
+if (!sideProbe[0].startsWith('<div class="rmt-section"><div class="rmt-side"><div class="rmt-section"><div class="rmt-strip">') ||
+    (sideProbe[0].match(/class="rmt-section"/g) || []).length !== 4 || !sideProbe[0].includes('data-up="volume_up"') ||
+    !sideProbe[1].includes('data-action="home"') || sideProbe[1].includes('data-action="mute"') ||
+    sideProbe[1].includes('rmt-divider') || sideProbe[2] !== 'logo' || sideProbe[3] !== 'Louder' ||
+    !/another side/.test(sideProbe[4]) || sideProbe[5] !== '') {
+  throw new Error(`side renders incorrectly:\n${sideProbe.join('\n')}`);
 }
 const builtins = new Function(`${js}\nreturn RMT_BUILTIN.map(t=>t.id);`)();
 

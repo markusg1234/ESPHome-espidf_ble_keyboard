@@ -92,6 +92,7 @@ espidf_ble_keyboard:
       actions:
         ok: "consumer:0x0041"          # Menu Pick instead of Enter
         back@long: "home"              # hold Back for Home
+        spare12: "ha_action:light.turn_on;entity_id=light.living_room;brightness_pct={value}"   # a pot's "set" fills {value}
     - slot: 3                    # laptop
       layout: us
     - slot: 4                    # tablet
@@ -226,6 +227,10 @@ button:
     keyboard_id: my_keyboard
     name: "Play Pause"
     action: "play_pause"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Lights Half"
+    action: "spare12=50"           # spare12's Host Action with {value} as 50
   - platform: espidf_ble_keyboard
     keyboard_id: my_keyboard
     name: "Ctrl Alt Del"

@@ -14,10 +14,21 @@ web control page shows the matching version badge.
   strength included, to Home Assistant and `if:`, and a tick box there marks a host's button on
   the web page with a green dot each time it is heard.
 - **A full example config** with every feature switched on, for five hosts, linked from the README.
+- **Remote styles can have pots and sliders.** Turn a pot or drag a slider; each step presses an
+  action, and a pot's middle is a key. Either can follow a level, such as a TV's volume from Home
+  Assistant, and set one like a pot, by sending the presses to get there. A new side-by-side section
+  puts one between the volume and channel keys. On the web page and the Home Assistant card alike.
+- **Rocker keys can be sized**: a width, and a height for each half. Unsized, a rocker is now as
+  wide as its keys, so smaller keys make a narrower one.
+- **A Host Action can take a number.** Put `{value}` in it and `spare12=40` runs it with 40 there,
+  so a pot can set a Home Assistant light's brightness or a fan's speed in one call — one spare per
+  pot.
 
 ### Fixed
 - **A popped-out remote could close itself just after opening** and drop back into the page: a
   window still loading was taken for one that had gone.
+- **A rocker whose keys a host hides now goes from the web page**, as it already did from the
+  card, instead of leaving an empty pill or a gap.
 
 ## v1.13.1 — 2026-10-01
 

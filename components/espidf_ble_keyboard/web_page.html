@@ -375,18 +375,131 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-ring .rmt-btn{background:none;border-color:transparent;color:var(--rb-ring-fg,var(--rb-btn-fg,var(--fg)))}
 .rmt-ring .rmt-btn:active,.rmt-ring .rmt-btn.p{background:rgba(255,255,255,.18);border-color:transparent}
 .rmt-ring .center{width:var(--rb-ring-c,84px);height:var(--rb-ring-c,84px)}
+/* ── Knob ────────────────────────────────────────────────────────
+   A dial turned rather than pressed, with an ordinary key in the middle. Sized
+   by --rb-knob and --rb-knob-c, which the renderer sets from checked whole
+   numbers, and dotted round the rim one step apart, so the face shows the
+   knob's own detents. The ring takes the nav ring's colours. */
+.rmt-knob{display:flex;flex-direction:column;align-items:center;gap:4px;margin:6px 0}
+.rmt-knob-dial{position:relative;width:var(--rb-knob,150px);height:var(--rb-knob,150px)}
+/* touch-action:none, or a finger going round it scrolls the page instead. */
+.rmt-knob-ring{position:absolute;inset:0;border-radius:50%;cursor:grab;touch-action:none;outline:none;
+  background:var(--rb-ring-bg,var(--rb-btn-bg,var(--bg)));border:1px solid var(--rb-btn-border,var(--border));
+  color:var(--rb-ring-fg,var(--rb-btn-fg,var(--fg)));user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.rmt-knob-ring:active{cursor:grabbing}
+.rmt-knob-ring:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+/* What turns: the dots and the pointer. A step snaps it round, so it only ever
+   shows a turn that was sent. Dots rather than ticks: at three and nine o'clock a
+   tick lies flat and reads as a second minus beside the tap marks. */
+.rmt-knob-face{position:absolute;inset:0;width:100%;height:100%;transition:transform .08s;pointer-events:none}
+.rmt-knob-face .tk{fill:none;stroke:var(--rb-label,var(--muted));stroke-linecap:round}
+.rmt-knob-face .pt{fill:currentColor}
+/* Where a tap steps it: either side of the middle, between the dots and the
+   middle key. The renderer works out where that is and how big a mark fits. */
+.rmt-knob-mk{position:absolute;top:50%;transform:translate(-50%,-50%);font-size:var(--rb-knob-mf,14px);font-weight:700;
+  line-height:1;opacity:.7;pointer-events:none}
+.rmt-knob-mk.dn{left:var(--rb-knob-mk,23px)}
+.rmt-knob-mk.up{left:calc(100% - var(--rb-knob-mk,23px))}
+/* The middle sits over the ring, so a press there is the key's and never a turn. */
+.rmt-knob-c{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;pointer-events:none}
+.rmt-knob-c>.rmt-btn{pointer-events:auto}
+.rmt-knob-c>.rmt-btn,.rmt-knob-cap{width:var(--rb-knob-c,75px);height:var(--rb-knob-c,75px);border-radius:50%;
+  background:var(--rb-ok-bg,var(--rb-btn-bg,var(--bg)));color:var(--rb-ok-fg,var(--rb-btn-fg,var(--fg)));
+  border:1px solid var(--rb-btn-border,var(--border));box-shadow:0 1px 4px rgba(0,0,0,.35)}
+/* A key's own icon, held inside a middle smaller than a key. */
+.rmt-knob-c>.rmt-btn svg{width:min(20px,calc(var(--rb-knob-c,75px) * .5));height:min(20px,calc(var(--rb-knob-c,75px) * .5))}
+.rmt-knob-c>.rmt-btn:active,.rmt-knob-c>.rmt-btn.p{background:var(--active);color:#fff;border-color:var(--active)}
+.rmt-knob-c>.rmt-btn.held{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* With no key in the middle, the middle is part of the knob: a finger there
+   turns or taps it like the ring (the wrapper above lets it through), which a
+   knob the size of a key needs. */
+.rmt-knob-cap{display:flex;align-items:center;justify-content:center}
+.rmt-knob-val{max-width:88%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:calc(var(--rb-knob-c,75px) * .24);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
+.rmt-knob-label{font-size:9px;color:var(--rb-label,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+/* Both its actions hidden for this host: nothing to turn, so nothing to show it
+   turns — though a level knob goes on showing its reading. */
+.rmt-knob.off:not([data-level]) .rmt-knob-face,.rmt-knob.off .rmt-knob-mk{visibility:hidden}
+.rmt-knob.off .rmt-knob-ring{cursor:default}
+/* A level knob: a track over its sweep, filled up to the reading, which the
+   pointer follows. .nolevel until a reading arrives. */
+.rmt-knob-gauge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.rmt-knob-gauge .tr{fill:none;stroke:var(--rb-label,var(--muted));opacity:.35;stroke-linecap:round}
+.rmt-knob-gauge .lv{fill:none;stroke:var(--rb-lit-bg,var(--accent));stroke-linecap:round;transition:stroke-dasharray .2s}
+.rmt-knob[data-level] .rmt-knob-face{transition:transform .2s}
+.rmt-knob.nolevel .rmt-knob-face,.rmt-knob.nolevel .rmt-knob-gauge .lv{visibility:hidden}
+/* A step on a level knob, before the reading catches up: the side it went lights. */
+.rmt-knob.fu .rmt-knob-mk.up,.rmt-knob.fd .rmt-knob-mk.dn{opacity:1;color:var(--accent)}
+.rmt-knob.fu .rmt-knob-ring,.rmt-knob.fd .rmt-knob-ring{border-color:var(--accent)}
+/* ── Slider ──────────────────────────────────────────────────────
+   A track to press or drag to a value, across or upright (.vert), its length
+   and thickness set inline from checked whole numbers (--rb-sl-len, and
+   --rb-sl-w with the rail and thumb that go with it). The fill and the thumb sit at
+   --rb-sl, which knobShow() sets — not animated while a finger is on it. The
+   track takes a sideways swipe across and an upright one upright, leaving the
+   other way to scroll the page. */
+.rmt-slider{display:flex;flex-direction:column;align-items:center;gap:4px;margin:6px 0}
+.rmt-slider-row{display:flex;align-items:center;gap:8px}
+.rmt-slider.vert .rmt-slider-row{flex-direction:column-reverse}
+.rmt-slider-track{position:relative;width:var(--rb-sl-len,160px);height:var(--rb-sl-w,28px);touch-action:pan-y;cursor:pointer;outline:none;
+  border-radius:8px;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.rmt-slider.vert .rmt-slider-track{width:var(--rb-sl-w,28px);height:var(--rb-sl-len,160px);touch-action:pan-x}
+.rmt-slider-track:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+.rmt-slider-track::before{content:"";position:absolute;left:0;right:0;top:50%;height:var(--rb-sl-rail,6px);
+  margin-top:calc(var(--rb-sl-rail,6px) / -2);border-radius:var(--rb-sl-rail,6px);
+  background:var(--rb-label,var(--muted));opacity:.35}
+.rmt-slider.vert .rmt-slider-track::before{left:50%;right:auto;top:0;bottom:0;width:var(--rb-sl-rail,6px);height:auto;
+  margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2)}
+.rmt-slider-fill{position:absolute;left:0;top:50%;width:var(--rb-sl,0%);height:var(--rb-sl-rail,6px);
+  margin-top:calc(var(--rb-sl-rail,6px) / -2);border-radius:var(--rb-sl-rail,6px);
+  background:var(--rb-lit-bg,var(--accent));transition:width .15s}
+.rmt-slider.vert .rmt-slider-fill{left:50%;top:auto;bottom:0;width:var(--rb-sl-rail,6px);height:var(--rb-sl,0%);
+  margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2);transition:height .15s}
+.rmt-slider-thumb{position:absolute;top:50%;left:var(--rb-sl,0%);width:var(--rb-sl-th,20px);height:var(--rb-sl-th,20px);
+  margin:calc(var(--rb-sl-th,20px) / -2) 0 0 calc(var(--rb-sl-th,20px) / -2);border-radius:50%;
+  background:var(--rb-ok-bg,var(--rb-btn-bg,var(--bg)));border:1px solid var(--rb-btn-border,var(--border));
+  box-shadow:0 1px 4px rgba(0,0,0,.35);transition:left .15s,bottom .15s}
+/* A slider with a key of its own: its thumb is that key, and wears its icon. */
+.rmt-slider-thumb{display:flex;align-items:center;justify-content:center;color:var(--rb-ok-fg,var(--rb-btn-fg,var(--fg)))}
+.rmt-slider-thumb svg{width:60%;height:60%;fill:currentColor;pointer-events:none}
+.rmt-slider-thumb.p{background:var(--active);color:#fff;border-color:var(--active)}
+.rmt-slider[data-press] .rmt-slider-thumb{cursor:pointer}
+.rmt-slider.nolevel[data-press]:not(.off) .rmt-slider-thumb{visibility:visible;opacity:.6}
+.rmt-slider.nopress .rmt-slider-thumb svg{visibility:hidden}
+.rmt-slider.vert .rmt-slider-thumb{left:50%;top:auto;bottom:var(--rb-sl,0%);
+  margin:0 0 calc(var(--rb-sl-th,20px) / -2) calc(var(--rb-sl-th,20px) / -2)}
+.rmt-slider.drag .rmt-slider-fill,.rmt-slider.drag .rmt-slider-thumb{transition:none}
+.rmt-slider.nolevel .rmt-slider-fill,.rmt-slider.nolevel .rmt-slider-thumb{visibility:hidden}
+.rmt-slider-mk{font-size:16px;font-weight:700;line-height:1;padding:4px;opacity:.7;cursor:pointer;
+  color:var(--rb-btn-fg,var(--fg));user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.rmt-slider.fu .rmt-slider-mk.up,.rmt-slider.fd .rmt-slider-mk.dn{opacity:1;color:var(--accent)}
+.rmt-slider-cap{display:flex;align-items:baseline;gap:6px}
+.rmt-slider-val{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--rb-btn-fg,var(--fg))}
+.rmt-slider.off .rmt-slider-mk,.rmt-slider.off .rmt-slider-thumb{visibility:hidden}
+.rmt-slider.off .rmt-slider-track{cursor:default}
+/* ── Side by side ────────────────────────────────────────────────
+   Sections in a row, each its own size and centred on the others — a knob
+   between two columns of keys. Too wide for the body, the last wraps under. */
+.rmt-side{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:12px}
+.rmt-side>.rmt-section{margin:0}
 /* ── One-piece rocker ────────────────────────────────────────────
    A volume or channel key as a single tall pill with two halves and its label
    between them, which is how a remote carries them. A group of one button
-   renders as a plain key at the same height, so mute sits between two rockers. */
+   renders as a plain key at the same height, so mute sits between two rockers.
+   A column is as wide as its keys, so md keys make a narrower one, unless the
+   section's settings give it a width (rk-w); their h sets each half (rk-h).
+   Both win over a key's own size. */
 .rmt-rocker{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:14px}
 .rmt-rocker-col{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-  padding:4px 0;width:50px;border-radius:25px;background:var(--rb-btn-bg,var(--bg));
+  padding:4px 0;border-radius:999px;background:var(--rb-btn-bg,var(--bg));
   border:1px solid var(--rb-btn-border,var(--border))}
 .rmt-rocker-col .rmt-btn{background:none;border-color:transparent;height:40px}
 .rmt-rocker-col .rmt-btn:active,.rmt-rocker-col .rmt-btn.p{background:rgba(255,255,255,.18);border-color:transparent}
 .rmt-rocker-label{font-size:9px;color:var(--rb-label,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:.4px}
 .rmt-rocker-solo{background:none;border:none;padding:0;width:auto}
+.rmt-rocker.rk-w .rmt-rocker-col:not(.rmt-rocker-solo){width:var(--rb-rk-w)}
+.rmt-rocker.rk-w .rmt-rocker-col:not(.rmt-rocker-solo) .rmt-btn{width:100%}
+.rmt-rocker.rk-h .rmt-rocker-col .rmt-btn{height:var(--rb-rk-h)}
 /* ── LCD panel ───────────────────────────────────────────────────
    A small screen inside the remote: label/value lines fed by the keyboard's own
    state or by an ESPHome entity named in `sources`. Its colours default to
@@ -901,12 +1014,15 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <dt><code>["row",…]</code></dt><dd>A row of round buttons. <code>"|"</code> spaces it out.</dd>
 <dt><code>["dpad"]</code></dt><dd>The arrow cluster.</dd>
 <dt><code>["ring"]</code></dt><dd>The same five keys as a round nav ring. <code>["ring",{"size":200,"center":96}]</code> sizes the ring and its centre button.</dd>
+<dt><code>["pot"]</code></dt><dd>A dial you turn: drag round it, tap either side for one step, or click it and use the wheel or arrow keys. Each step clockwise presses the first action, anticlockwise the second, and the middle is a key for the third &mdash; with none listed, <code>"volume_up","volume_down","mute"</code>. Settings first: <code>{"size":150,"center":75,"step":30,"show":"temp","label":"Heat","marks":false}</code> &mdash; <code>size</code> 32&ndash;320 pixels, <code>center</code> the middle key's, <code>step</code> 10&ndash;90 degrees a step, <code>show</code> a value for the middle as an lcd line names one, <code>label</code> a caption over it (<code>"label_at":"bottom"</code> puts it under), <code>marks</code> <code>false</code> to hide the &minus; and +. <code>{"level":"tv_volume","inc":1}</code> points it at a reading instead &mdash; <code>min</code> and <code>max</code> (0 and 100) at the two ends of a 270&deg; <code>sweep</code>, so 100 is fully clockwise, and <code>inc</code> how much a step moves it. <code>"analogue":true</code> makes its position the level, as on a pot: press or drag to a level and the keyboard sends the presses to get there. <code>{"set":"spare12"}</code> sends the value once instead &mdash; <code>spare12=40</code>, filling <code>{value}</code> in that spare&rsquo;s Host Action, e.g. <code>ha_action:light.turn_on;entity_id=light.lamp;brightness_pct={value}</code>.</dd>
 <dt><code>["strip",…]</code></dt><dd>Labelled columns side by side: <code>["strip",["Vol","volume_up","volume_down"],…]</code></dd>
-<dt><code>["rocker",…]</code></dt><dd>The same groups as one-piece rocker keys. <code>["","mute"]</code> is a single key of the same height.</dd>
+<dt><code>["rocker",…]</code></dt><dd>The same groups as one-piece rocker keys. <code>["","mute"]</code> is a single key of the same height. A rocker is as wide as its keys; <code>["rocker",{"width":60,"h":48},…]</code> sets each column's width and each half's height instead, 24&ndash;160 pixels.</dd>
 <dt><code>["media",…]</code></dt><dd>A row of small transport buttons.</dd>
 <dt><code>["apps",…]</code></dt><dd>A row of wide pills.</dd>
 <dt><code>["grid",…]</code></dt><dd>Equal rectangles in columns, the layout said once: <code>["grid",{"cols":2,"h":56,"opts":"sq"},["spare1","Copy"],["spare2","Paste"]]</code>. The settings are optional &mdash; <code>cols</code> 1&ndash;8 (2 if left out), <code>h</code> 24&ndash;160 pixels, and <code>opts</code> every key takes. A key's own options add to those, and <code>"|"</code> leaves a cell empty.</dd>
 <dt><code>["lcd",…]</code></dt><dd>A small screen: <code>["lcd",["Room","temp"],["Host","@host"]]</code>. Each line is a label and the value to show &mdash; <code>@host @slot @mac @state @rssi @battery @layout</code> come from the keyboard itself, <code>@last</code> and <code>@station</code> name the button just pressed, <code>@msg</code> shows what an <code>lcd:text</code> action wrote, and any other name is an entry in the component's <code>sources:</code>. A third entry sizes and justifies one line: <code>sm lg xl</code>, <code>left centre right</code>, or a <code>#hex</code> colour. Left alone a line spreads &mdash; label one side, value the other. A settings object in front of the lines sizes the panel itself like a real display: <code>{"cols":16,"rows":2}</code> is 16 characters by 2 lines (4&ndash;40 and 1&ndash;8), and <code>fg bg label border</code> colour that panel alone.</dd>
+<dt><code>["slider",…]</code></dt><dd>A track to press or drag to a value, as an analogue pot is turned to one: <code>["slider",{"set":"spare12","label":"Lamp"}]</code> sends <code>spare12=&lt;value&gt;</code> once when let go, and <code>{"level":"tv_volume"}</code> sends the presses of <code>"volume_up","volume_down"</code> (or two actions you list) from that reading. Upright unless <code>"horizontal":true</code> (or <code>"vertical":false</code>); <code>length</code> 30&ndash;480 pixels and <code>width</code> 10&ndash;120 (how thick), <code>thumb</code> 8&ndash;120 (its size, apart from the width), <code>min</code> <code>max</code> <code>inc</code>, <code>show</code>, <code>label</code>, <code>label_at</code> and <code>marks</code> as on a pot. A pot&rsquo;s settings and actions carry over, so changing <code>"pot"</code> to <code>"slider"</code> is all a swap takes: <code>size</code> is the length, and a third action is pressed by a tap on the thumb, as a pot&rsquo;s middle key is.</dd>
+<dt><code>["side",…]</code></dt><dd>Sections side by side instead of one under another: <code>["side",["strip",["Vol","volume_up","volume_down"]],["pot",{"size":100}],["strip",["Ch","channel_up","channel_down"]]]</code> puts a knob between two columns.</dd>
 <dt><code>["-"]</code></dt><dd>A divider.</dd>
 <dt><code>"theme"</code></dt><dd>Size and colour, e.g. <code>"maxw": "250px", "zoom": "1.25",</code> &mdash; <code>maxw</code> is how wide the remote may draw, <code>zoom</code> scales all of it at once: buttons, their icons and labels, the gaps, the d&#8209;pad and the rockers. <code>maxw</code> is measured before the zoom, so it grows too &mdash; halve one to hold the width while the buttons get bigger.</dd>
 </dl>
@@ -1070,7 +1186,7 @@ function formLen(ch){
 function api(endpoint,params){
   if(recSteps)recordStep(endpoint,params);
   else if(POPOUT)recForward(endpoint,params);
-  apiPost(endpoint,params).catch(()=>{});
+  return apiPost(endpoint,params).catch(()=>{});
 }
 
 // The popped-out remote is a genuinely separate window — window.open() of
@@ -1571,7 +1687,7 @@ prev_host_all:{t:'Prev Host (all)',i:'all_prev',g:9},
 next_host_all:{t:'Next Host (all)',i:'all_next',g:9}};
 // The keys above that the page acts on itself.
 const RMT_PAGE_KEYS=['next_keyboard','prev_host_all','next_host_all'];
-const RMT_KINDS=['row','dpad','ring','strip','rocker','media','apps','grid','lcd','-'];
+const RMT_KINDS=['row','dpad','ring','pot','slider','strip','rocker','media','apps','grid','lcd','side','-'];
 // A theme may only set these, and each maps to a custom property the .rmt-*
 // rules already read. An imported template therefore cannot inject CSS: keys
 // outside this table are dropped, values only ever land in a --rb-* property.
@@ -1628,6 +1744,15 @@ const RMT_ICON_H=[8,160];
 // button's, in pixels. The centre also has to leave the arrows room, which is
 // checked against the size at import (RMT_RING_ROOM each side between the two).
 const RMT_RING=[120,320],RMT_RING_C=[40,200],RMT_RING_ROOM=40;
+// A knob's optional {"size","center","step"}: its diameter and its middle key's,
+// in pixels, and how many degrees one step turns. As small as a small key, and
+// the middle has to leave a ring to turn by, RMT_KNOB_ROOM each side, checked
+// against the size at import.
+// A level knob's "sweep" is how far its pointer travels from min to max.
+const RMT_KNOB=[32,320],RMT_KNOB_C=[16,280],RMT_KNOB_ROOM=8,RMT_KNOB_STEP=[10,90],RMT_KNOB_SWEEP=[90,360];
+// A slider's "length" — its track, across or upright — its "width", how thick
+// it is across the track, and its "thumb", if not in proportion; in pixels.
+const RMT_SLIDER=[30,480],RMT_SLIDER_W=[10,120],RMT_SLIDER_T=[8,120];
 // The same two things for an lcd line: what a line may carry, and the values
 // this firmware can resolve on its own. A built-in is spelled with a leading @
 // so the two namespaces cannot collide — a key naming a `sources:` entry
@@ -1706,15 +1831,18 @@ function iconNames(t){
     for(const tok of it[2].split(/\s+/))
       if(tok.indexOf('icon:')===0&&out.indexOf(tok.slice(5))<0)out.push(tok.slice(5));
   };
-  for(const s of t.sections){
-    if(!Array.isArray(s)||s[0]==='lcd')continue;
+  const sec=(s,inSide)=>{
+    if(!Array.isArray(s)||s[0]==='lcd')return;
+    // A side section's parts are sections of their own, one level deep.
+    if(s[0]==='side'){if(!inSide)s.slice(1).forEach(c=>sec(c,true));return}
     // A grid's shared options reach every key in it, an icon included.
     if(s[0]==='grid'&&s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))look(['','',s[1].opts]);
     for(const it of s.slice(1)){
       if(s[0]==='strip'||s[0]==='rocker'){if(Array.isArray(it))it.slice(1).forEach(look)}
       else look(it);
     }
-  }
+  };
+  for(const s of t.sections)sec(s,false);
   return out;
 }
 // An icon's markup: one of ours by id, or an imported record. Top level because
@@ -1732,6 +1860,403 @@ function icon(i){
     (p.w!==undefined?' stroke-width="'+p.w+'"':'')+(p.c!==undefined?' stroke-linecap="'+p.c+'"':'')+
     (p.j!==undefined?' stroke-linejoin="'+p.j+'"':'')+(p.o!==undefined?' opacity="'+p.o+'"':'')+
     '/>').join('')+'</svg>';
+}
+// What each knob that sets a value ("set") last set it to from this page, by
+// the key it sets — what one with no reading to follow points at, redraws and
+// all, since it has nothing else to go on.
+const KNOB_SET={};
+// Points a level knob at v, or hides its pointer and arc when there is no
+// reading (null). min sits at the start of the sweep, max at its end, so with
+// the usual 270° a full level is the knob turned fully clockwise.
+function knobShow(k,v){
+  const min=+k.dataset.min,max=+k.dataset.max,sw=+k.dataset.sweep;
+  k._lv=v;
+  k.classList.toggle('nolevel',v===null);
+  const f=v===null?0:Math.min(1,Math.max(0,(v-min)/(max-min)));
+  // A slider: its fill and thumb that share of the way along.
+  if(k.classList.contains('rmt-slider')){k.style.setProperty('--rb-sl',(f*100)+'%');return}
+  const face=k.querySelector('.rmt-knob-face'),arc=k.querySelector('.rmt-knob-gauge .lv');
+  if(face)face.style.transform='rotate('+(-sw/2+sw*f)+'deg)';
+  if(arc)arc.style.strokeDasharray=(sw*f)+' 360';
+}
+// Every level knob in `root`, from the same values the lcd panels show: the
+// device's sources on the page, entity states on the card. A reading is a
+// number at the front of the value, so "45 %" is 45; anything else is none.
+// While steps the knob sent are on their way (_exp, set by knobWire) the
+// pointer stays where they are taking it — the reading trails the presses —
+// until a reading gets there or their time is up.
+function knobLevel(root,vals){
+  root.querySelectorAll('.rmt-knob[data-level],.rmt-slider[data-level]').forEach(k=>{
+    const v=parseFloat(vals?vals[k.dataset.level]:NaN),lv=isFinite(v)?v:null;
+    k._rd=lv;
+    clearTimeout(k._lt);
+    const e=k._exp,now=Date.now();
+    if(e&&now<e.until){
+      if(lv!==null&&Math.abs(lv-e.v)<=(+k.dataset.inc||0)/2){k._exp=null;knobShow(k,lv);return}
+      k._lt=setTimeout(()=>{if(k._exp===e){k._exp=null;knobShow(k,k._rd)}},e.until-now);
+      return;
+    }
+    k._exp=null;
+    knobShow(k,lv);
+  });
+  root.querySelectorAll('.rmt-knob[data-set]:not([data-level]),.rmt-slider[data-set]:not([data-level])').forEach(k=>{
+    const v=KNOB_SET[k.dataset.set];
+    knobShow(k,typeof v==='number'?v:null);
+  });
+}
+// Turning a ["knob",…]: wired once onto whatever holds the remote — this page's
+// card or the Lovelace card — and found again from each event, so a redraw needs
+// no rewiring, as with the keys. Each step is one press: clockwise the knob's
+// data-up action, anticlockwise its data-down. send(action,n) presses an action
+// n times and may return a promise; it is all that differs between the two
+// surfaces. The key in the middle is an ordinary key and never comes here. A knob
+// whose host hides both its actions (.off) does nothing.
+function knobWire(root,send){
+  const KS=new WeakMap();
+  const state=k=>{
+    let s=KS.get(k);
+    if(!s){s={a:0,q:[],busy:false,next:0,wheel:0,wt:0};KS.set(k,s)}
+    return s;
+  };
+  // One request at a time, and what piles up behind it goes as one run. The
+  // device answers before an action has run and queues only a few, so a quick
+  // spin sent step by step would outrun it and lose steps; and the next run
+  // waits out the last one's steps, at about what one takes there.
+  const pump=s=>{
+    if(s.busy||!s.q.length)return;
+    s.busy=true;
+    const wait=s.next-Date.now();
+    if(wait>0){setTimeout(()=>{s.busy=false;pump(s)},wait);return}
+    const run=s.q.shift();
+    s.next=Date.now()+Math.max(100,60*run[1]);
+    let done=false,guard=0,p;
+    const fin=()=>{if(done)return;done=true;clearTimeout(guard);s.busy=false;pump(s)};
+    // A send that never settles must not stop the knob for good.
+    guard=setTimeout(fin,2000);
+    try{p=send(run[0],run[1])}catch(_){}
+    Promise.resolve(p).then(fin,fin);
+  };
+  // n presses of `a` onto the knob's queue, in one run with any just before.
+  const queue=(k,a,n)=>{
+    const s=state(k),last=s.q[s.q.length-1];
+    if(last&&last[0]===a)last[1]+=n;else s.q.push([a,n]);
+    pump(s);
+  };
+  // A value to set, onto the knob's queue. Only the latest matters, so one not
+  // yet sent is replaced rather than followed.
+  const queueSet=(k,key,v)=>{
+    const s=state(k),last=s.q[s.q.length-1],run=key+'='+v;
+    if(last&&last[2]===key)last[0]=run;else s.q.push([run,1,key]);
+    pump(s);
+  };
+  // What a level knob takes the level to be: where what it sent is taking it
+  // while that is on its way, else the last reading — or, for one that sets a
+  // value with no reading to follow, what it last set.
+  const believed=k=>{
+    if(k._exp&&Date.now()<k._exp.until)return k._exp.v;
+    if(k._rd!==undefined&&k._rd!==null)return k._rd;
+    const v=k.dataset.set!==undefined?KNOB_SET[k.dataset.set]:undefined;
+    return typeof v==='number'?v:null;
+  };
+  const within=(k,v)=>Math.min(+k.dataset.max,Math.max(+k.dataset.min,v));
+  const flash=(k,dir)=>{
+    k.classList.remove('fu','fd');void k.offsetWidth;k.classList.add(dir>0?'fu':'fd');
+    clearTimeout(k._ft);k._ft=setTimeout(()=>k.classList.remove('fu','fd'),180);
+  };
+  // A knob that sets a value sends it, once: "spare12=40", which runs that
+  // key's Host Action with {value} in it replaced by 40 — a Home Assistant
+  // brightness or volume in one call. Kept on inc's grid, from min.
+  const sendSet=(k,v)=>{
+    if(k.classList.contains('off'))return;
+    const mn=+k.dataset.min,inc=+k.dataset.inc||1;
+    v=Math.round(within(k,mn+Math.round((v-mn)/inc)*inc)*1e4)/1e4;
+    KNOB_SET[k.dataset.set]=v;
+    k._exp={v:v,until:Date.now()+3000};
+    knobShow(k,v);
+    if(navigator.vibrate)try{navigator.vibrate(5)}catch(_){}
+    queueSet(k,k.dataset.set,String(v));
+  };
+  const turn=(k,dir,buzz)=>{
+    if(k.classList.contains('off'))return false;
+    // One that sets a value steps the value, by inc, and sets that.
+    if(k.dataset.set!==undefined){
+      const b=believed(k);
+      sendSet(k,(b===null?+k.dataset.min:b)+dir*(+k.dataset.inc||1));
+      flash(k,dir);
+      return true;
+    }
+    const a=dir>0?k.dataset.up:k.dataset.down;
+    if(!a)return false;
+    if(k.dataset.level!==undefined){
+      // A knob showing a level points at the reading, not at the turn. Each step
+      // flashes the side it went; with an inc the pointer also moves that much
+      // ahead of the reading, which knobLevel then lets catch up.
+      const inc=+k.dataset.inc,b=believed(k);
+      if(inc&&b!==null){const v=within(k,b+dir*inc);k._exp={v:v,until:Date.now()+1500};knobShow(k,v)}
+      flash(k,dir);
+    }else{
+      // The face clicks round a step at a time, so it shows what was sent.
+      const s=state(k);
+      s.a+=dir*(+k.dataset.step||30);
+      const f=k.querySelector('.rmt-knob-face');
+      if(f)f.style.transform='rotate('+s.a+'deg)';
+    }
+    if(buzz&&navigator.vibrate)try{navigator.vibrate(5)}catch(_){}
+    queue(k,a,1);
+    return true;
+  };
+  // A pot sets a level rather than stepping it: the knob is dragged or tapped
+  // to where it should be, and the difference from what it believes the level
+  // is goes as that many presses, inc a press — a keyboard can only go up and
+  // down. The pointer waits there for the reading to arrive.
+  const potSet=(k,from,to)=>{
+    const n=Math.round((to-from)/(+k.dataset.inc||1));
+    const a=n>0?k.dataset.up:k.dataset.down;
+    if(!n||!a||k.classList.contains('off')){knobShow(k,believed(k));return}
+    const v=within(k,from+n*(+k.dataset.inc||1));
+    k._exp={v:v,until:Date.now()+1500+Math.abs(n)*80};
+    knobShow(k,v);
+    if(navigator.vibrate)try{navigator.vibrate(5)}catch(_){}
+    queue(k,a,Math.abs(n));
+  };
+  // Where along a pot's sweep a bearing lies, 0 at min and 1 at max, or null in
+  // the gap at its foot, between the stops.
+  const potAt=(k,t)=>{
+    const sw=+k.dataset.sweep,th=((t+90+540)%360)-180;   // from twelve o'clock
+    return Math.abs(th)<=sw/2?(th+sw/2)/sw:null;
+  };
+  const potVal=(k,f)=>+k.dataset.min+f*(+k.dataset.max-+k.dataset.min);
+  let drag=null;
+  // The pointer's bearing from the knob's middle, clockwise from three o'clock.
+  // Close to the middle it swings wildly for the smallest movement, so nothing
+  // there counts, and the next point outside starts afresh.
+  const bearing=(d,x,y)=>{
+    const dx=x-d.cx,dy=y-d.cy;
+    return Math.hypot(dx,dy)<d.r*0.2?null:Math.atan2(dy,dx)*180/Math.PI;
+  };
+  // A − or + held down, or a pot held still where a tap would step it: after a
+  // moment it goes on stepping that way until let go — a lost release, a tab
+  // switched away, or two hundred steps end it too, so nothing runs on unseen.
+  let rep=null;
+  const stopRep=()=>{if(rep){clearTimeout(rep.t);clearInterval(rep.i);rep=null}};
+  const holdStep=(id,k,dir)=>{
+    stopRep();
+    const r={id:id,n:0};
+    r.t=setTimeout(()=>{r.i=setInterval(()=>{
+      if(rep!==r||++r.n>200||!k.isConnected){if(rep===r)stopRep();return}
+      turn(k,dir,true);
+    },150)},400);
+    rep=r;
+  };
+  // A pot's own release handler runs after this one, so tell it the hold
+  // stepped by itself, or it would add the tap's step on top.
+  const endRep=e=>{if(rep&&e.pointerId===rep.id){if(rep.pot&&rep.i)rep.pot.held=true;stopRep()}};
+  root.addEventListener('pointerup',endRep);
+  root.addEventListener('pointercancel',endRep);
+  root.addEventListener('lostpointercapture',endRep);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopRep()});
+  // A slider's own key, pressed by a tap on its thumb (or Enter or Space on the
+  // slider): one ordinary press, which the thumb shows.
+  const pressThumb=k=>{
+    const a=k.dataset.press;
+    if(!a||k.classList.contains('off')||k.classList.contains('nopress'))return;
+    const t=k.querySelector('.rmt-slider-thumb');
+    if(t){t.classList.add('p');setTimeout(()=>t.classList.remove('p'),150)}
+    if(navigator.vibrate)try{navigator.vibrate(5)}catch(_){}
+    queue(k,a,1);
+  };
+  // Where along a slider's track a point lies, 0 at its min end and 1 at max:
+  // left to right across, bottom to top upright.
+  const sliderAt=(d,x,y)=>{
+    const r=d.rect,f=d.vert?(r.bottom-y)/r.height:(x-r.left)/r.width;
+    return Math.min(1,Math.max(0,f));
+  };
+  root.addEventListener('pointerdown',e=>{
+    if(!e.target.closest||(e.pointerType==='mouse'&&e.button!==0))return;
+    // A slider's − and +: a step each, as on a knob, and held they go on
+    // stepping until let go.
+    const mk=e.target.closest('.rmt-slider-mk');
+    if(mk){
+      const k=mk.closest('.rmt-slider');
+      if(k&&!k.classList.contains('off')){
+        e.preventDefault();
+        const dir=mk.classList.contains('up')?1:-1;
+        turn(k,dir,true);
+        try{mk.setPointerCapture(e.pointerId)}catch(_){}
+        holdStep(e.pointerId,k,dir);
+      }
+      return;
+    }
+    // A slider goes to where it is pressed and follows the finger along, held
+    // at its two ends. Let go and it sends what it was put at — as the value,
+    // or as the presses from the reading — as a knob's pot does.
+    const tr=e.target.closest('.rmt-slider-track');
+    if(tr){
+      if(drag&&drag.ring.isConnected&&drag.ring.hasPointerCapture(drag.id))return;
+      const k=tr.closest('.rmt-slider');
+      if(!k||k.classList.contains('off'))return;
+      const sets=k.dataset.set!==undefined,from=believed(k);
+      // On the thumb of a slider with a key of its own, it may be a tap: it
+      // moves only once dragged, and let go where it was it presses the key.
+      const thumb=!!(k.dataset.press&&e.target.closest('.rmt-slider-thumb'));
+      const can=sets||from!==null;   // without either there is nothing to work presses out from
+      if(!can&&!thumb)return;
+      e.preventDefault();
+      try{tr.focus({preventScroll:true})}catch(_){}
+      try{tr.setPointerCapture(e.pointerId)}catch(_){}
+      drag={k:k,ring:tr,id:e.pointerId,slider:true,vert:k.classList.contains('vert'),rect:tr.getBoundingClientRect(),
+            from:from,sets:sets,x0:e.clientX,y0:e.clientY,moved:false,thumb:thumb,can:can,to:null};
+      k.classList.add('drag');
+      if(!thumb){drag.to=potVal(k,sliderAt(drag,e.clientX,e.clientY));knobShow(k,drag.to)}
+      return;
+    }
+    const ring=e.target.closest('.rmt-knob-ring');
+    if(!ring)return;
+    // One turn at a time. One whose capture has gone without a release reaching
+    // here — its knob redrawn, say — is over, and must not block the next.
+    if(drag&&drag.ring.isConnected&&drag.ring.hasPointerCapture(drag.id))return;
+    const k=ring.closest('.rmt-knob');
+    if(!k||k.classList.contains('off'))return;
+    e.preventDefault();
+    // Focused, so the wheel and the arrow keys turn it from here on.
+    try{ring.focus({preventScroll:true})}catch(_){}
+    // Captured, so the turn carries on wherever the finger goes.
+    try{ring.setPointerCapture(e.pointerId)}catch(_){}
+    const r=ring.getBoundingClientRect();
+    drag={k:k,ring:ring,id:e.pointerId,cx:r.left+r.width/2,cy:r.top+r.height/2,r:r.width/2,
+          x0:e.clientX,y0:e.clientY,acc:0,moved:false,turned:false};
+    drag.prev=bearing(drag,e.clientX,e.clientY);
+    // A pot with something to start from goes to where it is pressed, and from
+    // there follows the finger round, stopping at its two ends as a real one
+    // does. Pressed in the gap between the stops it stays put until dragged,
+    // and a tap there is one step, as on any knob. With no reading there is
+    // no level to set it against, and it turns like any knob.
+    // One that sets a value is always a pot: it needs no reading to start from,
+    // since what it sends is where it is put, not how far it moved.
+    const sets=k.dataset.set!==undefined;
+    const from=k.dataset.pot!==undefined||sets?believed(k):null;
+    if(from!==null||sets){
+      drag.pot=true;drag.from=from;drag.sets=sets;
+      const f=drag.prev===null?null:potAt(k,drag.prev);
+      drag.gap=f===null;
+      const mn=+k.dataset.min,mx=+k.dataset.max;
+      drag.f=f!==null?f:from===null?0:Math.min(1,Math.max(0,(from-mn)/(mx-mn)));
+      drag.to=drag.at=f!==null?potVal(k,f):null;
+      if(f!==null)knobShow(k,drag.to);
+    }
+    // Held still where a tap steps it — anywhere on a pot that steps, the gap at
+    // the foot of one that sets a level — it goes on stepping that way, as a
+    // slider's − or + does. A drag that follows takes over from it.
+    if(!drag.pot||drag.gap){
+      drag.held=false;
+      holdStep(e.pointerId,k,drag.x0>=drag.cx?1:-1);
+      rep.pot=drag;
+    }
+  });
+  root.addEventListener('pointermove',e=>{
+    const d=drag;
+    if(!d||e.pointerId!==d.id)return;
+    // A knob redrawn mid-turn takes its capture with it, and the release can
+    // then land anywhere — so a mouse or pen moving with nothing pressed, or a
+    // ring no longer on the page, means the turn is over, not still going.
+    if(!d.ring.isConnected||(e.pointerType!=='touch'&&!(e.buttons&1))){
+      if(d.slider)d.k.classList.remove('drag');
+      drag=null;return;
+    }
+    if(Math.hypot(e.clientX-d.x0,e.clientY-d.y0)>8)d.moved=true;
+    // Moved off the spot: no longer a hold.
+    if(d.moved&&rep&&rep.pot===d){if(rep.i)d.held=true;stopRep()}
+    if(d.slider){
+      if(!d.can||(d.thumb&&!d.moved))return;
+      d.to=potVal(d.k,sliderAt(d,e.clientX,e.clientY));knobShow(d.k,d.to);return;
+    }
+    const t=bearing(d,e.clientX,e.clientY);
+    if(t===null){d.prev=null;return}
+    if(d.pot){
+      // The angle the finger has travelled, as a share of the sweep, held
+      // between the stops — so going on past one does nothing, and coming back
+      // moves it again straight away.
+      if(d.prev!==null){
+        d.f=Math.min(1,Math.max(0,d.f+(((t-d.prev+540)%360)-180)/(+d.k.dataset.sweep)));
+        d.to=potVal(d.k,d.f);
+        knobShow(d.k,d.to);
+      }
+      d.prev=t;
+      return;
+    }
+    if(d.prev!==null){
+      // The shorter way round, so crossing nine o'clock is not a whole turn.
+      d.acc+=((t-d.prev+540)%360)-180;
+      const step=+d.k.dataset.step||30;
+      while(d.acc>=step){d.acc-=step;if(turn(d.k,1,true))d.turned=true}
+      while(d.acc<=-step){d.acc+=step;if(turn(d.k,-1,true))d.turned=true}
+    }
+    d.prev=t;
+  });
+  const end=e=>{
+    const d=drag;
+    if(!d||e.pointerId!==d.id)return;
+    drag=null;
+    try{d.ring.releasePointerCapture(d.id)}catch(_){}
+    if(d.slider){
+      d.k.classList.remove('drag');
+      if(e.type!=='pointerup'){knobShow(d.k,believed(d.k));return}
+      if(d.thumb&&!d.moved){pressThumb(d.k);return}
+      if(d.to===null){knobShow(d.k,believed(d.k));return}
+      if(d.sets)sendSet(d.k,d.to);else potSet(d.k,d.from,d.to);
+      return;
+    }
+    if(d.pot){
+      // Let go: set it. A tap on the sweep sets where it landed; one in the gap
+      // is a step, below; a gesture cut short puts the pointer back.
+      if(e.type!=='pointerup'){knobShow(d.k,believed(d.k));return}
+      const put=v=>d.sets?sendSet(d.k,v):potSet(d.k,d.from,v);
+      if(!d.moved&&!d.gap){put(d.at);return}
+      if(d.moved){if(d.to!==null)put(d.to);return}
+    }
+    // A tap — let go where it went down, nothing turned — is one step toward
+    // the side it landed on: the right half up, the left down.
+    // ...unless it was held long enough to step by itself already.
+    const held=!!(rep&&rep.pot===d&&rep.i)||d.held;
+    if(rep&&rep.pot===d)stopRep();
+    if(e.type==='pointerup'&&!d.moved&&!d.turned&&!held)turn(d.k,d.x0>=d.cx?1:-1,true);
+  };
+  root.addEventListener('pointerup',end);
+  root.addEventListener('pointercancel',end);
+  root.addEventListener('lostpointercapture',end);
+  // The wheel and the arrow keys only turn a knob that was clicked or tabbed to:
+  // scrolling the page past one must not change the volume on the way.
+  root.addEventListener('wheel',e=>{
+    const k=e.target.closest&&e.target.closest('.rmt-knob,.rmt-slider');
+    if(!k||k.classList.contains('off')||!k.matches(':focus-within'))return;
+    e.preventDefault();
+    const s=state(k),now=Date.now();
+    // A pause starts the count afresh, so each notch of a mouse wheel is one
+    // step whatever size the browser reports it as; a touchpad's small deltas
+    // arrive close together and add up.
+    if(now-s.wt>300)s.wheel=0;
+    s.wt=now;
+    s.wheel-=e.deltaY*(e.deltaMode===1?40:e.deltaMode===2?400:1);
+    while(s.wheel>=100){s.wheel-=100;turn(k,1)}
+    while(s.wheel<=-100){s.wheel+=100;turn(k,-1)}
+  },{passive:false});
+  root.addEventListener('keydown',e=>{
+    const k=e.target.closest&&e.target.closest('.rmt-knob,.rmt-slider');
+    if(!k||e.altKey||e.ctrlKey||e.metaKey)return;
+    if((e.key==='Enter'||e.key===' ')&&k.dataset.press&&e.target.closest('.rmt-slider-track')){
+      e.preventDefault();
+      if(!e.repeat)pressThumb(k);
+      return;
+    }
+    const dir=/^(ArrowUp|ArrowRight|PageUp)$/.test(e.key)?1:/^(ArrowDown|ArrowLeft|PageDown)$/.test(e.key)?-1:0;
+    if(!dir||k.classList.contains('off'))return;
+    e.preventDefault();
+    turn(k,dir);
+  });
+  // A phone's own long-press menu would take the gesture away from the knob.
+  root.addEventListener('contextmenu',e=>{
+    if(e.target.closest&&e.target.closest('.rmt-knob-ring,.rmt-slider-track,.rmt-slider-mk'))e.preventDefault();
+  });
 }
 // Built-in styles. `default` reproduces the fixed markup the remote had before
 // styles existed, so a host that never picks one sees no change at all. The
@@ -3896,12 +4421,37 @@ function appendStep(el,val){
         if(JSON.stringify(t.icons[n]).length>RMT_ICON_LEN)return 'Icon "'+n+'" is over '+RMT_ICON_LEN+' characters';
       }
     }
-    for(const s of t.sections){
+    // One section, '' when it is fine. A side section's parts are sections too,
+    // checked by this same function, one level deep.
+    const sectionBad=(s,inSide)=>{
       if(!Array.isArray(s)||typeof s[0]!=='string')return 'Each section is an array starting with its kind';
       if(RMT_KINDS.indexOf(s[0])<0)return 'Unknown section kind "'+s[0]+'" — use '+RMT_KINDS.join(', ');
+      if(s[0]==='side'){
+        if(inSide)return 'A side section cannot hold another side section';
+        if(s.length<3)return 'A side section puts two or more sections side by side — ["side",["strip",…],["pot"]]';
+        for(const p of s.slice(1)){
+          if(Array.isArray(p)&&p[0]==='-')return 'A divider cannot go in a side section';
+          const bad=sectionBad(p,true);
+          if(bad)return bad;
+        }
+        return '';
+      }
       let items=[];
       if(s[0]==='strip'||s[0]==='rocker'){
-        for(const g of s.slice(1)){
+        let groups=s.slice(1);
+        // A rocker may open with {"width","h"} — its columns' width and the
+        // height of each half — the way a grid opens with its layout.
+        if(s[0]==='rocker'&&groups.length&&groups[0]&&typeof groups[0]==='object'&&!Array.isArray(groups[0])){
+          const cfg=groups[0];
+          groups=groups.slice(1);
+          for(const k in cfg){
+            if(k!=='width'&&k!=='h')return 'A rocker takes width and h — "'+k+'" is neither';
+            const n=cfg[k];
+            if(typeof n!=='number'||n!==Math.floor(n)||n<RMT_KEY_H[0]||n>RMT_KEY_H[1])
+              return 'rocker "'+k+'" is '+RMT_KEY_H[0]+'-'+RMT_KEY_H[1]+' pixels, a whole number — e.g. {"width":60,"h":48}';
+          }
+        }
+        for(const g of groups){
           if(!Array.isArray(g))return 'Each '+s[0]+' group is an array: ["Label","action",…]';
           if(typeof g[0]!=='string')return 'A '+s[0]+' group starts with its label — "" for none';
           if(g[0].length>8)return 'Group labels are up to 8 characters — "'+g[0]+'" is too wide';
@@ -3933,6 +4483,149 @@ function appendStep(el,val){
         }
         if(keys.length&&keys.length!==5)
           return 'A '+s[0]+' section lists exactly 5 actions (up, left, centre, right, down) or none';
+        items=keys;
+      }else if(s[0]==='pot'){
+        // Turned, not pressed: a step clockwise presses the first action, one
+        // anticlockwise the second, and the third is the key in the middle. The
+        // settings come first if at all, as a ring's do.
+        let keys=s.slice(1),sets=false;
+        if(keys.length&&keys[0]&&typeof keys[0]==='object'&&!Array.isArray(keys[0])){
+          const cfg=keys[0];
+          keys=keys.slice(1);
+          for(const k in cfg){
+            const v=cfg[k];
+            // The key whose Host Action takes the value, with {value} in it.
+            if(k==='set'){
+              if(typeof v!=='string'||!Object.prototype.hasOwnProperty.call(RMT_BTNS,v))
+                return 'pot "set" names the key whose Host Action takes the value — a spare, e.g. {"set":"spare12"}';
+              sets=true;
+              continue;
+            }
+            if(k==='show'){
+              // Named the way an lcd line names its value, and filled the same way.
+              const ok=typeof v==='string'&&(v.charAt(0)==='@'?RMT_LCD_KEYS.indexOf(v)>=0:/^[a-z0-9_]{1,16}$/.test(v));
+              if(!ok)return 'pot "show" names a value as an lcd line does — a sources key of 1-16 characters, a-z, 0-9 or _, or one of '+
+                            RMT_LCD_KEYS.join(', ');
+              continue;
+            }
+            if(k==='label'){
+              if(typeof v!=='string'||v.length>16)return 'pot "label" is text of up to 16 characters';
+              continue;
+            }
+            if(k==='label_at'){
+              if(v!=='top'&&v!=='bottom')return 'pot "label_at" is "top" or "bottom"';
+              if(typeof cfg.label!=='string'||!cfg.label)return 'pot "label_at" places the caption — add a "label"';
+              continue;
+            }
+            // "analogue" (or "analog"): the position is the level, as on a pot.
+            if(k==='marks'||k==='analogue'||k==='analog'){
+              if(typeof v!=='boolean')return 'pot "'+k+'" is true or false';
+              continue;
+            }
+            if(k==='level'){
+              const ok=typeof v==='string'&&(v.charAt(0)==='@'?RMT_LCD_KEYS.indexOf(v)>=0:/^[a-z0-9_]{1,16}$/.test(v));
+              if(!ok)return 'pot "level" names a reading as an lcd line does — a sources key of 1-16 characters, a-z, 0-9 or _';
+              continue;
+            }
+            // The level's scale, and how far one step moves it: any number.
+            if(k==='min'||k==='max'||k==='inc'){
+              if(typeof v!=='number'||!isFinite(v))return 'pot "'+k+'" must be a number, e.g. {"level":"tv_volume","max":100}';
+              if(k==='inc'&&v<=0)return 'pot "inc" is how much one step moves the level — more than 0';
+              continue;
+            }
+            if(k!=='size'&&k!=='center'&&k!=='step'&&k!=='sweep')
+              return 'A pot takes size, center, step, show, label, label_at, marks, level, set, min, max, sweep, inc and analogue — "'+k+'" is none of them';
+            if(typeof v!=='number'||!isFinite(v)||v!==Math.floor(v))
+              return 'pot "'+k+'" must be a whole number, e.g. {"size":160,"center":80,"step":30}';
+          }
+          if(cfg.level===undefined&&cfg.set===undefined){
+            for(const k of ['min','max','sweep','inc','analogue','analog'])
+              if(cfg[k]!==undefined)return 'pot "'+k+'" sets out a level — add "level" naming the reading it is for, or "set"';
+          }else{
+            const lo=cfg.min!==undefined?cfg.min:0,hi=cfg.max!==undefined?cfg.max:100;
+            if(hi<=lo)return 'pot "max" '+hi+' must be above "min" '+lo;
+          }
+          if(cfg.sweep!==undefined&&(cfg.sweep<RMT_KNOB_SWEEP[0]||cfg.sweep>RMT_KNOB_SWEEP[1]))
+            return 'pot "sweep" is '+RMT_KNOB_SWEEP[0]+'-'+RMT_KNOB_SWEEP[1]+' degrees — "'+cfg.sweep+'" is outside that';
+          if(cfg.size!==undefined&&(cfg.size<RMT_KNOB[0]||cfg.size>RMT_KNOB[1]))
+            return 'pot "size" is '+RMT_KNOB[0]+'-'+RMT_KNOB[1]+' pixels — "'+cfg.size+'" is outside that';
+          if(cfg.center!==undefined&&(cfg.center<RMT_KNOB_C[0]||cfg.center>RMT_KNOB_C[1]))
+            return 'pot "center" is '+RMT_KNOB_C[0]+'-'+RMT_KNOB_C[1]+' pixels — "'+cfg.center+'" is outside that';
+          if(cfg.step!==undefined&&(cfg.step<RMT_KNOB_STEP[0]||cfg.step>RMT_KNOB_STEP[1]))
+            return 'pot "step" is '+RMT_KNOB_STEP[0]+'-'+RMT_KNOB_STEP[1]+' degrees — "'+cfg.step+'" is outside that';
+          const size=cfg.size!==undefined?cfg.size:150;
+          if(cfg.center!==undefined&&cfg.center>size-2*RMT_KNOB_ROOM)
+            return 'pot "center" '+cfg.center+' leaves no ring to turn in a '+size+'px pot — at most '+
+                   (size-2*RMT_KNOB_ROOM)+', or a larger "size"';
+        }
+        // One that sets a value has nothing to turn by: the one action it may
+        // list is the key in its middle.
+        if(sets&&keys.length>1)
+          return 'A pot with "set" lists one action at most, the key in its middle — the value goes to "set"';
+        if(!sets&&keys.length&&keys.length!==2&&keys.length!==3)
+          return 'A pot lists its actions turning up, turning down, then an optional key in the middle — '+
+                 '["pot","volume_up","volume_down","mute"] — or none';
+        // Turning shows no face, so a turn action takes a label (its tooltip, and
+        // its name on an @last line) and nothing else.
+        if(!sets)for(const it of keys.slice(0,2))
+          if(Array.isArray(it)&&it.length!==2)
+            return 'A pot turns by "action" or ["action","Label"] — '+JSON.stringify(it)+' is neither';
+        items=keys;
+      }else if(s[0]==='slider'){
+        // Dragged to a value: sent to "set" once, or as presses of its two
+        // actions from a reading named by "level". One of the two it must have.
+        let keys=s.slice(1),cfg={};
+        if(keys.length&&keys[0]&&typeof keys[0]==='object'&&!Array.isArray(keys[0])){cfg=keys[0];keys=keys.slice(1)}
+        const lcdKey=v=>typeof v==='string'&&(v.charAt(0)==='@'?RMT_LCD_KEYS.indexOf(v)>=0:/^[a-z0-9_]{1,16}$/.test(v));
+        for(const k in cfg){
+          const v=cfg[k];
+          if(k==='set'){
+            if(typeof v!=='string'||!Object.prototype.hasOwnProperty.call(RMT_BTNS,v))
+              return 'slider "set" names the key whose Host Action takes the value — a spare, e.g. {"set":"spare12"}';
+          }else if(k==='level'||k==='show'){
+            if(!lcdKey(v))return 'slider "'+k+'" names a reading as an lcd line does — a sources key of 1-16 characters, a-z, 0-9 or _';
+          }else if(k==='label'){
+            if(typeof v!=='string'||v.length>16)return 'slider "label" is text of up to 16 characters';
+          }else if(k==='label_at'){
+            if(v!=='top'&&v!=='bottom')return 'slider "label_at" is "top" or "bottom"';
+          }else if(k==='marks'||k==='vertical'||k==='horizontal'||k==='analogue'||k==='analog'){
+            // analogue is a knob's: a slider always goes where it is put.
+            if(typeof v!=='boolean')return 'slider "'+k+'" is true or false';
+          }else if(k==='min'||k==='max'||k==='inc'){
+            if(typeof v!=='number'||!isFinite(v))return 'slider "'+k+'" must be a number, e.g. {"set":"spare12","max":255}';
+            if(k==='inc'&&v<=0)return 'slider "inc" is how much one step moves the value — more than 0';
+          }else if(k==='length'){
+            if(typeof v!=='number'||v!==Math.floor(v)||v<RMT_SLIDER[0]||v>RMT_SLIDER[1])
+              return 'slider "length" is '+RMT_SLIDER[0]+'-'+RMT_SLIDER[1]+' pixels, a whole number';
+          }else if(k==='width'){
+            if(typeof v!=='number'||v!==Math.floor(v)||v<RMT_SLIDER_W[0]||v>RMT_SLIDER_W[1])
+              return 'slider "width" is '+RMT_SLIDER_W[0]+'-'+RMT_SLIDER_W[1]+' pixels, a whole number';
+          }else if(k==='thumb'){
+            if(typeof v!=='number'||v!==Math.floor(v)||v<RMT_SLIDER_T[0]||v>RMT_SLIDER_T[1])
+              return 'slider "thumb" is '+RMT_SLIDER_T[0]+'-'+RMT_SLIDER_T[1]+' pixels, a whole number';
+          }else if(k==='size'||k==='center'||k==='step'||k==='sweep'){
+            // A knob's, taken so that "knob" can be changed to "slider" and
+            // nothing else: size is the length, the rest have nothing to do here.
+            if(typeof v!=='number'||v!==Math.floor(v)||v<1)return 'slider "'+k+'" must be a whole number';
+          }else return 'A slider takes set, level, show, label, label_at, marks, horizontal, vertical, min, max, inc, length, width and thumb, '+
+                       'and a pot\'s settings — "'+k+'" is none of them';
+        }
+        if(cfg.vertical!==undefined&&cfg.horizontal!==undefined&&cfg.vertical===cfg.horizontal)
+          return 'slider "vertical" and "horizontal" disagree — give one of them';
+        if(cfg.set===undefined&&cfg.level===undefined)
+          return 'A slider sends a value to a key ("set") or steps to a reading ("level") — give it one, e.g. {"set":"spare12"}';
+        const lo=cfg.min!==undefined?cfg.min:0,hi=cfg.max!==undefined?cfg.max:100;
+        if(hi<=lo)return 'slider "max" '+hi+' must be above "min" '+lo;
+        // A knob's actions: with "set", one at most — a key beside it; without,
+        // up and down, and a third for that key.
+        if(cfg.set!==undefined&&keys.length>1)
+          return 'A slider with "set" lists one action at most, a key beside it — the value goes to "set"';
+        if(cfg.set===undefined&&keys.length&&keys.length!==2&&keys.length!==3)
+          return 'A slider steps by two actions, up then down, and a third is a key beside it — '+
+                 '["slider",{"level":"tv_volume"},"volume_up","volume_down","mute"] — or none for volume';
+        if(cfg.set===undefined)for(const it of keys.slice(0,2))
+          if(Array.isArray(it)&&it.length!==2)
+            return 'A slider steps by "action" or ["action","Label"] — '+JSON.stringify(it)+' is neither';
         items=keys;
       }else if(s[0]==='lcd'){
         // Lines are ["Label","key"], label first — the way a strip or rocker
@@ -4055,6 +4748,11 @@ function appendStep(el,val){
         if(typeof a!=='string'||!Object.prototype.hasOwnProperty.call(RMT_BTNS,a))
           return 'Unknown button "'+a+'"';
       }
+      return '';
+    };
+    for(const s of t.sections){
+      const bad=sectionBad(s,false);
+      if(bad)return bad;
     }
     return '';
   }
@@ -5513,8 +6211,20 @@ buildKeyboard();
   function press(a){
     // A key that moves this tab between keyboards is acted on here and never sent.
     if(RMT_PAGE_KEYS.indexOf(a)>=0){if(window.pageKey)window.pageKey(a);return}
-    api('press',{action:onPage(a)});
+    return api('press',{action:onPage(a)});
   }
+  // A knob's run of n steps. One is an ordinary press; more go as one repeat:,
+  // wrapped so every step still lands as a press from this tab would — inside a
+  // linked keyboard's peer: (one request to it, not n), and around a host's
+  // page's host_action:, so each step is that host's key: host_action:h:repeat:…
+  // would resolve the key against the active host instead.
+  function knobSend(a,n){
+    if(n<2)return press(a);
+    if(RMT_PAGE_KEYS.indexOf(a)>=0){for(let i=0;i<n;i++)press(a);return}
+    const run='repeat:'+n+':';
+    return api('press',{action:peerLock()!==null||hostLock()===null?onPage(run+a):run+onPage(a)});
+  }
+  knobWire(card,knobSend);
   // `fired` is what keeps hold and tap from both counting: once the hold timer
   // has sent anything, pointerup must NOT send its usual press on release.
   {let sx,sy,ok,ab,fired=false,downAt=0;
@@ -5704,6 +6414,8 @@ buildKeyboard();
       // a real display does with a reading it hasn't got.
       el.textContent=(v===undefined||v===null||v==='')?'--':v;
     });
+    // Knobs pointing at a level read the same map.
+    knobLevel(card,lastLcdVals);
   };
 
   // ── Per-host hidden buttons ──
@@ -5727,15 +6439,27 @@ buildKeyboard();
         // clicks either, which `opacity:0` would not have given us.
         b.style.visibility=hide.indexOf(b.dataset.action)>=0?'hidden':'';
       });
+      // A knob turns by two actions, so it stops turning only when this host
+      // hides both — or, one that sets a value, the key it sets. The key in
+      // its middle is an ordinary key, handled above.
+      card.querySelectorAll('.rmt-knob,.rmt-slider').forEach(k=>k.classList.toggle('off',k.dataset.set!==undefined?
+        hide.indexOf(k.dataset.set)>=0:hide.indexOf(k.dataset.up)>=0&&hide.indexOf(k.dataset.down)>=0));
+      card.querySelectorAll('.rmt-slider[data-press]').forEach(k=>k.classList.toggle('nopress',hide.indexOf(k.dataset.press)>=0));
       // Holding the shape stops once there is no shape left to hold: a group or
       // section with nothing visible in it collapses entirely rather than
       // leaving a band of empty slots.
       // A panel is not a button, so a section holding one is never empty — every
       // key beside it can be hidden for this host and the screen still has
       // something to say. Without this the first poll after a draw deletes it.
-      const empty=el=>!el.querySelector('.rmt-lcd')&&
+      // Nor is a knob that still turns, one showing a level, or one with a
+      // reading on a keyless middle (one on a key is seen through the key, as
+      // every key is below).
+      const empty=el=>!el.querySelector('.rmt-lcd,.rmt-knob:not(.off),.rmt-knob[data-level],.rmt-knob-cap .rmt-knob-val,'+
+                                        '.rmt-slider:not(.off),.rmt-slider[data-level]')&&
         ![...el.querySelectorAll('[data-action]')].some(b=>b.style.visibility!=='hidden');
-      card.querySelectorAll('.rmt-strip-group').forEach(g=>{g.style.display=empty(g)?'none':''});
+      // A rocker or its lone key is a group too, as on the card: an empty pill
+      // would be a shape with nothing in it.
+      card.querySelectorAll('.rmt-strip-group,.rmt-rocker-col').forEach(g=>{g.style.display=empty(g)?'none':''});
       card.querySelectorAll('.rmt-section').forEach(s=>{s.style.display=empty(s)?'none':''});
       // A divider only earns its place between two visible sections.
       const kids=[...body.children];
@@ -5769,7 +6493,9 @@ buildKeyboard();
   // An item is an action name, or [action, label] to relabel its face, or
   // [action, label, opts] to restyle it too. A label is what lets a spare read
   // "Netflix" while the tooltip still names the action the host will run.
-  function btnHtml(item){
+  // `inner`, when given, is the face instead — markup this renderer built, such
+  // as the reading a knob shows on its middle key.
+  function btnHtml(item,inner){
     const arr=Array.isArray(item);
     const a=arr?item[0]:item, lab=arr?item[1]:null, opt=arr?item[2]:null;
     // Own properties only, for the reason validateTpl gives. Repeated inline
@@ -5825,7 +6551,7 @@ buildKeyboard();
     // the icon cannot be found — a key whose logo is missing still says what it is.
     const own=o=>Object.prototype.hasOwnProperty.call(o,ic);
     const pic=!ic?'':own(RI)?icon(ic):own(RMT_ICONS)?icon(RMT_ICONS[ic]):'';
-    const face=pic||((lab!=null&&lab!=='')?esc(lab):(b.i?icon(b.i):(b.x||'')));
+    const face=inner!=null?inner:pic||((lab!=null&&lab!=='')?esc(lab):(b.i?icon(b.i):(b.x||'')));
     return '<button class="rmt-btn'+(b.c?' '+b.c:'')+cls+'" data-action="'+a+'"'+
            (b.r?' data-repeat="1"':'')+(lit?' data-lit="'+esc(lit)+'"':'')+
            (css?' style="'+css+'"':'')+
@@ -5840,7 +6566,13 @@ buildKeyboard();
     if(!action)return '';
     // A long press: the key's own label, marked, since the style names only the key.
     if(/.@long$/.test(action))return lcdLabel(t,action.slice(0,-5))+' (long)';
+    // A side section's parts are sections, looked through as if they stood alone.
+    const all=[];
     if(t&&Array.isArray(t.sections))for(const s of t.sections){
+      if(Array.isArray(s)&&s[0]==='side')all.push(...s.slice(1).filter(Array.isArray));
+      else all.push(s);
+    }
+    for(const s of all){
       // An lcd line is [label, key], the opposite order, and its key is not an
       // action at all — scanning it would match the wrong half.
       if(s[0]==='lcd')continue;
@@ -5882,8 +6614,166 @@ buildKeyboard();
       if(cz>=RMT_RING_C[0]&&cz<=RMT_RING_C[1])st+=(st?';':'')+'--rb-ring-c:'+cz+'px';
       const at=(p,i)=>'<span class="'+p+'">'+btnHtml(d[i])+'</span>';
       inner='<div class="rmt-ring"'+(st?' style="'+st+'"':'')+'>'+at('n',0)+at('w',1)+at('c',2)+at('e',3)+at('s',4)+'</div>';
+    }else if(k==='pot'){
+      // A dial to turn. Its ring is what knobWire() turns, a press of the first
+      // action per step clockwise and of the second per step back; the third is
+      // an ordinary key in the middle, so a long press, a hold or lit: work on
+      // it as on any other. Listing none means volume, with mute in the middle.
+      const cfg=(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1]:null;
+      const keys=s.slice(cfg?2:1);
+      // One that sets a value ("set") has no turn actions — every way of moving
+      // it sets the value — so the one action it may list is its middle key.
+      const setA=cfg&&typeof cfg.set==='string'&&Object.prototype.hasOwnProperty.call(RMT_BTNS,cfg.set)?cfg.set:'';
+      const d=setA?['','',keys[0]]:keys.length?keys:['volume_up','volume_down','mute'];
+      // Whole numbers inside their bounds only, tested here as well as at
+      // import: they reach an inline style.
+      const num=(key,lo,hi)=>{const n=cfg?cfg[key]|0:0;return n>=lo&&n<=hi?n:0};
+      const sz=num('size',RMT_KNOB[0],RMT_KNOB[1])||150;
+      let cz=num('center',RMT_KNOB_C[0],RMT_KNOB_C[1]);
+      if(!cz||cz>sz-2*RMT_KNOB_ROOM)cz=Math.round(sz/2);
+      const step=num('step',RMT_KNOB_STEP[0],RMT_KNOB_STEP[1])||30;
+      // Only actions this catalogue has: anything else would reach the device
+      // as a name it does not know, and be typed to the host as text.
+      const act=it=>{const a=Array.isArray(it)?it[0]:it;
+        return typeof a==='string'&&Object.prototype.hasOwnProperty.call(RMT_BTNS,a)?a:''};
+      const name=it=>{const a=act(it);
+        return Array.isArray(it)&&typeof it[1]==='string'&&it[1]?it[1]:(a?RMT_BTNS[a].t:'nothing')};
+      const tip=esc(setA?'Sets '+(cfg&&typeof cfg.label==='string'&&cfg.label?cfg.label:RMT_BTNS[setA].t):
+                         'Clockwise: '+name(d[0])+' · anticlockwise: '+name(d[1]));
+      // A reading in the middle, drawn the way an lcd line is and filled by the
+      // same code. On the key's face when there is a key, on a plain cap if not.
+      const show=cfg&&typeof cfg.show==='string'&&cfg.show?
+        '<span class="rmt-knob-val" data-lcd="'+esc(cfg.show)+'">--</span>':'';
+      const mid=(d.length>2&&btnHtml(d[2],show||null))||'<div class="rmt-knob-cap">'+show+'</div>';
+      const lab=cfg&&typeof cfg.label==='string'?cfg.label:'';
+      // What the ring between the rim and the middle key holds: dots near the
+      // rim, the pointer further in, the tap marks between the two. Each is its
+      // full size on a big knob and shrinks with the ring on a small one, so a
+      // knob the size of a key still has all three, apart.
+      const band=(sz-cz)/2,r1=v=>Math.round(v*10)/10;
+      const inset=Math.min(8,Math.max(3,band*0.3));          // dots, from the rim
+      const dot=r1(Math.min(3,Math.max(1.5,band*0.2)));
+      const pd=r1(Math.min(17,(inset+band)/2)),pr=r1(Math.min(3.5,Math.max(1.5,band*0.12)));
+      const mk=r1((inset+band)/2),mf=r1(Math.min(14,Math.max(8,band*0.5)));
+      // The face that turns: a dot each step round the rim — one circle whose
+      // dashes are all gap, pathLength making its lengths degrees — and the
+      // pointer. Drawn in the knob's own pixels, so a dot is one size at any size.
+      const h=sz/2,rim='cx="'+h+'" cy="'+h+'" r="'+r1(h-inset)+'" stroke-width="'+dot+'" pathLength="360"';
+      // A level knob: its pointer follows a reading over `sweep` degrees, centred
+      // on twelve o'clock, along a track that fills up to it — in place of the
+      // dots, which would only crowd the track. The numbers are checked here as
+      // well as at import: they reach attributes, and a stored style may not
+      // have been through the importer.
+      // One that sets a value is drawn the same way, its pointer at the reading
+      // if it has one and at what it last set if not.
+      let lvl=cfg&&typeof cfg.level==='string'&&cfg.level?cfg.level:'';
+      let lo=cfg&&typeof cfg.min==='number'&&isFinite(cfg.min)?cfg.min:0;
+      let hi=cfg&&typeof cfg.max==='number'&&isFinite(cfg.max)?cfg.max:100;
+      if(!(hi>lo)){lvl='';lo=0;hi=100}
+      const gm=!!(lvl||setA);
+      const sw=num('sweep',RMT_KNOB_SWEEP[0],RMT_KNOB_SWEEP[1])||270;
+      // A pot steps by inc too, to reach the level it is set to, and one that
+      // sets a value keeps to inc's grid: 1 unless given.
+      const pot=!!(lvl&&(cfg.analogue===true||cfg.analog===true));
+      const inc=gm&&typeof cfg.inc==='number'&&isFinite(cfg.inc)&&cfg.inc>0?cfg.inc:pot||setA?1:0;
+      const turnTo=' transform="rotate('+(-90-sw/2)+' '+h+' '+h+')"';
+      const gauge=gm?'<svg class="rmt-knob-gauge" viewBox="0 0 '+sz+' '+sz+'"><circle class="tr" '+rim+
+                      ' stroke-dasharray="'+sw+' 360"'+turnTo+'/><circle class="lv" '+rim+
+                      ' stroke-dasharray="0 360"'+turnTo+'/></svg>':'';
+      const face=gauge+'<svg class="rmt-knob-face" viewBox="0 0 '+sz+' '+sz+'">'+
+                 (gm?'':'<circle class="tk" '+rim+' stroke-dasharray="0 '+step+'" transform="rotate(-90 '+h+' '+h+')"/>')+
+                 '<circle class="pt" cx="'+h+'" cy="'+pd+'" r="'+pr+'"/></svg>';
+      const lvAttrs=gm?(lvl?' data-level="'+esc(lvl)+'"':'')+(setA?' data-set="'+setA+'"':'')+
+                       ' data-min="'+lo+'" data-max="'+hi+'" data-sweep="'+sw+'"'+
+                       (inc?' data-inc="'+inc+'"':'')+(pot?' data-pot="1"':''):'';
+      // "marks":false leaves the − and + off, and so does a ring too narrow to
+      // hold them clear of the dots. A tap on either half still steps. On a level
+      // knob the pointer passes nine and three o'clock, so they move into the gap
+      // at the foot of its sweep instead, by the two ends of the track — where a
+      // dial marks its minimum and maximum.
+      const at=deg=>{
+        if(!gm||sw>=330)return '';
+        const t=deg*Math.PI/180,rho=h-mk;
+        return ' style="left:'+r1(h+rho*Math.sin(t))+'px;top:'+r1(h-rho*Math.cos(t))+'px"';
+      };
+      const foot=180-(360-sw)/4;
+      const marks=!(cfg&&cfg.marks===false)&&band>=12?
+        '<span class="rmt-knob-mk dn"'+at(-foot)+'>&minus;</span><span class="rmt-knob-mk up"'+at(foot)+'>+</span>':'';
+      // The caption goes over the knob, where a strip's label sits — level with
+      // them when the knob is in a side row between two — or under it with
+      // "label_at":"bottom".
+      const cap=lab?'<span class="rmt-knob-label">'+esc(lab)+'</span>':'';
+      const capTop=!(cfg&&cfg.label_at==='bottom');
+      inner='<div class="rmt-knob'+(gm?' nolevel':'')+'" data-up="'+act(d[0])+'" data-down="'+act(d[1])+'" data-step="'+step+'"'+
+            lvAttrs+' style="--rb-knob:'+sz+'px;--rb-knob-c:'+cz+'px;--rb-knob-mk:'+mk+'px;--rb-knob-mf:'+mf+'px">'+(capTop?cap:'')+
+            '<div class="rmt-knob-dial"><div class="rmt-knob-ring" tabindex="0" role="spinbutton" title="'+tip+
+            '" aria-label="'+tip+'">'+face+marks+'</div>'+
+            '<div class="rmt-knob-c">'+mid+'</div></div>'+(capTop?'':cap)+'</div>';
+    }else if(k==='slider'){
+      // A slider: pressed or dragged to a value along a straight track, as a
+      // knob's pot is round one, and sent when let go — the value itself to the
+      // key named by "set", or the presses from a reading ("level") of its up
+      // and down actions. knobWire() does the dragging for both.
+      const cfg=(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1]:{};
+      const keys=s.slice(s[1]===cfg?2:1);
+      const act=it=>{const a=Array.isArray(it)?it[0]:it;
+        return typeof a==='string'&&Object.prototype.hasOwnProperty.call(RMT_BTNS,a)?a:''};
+      // A pot's settings and actions carry over, so changing "pot" to "slider"
+      // is all a swap takes: size is the length, and the key a pot has in its
+      // middle is pressed by a tap on the slider's thumb, which wears its icon.
+      const setA=act(cfg.set);
+      const d=setA?['','',keys[0]]:keys.length?keys:['volume_up','volume_down'];
+      const ua=act(d[0]),da=act(d[1]);
+      const pa=d.length>2?act(d[2]):'';
+      const pl=Array.isArray(d[2])&&typeof d[2][1]==='string'&&d[2][1]?d[2][1]:pa?RMT_BTNS[pa].t:'';
+      const thumb='<div class="rmt-slider-thumb"'+(pa?' title="'+esc('Tap: '+pl)+'">'+(RMT_BTNS[pa].i?icon(RMT_BTNS[pa].i):''):'>')+'</div>';
+      // Checked here as well as at import: these reach attributes and a style.
+      const lvl=typeof cfg.level==='string'&&cfg.level?cfg.level:'';
+      let lo=typeof cfg.min==='number'&&isFinite(cfg.min)?cfg.min:0;
+      let hi=typeof cfg.max==='number'&&isFinite(cfg.max)?cfg.max:100;
+      if(!(hi>lo)){lo=0;hi=100}
+      const inc=typeof cfg.inc==='number'&&isFinite(cfg.inc)&&cfg.inc>0?cfg.inc:1;
+      const ln=(cfg.length!==undefined?cfg.length:cfg.size)|0;
+      const len=ln>=RMT_SLIDER[0]&&ln<=RMT_SLIDER[1]?ln:ln>0&&ln<RMT_SLIDER[0]?RMT_SLIDER[0]:160;
+      // "width": how thick it is, the rail and the thumb in proportion to it.
+      const w=cfg.width|0,wide=w>=RMT_SLIDER_W[0]&&w<=RMT_SLIDER_W[1]?
+        ';--rb-sl-w:'+w+'px;--rb-sl-rail:'+Math.max(2,Math.round(w*0.22))+'px;--rb-sl-th:'+Math.max(8,Math.round(w*0.72))+'px':'';
+      // "thumb": its size apart from the width — a big key on a thin rail, say.
+      const th=cfg.thumb|0,thumbSz=th>=RMT_SLIDER_T[0]&&th<=RMT_SLIDER_T[1]?';--rb-sl-th:'+th+'px':'';
+      const lab=typeof cfg.label==='string'?cfg.label:'';
+      // The caption, over the slider unless "label_at" says under, and beside it
+      // the reading "show" names, filled as an lcd line's is.
+      const show=typeof cfg.show==='string'&&cfg.show?'<span class="rmt-slider-val" data-lcd="'+esc(cfg.show)+'">--</span>':'';
+      const cap=lab||show?'<div class="rmt-slider-cap">'+(lab?'<span class="rmt-knob-label">'+esc(lab)+'</span>':'')+show+'</div>':'';
+      const capTop=cfg.label_at!=='bottom';
+      const marks=cfg.marks!==false;
+      const nm=a=>a?RMT_BTNS[a].t:'nothing';
+      const tip=esc(setA?'Sets '+(lab||RMT_BTNS[setA].t):'Slide to a level: '+nm(ua)+' / '+nm(da));
+      // Upright unless told across — either way of saying it.
+      const vert=!(cfg.horizontal===true||cfg.vertical===false);
+      inner='<div class="rmt-slider nolevel'+(vert?' vert':'')+'" data-up="'+ua+'" data-down="'+da+'"'+
+            (lvl?' data-level="'+esc(lvl)+'"':'')+(setA?' data-set="'+setA+'"':'')+(pa?' data-press="'+pa+'"':'')+
+            ' data-min="'+lo+'" data-max="'+hi+'" data-inc="'+inc+'" style="--rb-sl-len:'+len+'px'+wide+thumbSz+'">'+(capTop?cap:'')+
+            '<div class="rmt-slider-row">'+(marks?'<span class="rmt-slider-mk dn">&minus;</span>':'')+
+            '<div class="rmt-slider-track" tabindex="0" role="slider" title="'+tip+'" aria-label="'+tip+'">'+
+            '<div class="rmt-slider-fill"></div>'+thumb+'</div>'+
+            (marks?'<span class="rmt-slider-mk up">+</span>':'')+'</div>'+(capTop?'':cap)+'</div>';
+    }else if(k==='side'){
+      // Sections in a row instead of one under another — a knob between the
+      // volume and channel keys, say. One level only: a side inside a side, or a
+      // divider, draws nothing, as validateTpl refuses both.
+      inner='<div class="rmt-side">'+s.slice(1).map(c=>
+        Array.isArray(c)&&c[0]!=='side'&&c[0]!=='-'?sectionHtml(c):'').join('')+'</div>';
     }else if(k==='rocker'){
-      inner='<div class="rmt-rocker">'+s.slice(1).map(g=>{
+      // An optional {"width","h"} first: each column's width and each half's
+      // height. Whole numbers inside RMT_KEY_H only, checked here as well as at
+      // import: they reach an inline style.
+      const cfg=(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1]:null;
+      const px=v=>{const n=cfg?cfg[v]|0:0;return n>=RMT_KEY_H[0]&&n<=RMT_KEY_H[1]?n:0};
+      const w=px('width'),h=px('h');
+      inner='<div class="rmt-rocker'+(w?' rk-w':'')+(h?' rk-h':'')+'"'+
+            (w||h?' style="'+(w?'--rb-rk-w:'+w+'px;':'')+(h?'--rb-rk-h:'+h+'px':'')+'"':'')+'>'+
+            s.slice(cfg?2:1).map(g=>{
         // Three entries = a two-way rocker with its label between the halves.
         // Two = a lone key at the same height, which is how mute sits between
         // a volume and a channel rocker.

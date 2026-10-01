@@ -95,8 +95,8 @@
 // `node tools/gen-remote-styles.mjs` after changing styles in web_page.html.
 import {
   RMT_BUILTIN, RMT_BTNS, RMT_VARS, RMT_CSS, RMT_VER, RMT_LCD_LABELLED, lcdLabel,
-  sectionHtml, validateTpl, themeValueBad, useIcons,
-} from './remote-styles.js?v=1.13.1';
+  sectionHtml, validateTpl, themeValueBad, useIcons, knobWire, knobLevel,
+} from './remote-styles.js?v=1.14.0-dev';
 
 // Which build of this file the browser actually loaded, read from the ?v= its
 // importer wrote rather than from a constant that has to be remembered at
@@ -431,14 +431,25 @@ class BleRemoteCard extends HTMLElement {
       const off = hide.includes(el.dataset.action) || el.dataset.toggledOff === '1';
       el.style.visibility = off ? 'hidden' : '';
     });
+    // A knob turns by two actions, so it stops turning only when both are
+    // hidden — or, one that sets a value, the key it sets. The key in its
+    // middle is an ordinary key, handled above.
+    this.shadowRoot.querySelectorAll('.rmt-knob, .rmt-slider').forEach(k => k.classList.toggle('off',
+      k.dataset.set !== undefined ? hide.includes(k.dataset.set)
+        : hide.includes(k.dataset.up) && hide.includes(k.dataset.down)));
+    // A slider's thumb is its key, and is hidden for this host as that key is.
+    this.shadowRoot.querySelectorAll('.rmt-slider[data-press]').forEach(k =>
+      k.classList.toggle('nopress', hide.includes(k.dataset.press)));
     this._markLong();
     // Holding the shape stops once there is no shape left to hold: a group or
     // section with nothing visible collapses rather than leaving empty slots.
     // A panel is not a button, so a section holding one is never empty — every
     // key beside it can be hidden for this host and the screen still has
     // something to say. Without this the first state update after a draw
-    // deletes it.
-    const empty = el => !el.querySelector('.rmt-lcd') &&
+    // deletes it. Nor is a knob that still turns, one showing a level, or one
+    // with a reading on a keyless middle.
+    const empty = el => !el.querySelector('.rmt-lcd, .rmt-knob:not(.off), .rmt-knob[data-level], ' +
+      '.rmt-knob-cap .rmt-knob-val, .rmt-slider:not(.off), .rmt-slider[data-level]') &&
       ![...el.querySelectorAll('[data-action]')]
         .some(b => b.style.visibility !== 'hidden');
     this.shadowRoot.querySelectorAll('.rmt-strip-group, .rmt-rocker-col')
@@ -464,9 +475,9 @@ class BleRemoteCard extends HTMLElement {
   _applyLcd(force) {
     if (!this._hass || !this.shadowRoot) return;
     const spans = this.shadowRoot.querySelectorAll('[data-lcd]');
-    // A style may light a button without drawing a panel at all, so the early
-    // return has to consider both consumers of the map.
-    if (!spans.length && !this.shadowRoot.querySelector('[data-lit]')) return;
+    // A style may light a button or point a knob without drawing a panel at
+    // all, so the early return has to consider every consumer of the map.
+    if (!spans.length && !this.shadowRoot.querySelector('[data-lit], [data-level], [data-set]')) return;
 
     // The panel values are this keyboard's readings; a linked keyboard's own
     // are not available here, so its panels keep their dashes.
@@ -510,6 +521,8 @@ class BleRemoteCard extends HTMLElement {
       if (v && RMT_LCD_LABELLED.includes(el.dataset.lcd)) v = lcdLabel(this._drawnStyle, v);
       el.textContent = (v === undefined || v === null || v === '') ? '--' : String(v);
     });
+    // Knobs pointing at a level read the same map.
+    knobLevel(this.shadowRoot, vals);
   }
 
   _initialize() {
@@ -1119,6 +1132,9 @@ class BleRemoteCard extends HTMLElement {
     card.addEventListener('contextmenu', (e) => {
       if (e.target.closest && e.target.closest('[data-action]')) e.preventDefault();
     });
+    // A knob's ring: turned with the device page's own code. A run of steps goes
+    // as one repeat:, which _runAction passes on to a linked keyboard whole.
+    knobWire(card, (action, n) => this._runAction(n > 1 ? `repeat:${n}:${action}` : action));
   }
 
   // ── Remote style ────────────────────────────────────────────────
@@ -1280,10 +1296,11 @@ class BleRemoteCard extends HTMLElement {
     }
   }
 
+  // Returns the call, so a knob can wait for one run of steps before the next.
   _runAction(action) {
     if (!this._hass) return;
     const peer = this._peerName();
-    this._hass.callService('esphome', `${this._config.device}_run_action`,
+    return this._hass.callService('esphome', `${this._config.device}_run_action`,
       { action: peer ? `peer:${peer}:${action}` : action });
   }
 
