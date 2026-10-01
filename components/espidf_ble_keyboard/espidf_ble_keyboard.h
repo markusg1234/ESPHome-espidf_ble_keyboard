@@ -766,6 +766,12 @@ class EspidfBleKeyboard : public Component
   void add_presence_count_sensor(uint8_t slot, sensor::Sensor *s);
   /// The signal strength each sighting arrived at, in dBm — one reading per scan.
   void add_presence_rssi_sensor(uint8_t slot, sensor::Sensor *s);
+  /// What a heard address may be matched to a host by — the page's IRK and MAC tick
+  /// boxes, as a mask of PRESENCE_BY_*. One setting for every host for now; kept in
+  /// NVS. IRK alone until changed.
+  enum : uint8_t { PRESENCE_BY_IRK = 1, PRESENCE_BY_MAC = 2 };
+  uint8_t presence_by() const { return presence_by_.load(); }
+  void set_presence_by(uint8_t by);
 #endif
 
   void set_host_slot_passkey(uint8_t slot, uint32_t passkey, bool secure_connections) {
@@ -1179,7 +1185,7 @@ class EspidfBleKeyboard : public Component
 
 #ifdef USE_BLE_KB_PRESENCE
   // Presence test (presence_scan:). loop() starts and stops the scans and matches
-  // what they heard; everything but presence_seen_ is the loop's alone.
+  // what they heard; everything but the atomics is the loop's alone.
   void presence_loop_();
   void presence_refresh_();
   void presence_heard_(const uint8_t *bda, int8_t rssi, uint32_t now);
@@ -1191,6 +1197,9 @@ class EspidfBleKeyboard : public Component
   std::vector<PresenceBinary> presence_binaries_;
   std::vector<std::pair<uint8_t, sensor::Sensor *>> presence_counts_;
   std::vector<std::pair<uint8_t, sensor::Sensor *>> presence_rssis_;
+  std::atomic<uint8_t> presence_by_{PRESENCE_BY_IRK};  // set from the web task
+  uint8_t presence_by_logged_{0xFF};                    // the setting the listening line last described
+  void load_presence_by_();
   std::atomic<uint32_t> presence_seen_[MAX_HOST_SLOTS]{};
   uint32_t presence_last_ms_[MAX_HOST_SLOTS]{};  // last heard; 0 = not yet this boot
   uint16_t presence_gone_logged_{0};             // slots logged as gone since last heard

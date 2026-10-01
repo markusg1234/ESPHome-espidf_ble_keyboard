@@ -933,7 +933,8 @@ A button is its action name, or <code>["spare1","Netflix"]</code> to label it &m
 <div class="macro-form" style="margin-top:0"><button id="irk-show">Show key</button><button id="irk-copy" class="cancel" style="display:none">Copy</button></div>
 <div id="irk-val" style="font-size:12px;color:var(--muted);word-break:break-all;font-family:monospace"></div>
 <label class="kb-paste-auto" id="presence-lbl" style="margin-top:10px"><input type="checkbox" id="presence-on" disabled>Green dot on a host's button when the keyboard hears it nearby</label>
-<div style="font-size:12px;color:var(--muted);margin:4px 0 6px">With <code>presence_scan: true</code> under <code>espidf_ble_keyboard:</code> in the YAML, this keyboard listens for its own paired hosts by their Identity Keys all the time &mdash; for its presence sensors and for these dots. This box only decides whether this browser marks a host's button for five seconds each time it is heard; a host that paired without a key is never marked. Without that YAML line, and a flash, the box can't be ticked. Phones are heard often, PCs and monitors seldom.</div>
+<div id="presence-by" style="display:flex;gap:10px;align-items:center;font-size:11px;color:var(--muted);margin-top:6px">Recognise hosts by<label class="kb-paste-auto" title="Its Identity Key: how a phone, and most PCs, are recognised through their changing addresses."><input type="checkbox" id="presence-irk" disabled>IRK</label><label class="kb-paste-auto" title="Its fixed address, as shown on its button: for a host that paired without a key, such as some TVs and monitors."><input type="checkbox" id="presence-mac" disabled>MAC</label></div>
+<div style="font-size:12px;color:var(--muted);margin:4px 0 6px">With <code>presence_scan: true</code> under <code>espidf_ble_keyboard:</code> in the YAML, this keyboard listens for its own paired hosts all the time &mdash; for its presence sensors and for these dots. <strong>Green dot</strong> only decides whether this browser marks a host's button for five seconds each time it is heard. <strong>IRK</strong> and <strong>MAC</strong> decide what counts as hearing a host, for the dots and the sensors alike: a host that paired with a key is only ever recognised by it, one without only by its fixed address. One setting for every host. Without that YAML line, and a flash, the boxes can't be ticked. Phones are heard often, PCs and monitors seldom.</div>
 </div>
 </div>
 </div>
@@ -1397,6 +1398,7 @@ function pollStatus(){
     LOCAL_NAME=d.device_name||'';
     markSeen('',d.seen);
     if(window.syncPresence)window.syncPresence(d.seen);
+    if(window.syncPresenceBy)window.syncPresenceBy(d);
     // Hide the ha_action preset when the YAML opt-in is off, so nobody
     // composes an action that would only log a warning. By class and on every
     // poll: the Host Actions dropdown mirrors the macro list's innerHTML, so
@@ -4485,6 +4487,25 @@ function appendStep(el,val){
     presCk.checked=built&&SEEN_DOTS;
   };
   if(presCk)presCk.addEventListener('change',()=>window.setSeenDots(presCk.checked));
+  // IRK and MAC: what counts as hearing a host. On the keyboard, unlike the dot —
+  // it decides the sensors too — so the answer comes back with /status, and a tick
+  // just made outranks a poll already on its way.
+  const byIrk=document.getElementById('presence-irk'),byMac=document.getElementById('presence-mac');
+  let byHeld=0;
+  window.syncPresenceBy=function(d){
+    if(!byIrk||!byMac)return;
+    const built=typeof d.by_irk==='boolean';
+    byIrk.disabled=byMac.disabled=!built;
+    document.getElementById('presence-by').title=built?'':'This firmware was built without presence_scan: true';
+    if(!built){byIrk.checked=byMac.checked=false;return}
+    if(Date.now()<byHeld)return;
+    byIrk.checked=d.by_irk;byMac.checked=d.by_mac===true;
+  };
+  [byIrk,byMac].forEach(ck=>{if(ck)ck.addEventListener('change',()=>{
+    byHeld=Date.now()+4000;
+    const undo=()=>{byHeld=0;ck.checked=!ck.checked};
+    apiPost('presence_by',{irk:byIrk.checked?1:0,mac:byMac.checked?1:0}).then(r=>{if(!r.ok)undo()}).catch(undo);
+  })});
 
   // ── Backup / Restore ──
   // Restore replays the file through the same endpoints the UI already uses,

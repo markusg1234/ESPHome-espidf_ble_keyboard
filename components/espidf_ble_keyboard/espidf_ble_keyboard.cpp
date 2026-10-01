@@ -3131,6 +3131,9 @@ void EspidfBleKeyboard::setup() {
     load_repeat_();
     load_hold_();
     load_broadcast_();
+#ifdef USE_BLE_KB_PRESENCE
+    load_presence_by_();
+#endif
     load_remote_style_();
     load_on_connect_();
     load_templates_();
@@ -3393,50 +3396,71 @@ void EspidfBleKeyboard::presence_refresh_() {
             }
         }
     }
-    // Which hosts a scan can recognise at all, said at the start and whenever it
-    // changes. A host that paired without an IRK is never marked.
-    const bool changed = !presence_listed_ || bond_mask != presence_bond_mask_ || irk_mask != presence_irk_mask_;
+    // Which hosts a scan can recognise, and how, said at the start and whenever
+    // the hosts or the IRK / MAC setting change. A host whose bond holds an IRK
+    // can only be recognised by it; one without, only by its MAC.
+    const uint8_t by = presence_by_.load();
+    const bool changed = !presence_listed_ || bond_mask != presence_bond_mask_ ||
+                         irk_mask != presence_irk_mask_ || by != presence_by_logged_;
     presence_bond_mask_ = bond_mask;
     presence_irk_mask_ = irk_mask;
     if (changed) {
         presence_listed_ = true;
+        presence_by_logged_ = by;
+        uint16_t occupied = 0;
+        for (uint8_t i = 0; i < host_slots_; i++)
+            if (hosts_[i].occupied) occupied |= (uint16_t) (1u << i);
+        const uint16_t by_irk = (by & PRESENCE_BY_IRK) ? (uint16_t) (occupied & irk_mask) : 0;
+        const uint16_t by_mac = (by & PRESENCE_BY_MAC) ? (uint16_t) (occupied & ~irk_mask) : 0;
+        const uint16_t unheard = (uint16_t) (occupied & ~by_irk & ~by_mac);
         auto list = [this](uint16_t m, char *out, size_t size) {
             size_t len = 0;
             out[0] = '\0';
             for (uint8_t i = 0; i < host_slots_ && len < size; i++)
                 if ((m >> i) & 1) len += snprintf(out + len, size - len, "%s%u", len ? "," : "", i);
-            return len > 0;
+            if (len == 0) snprintf(out, size, "none");
         };
-        char with[3 * MAX_HOST_SLOTS + 1], without[3 * MAX_HOST_SLOTS + 1];
-        const bool any = list(irk_mask, with, sizeof(with));
-        if (list(bond_mask & (uint16_t) ~irk_mask, without, sizeof(without)))
-            ESP_LOGI(TAG, "Presence: listening by IRK for slot(s) %s; slot(s) %s paired without one and won't be marked",
-                     any ? with : "none", without);
-        else
-            ESP_LOGI(TAG, "Presence: listening by IRK for slot(s) %s", any ? with : "none");
+        char irk_s[3 * MAX_HOST_SLOTS + 5], mac_s[3 * MAX_HOST_SLOTS + 5], deaf_s[3 * MAX_HOST_SLOTS + 5];
+        list(by_irk, irk_s, sizeof(irk_s));
+        list(by_mac, mac_s, sizeof(mac_s));
+        list(unheard, deaf_s, sizeof(deaf_s));
+        ESP_LOGI(TAG, "Presence: by IRK slot(s) %s, by MAC slot(s) %s%s%s", irk_s, mac_s,
+                 unheard ? "; not recognised as set: slot(s) " : "", unheard ? deaf_s : "");
     }
 }
 
-// A host counts only by its IRK: its bond has to hold one, and the report has to
-// carry the address the stack substitutes once that IRK has resolved a rotating
-// address to the bond. The slot's own stored address is deliberately not compared
-// — a host matched on that would have been recognised by its MAC, not its key.
-// The one case this cannot tell apart: a host with an IRK that advertises on its
-// fixed identity address, which the stack files under the same bond. Phones and
-// PCs advertise on rotating addresses only.
+// Which host a heard address belongs to, and how it was told:
+//  - by IRK: the host's bond holds one, and the report carries the address the
+//    stack substitutes once that IRK has resolved a rotating address to the bond;
+//  - by MAC: the host's bond holds none, and the report carries its fixed address
+//    — the one on its button, or the one its bond is filed under.
+// A host with an IRK is never matched by MAC: the stack files its fixed-address
+// adverts under the same bond address as its resolved ones, so the two look the
+// same, and that address counts as IRK. The page's IRK and MAC tick boxes choose
+// which of the two count; an address matched the other way is still this host's,
+// so no other slot is tried.
 void EspidfBleKeyboard::presence_heard_(const uint8_t *bda, int8_t rssi, uint32_t now) {
-    const uint16_t mask = presence_bond_mask_ & presence_irk_mask_;
+    const uint8_t by = presence_by_.load();
     for (uint8_t i = 0; i < host_slots_; i++) {
-        if (!((mask >> i) & 1) || !hosts_[i].occupied) continue;
-        if (memcmp(presence_bond_addr_[i], bda, sizeof(esp_bd_addr_t)) != 0) continue;
+        const HostSlot &h = hosts_[i];
+        if (!h.occupied) continue;
+        const bool bonded = (presence_bond_mask_ >> i) & 1;
+        const bool has_irk = bonded && ((presence_irk_mask_ >> i) & 1);
+        const bool at_bond = bonded && memcmp(presence_bond_addr_[i], bda, sizeof(esp_bd_addr_t)) == 0;
+        const bool via_irk = has_irk && at_bond;
+        const bool via_mac = !has_irk && (at_bond || memcmp(h.addr, bda, sizeof(esp_bd_addr_t)) == 0 ||
+                                          (h.has_identity && memcmp(h.identity, bda, sizeof(esp_bd_addr_t)) == 0));
+        if (!via_irk && !via_mac) continue;
+        if (!(via_irk ? (by & PRESENCE_BY_IRK) : (by & PRESENCE_BY_MAC))) return;
+        const char *how = via_irk ? "IRK" : "MAC";
         const uint32_t n = presence_seen_[i].fetch_add(1, std::memory_order_relaxed) + 1;
         // Arriving is worth a line; every later scan only at debug, so a phone on
         // the desk adds one line in twelve seconds rather than filling the log.
         if (presence_last_ms_[i] == 0 || ((presence_gone_logged_ >> i) & 1))
-            ESP_LOGI(TAG, "Presence: heard %s (slot %u) by its IRK, %d dBm", host_label(i).c_str(), i, rssi);
+            ESP_LOGI(TAG, "Presence: heard %s (slot %u) by its %s, %d dBm", host_label(i).c_str(), i, how, rssi);
         else
-            ESP_LOGD(TAG, "Presence: heard %s (slot %u) again, #%u, %d dBm", host_label(i).c_str(), i,
-                     (unsigned) n, rssi);
+            ESP_LOGD(TAG, "Presence: heard %s (slot %u) again by its %s, #%u, %d dBm", host_label(i).c_str(), i,
+                     how, (unsigned) n, rssi);
         presence_last_ms_[i] = now;
         presence_gone_logged_ &= (uint16_t) ~(1u << i);
         for (auto &c : presence_counts_)
@@ -3447,6 +3471,27 @@ void EspidfBleKeyboard::presence_heard_(const uint8_t *bda, int8_t rssi, uint32_
             if (b.slot == i && !b.sensor->state) b.sensor->publish_state(true);
         return;  // one slot per address
     }
+}
+
+void EspidfBleKeyboard::load_presence_by_() {
+    nvs_handle_t handle;
+    if (nvs_open("espidf_ble_kb", NVS_READONLY, &handle) != ESP_OK) return;
+    uint8_t by = 0;
+    if (nvs_get_u8(handle, "pres_by", &by) == ESP_OK) presence_by_ = by & (PRESENCE_BY_IRK | PRESENCE_BY_MAC);
+    nvs_close(handle);
+}
+
+void EspidfBleKeyboard::set_presence_by(uint8_t by) {
+    by &= PRESENCE_BY_IRK | PRESENCE_BY_MAC;
+    if (presence_by_.exchange(by) == by) return;
+    nvs_handle_t handle;
+    if (nvs_open("espidf_ble_kb", NVS_READWRITE, &handle) == ESP_OK) {
+        nvs_set_u8(handle, "pres_by", by);
+        nvs_commit(handle);
+        nvs_close(handle);
+    }
+    static const char *const names[] = {"nothing", "IRK", "MAC", "IRK and MAC"};
+    ESP_LOGI(TAG, "Presence: recognising hosts by %s", names[by]);
 }
 
 void EspidfBleKeyboard::add_presence_binary_sensor(uint8_t slot, binary_sensor::BinarySensor *s, uint32_t timeout_ms) {

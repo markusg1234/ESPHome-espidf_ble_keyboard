@@ -332,7 +332,7 @@ binary_sensor:
 * **hide_buttons** (Optional, ID or list of IDs): Buttons to keep *off* the web page. Anything listed there can be pressed by whoever can reach the device — and unless you have set up authentication, that is anyone on the network — so use this for anything destructive (`factory_reset`, `restart`, `safe_mode`). Hidden buttons also refuse to run if their action is typed by hand.
 * **sources** (Optional, list): Entities a remote style may read — to show on an [LCD panel](#lcd-panels), to branch on with [`if:`](#branching-on-real-state), or to light a button with `lit:`. Each entry names exactly one of `sensor:`, `text_sensor:`, `text:` or `binary_sensor:` by id, plus an optional `key:` (what the style calls it — defaults to the entity's id) and, for a numeric sensor, `unit:` and `decimals:` overrides. A `binary_sensor:` publishes the literal `on`/`off`. At most 8.
 * **battery_level** (Optional, ID): A sensor whose value (0–100) is published over the BLE Battery Service, so the host's Bluetooth settings show the keyboard's real charge. Any sensor reading a percentage will do — an ADC with a calibration filter, a fuel-gauge IC, a template sensor. Values outside 0–100 are clamped and an unavailable reading is ignored rather than sent as 0%. Without this the service is still advertised and reports a fixed 100%. See [Battery level](#battery-level).
-* **presence_scan** (Optional, bool): Listen for paired hosts nearby, all the time — for the `presence`, `presence_count` and `presence_rssi` sensors, and for the web page's green dots, which the **Green dot** tick box under **Host Actions → Identity Key (IRK)** shows or hides in each browser. The radio spends about a tenth of its time listening. Defaults to `false`. See [Paired hosts nearby](#paired-hosts-nearby).
+* **presence_scan** (Optional, bool): Listen for paired hosts nearby, all the time — for the `presence`, `presence_count` and `presence_rssi` sensors, and for the web page's green dots, which the **Green dot** tick box under **Host Actions → Identity Key (IRK)** shows or hides in each browser; the **IRK** and **MAC** boxes beside it choose what counts as hearing a host. The radio spends about a tenth of its time listening. Defaults to `false`. See [Paired hosts nearby](#paired-hosts-nearby).
 * **keyboard_layout** (Optional, string): Default keyboard layout. One of `us` (default), `uk`, `de`, `be`. Controls how `send_string` maps each character to USB HID keycodes — must match the *host's* keyboard layout. Can be overridden at runtime from the web UI (persisted to NVS, survives reboot). See [Keyboard layouts](#keyboard-layouts) below.
 * **hosts** (Optional, list): Per-slot passkey and pairing mode overrides. Each entry has:
   * **slot** (Required, int): Host slot number (0–9).
@@ -407,7 +407,7 @@ ON while one host slot's host has been heard nearby — see [Paired hosts nearby
 
 State behavior:
 
-* **ON** = the host was heard, by its identity key, within the timeout.
+* **ON** = the host was heard — by IRK or MAC, as the web page's boxes are set — within the timeout.
 * **OFF** = not heard for longer than that — so also after a restart, until the host is first heard.
 
 ```yaml
@@ -2358,8 +2358,20 @@ espidf_ble_keyboard:
 
 and from then on it listens all the time: short passive scans, ten seconds at a time, listening
 for about a tenth of it, while the Bluetooth stack checks each address it hears against the paired
-hosts' identity keys. Only the key counts: a host that paired without one is never recognised, and
-a host's stored MAC address is never compared.
+hosts' identity keys.
+
+The **IRK** and **MAC** boxes under **Host Actions → Identity Key (IRK)** decide what counts as
+hearing a host — for the dots and the sensors alike:
+
+- **IRK** (the default): a host is recognised by its identity key. This is how phones and most PCs
+  are heard, through their changing addresses.
+- **MAC**: a host is recognised by its fixed address, the one on its button — for a host that
+  paired without a key and broadcasts on a fixed address, such as some TVs and monitors.
+
+A host that paired with a key is only ever recognised by IRK: its broadcasts reach the keyboard
+under its bond's address whether it sent a changing address or its fixed one, so the two can't be
+told apart. Tick both to hear both kinds of host; untick both and none is recognised. It is one
+setting for every host, kept on the keyboard.
 
 To see it on the web page, tick **Green dot** under **Host Actions → Identity Key (IRK)**: a host
 it recognises then gets a green dot on its button in the host bar for five seconds, about every 12
@@ -2400,7 +2412,7 @@ binary_sensor:
 With that, `if:phone: <when it is here> || <when it isn't>` works in any action string.
 
 At start-up the log names the slots it can recognise
-(`Presence: listening by IRK for slot(s) …`), then logs each host's arrival and departure at INFO
+(`Presence: by IRK slot(s) …, by MAC slot(s) …`), then logs each host's arrival and departure at INFO
 and every further sighting at DEBUG, each with the signal strength it was heard at.
 
 Listening shares the radio with Wi-Fi and the connected host. Typing — a 3000-character paste

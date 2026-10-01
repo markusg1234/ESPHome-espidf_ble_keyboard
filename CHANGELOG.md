@@ -9,9 +9,10 @@ web control page shows the matching version badge.
 ### Added
 - **The keyboard can tell when a paired phone is nearby.** With `presence_scan: true` it listens
   for its paired hosts and recognises each by its identity key, so a phone's changing address is
-  no obstacle. New `presence`, `presence_count` and `presence_rssi` sensors bring that, signal
-  strength included, to Home Assistant and `if:`; a tick box under Identity Key (IRK) in Host
-  Actions marks a host's button on the web page with a green dot each time it is heard.
+  no obstacle — or, if chosen under Identity Key (IRK) in Host Actions, a host without one by its
+  fixed MAC. New `presence`, `presence_count` and `presence_rssi` sensors bring that, signal
+  strength included, to Home Assistant and `if:`, and a tick box there marks a host's button on
+  the web page with a green dot each time it is heard.
 
 ### Fixed
 - **A popped-out remote could close itself just after opening** and drop back into the page: a

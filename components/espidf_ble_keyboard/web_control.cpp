@@ -338,9 +338,14 @@ __attribute__((noinline)) static void append_status_json(std::string &json, Espi
   json += std::to_string(kb->peer_count());
 #endif
 #ifdef USE_BLE_KB_PRESENCE
-  // How many times each slot's host has been heard. Present only on a build with
-  // presence_scan, which is also how the page knows to offer its Green dot box;
-  // the page marks a host whenever its count moves.
+  // What a heard address may be matched by — the IRK and MAC tick boxes — and how
+  // many times each slot's host has been heard. Present only on a build with
+  // presence_scan, which is also how the page knows to offer its boxes; the page
+  // marks a host whenever its count moves.
+  json += ",\"by_irk\":";
+  json += (kb->presence_by() & EspidfBleKeyboard::PRESENCE_BY_IRK) ? "true" : "false";
+  json += ",\"by_mac\":";
+  json += (kb->presence_by() & EspidfBleKeyboard::PRESENCE_BY_MAC) ? "true" : "false";
   json += ",\"seen\":[";
   for (uint8_t i = 0; i < kb->host_slots(); i++) {
     if (i > 0) json += ",";
@@ -1852,6 +1857,22 @@ class BleKbWebHandler : public AsyncWebHandler {
         kb_->set_slot_broadcast((uint8_t) slot, on);
         send_response(200, "text/plain", "OK");
       }
+
+    } else if (path == "presence_by") {
+      // The IRK and MAC tick boxes: what a heard address may be matched to a host
+      // by. Both off is allowed, and leaves every host unrecognised.
+#ifdef USE_BLE_KB_PRESENCE
+      auto on = [&](const char *name) {
+        return request->hasArg(name) && std::string(request->arg(name).c_str()) == "1";
+      };
+      uint8_t by = 0;
+      if (on("irk")) by |= EspidfBleKeyboard::PRESENCE_BY_IRK;
+      if (on("mac")) by |= EspidfBleKeyboard::PRESENCE_BY_MAC;
+      kb_->set_presence_by(by);
+      send_response(200, "text/plain", "OK");
+#else
+      send_response(400, "text/plain", "This firmware was built without presence_scan: true");
+#endif
 
     } else if (path == "remote_style_set") {
       // Which style the web remote draws for one host. An empty id clears the
