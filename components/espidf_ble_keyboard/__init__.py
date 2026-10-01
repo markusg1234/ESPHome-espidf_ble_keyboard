@@ -69,6 +69,7 @@ CONF_KEYBOARD_LAYOUT = "keyboard_layout"
 CONF_LAYOUT = "layout"
 CONF_ACTIONS = "actions"
 CONF_BATTERY_LEVEL = "battery_level"
+CONF_PRESENCE_SCAN = "presence_scan"
 CONF_PEERS = "peers"
 CONF_URL = "url"
 CONF_USERNAME = "username"
@@ -531,6 +532,12 @@ CONFIG_SCHEMA = cv.All(
         # settings. Any sensor reading 0-100 will do; without this the service
         # is still advertised and reports a fixed 100%.
         cv.Optional(CONF_BATTERY_LEVEL): cv.use_id(sensor.Sensor),
+        # Listen between keystrokes for the paired hosts' own advertising, which
+        # the bond's identity key (IRK) lets the stack recognise through a phone's
+        # rotating address — for the presence sensors, and for the page, which can
+        # mark a host it heard. Off by default: the radio then spends about a
+        # tenth of its time listening.
+        cv.Optional(CONF_PRESENCE_SCAN, default=False): cv.boolean,
         cv.Optional(CONF_CUSTOM_TEXT_ID): cv.ensure_list(cv.use_id(cg.EntityBase)),
         cv.Optional(CONF_SOURCES): cv.All(
             cv.ensure_list(_validate_source),
@@ -592,6 +599,16 @@ async def to_code(config):
     if CONF_BATTERY_LEVEL in config:
         battery = await cg.get_variable(config[CONF_BATTERY_LEVEL])
         cg.add(var.set_battery_sensor(battery))
+
+    if config[CONF_PRESENCE_SCAN]:
+        cg.add_define("USE_BLE_KB_PRESENCE")
+        # On by default wherever the 4.2 advertising this component needs is,
+        # but a config that turned it off would fail to link the scan calls.
+        try:
+            from esphome.components.esp32 import add_idf_sdkconfig_option
+            add_idf_sdkconfig_option("CONFIG_BT_BLE_42_SCAN_EN", True)
+        except ImportError:
+            pass
 
     if CONF_HOSTS in config:
         for host in config[CONF_HOSTS]:

@@ -277,7 +277,13 @@ class StackHeadroomProbe {
 // the page reads either the same way. Out of line, so their locals are never
 // part of handleRequest's frame on the 4352-byte web task.
 
-static size_t status_json_size(EspidfBleKeyboard *kb) { return 512 + kb->lcd_status_json().size(); }
+static size_t status_json_size(EspidfBleKeyboard *kb) {
+  size_t n = 512 + kb->lcd_status_json().size();
+#ifdef USE_BLE_KB_PRESENCE
+  n += 11 * (size_t) kb->host_slots();
+#endif
+  return n;
+}
 
 __attribute__((noinline)) static void append_status_json(std::string &json, EspidfBleKeyboard *kb) {
   // The panel values are already built, on the main loop. This endpoint used to
@@ -330,6 +336,17 @@ __attribute__((noinline)) static void append_status_json(std::string &json, Espi
   // keyboard that has some.
   json += ",\"peers\":";
   json += std::to_string(kb->peer_count());
+#endif
+#ifdef USE_BLE_KB_PRESENCE
+  // How many times each slot's host has been heard. Present only on a build with
+  // presence_scan, which is also how the page knows to offer its Green dot box;
+  // the page marks a host whenever its count moves.
+  json += ",\"seen\":[";
+  for (uint8_t i = 0; i < kb->host_slots(); i++) {
+    if (i > 0) json += ",";
+    json += std::to_string(kb->presence_seen(i));
+  }
+  json += "]";
 #endif
   // Values for any ["lcd",…] panel the current remote style drew. On this
   // endpoint rather than its own: the page already polls it every 3 s, and

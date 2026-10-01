@@ -184,6 +184,55 @@ static std::atomic<uint32_t> s_adv_attempt_ms{0};
 // phone's Bluetooth page.
 static constexpr uint32_t ADV_RETRY_MS = 10000;
 
+#ifdef USE_BLE_KB_PRESENCE
+#ifndef CONFIG_BT_BLE_42_SCAN_EN
+#error "presence_scan needs CONFIG_BT_BLE_42_SCAN_EN: y in the esp32 sdkconfig_options"
+#endif
+// Presence test. Short passive scans, started and stopped by loop(), listening
+// for the bonded hosts' own advertising. A phone advertises on a private address
+// that rotates; Bluedroid resolves it against the IRK each bond holds before the
+// report reaches the GAP callback, and hands it over under the address the bond
+// is filed under — so telling which slot was heard is an address compare.
+//
+// A scan has to be out of the way whenever the advertising address changes:
+// Bluedroid refuses a new random address while one runs, and advertising then
+// goes out under the previous slot's address, inviting the wrong host back.
+// do_start_advertising() stops it first. Both are queued to the same Bluedroid
+// task and run in the order they were posted, so the only hazard is loop()
+// posting a start between that stop and the address change — the lock.
+static SemaphoreHandle_t s_scan_lock = nullptr;
+static std::atomic<bool> s_scan_on{false};  // started, and not stopped since
+static std::atomic<bool> s_scan_start_failed{false};
+static std::atomic<bool> s_rand_addr_set{false};
+static uint32_t s_scan_started_ms = 0;  // loop() only
+static uint32_t s_scan_stopped_ms = 0;  // loop() only
+// Reports from Bluedroid's task to loop(): one writer, one reader, no lock. The
+// controller's duplicate filter reports each device once per scan, so this only
+// has to hold the burst at the start of one — and each carries the one signal
+// strength reading that scan got.
+static constexpr uint8_t SEEN_RING = 64;
+struct SeenReport {
+    esp_bd_addr_t bda;
+    int8_t rssi;
+};
+static SeenReport s_seen_ring[SEEN_RING];
+static std::atomic<uint8_t> s_seen_head{0};
+static std::atomic<uint8_t> s_seen_tail{0};
+static std::atomic<uint32_t> s_seen_dropped{0};
+// 30 ms in every 320 — ESPHome's own scanner default, which shares the radio with
+// Wi-Fi comfortably. Ten seconds a scan, because the duplicate filter reports each
+// device once per scan: a host still in range is heard again on the next one.
+static constexpr uint16_t SCAN_INTERVAL = 0x200;  // 0.625 ms units
+static constexpr uint16_t SCAN_WINDOW = 0x30;
+static constexpr uint32_t SCAN_ON_MS = 10000;
+static constexpr uint32_t SCAN_OFF_MS = 2000;
+// Nothing this soon after an advertising cycle began: its host may be on the way
+// back, and a directed cycle is over in 1.28 s anyway.
+static constexpr uint32_t SCAN_ADV_QUIET_MS = 3000;
+static constexpr uint32_t SCAN_RETRY_MS = 30000;
+static constexpr uint32_t PRESENCE_GONE_MS = 60000;
+#endif
+
 
 static void maybe_reset_bonds_after_security_config_change() {
     if (s_instance == nullptr) {
@@ -363,7 +412,17 @@ static void do_start_advertising() {
     if (s_instance) {
         uint8_t slot = s_instance->active_host_slot();
         const uint8_t *laddr = s_instance->get_slot_addr(slot);
+#ifdef USE_BLE_KB_PRESENCE
+        // A scan still running would get the address change below refused. The
+        // wait is bounded: this also runs on Bluedroid's own task.
+        const bool locked = s_scan_lock != nullptr && xSemaphoreTake(s_scan_lock, pdMS_TO_TICKS(50)) == pdTRUE;
+        if (s_scan_on.exchange(false)) esp_ble_gap_stop_scanning();
+        s_rand_addr_set = true;
+#endif
         esp_ble_gap_set_rand_addr(const_cast<uint8_t *>(laddr));
+#ifdef USE_BLE_KB_PRESENCE
+        if (locked) xSemaphoreGive(s_scan_lock);
+#endif
         adv_params.own_addr_type = BLE_ADDR_TYPE_RANDOM;
         ESP_LOGD(TAG, "ADV: Using slot %u addr %02X:%02X:%02X:%02X:%02X:%02X", slot,
                  laddr[0], laddr[1], laddr[2], laddr[3], laddr[4], laddr[5]);
@@ -578,6 +637,28 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
                 }
             }
             break;
+#ifdef USE_BLE_KB_PRESENCE
+        case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
+            if (param->scan_param_cmpl.status != ESP_BT_STATUS_SUCCESS)
+                ESP_LOGW(TAG, "Presence: scan parameters refused (%d)", param->scan_param_cmpl.status);
+            break;
+        case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
+            if (param->scan_start_cmpl.status != ESP_BT_STATUS_SUCCESS) s_scan_start_failed = true;
+            break;
+        case ESP_GAP_BLE_SCAN_RESULT_EVT:
+            if (param->scan_rst.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT) {
+                const uint8_t head = s_seen_head.load(std::memory_order_relaxed);
+                const uint8_t next = (uint8_t) ((head + 1) % SEEN_RING);
+                if (next == s_seen_tail.load(std::memory_order_acquire)) {
+                    s_seen_dropped.fetch_add(1, std::memory_order_relaxed);
+                } else {
+                    memcpy(s_seen_ring[head].bda, param->scan_rst.bda, sizeof(esp_bd_addr_t));
+                    s_seen_ring[head].rssi = (int8_t) param->scan_rst.rssi;
+                    s_seen_head.store(next, std::memory_order_release);
+                }
+            }
+            break;
+#endif
         default:
             break;
     }
@@ -2994,6 +3075,9 @@ void EspidfBleKeyboard::setup() {
     // ESPHome runs setup() and every loop() on the same task.
     loop_task_ = xTaskGetCurrentTaskHandle();
     type_mutex_ = xSemaphoreCreateMutex();
+#ifdef USE_BLE_KB_PRESENCE
+    s_scan_lock = xSemaphoreCreateMutex();  // before anything can advertise
+#endif
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
@@ -3185,6 +3269,207 @@ void EspidfBleKeyboard::send_battery_notify_() {
                                 1, &battery_level_val, false);
 }
 
+#ifdef USE_BLE_KB_PRESENCE
+// The presence test's half of loop(): match what the last scan heard to slots,
+// then end the scan that is running or start the next one. How this keeps out of
+// the advertising code's way is with the statics at the top of this file.
+void EspidfBleKeyboard::presence_loop_() {
+    if (s_scan_lock == nullptr || s_services_started < 3) return;
+    const uint32_t now = millis();
+
+    // Gone, for the binary sensors: unheard for longer than each one allows.
+    for (auto &b : presence_binaries_)
+        if (b.sensor->state && now - presence_last_ms_[b.slot] >= b.timeout_ms) b.sensor->publish_state(false);
+    // A signal strength goes unknown once the host has been gone a minute, the
+    // same as the connected host's RSSI sensor does when its link drops — a
+    // reading that old says nothing about where the phone is now.
+    for (auto &r : presence_rssis_)
+        if (r.second->has_state() && !std::isnan(r.second->state) &&
+            now - presence_last_ms_[r.first] >= PRESENCE_GONE_MS)
+            r.second->publish_state(NAN);
+
+    uint8_t tail = s_seen_tail.load(std::memory_order_relaxed);
+    const uint8_t head = s_seen_head.load(std::memory_order_acquire);
+    while (tail != head) {
+        presence_heard_(s_seen_ring[tail].bda, s_seen_ring[tail].rssi, now);
+        tail = (uint8_t) ((tail + 1) % SEEN_RING);
+    }
+    s_seen_tail.store(tail, std::memory_order_release);
+
+    // Tries, never waits, on the lock throughout: this runs on every loop pass,
+    // and whoever holds it is the advertising code, which stops any scan itself.
+    if (s_scan_start_failed.load()) {
+        if (xSemaphoreTake(s_scan_lock, 0) != pdTRUE) return;
+        s_scan_start_failed = false;
+        // The stack may still count a scan as running, which would refuse every
+        // start after this one; a stop puts it back to idle.
+        s_scan_on = false;
+        esp_ble_gap_stop_scanning();
+        xSemaphoreGive(s_scan_lock);
+        s_scan_stopped_ms = now;
+        presence_pause_ms_ = SCAN_RETRY_MS;
+        ESP_LOGW(TAG, "Presence: a scan failed to start — next try in %us", (unsigned) (SCAN_RETRY_MS / 1000));
+        return;
+    }
+
+    if (s_scan_on.load()) {
+        if (now - s_scan_started_ms < SCAN_ON_MS) return;
+        if (xSemaphoreTake(s_scan_lock, 0) != pdTRUE) return;
+        if (s_scan_on.exchange(false)) esp_ble_gap_stop_scanning();
+        xSemaphoreGive(s_scan_lock);
+        s_scan_stopped_ms = now;
+        presence_pause_ms_ = SCAN_OFF_MS;
+        if (const uint32_t dropped = s_seen_dropped.exchange(0))
+            ESP_LOGW(TAG, "Presence: %u scan report(s) dropped — more devices at once than the queue holds",
+                     (unsigned) dropped);
+        // Gone is only worth saying once a host has stayed unheard a while.
+        for (uint8_t i = 0; i < host_slots_; i++) {
+            if (presence_last_ms_[i] == 0 || ((presence_gone_logged_ >> i) & 1)) continue;
+            if (now - presence_last_ms_[i] < PRESENCE_GONE_MS) continue;
+            presence_gone_logged_ |= (uint16_t) (1u << i);
+            ESP_LOGI(TAG, "Presence: %s (slot %u) not heard for %us", host_label(i).c_str(), i,
+                     (unsigned) (PRESENCE_GONE_MS / 1000));
+        }
+        return;
+    }
+
+    if (now - s_scan_stopped_ms < presence_pause_ms_) return;
+    if (s_directed_adv_active.load() || now - s_adv_attempt_ms.load() < SCAN_ADV_QUIET_MS) return;
+    presence_refresh_();  // outside the lock: it reads the whole bond list
+    if (xSemaphoreTake(s_scan_lock, 0) != pdTRUE) return;
+    // Asked again under the lock. An advertising cycle that began since the test
+    // above has already stopped any scan and queued its address change — a start
+    // queued now would land after that, which is safe, but the cycle's host is
+    // the one that should have the radio's attention.
+    if (!s_directed_adv_active.load() && millis() - s_adv_attempt_ms.load() >= SCAN_ADV_QUIET_MS) {
+        esp_ble_scan_params_t params = {};
+        params.scan_type = BLE_SCAN_TYPE_PASSIVE;
+        // The stack keeps one own-address type for everything, and pairing reads
+        // it to choose which address to give a host as this keyboard's — so it
+        // has to stay what the advertising uses. Until advertising has set a
+        // random address there is none to name, and nothing can be pairing.
+        params.own_addr_type = s_rand_addr_set.load() ? BLE_ADDR_TYPE_RANDOM : BLE_ADDR_TYPE_PUBLIC;
+        params.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
+        params.scan_interval = SCAN_INTERVAL;
+        params.scan_window = SCAN_WINDOW;
+        params.scan_duplicate = BLE_SCAN_DUPLICATE_ENABLE;
+        // Every time rather than once: other paths through the stack reset its
+        // copy to an active scan, which would transmit.
+        esp_ble_gap_set_scan_params(&params);
+        esp_ble_gap_start_scanning(0);  // 0 = until stopped; loop() stops it
+        s_scan_on = true;
+        s_scan_started_ms = now;
+    }
+    xSemaphoreGive(s_scan_lock);
+}
+
+// Which address each slot's bond is filed under, and which bonds hold an IRK —
+// read once per scan, so a host paired or forgotten since the last one is
+// matched, or not, from this one on. The IRK itself is never copied out.
+void EspidfBleKeyboard::presence_refresh_() {
+    uint16_t bond_mask = 0, irk_mask = 0;
+    const int n = esp_ble_get_bond_device_num();
+    if (n > 0) {
+        std::vector<esp_ble_bond_dev_t> bonded(static_cast<size_t>(n));
+        int got = n;
+        if (esp_ble_get_bond_device_list(&got, bonded.data()) == ESP_OK) {
+            for (int b = 0; b < got; b++) {
+                const auto &dev = bonded[static_cast<size_t>(b)];
+                const bool has_id = (dev.bond_key.key_mask & ESP_BLE_ID_KEY_MASK) != 0;
+                // Either way round, as peer_id_keys_() matches.
+                auto filed = [&](const esp_bd_addr_t a) {
+                    return memcmp(dev.bd_addr, a, sizeof(esp_bd_addr_t)) == 0 ||
+                           (has_id && memcmp(dev.bond_key.pid_key.static_addr, a, sizeof(esp_bd_addr_t)) == 0);
+                };
+                bool irk = false;
+                for (int k = 0; has_id && k < 16 && !irk; k++) irk = dev.bond_key.pid_key.irk[k] != 0;
+                for (uint8_t i = 0; i < host_slots_; i++) {
+                    const HostSlot &h = hosts_[i];
+                    if (!h.occupied || !(filed(h.addr) || (h.has_identity && filed(h.identity)))) continue;
+                    memcpy(presence_bond_addr_[i], dev.bd_addr, sizeof(esp_bd_addr_t));
+                    bond_mask |= (uint16_t) (1u << i);
+                    if (irk) irk_mask |= (uint16_t) (1u << i);
+                }
+            }
+        }
+    }
+    // Which hosts a scan can recognise at all, said at the start and whenever it
+    // changes. A host that paired without an IRK is never marked.
+    const bool changed = !presence_listed_ || bond_mask != presence_bond_mask_ || irk_mask != presence_irk_mask_;
+    presence_bond_mask_ = bond_mask;
+    presence_irk_mask_ = irk_mask;
+    if (changed) {
+        presence_listed_ = true;
+        auto list = [this](uint16_t m, char *out, size_t size) {
+            size_t len = 0;
+            out[0] = '\0';
+            for (uint8_t i = 0; i < host_slots_ && len < size; i++)
+                if ((m >> i) & 1) len += snprintf(out + len, size - len, "%s%u", len ? "," : "", i);
+            return len > 0;
+        };
+        char with[3 * MAX_HOST_SLOTS + 1], without[3 * MAX_HOST_SLOTS + 1];
+        const bool any = list(irk_mask, with, sizeof(with));
+        if (list(bond_mask & (uint16_t) ~irk_mask, without, sizeof(without)))
+            ESP_LOGI(TAG, "Presence: listening by IRK for slot(s) %s; slot(s) %s paired without one and won't be marked",
+                     any ? with : "none", without);
+        else
+            ESP_LOGI(TAG, "Presence: listening by IRK for slot(s) %s", any ? with : "none");
+    }
+}
+
+// A host counts only by its IRK: its bond has to hold one, and the report has to
+// carry the address the stack substitutes once that IRK has resolved a rotating
+// address to the bond. The slot's own stored address is deliberately not compared
+// — a host matched on that would have been recognised by its MAC, not its key.
+// The one case this cannot tell apart: a host with an IRK that advertises on its
+// fixed identity address, which the stack files under the same bond. Phones and
+// PCs advertise on rotating addresses only.
+void EspidfBleKeyboard::presence_heard_(const uint8_t *bda, int8_t rssi, uint32_t now) {
+    const uint16_t mask = presence_bond_mask_ & presence_irk_mask_;
+    for (uint8_t i = 0; i < host_slots_; i++) {
+        if (!((mask >> i) & 1) || !hosts_[i].occupied) continue;
+        if (memcmp(presence_bond_addr_[i], bda, sizeof(esp_bd_addr_t)) != 0) continue;
+        const uint32_t n = presence_seen_[i].fetch_add(1, std::memory_order_relaxed) + 1;
+        // Arriving is worth a line; every later scan only at debug, so a phone on
+        // the desk adds one line in twelve seconds rather than filling the log.
+        if (presence_last_ms_[i] == 0 || ((presence_gone_logged_ >> i) & 1))
+            ESP_LOGI(TAG, "Presence: heard %s (slot %u) by its IRK, %d dBm", host_label(i).c_str(), i, rssi);
+        else
+            ESP_LOGD(TAG, "Presence: heard %s (slot %u) again, #%u, %d dBm", host_label(i).c_str(), i,
+                     (unsigned) n, rssi);
+        presence_last_ms_[i] = now;
+        presence_gone_logged_ &= (uint16_t) ~(1u << i);
+        for (auto &c : presence_counts_)
+            if (c.first == i) c.second->publish_state((float) n);
+        for (auto &r : presence_rssis_)
+            if (r.first == i) r.second->publish_state((float) rssi);
+        for (auto &b : presence_binaries_)
+            if (b.slot == i && !b.sensor->state) b.sensor->publish_state(true);
+        return;  // one slot per address
+    }
+}
+
+void EspidfBleKeyboard::add_presence_binary_sensor(uint8_t slot, binary_sensor::BinarySensor *s, uint32_t timeout_ms) {
+    if (s == nullptr || slot >= MAX_HOST_SLOTS) return;
+    presence_binaries_.push_back({slot, s, timeout_ms});
+    // Off rather than unknown: an if: on a source with no state does nothing at
+    // all, and "not heard since boot" is a real answer.
+    s->publish_state(false);
+}
+
+void EspidfBleKeyboard::add_presence_count_sensor(uint8_t slot, sensor::Sensor *s) {
+    if (s == nullptr || slot >= MAX_HOST_SLOTS) return;
+    presence_counts_.emplace_back(slot, s);
+    s->publish_state(0);
+}
+
+// Left without a state until the first sighting: there is no reading to give.
+void EspidfBleKeyboard::add_presence_rssi_sensor(uint8_t slot, sensor::Sensor *s) {
+    if (s == nullptr || slot >= MAX_HOST_SLOTS) return;
+    presence_rssis_.emplace_back(slot, s);
+}
+#endif
+
 void EspidfBleKeyboard::loop() {
     if (pending_paired_update_.exchange(false)) {
         set_paired(pending_paired_state_.load());
@@ -3289,6 +3574,10 @@ void EspidfBleKeyboard::loop() {
                  (unsigned) max_key_hold_ms_);
         release_held();
     }
+
+#ifdef USE_BLE_KB_PRESENCE
+    presence_loop_();
+#endif
 
     if (!is_connected_) return;
 

@@ -751,6 +751,23 @@ class EspidfBleKeyboard : public Component
   /// defended, or the owner gets locked out of it.
   bool host_slot_identifiable(uint8_t slot) const;
 
+#ifdef USE_BLE_KB_PRESENCE
+  /// How many times this slot's host has been heard advertising since boot — the
+  /// presence test. The stack matches a phone's rotating address to its bond with
+  /// the IRK the phone gave at pairing before the report gets here. A count, so
+  /// the page can mark each sighting rather than a flag that stays up.
+  uint32_t presence_seen(uint8_t slot) const {
+    return slot < MAX_HOST_SLOTS ? presence_seen_[slot].load(std::memory_order_relaxed) : 0;
+  }
+  /// Presence entities for one slot. The binary sensor is ON while that host has
+  /// been heard within `timeout_ms`; the sensor counts its sightings since boot,
+  /// the same number the page's dot follows. Both publish from loop().
+  void add_presence_binary_sensor(uint8_t slot, binary_sensor::BinarySensor *s, uint32_t timeout_ms);
+  void add_presence_count_sensor(uint8_t slot, sensor::Sensor *s);
+  /// The signal strength each sighting arrived at, in dBm — one reading per scan.
+  void add_presence_rssi_sensor(uint8_t slot, sensor::Sensor *s);
+#endif
+
   void set_host_slot_passkey(uint8_t slot, uint32_t passkey, bool secure_connections) {
     if (slot < MAX_HOST_SLOTS) {
       host_slot_configs_[slot].has_passkey = true;
@@ -1159,6 +1176,32 @@ class EspidfBleKeyboard : public Component
   static void action_task_entry_(void *arg);
   UBaseType_t act_low_{(UBaseType_t) -1};
   uint8_t act_deepest_{0};
+
+#ifdef USE_BLE_KB_PRESENCE
+  // Presence test (presence_scan:). loop() starts and stops the scans and matches
+  // what they heard; everything but presence_seen_ is the loop's alone.
+  void presence_loop_();
+  void presence_refresh_();
+  void presence_heard_(const uint8_t *bda, int8_t rssi, uint32_t now);
+  struct PresenceBinary {
+    uint8_t slot;
+    binary_sensor::BinarySensor *sensor;
+    uint32_t timeout_ms;
+  };
+  std::vector<PresenceBinary> presence_binaries_;
+  std::vector<std::pair<uint8_t, sensor::Sensor *>> presence_counts_;
+  std::vector<std::pair<uint8_t, sensor::Sensor *>> presence_rssis_;
+  std::atomic<uint32_t> presence_seen_[MAX_HOST_SLOTS]{};
+  uint32_t presence_last_ms_[MAX_HOST_SLOTS]{};  // last heard; 0 = not yet this boot
+  uint16_t presence_gone_logged_{0};             // slots logged as gone since last heard
+  // The address each slot's bond is filed under: what a scan reports for a host
+  // whose private address the stack resolved. Re-read before every scan.
+  esp_bd_addr_t presence_bond_addr_[MAX_HOST_SLOTS]{};
+  uint16_t presence_bond_mask_{0};
+  uint16_t presence_irk_mask_{0};  // slots whose bond holds an IRK
+  bool presence_listed_{false};
+  uint32_t presence_pause_ms_{0};  // before the next scan, counted from the last stop
+#endif
 
   // Per-host hold-to-repeat (NVS key "rpt<slot>", "<delay>,<rate>,name,name").
   RepeatCfg repeat_[MAX_HOST_SLOTS];

@@ -4,6 +4,19 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
+## Unreleased
+
+### Added
+- **The keyboard can tell when a paired phone is nearby.** With `presence_scan: true` it listens
+  for its paired hosts and recognises each by its identity key, so a phone's changing address is
+  no obstacle. New `presence`, `presence_count` and `presence_rssi` sensors bring that, signal
+  strength included, to Home Assistant and `if:`; a tick box under Identity Key (IRK) in Host
+  Actions marks a host's button on the web page with a green dot each time it is heard.
+
+### Fixed
+- **A popped-out remote could close itself just after opening** and drop back into the page: a
+  window still loading was taken for one that had gone.
+
 ## v1.13.1 — 2026-10-01
 
 ### Fixed

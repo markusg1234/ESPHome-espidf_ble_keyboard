@@ -241,8 +241,10 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .host-bar{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;padding:8px 10px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 /* Width comes from the grid track above, so no flex/max-width here — a lone host on
    the last row is one track wide, it cannot stretch to fill the bar. */
-.host-btn{padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:11px;font-weight:500;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .15s;overflow:hidden}
+.host-btn{position:relative;padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:11px;font-weight:500;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .15s;overflow:hidden}
 .host-btn.active{background:var(--active);color:#fff;border-color:var(--active)}
+/* Presence test: the keyboard just heard this host advertising. */
+.host-btn.seen::after{content:'';position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#43a047}
 .host-btn.occupied{border-color:var(--accent)}
 .host-btn .slot-label{font-size:11px;color:var(--fg);display:block}
 .host-btn.active .slot-label{color:rgba(255,255,255,.7)}
@@ -565,7 +567,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.13.1</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.14.0-dev</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -924,12 +926,14 @@ A button is its action name, or <code>["spare1","Netflix"]</code> to label it &m
 </div>
 </div>
 <div class="hid-panel" id="irk-panel">
-<button class="hid-toggle" id="irk-toggle">Identity Key &#9662;</button>
+<button class="hid-toggle" id="irk-toggle">Identity Key (IRK) &#9662;</button>
 <div class="hid-body" id="irk-body">
-<div style="font-size:12px;color:var(--muted);margin:6px 0">The key this host handed over when it paired. Phones advertise a random address that changes every few minutes, and this is the only thing that can tell you a given random address belongs to <em>this</em> host &mdash; which is what presence detection needs. Take it to Home Assistant's Private BLE Device integration, or a second ESP32 running <code>esp32_ble_tracker</code>. It can't be done on this device: that component and this one both need to own the Bluetooth controller.</div>
+<div style="font-size:12px;color:var(--muted);margin:6px 0">The key this host handed over when it paired. Phones advertise a random address that changes every few minutes, and this is the only thing that can tell you a given random address belongs to <em>this</em> host &mdash; which is what presence detection needs. Take it to Home Assistant's Private BLE Device integration, or a second ESP32 running <code>esp32_ble_tracker</code>; ESPHome's own presence components can't run on this device, since they need the Bluetooth controller this one owns.</div>
 <div style="font-size:12px;color:var(--caps);margin:6px 0"><strong>Treat this like a password.</strong> Anyone holding it can follow that device's random address for as long as the pairing lasts. Don't post it in an issue or a forum thread.</div>
 <div class="macro-form" style="margin-top:0"><button id="irk-show">Show key</button><button id="irk-copy" class="cancel" style="display:none">Copy</button></div>
 <div id="irk-val" style="font-size:12px;color:var(--muted);word-break:break-all;font-family:monospace"></div>
+<label class="kb-paste-auto" id="presence-lbl" style="margin-top:10px"><input type="checkbox" id="presence-on" disabled>Green dot on a host's button when the keyboard hears it nearby</label>
+<div style="font-size:12px;color:var(--muted);margin:4px 0 6px">With <code>presence_scan: true</code> under <code>espidf_ble_keyboard:</code> in the YAML, this keyboard listens for its own paired hosts by their Identity Keys all the time &mdash; for its presence sensors and for these dots. This box only decides whether this browser marks a host's button for five seconds each time it is heard; a host that paired without a key is never marked. Without that YAML line, and a flash, the box can't be ticked. Phones are heard often, PCs and monitors seldom.</div>
 </div>
 </div>
 </div>
@@ -1391,6 +1395,8 @@ function pollStatus(){
   fetch('/api/ble_keyboard/status').then(r=>r.ok?r.json():null).then(d=>{
     if(!d)return;
     LOCAL_NAME=d.device_name||'';
+    markSeen('',d.seen);
+    if(window.syncPresence)window.syncPresence(d.seen);
     // Hide the ha_action preset when the YAML opt-in is off, so nobody
     // composes an action that would only log a warning. By class and on every
     // poll: the Host Actions dropdown mirrors the macro list's innerHTML, so
@@ -2336,11 +2342,59 @@ function svgToIcon(text){
   return {rec:rec,len:len,notes:notes};
 }
 
+// Presence: a keyboard built with presence_scan counts, per slot, how often it has
+// heard that host advertising, in /status as `seen`. A count that moves puts a
+// green dot on the host's button for five seconds — if this browser asked for the
+// dots: the Green dot box only decides whether they are drawn, and the keyboard
+// listens either way. `kb` is '' for this keyboard, else the linked keyboard's
+// name. The first answer is only the baseline, so a page load doesn't light every
+// host it has ever heard.
+const SEEN_LAST={},SEEN_UNTIL={};
+const SEEN_DOTS_KEY='blekb_seen_dots';
+let SEEN_DOTS=false;
+try{SEEN_DOTS=localStorage.getItem(SEEN_DOTS_KEY)==='1'}catch(e){}
+function seenNow(kb,slot){return SEEN_DOTS&&(SEEN_UNTIL[kb+'/'+slot]||0)>Date.now()}
+function repaintSeen(){
+  document.querySelectorAll('.host-btn').forEach(b=>b.classList.toggle('seen',seenNow(b.dataset.kb,b.dataset.slot)));
+}
+window.setSeenDots=function(on){
+  SEEN_DOTS=on;
+  try{localStorage.setItem(SEEN_DOTS_KEY,on?'1':'0')}catch(e){}
+  repaintSeen();
+};
+// Ticked in another tab of this browser: follow it.
+window.addEventListener('storage',e=>{
+  if(e.key!==SEEN_DOTS_KEY)return;
+  SEEN_DOTS=e.newValue==='1';
+  repaintSeen();
+  if(window.syncPresence)window.syncPresence(SEEN_LAST['']);
+});
+function paintSeen(kb,slot){
+  document.querySelectorAll('.host-btn').forEach(b=>{
+    if(b.dataset.kb===kb&&b.dataset.slot===String(slot))b.classList.toggle('seen',seenNow(kb,slot));
+  });
+}
+function markSeen(kb,seen){
+  if(!Array.isArray(seen))return;
+  const prev=SEEN_LAST[kb];
+  SEEN_LAST[kb]=seen;
+  if(!prev)return;
+  seen.forEach((n,slot)=>{
+    // Only upwards: a keyboard that restarted counts from zero again.
+    if(!(n>(prev[slot]||0)))return;
+    SEEN_UNTIL[kb+'/'+slot]=Date.now()+5000;
+    paintSeen(kb,slot);
+    setTimeout(()=>paintSeen(kb,slot),5050);
+  });
+}
+
 // One slot of a /hosts reply as a host-bar button, for this keyboard's bar and
 // for each linked keyboard's alike. The caller adds what a tap does.
-function hostBtn(s,active){
+function hostBtn(s,active,kb){
   const b=document.createElement('button');
-  b.className='host-btn'+(active?' active':'')+(s.occupied?' occupied':'');
+  b.className='host-btn'+(active?' active':'')+(s.occupied?' occupied':'')+(seenNow(kb,s.slot)?' seen':'');
+  b.dataset.kb=kb;
+  b.dataset.slot=s.slot;
   // Built as nodes rather than markup: s.name is the YAML button's name,
   // so it is whatever the user typed. Through innerHTML a host called
   // "Work & Home" rendered wrong and "TV <office>" lost its label to an
@@ -2464,7 +2518,7 @@ function hostBtn(s,active){
         bar.appendChild(head);
       }
       d.slots.forEach(s=>{
-        const b=hostBtn(s,s.slot===d.active);
+        const b=hostBtn(s,s.slot===d.active,'');
         onTap(b,()=>pickLocal(s,true),'active');
         bar.appendChild(b);
       });
@@ -2558,7 +2612,7 @@ function hostBtn(s,active){
       if(st&&st.hosts&&st.hosts.slots){
         const act=pending(name)?PEER_PENDING.slot:st.hosts.active;
         st.hosts.slots.forEach(s=>{
-          const b=hostBtn(s,s.slot===act);
+          const b=hostBtn(s,s.slot===act,name);
           onTap(b,()=>pick(name,s,st),'active');
           bar.appendChild(b);
         });
@@ -2596,6 +2650,7 @@ function hostBtn(s,active){
       const next={};order=[];
       d.peers.forEach(p=>{next[p.name]=p;order.push(p.name)});
       PEERS=next;
+      order.forEach(n=>{const st=PEERS[n].state;markSeen(n,st&&st.status&&st.status.seen)});
       if(RMT_PEER!==null&&!PEERS[RMT_PEER]){window.dropPeerLock();return}
       render();
       syncPresets();
@@ -4385,7 +4440,7 @@ function appendStep(el,val){
   }
   if(irkToggle)irkToggle.addEventListener('click',()=>{
     irkPanel.classList.toggle('open');
-    irkToggle.innerHTML='Identity Key '+(irkPanel.classList.contains('open')?'▴':'▾');
+    irkToggle.innerHTML='Identity Key (IRK) '+(irkPanel.classList.contains('open')?'▴':'▾');
     irkClear();
   });
   if(irkShow)irkShow.addEventListener('click',()=>{
@@ -4415,6 +4470,21 @@ function appendStep(el,val){
     if(navigator.clipboard)navigator.clipboard.writeText(irkVal.textContent).catch(()=>{});
     irkCopy.textContent='Copied';setTimeout(()=>irkCopy.textContent='Copy',1200);
   });
+
+  // The Green dot tick box: whether this browser draws the dots, nothing more — the
+  // keyboard listens whenever presence_scan is in its YAML. Remembered per browser,
+  // like the page's other display choices. Greyed on a build without presence_scan,
+  // which is one whose /status carries no `seen`.
+  const presCk=document.getElementById('presence-on');
+  const presLbl=document.getElementById('presence-lbl');
+  window.syncPresence=function(seen){
+    if(!presCk)return;
+    const built=Array.isArray(seen);
+    presCk.disabled=!built;
+    presLbl.title=built?'':'This firmware was built without presence_scan: true';
+    presCk.checked=built&&SEEN_DOTS;
+  };
+  if(presCk)presCk.addEventListener('change',()=>window.setSeenDots(presCk.checked));
 
   // ── Backup / Restore ──
   // Restore replays the file through the same endpoints the UI already uses,
@@ -6838,9 +6908,14 @@ buildKeyboard();
   // And while a placeholder is up for a window this page cannot see, keep asking.
   // A window can die at any moment, not only before this page loaded — a phone
   // dropping a background tab is the ordinary case. Skipped for picture-in-picture,
-  // which keeps no heartbeat and is held by reference instead.
+  // which keeps no heartbeat and is held by reference instead, and for a pop-up
+  // this page opened itself, which the 1 s poll in popOut() already watches. That
+  // one used to be caught here too: a tick landing before the new window's first
+  // heartbeat took it for dead, re-docked the card and closed the window it had
+  // just opened — about half of all pop-outs in the test harness, and the slower
+  // the window loads, the likelier it loses that race.
   setInterval(()=>{
-    if(!ph||pipWin)return;
+    if(!ph||pipWin||popRef)return;
     if(localStorage.getItem(KEY)!=='1')return;
     if(!popoutAlive())attach();
   },4000);

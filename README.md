@@ -24,6 +24,7 @@ This is a custom [ESPHome](https://esphome.io) component that turns an ESP32 int
 * **Bonded Slot Protection:** A host slot belongs to its host until you forget it. A stranger that pairs while a bonded slot is active is refused and its bond removed, instead of quietly taking the slot over.
 * **Keyboard LED Feedback:** Expose host-side Num Lock, Caps Lock, and Scroll Lock LED state as ESPHome binary sensors. Updated whenever the host writes a HID output report.
 * **Battery Level:** Report a real charge percentage over the BLE Battery Service, so the host's Bluetooth settings show it like any other wireless keyboard. Point `battery_level:` at any sensor reading 0–100. See [Battery level](#battery-level).
+* **Paired Hosts Nearby:** Hear a paired phone in range by its identity key, so its changing address is no obstacle — a green dot on its button in the web page's host bar, plus a presence binary sensor, a sighting count and the signal strength it was heard at for Home Assistant, `if:` and automations. See [Paired hosts nearby](#paired-hosts-nearby).
 
 📖 [Keycode Reference](docs/keycodes.md) · [🌐 View Web Page](https://markusg1234.github.io/ESPHome-espidf_ble_keyboard)
 
@@ -331,6 +332,7 @@ binary_sensor:
 * **hide_buttons** (Optional, ID or list of IDs): Buttons to keep *off* the web page. Anything listed there can be pressed by whoever can reach the device — and unless you have set up authentication, that is anyone on the network — so use this for anything destructive (`factory_reset`, `restart`, `safe_mode`). Hidden buttons also refuse to run if their action is typed by hand.
 * **sources** (Optional, list): Entities a remote style may read — to show on an [LCD panel](#lcd-panels), to branch on with [`if:`](#branching-on-real-state), or to light a button with `lit:`. Each entry names exactly one of `sensor:`, `text_sensor:`, `text:` or `binary_sensor:` by id, plus an optional `key:` (what the style calls it — defaults to the entity's id) and, for a numeric sensor, `unit:` and `decimals:` overrides. A `binary_sensor:` publishes the literal `on`/`off`. At most 8.
 * **battery_level** (Optional, ID): A sensor whose value (0–100) is published over the BLE Battery Service, so the host's Bluetooth settings show the keyboard's real charge. Any sensor reading a percentage will do — an ADC with a calibration filter, a fuel-gauge IC, a template sensor. Values outside 0–100 are clamped and an unavailable reading is ignored rather than sent as 0%. Without this the service is still advertised and reports a fixed 100%. See [Battery level](#battery-level).
+* **presence_scan** (Optional, bool): Listen for paired hosts nearby, all the time — for the `presence`, `presence_count` and `presence_rssi` sensors, and for the web page's green dots, which the **Green dot** tick box under **Host Actions → Identity Key (IRK)** shows or hides in each browser. The radio spends about a tenth of its time listening. Defaults to `false`. See [Paired hosts nearby](#paired-hosts-nearby).
 * **keyboard_layout** (Optional, string): Default keyboard layout. One of `us` (default), `uk`, `de`, `be`. Controls how `send_string` maps each character to USB HID keycodes — must match the *host's* keyboard layout. Can be overridden at runtime from the web UI (persisted to NVS, survives reboot). See [Keyboard layouts](#keyboard-layouts) below.
 * **hosts** (Optional, list): Per-slot passkey and pairing mode overrides. Each entry has:
   * **slot** (Required, int): Host slot number (0–9).
@@ -344,7 +346,7 @@ binary_sensor:
 
 ### `binary_sensor` (Platform: `espidf_ble_keyboard`)
 
-The binary_sensor platform supports four types via the `type` key:
+The binary_sensor platform supports five types via the `type` key:
 
 #### Paired Sensor (default)
 
@@ -393,13 +395,39 @@ binary_sensor:
 
 Note: LED state reflects what the *host* thinks the lock state is. The sensors go OFF when a host disconnects and follow the next one once it sends its LED report. The `caps_lock` sensor also lights the [keyboard card](#keyboard-control-card-for-home-assistant)'s Caps key.
 
+#### Presence Sensor
+
+ON while one host slot's host has been heard nearby — see [Paired hosts nearby](#paired-hosts-nearby). Needs `presence_scan: true`. Shows as Home / Away in Home Assistant.
+
+* **keyboard_id** (Required, ID): The ID of the `espidf_ble_keyboard` component.
+* **type** (Required, string): `presence`.
+* **slot** (Required, 0–9): The host slot to listen for.
+* **timeout** (Optional, duration): How long the host may go unheard before the sensor turns OFF. Defaults to `60s`; 15 s to 24 h. A host in range is heard about every 12 seconds, so much less than a minute can flicker.
+* **name** (Optional, string): Friendly entity name shown in Home Assistant.
+
+State behavior:
+
+* **ON** = the host was heard, by its identity key, within the timeout.
+* **OFF** = not heard for longer than that — so also after a restart, until the host is first heard.
+
+```yaml
+binary_sensor:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    id: phone_nearby
+    type: presence
+    slot: 1
+    timeout: 2min
+    name: "Phone nearby"
+```
+
 #### Caps Lock and typed text
 
 While the host reports Caps Lock on, typed text still comes out as written: letters are sent with the opposite Shift, which Windows, Android, Linux and ChromeOS turn back into the case asked for. This covers macros, `send_string`, paste, and the on-screen keyboards, whose keys also show capitals while it is on. **macOS and iPadOS** don't let Shift undo Caps Lock, so text there still comes out in capitals — start the macro with `caps_lock:off`.
 
 ### `sensor` (Platform: `espidf_ble_keyboard`)
 
-The sensor platform supports two types via the `type` key:
+The sensor platform supports four types via the `type` key:
 
 #### RSSI Sensor (default)
 
@@ -448,6 +476,48 @@ type: custom:ble-keyboard-card
 device: bluetooth_keyboard
 host_slots: 4
 active_host_entity: sensor.bluetooth_keyboard_active_host
+```
+
+#### Presence Count Sensor
+
+How many times one host slot's host has been heard since the keyboard started — the number the web page's green dot follows. It climbs by about one per scan (every 12 seconds or so) while the host is in range, and starts again from 0 after a restart, which Home Assistant handles as `total_increasing`. Needs `presence_scan: true` — see [Paired hosts nearby](#paired-hosts-nearby).
+
+* **keyboard_id** (Required, ID): The ID of the `espidf_ble_keyboard` component.
+* **type** (Required, string): `presence_count`.
+* **slot** (Required, 0–9): The host slot to count.
+* **name** (Optional, string): Friendly entity name shown in Home Assistant.
+
+```yaml
+sensor:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: presence_count
+    slot: 1
+    name: "Phone sightings"
+```
+
+#### Presence Signal Sensor
+
+The signal strength one host slot's host was last heard at, in dBm — the closer the phone, the nearer to 0. One reading per scan (every 12 seconds or so) while the host is in range; it goes unknown once the host has gone unheard for a minute. Needs `presence_scan: true` — see [Paired hosts nearby](#paired-hosts-nearby).
+
+Single readings jump by several dB as the phone moves, turns or goes into a pocket, so smooth it with a filter before comparing it to a threshold. Good enough for near or far; too rough to tell rooms apart.
+
+* **keyboard_id** (Required, ID): The ID of the `espidf_ble_keyboard` component.
+* **type** (Required, string): `presence_rssi`.
+* **slot** (Required, 0–9): The host slot to report.
+* **name** (Optional, string): Friendly entity name shown in Home Assistant.
+
+```yaml
+sensor:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: presence_rssi
+    slot: 1
+    name: "Phone signal"
+    filters:
+      - sliding_window_moving_average:
+          window_size: 3
+          send_every: 1
 ```
 
 #### Proximity Automations
@@ -2223,17 +2293,18 @@ or through Home Assistant's own remote access.
 
 ### Identity key (IRK)
 
-**Host Actions → Identity Key** shows the Identity Resolving Key a paired host handed over
+**Host Actions → Identity Key (IRK)** shows the Identity Resolving Key a paired host handed over
 when it bonded. Phones don't advertise a fixed address — they broadcast a random one that
 changes every few minutes, and the real address is only ever sent over the encrypted link at
 pairing time. The IRK is what turns one into the other: given a random address, it tells you
 whether that address belongs to this host. That is what makes it useful for presence
 detection, and it is why the MAC already shown in the host bar can't do the same job.
 
-The ESP32 can't act on it itself. Presence detection means `ble_presence`, which pulls in
-`esp32_ble_tracker` and `esp32_ble`, and that component initialises the Bluetooth controller
-— which this one already does. Only one of them can own it, so they can't share a firmware.
-(Same reason a Bluetooth proxy won't run alongside this component.)
+This keyboard can listen for its own paired hosts with these keys — see
+[Paired hosts nearby](#paired-hosts-nearby). What it can't do is run ESPHome's `ble_presence`,
+which pulls in `esp32_ble_tracker` and `esp32_ble`, and that component initialises the Bluetooth
+controller — which this one already does. Only one of them can own it, so they can't share a
+firmware. (Same reason a Bluetooth proxy won't run alongside this component.)
 
 > [!CAUTION]
 > Adding `esp32_ble_tracker` to **this** device does not fail loudly — it compiles, boots, and
@@ -2244,7 +2315,7 @@ The ESP32 can't act on it itself. Presence detection means `ble_presence`, which
 > `ble_presence` sensor sits at "away" forever with nothing to explain it. Put the tracker on a
 > different device.
 
-Take the key elsewhere:
+To use the key somewhere else too:
 
 - **Home Assistant's Private BLE Device integration** takes an IRK directly and uses whatever
   Bluetooth receivers HA already has. No firmware changes needed.
@@ -2253,10 +2324,8 @@ Take the key elsewhere:
   as above. (ESPHome 2026.8.0 made `ble_presence` platform-neutral; before that it needed an ESP32
   running `esp32_ble_tracker`.)
 
-If you only need "is it in the house", you may not need the key at all: a
-[binary sensor](#paired-sensor-default) with `type: paired` goes on when a bonded host
-connects and off when it drops. Bluetooth range is roughly 10–30 m, and how eagerly a phone
-reconnects to a HID device it isn't actively using varies between iOS and Android.
+If you only need "is it in the house", the [presence sensor](#presence-sensor) answers it on
+this keyboard, with no second device. Bluetooth range is roughly 10–30 m.
 
 > [!WARNING]
 > Treat the IRK like a password. Anyone holding it can identify that device from its random
@@ -2275,6 +2344,68 @@ fixed address has none to send, and that slot reports no key.
 
 A key being present doesn't make a host worth tracking, mind: a desktop that never leaves the
 house tells you nothing. The key is only useful for something that comes and goes.
+
+### Paired hosts nearby
+
+The keyboard can listen for the hosts it is paired with, using the identity keys it holds for
+them. Build it in with `presence_scan: true`:
+
+```yaml
+espidf_ble_keyboard:
+  id: my_keyboard
+  presence_scan: true
+```
+
+and from then on it listens all the time: short passive scans, ten seconds at a time, listening
+for about a tenth of it, while the Bluetooth stack checks each address it hears against the paired
+hosts' identity keys. Only the key counts: a host that paired without one is never recognised, and
+a host's stored MAC address is never compared.
+
+To see it on the web page, tick **Green dot** under **Host Actions → Identity Key (IRK)**: a host
+it recognises then gets a green dot on its button in the host bar for five seconds, about every 12
+seconds while it stays in range. The box is a display choice only, remembered by each browser —
+the keyboard listens, and its presence sensors update, whether it is ticked or not.
+
+What gets heard depends on the host. An iPhone advertises all the time and shows up within
+seconds; an Android phone only while something on it is advertising; PCs and monitors rarely or
+never.
+
+For Home Assistant and automations, give a slot a [presence sensor](#presence-sensor) — ON while
+its host has been heard recently — and, if you want them, a
+[presence count sensor](#presence-count-sensor) for the raw number of sightings and a
+[presence signal sensor](#presence-signal-sensor) for how strongly it was heard. List the presence sensor under `sources:` to
+branch on it in a macro or button with [`if:`](#branching-on-real-state), or act on its arrival
+directly:
+
+```yaml
+espidf_ble_keyboard:
+  id: my_keyboard
+  presence_scan: true
+  sources:
+    - key: phone
+      binary_sensor: phone_nearby
+
+binary_sensor:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    id: phone_nearby
+    type: presence
+    slot: 1
+    name: "Phone nearby"
+    on_press:                       # the phone has just arrived
+      - espidf_ble_keyboard.run_action:
+          action: "macro:welcome"
+```
+
+With that, `if:phone: <when it is here> || <when it isn't>` works in any action string.
+
+At start-up the log names the slots it can recognise
+(`Presence: listening by IRK for slot(s) …`), then logs each host's arrival and departure at INFO
+and every further sighting at DEBUG, each with the signal strength it was heard at.
+
+Listening shares the radio with Wi-Fi and the connected host. Typing — a 3000-character paste
+included — was unaffected in testing; if the keyboard ever feels slow to respond, take
+`presence_scan` out again.
 
 ---
 
