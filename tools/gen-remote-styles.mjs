@@ -87,6 +87,9 @@ const PARTS = [
   // The knob's gestures. The card wires its own remote with it, so a knob turns
   // the same on both surfaces.
   ['function knobShow(', () => balanced('function knobShow(')],
+  ['const KNOB_SETTLE_MS=', () => oneLine('const KNOB_SETTLE_MS=')],
+  ['function knobHold(', () => balanced('function knobHold(')],
+  ['function knobSettle(', () => balanced('function knobSettle(')],
   ['function knobLevel(', () => balanced('function knobLevel(')],
   ['function knobWire(', () => balanced('function knobWire(')],
   ['function esc(', () => balanced('function esc(')],

@@ -388,6 +388,9 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
   color:var(--rb-ring-fg,var(--rb-btn-fg,var(--fg)));user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .rmt-knob-ring:active{cursor:grabbing}
 .rmt-knob-ring:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+/* Focused by a press, only so the wheel and arrow keys work after it: no ring
+   for that (.pf, until it loses focus) — the ring is for arriving by Tab. */
+.rmt-knob-ring.pf:focus-visible,.rmt-slider-track.pf:focus-visible{box-shadow:none}
 /* What turns: the dots and the pointer. A step snaps it round, so it only ever
    shows a turn that was sent. Dots rather than ticks: at three and nine o'clock a
    tick lies flat and reads as a second minus beside the tap marks. */
@@ -1883,24 +1886,48 @@ function knobShow(k,v){
   if(face)face.style.transform='rotate('+(-sw/2+sw*f)+'deg)';
   if(arc)arc.style.strokeDasharray=(sw*f)+' 360';
 }
+// While presses a level knob sent are on their way it shows where they are
+// taking it (_exp), not the reading: the reading trails them by the device's
+// own poll (3 s on the page) and whatever Home Assistant adds, so falling back
+// to it at a fixed moment showed the old level, then the new one — a jump back
+// and forth after every move. Instead it waits for the reading to get there;
+// one that stops short — presses that did not land — is believed once it has
+// stayed put for KNOB_SETTLE_MS, and one that never moves at all once the
+// presses have had KNOB_HOLD_MS more.
+const KNOB_SETTLE_MS=5000,KNOB_HOLD_MS=10000;
+// Shows v and holds it there: `ms` is how long the presses take to go out.
+function knobHold(k,v,ms){
+  k._exp={v:v,until:Date.now()+ms,base:k._rd===undefined?null:k._rd};
+  knobShow(k,v);
+  knobSettle(k);
+}
+// Whether the reading is to be believed yet; if not, when to ask again.
+function knobSettle(k){
+  clearTimeout(k._lt);
+  const e=k._exp;
+  if(!e)return;
+  const lv=k._rd===undefined?null:k._rd,now=Date.now();
+  if(lv!==null&&Math.abs(lv-e.v)<=(+k.dataset.inc||0)/2){k._exp=null;knobShow(k,lv);return}
+  let wait=e.until-now;
+  if(wait<=0){
+    const cap=e.until+KNOB_HOLD_MS-now;
+    wait=lv===e.base?cap:Math.min(cap,(k._rdAt||0)+KNOB_SETTLE_MS-now);
+  }
+  if(wait>0){k._lt=setTimeout(()=>knobSettle(k),wait);return}
+  k._exp=null;
+  knobShow(k,lv);
+}
 // Every level knob in `root`, from the same values the lcd panels show: the
 // device's sources on the page, entity states on the card. A reading is a
 // number at the front of the value, so "45 %" is 45; anything else is none.
-// While steps the knob sent are on their way (_exp, set by knobWire) the
-// pointer stays where they are taking it — the reading trails the presses —
-// until a reading gets there or their time is up.
 function knobLevel(root,vals){
   root.querySelectorAll('.rmt-knob[data-level],.rmt-slider[data-level]').forEach(k=>{
     const v=parseFloat(vals?vals[k.dataset.level]:NaN),lv=isFinite(v)?v:null;
+    // When it last changed: a reading that has stopped short is believed only
+    // once it has stayed put a while.
+    if(k._rdAt===undefined||lv!==k._rd)k._rdAt=Date.now();
     k._rd=lv;
-    clearTimeout(k._lt);
-    const e=k._exp,now=Date.now();
-    if(e&&now<e.until){
-      if(lv!==null&&Math.abs(lv-e.v)<=(+k.dataset.inc||0)/2){k._exp=null;knobShow(k,lv);return}
-      k._lt=setTimeout(()=>{if(k._exp===e){k._exp=null;knobShow(k,k._rd)}},e.until-now);
-      return;
-    }
-    k._exp=null;
+    if(k._exp){knobSettle(k);return}
     knobShow(k,lv);
   });
   root.querySelectorAll('.rmt-knob[data-set]:not([data-level]),.rmt-slider[data-set]:not([data-level])').forEach(k=>{
@@ -1957,7 +1984,7 @@ function knobWire(root,send){
   // while that is on its way, else the last reading — or, for one that sets a
   // value with no reading to follow, what it last set.
   const believed=k=>{
-    if(k._exp&&Date.now()<k._exp.until)return k._exp.v;
+    if(k._exp)return k._exp.v;
     if(k._rd!==undefined&&k._rd!==null)return k._rd;
     const v=k.dataset.set!==undefined?KNOB_SET[k.dataset.set]:undefined;
     return typeof v==='number'?v:null;
@@ -1975,8 +2002,9 @@ function knobWire(root,send){
     const mn=+k.dataset.min,inc=+k.dataset.inc||1;
     v=Math.round(within(k,mn+Math.round((v-mn)/inc)*inc)*1e4)/1e4;
     KNOB_SET[k.dataset.set]=v;
-    k._exp={v:v,until:Date.now()+3000};
-    knobShow(k,v);
+    // One with a reading to follow holds the value until the reading has it;
+    // one without has only what it set, which knobLevel shows from KNOB_SET.
+    if(k.dataset.level!==undefined)knobHold(k,v,3000);else knobShow(k,v);
     if(navigator.vibrate)try{navigator.vibrate(5)}catch(_){}
     queueSet(k,k.dataset.set,String(v));
   };
@@ -1996,7 +2024,7 @@ function knobWire(root,send){
       // flashes the side it went; with an inc the pointer also moves that much
       // ahead of the reading, which knobLevel then lets catch up.
       const inc=+k.dataset.inc,b=believed(k);
-      if(inc&&b!==null){const v=within(k,b+dir*inc);k._exp={v:v,until:Date.now()+1500};knobShow(k,v)}
+      if(inc&&b!==null)knobHold(k,within(k,b+dir*inc),1500);
       flash(k,dir);
     }else{
       // The face clicks round a step at a time, so it shows what was sent.
@@ -2017,9 +2045,7 @@ function knobWire(root,send){
     const n=Math.round((to-from)/(+k.dataset.inc||1));
     const a=n>0?k.dataset.up:k.dataset.down;
     if(!n||!a||k.classList.contains('off')){knobShow(k,believed(k));return}
-    const v=within(k,from+n*(+k.dataset.inc||1));
-    k._exp={v:v,until:Date.now()+1500+Math.abs(n)*80};
-    knobShow(k,v);
+    knobHold(k,within(k,from+n*(+k.dataset.inc||1)),1500+Math.abs(n)*80);
     if(navigator.vibrate)try{navigator.vibrate(5)}catch(_){}
     queue(k,a,Math.abs(n));
   };
@@ -2107,6 +2133,7 @@ function knobWire(root,send){
       const can=sets||from!==null;   // without either there is nothing to work presses out from
       if(!can&&!thumb)return;
       e.preventDefault();
+      tr.classList.add('pf');
       try{tr.focus({preventScroll:true})}catch(_){}
       try{tr.setPointerCapture(e.pointerId)}catch(_){}
       const vt=k.classList.contains('vert'),rc=tr.getBoundingClientRect(),
@@ -2126,7 +2153,9 @@ function knobWire(root,send){
     const k=ring.closest('.rmt-knob');
     if(!k||k.classList.contains('off'))return;
     e.preventDefault();
-    // Focused, so the wheel and the arrow keys turn it from here on.
+    // Focused, so the wheel and the arrow keys turn it from here on — without
+    // the ring that arriving by Tab shows (.pf).
+    ring.classList.add('pf');
     try{ring.focus({preventScroll:true})}catch(_){}
     // Captured, so the turn carries on wherever the finger goes.
     try{ring.setPointerCapture(e.pointerId)}catch(_){}
@@ -2262,6 +2291,10 @@ function knobWire(root,send){
     turn(k,dir);
   });
   // A phone's own long-press menu would take the gesture away from the knob.
+  root.addEventListener('focusout',e=>{
+    const t=e.target;
+    if(t&&t.classList&&t.classList.contains('pf'))t.classList.remove('pf');
+  });
   root.addEventListener('contextmenu',e=>{
     if(e.target.closest&&e.target.closest('.rmt-knob-ring,.rmt-slider-track,.rmt-slider-mk'))e.preventDefault();
   });

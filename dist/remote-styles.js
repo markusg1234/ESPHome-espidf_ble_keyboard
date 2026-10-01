@@ -371,18 +371,38 @@ function knobShow(k,v){
   if(arc)arc.style.strokeDasharray=(sw*f)+' 360';
 }
 
+const KNOB_SETTLE_MS=5000,KNOB_HOLD_MS=10000;
+
+function knobHold(k,v,ms){
+  k._exp={v:v,until:Date.now()+ms,base:k._rd===undefined?null:k._rd};
+  knobShow(k,v);
+  knobSettle(k);
+}
+
+function knobSettle(k){
+  clearTimeout(k._lt);
+  const e=k._exp;
+  if(!e)return;
+  const lv=k._rd===undefined?null:k._rd,now=Date.now();
+  if(lv!==null&&Math.abs(lv-e.v)<=(+k.dataset.inc||0)/2){k._exp=null;knobShow(k,lv);return}
+  let wait=e.until-now;
+  if(wait<=0){
+    const cap=e.until+KNOB_HOLD_MS-now;
+    wait=lv===e.base?cap:Math.min(cap,(k._rdAt||0)+KNOB_SETTLE_MS-now);
+  }
+  if(wait>0){k._lt=setTimeout(()=>knobSettle(k),wait);return}
+  k._exp=null;
+  knobShow(k,lv);
+}
+
 function knobLevel(root,vals){
   root.querySelectorAll('.rmt-knob[data-level],.rmt-slider[data-level]').forEach(k=>{
     const v=parseFloat(vals?vals[k.dataset.level]:NaN),lv=isFinite(v)?v:null;
+    // When it last changed: a reading that has stopped short is believed only
+    // once it has stayed put a while.
+    if(k._rdAt===undefined||lv!==k._rd)k._rdAt=Date.now();
     k._rd=lv;
-    clearTimeout(k._lt);
-    const e=k._exp,now=Date.now();
-    if(e&&now<e.until){
-      if(lv!==null&&Math.abs(lv-e.v)<=(+k.dataset.inc||0)/2){k._exp=null;knobShow(k,lv);return}
-      k._lt=setTimeout(()=>{if(k._exp===e){k._exp=null;knobShow(k,k._rd)}},e.until-now);
-      return;
-    }
-    k._exp=null;
+    if(k._exp){knobSettle(k);return}
     knobShow(k,lv);
   });
   root.querySelectorAll('.rmt-knob[data-set]:not([data-level]),.rmt-slider[data-set]:not([data-level])').forEach(k=>{
@@ -433,7 +453,7 @@ function knobWire(root,send){
   // while that is on its way, else the last reading — or, for one that sets a
   // value with no reading to follow, what it last set.
   const believed=k=>{
-    if(k._exp&&Date.now()<k._exp.until)return k._exp.v;
+    if(k._exp)return k._exp.v;
     if(k._rd!==undefined&&k._rd!==null)return k._rd;
     const v=k.dataset.set!==undefined?KNOB_SET[k.dataset.set]:undefined;
     return typeof v==='number'?v:null;
@@ -451,8 +471,9 @@ function knobWire(root,send){
     const mn=+k.dataset.min,inc=+k.dataset.inc||1;
     v=Math.round(within(k,mn+Math.round((v-mn)/inc)*inc)*1e4)/1e4;
     KNOB_SET[k.dataset.set]=v;
-    k._exp={v:v,until:Date.now()+3000};
-    knobShow(k,v);
+    // One with a reading to follow holds the value until the reading has it;
+    // one without has only what it set, which knobLevel shows from KNOB_SET.
+    if(k.dataset.level!==undefined)knobHold(k,v,3000);else knobShow(k,v);
     if(navigator.vibrate)try{navigator.vibrate(5)}catch(_){}
     queueSet(k,k.dataset.set,String(v));
   };
@@ -472,7 +493,7 @@ function knobWire(root,send){
       // flashes the side it went; with an inc the pointer also moves that much
       // ahead of the reading, which knobLevel then lets catch up.
       const inc=+k.dataset.inc,b=believed(k);
-      if(inc&&b!==null){const v=within(k,b+dir*inc);k._exp={v:v,until:Date.now()+1500};knobShow(k,v)}
+      if(inc&&b!==null)knobHold(k,within(k,b+dir*inc),1500);
       flash(k,dir);
     }else{
       // The face clicks round a step at a time, so it shows what was sent.
@@ -493,9 +514,7 @@ function knobWire(root,send){
     const n=Math.round((to-from)/(+k.dataset.inc||1));
     const a=n>0?k.dataset.up:k.dataset.down;
     if(!n||!a||k.classList.contains('off')){knobShow(k,believed(k));return}
-    const v=within(k,from+n*(+k.dataset.inc||1));
-    k._exp={v:v,until:Date.now()+1500+Math.abs(n)*80};
-    knobShow(k,v);
+    knobHold(k,within(k,from+n*(+k.dataset.inc||1)),1500+Math.abs(n)*80);
     if(navigator.vibrate)try{navigator.vibrate(5)}catch(_){}
     queue(k,a,Math.abs(n));
   };
@@ -583,6 +602,7 @@ function knobWire(root,send){
       const can=sets||from!==null;   // without either there is nothing to work presses out from
       if(!can&&!thumb)return;
       e.preventDefault();
+      tr.classList.add('pf');
       try{tr.focus({preventScroll:true})}catch(_){}
       try{tr.setPointerCapture(e.pointerId)}catch(_){}
       const vt=k.classList.contains('vert'),rc=tr.getBoundingClientRect(),
@@ -602,7 +622,9 @@ function knobWire(root,send){
     const k=ring.closest('.rmt-knob');
     if(!k||k.classList.contains('off'))return;
     e.preventDefault();
-    // Focused, so the wheel and the arrow keys turn it from here on.
+    // Focused, so the wheel and the arrow keys turn it from here on — without
+    // the ring that arriving by Tab shows (.pf).
+    ring.classList.add('pf');
     try{ring.focus({preventScroll:true})}catch(_){}
     // Captured, so the turn carries on wherever the finger goes.
     try{ring.setPointerCapture(e.pointerId)}catch(_){}
@@ -738,6 +760,10 @@ function knobWire(root,send){
     turn(k,dir);
   });
   // A phone's own long-press menu would take the gesture away from the knob.
+  root.addEventListener('focusout',e=>{
+    const t=e.target;
+    if(t&&t.classList&&t.classList.contains('pf'))t.classList.remove('pf');
+  });
   root.addEventListener('contextmenu',e=>{
     if(e.target.closest&&e.target.closest('.rmt-knob-ring,.rmt-slider-track,.rmt-slider-mk'))e.preventDefault();
   });
@@ -1628,6 +1654,7 @@ export const RMT_CSS = `
   color:var(--rb-ring-fg,var(--rb-btn-fg,var(--fg)));user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .rmt-knob-ring:active{cursor:grabbing}
 .rmt-knob-ring:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+.rmt-knob-ring.pf:focus-visible,.rmt-slider-track.pf:focus-visible{box-shadow:none}
 .rmt-knob-face{position:absolute;inset:0;width:100%;height:100%;transition:transform .08s;pointer-events:none}
 .rmt-knob-face .tk{fill:none;stroke:var(--rb-label,var(--muted));stroke-linecap:round}
 .rmt-knob-face .pt{fill:currentColor}

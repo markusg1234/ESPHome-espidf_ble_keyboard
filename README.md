@@ -1467,7 +1467,7 @@ That one is a thermostat: list the set point under `sources:` as `setpoint`, and
 ["pot", {"level": "tv_volume", "inc": 1}]
 ```
 
-**Analogue.** Add `"analogue": true` and the pot sets a level instead of stepping it, as a real one does: press anywhere on the track and the pointer goes there, drag and it follows your finger, stopping at either end as a real pot does. Let go and the keyboard sends the difference from the reading as that many presses, `inc` a press — a keyboard can only go up and down, so 40 from 15 is 25 volume-ups, sent as one `repeat:`. The pointer waits there for the reading to catch up. The wheel, the arrow keys and a tap on the − or + still step. Without a reading there is nothing to work the difference out from, and it steps like any other.
+**Analogue.** Add `"analogue": true` and the pot sets a level instead of stepping it, as a real one does: press anywhere on the track and the pointer goes there, drag and it follows your finger, stopping at either end as a real pot does. Let go and the keyboard sends the difference from the reading as that many presses, `inc` a press — a keyboard can only go up and down, so 40 from 15 is 25 volume-ups, sent as one `repeat:`. The pointer waits there for the reading to catch up, however late it is; if the reading stops short — presses the TV missed — the pointer moves to it once it has stayed put for five seconds. The wheel, the arrow keys and a tap on the − or + still step. Without a reading there is nothing to work the difference out from, and it steps like any other.
 
 **Setting a value.** For anything that takes a number — a Home Assistant light's brightness, a fan's speed, a media player's volume — name a key with `set` and give that key a Host Action with `{value}` in it:
 
