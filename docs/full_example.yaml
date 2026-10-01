@@ -1,0 +1,492 @@
+# espidf_ble_keyboard with every feature switched on, for five hosts. Delete what you don't need.
+# Commented-out blocks need hardware or a second device: linked keyboards, battery, GPIO keys,
+# Wake-on-LAN and an IR blaster. Macros, remote styles, on-connect actions, Bluetooth-off slots and
+# the IRK settings are set on the web page, not here — see the README.
+
+substitutions:
+  device_name: bluetooth-keyboard
+  friendly_name: "Bluetooth keyboard"
+  wifi_ssid: "***"
+  wifi_password: "***"
+  api_encryption_key: "***"
+  web_username: "***"
+  web_password: "***"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_BT_ENABLED: y
+      CONFIG_BT_CONTROLLER_ENABLED: y
+      CONFIG_BT_BLUEDROID_ENABLED: y
+      CONFIG_BT_NIMBLE_ENABLED: n
+      CONFIG_BT_BLE_ENABLED: y
+      CONFIG_BT_GATTS_ENABLE: y
+      CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
+      CONFIG_BT_BLE_50_FEATURES_SUPPORTED: n
+      CONFIG_BT_BLE_42_ADV_EN: y
+      CONFIG_BT_BLE_42_SCAN_EN: y
+      CONFIG_BT_BLE_SMP_ENABLE: y
+      CONFIG_BT_ACL_CONNECTIONS: "4"
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: ${api_encryption_key}
+
+ota:
+  - platform: esphome
+    encryption:            # uses the api key; the device must already run ESPHome 2026.9+
+
+wifi:
+  ssid: ${wifi_ssid}
+  password: ${wifi_password}
+  power_save_mode: none
+  fast_connect: true
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/markusg1234/ESPHome-espidf_ble_keyboard.git
+      ref: main            # or pin a release tag, e.g. v1.0.0
+      path: components
+    refresh: 0s
+    components: [ espidf_ble_keyboard ]
+
+web_server:
+  port: 80
+  auth:                    # covers the keyboard's web page and its API too
+    type: digest
+    username: ${web_username}
+    password: ${web_password}
+
+espidf_ble_keyboard:
+  id: my_keyboard
+  device_name: "ESP32 BLE KB"
+  key_delay_ms: 80
+  max_key_hold_ms: 30000         # release anything held longer than 30 s
+  passkey: 123456
+  passkey_mode: legacy
+  keyboard_layout: us            # us, uk, de or be
+  host_slots: 5
+  hosts:
+    - slot: 0                    # Windows PC
+      passkey: 111111
+      passkey_mode: legacy
+      layout: us                     # us, uk, de or be
+      actions:
+        record: "combo:0x0C:0x15"      # Record starts Game Bar recording
+    - slot: 1                    # iPhone
+      passkey: 222222
+      passkey_mode: secure_connections
+      layout: us
+    - slot: 2                    # TV box
+      layout: us
+      actions:
+        ok: "consumer:0x0041"          # Menu Pick instead of Enter
+        back@long: "home"              # hold Back for Home
+    - slot: 3                    # laptop
+      layout: us
+    - slot: 4                    # tablet
+      layout: us
+
+  web_control: true
+  web_host_check: true           # turn off only for a reverse proxy
+  web_allowed_hosts: []          # or name the proxy's domain here
+  web_allow_framing: false       # true only to put the page in an iframe on your own dashboard
+  # peers:                       # a second keyboard running this component
+  #   - name: bedroom
+  #     url: http://192.168.1.36
+  #     username: !secret bedroom_web_user
+  #     password: !secret bedroom_web_password
+
+  api_services: true             # registers every Home Assistant service; no api: services: needed
+  ha_action: true                # also tick "Allow the device to perform Home Assistant actions" in HA
+  expose_buttons: true
+  hide_buttons:
+    - restart_button
+    - safe_mode_button
+
+  mouse_sensitivity: 1.0
+  mouse_acceleration: 0.15
+  mouse_max_speed: 4.0
+  scroll_sensitivity: 2.0
+  screen_width: 3840             # the whole virtual desktop
+  screen_height: 1080
+  monitors:                      # for the web Position Finder and mouse_goto; primary = Windows main display
+    - { name: left,  x: 0,    y: 0, width: 1920, height: 1080, primary: true }
+    - { name: right, x: 1920, y: 0, width: 1920, height: 1080 }
+  mouse_goto_scale: 1.0
+  mouse_goto_scale_x: 1.0        # per-axis values override mouse_goto_scale
+  mouse_goto_scale_y: 1.0
+
+  custom_text_id:
+    - custom_text
+  sources:                       # what a remote style may show, branch on with if:, or light a key from
+    - key: wifi
+      sensor: wifi_db
+      decimals: 0
+    - text_sensor: wifi_ip
+    - key: msg
+      text: custom_text
+    - key: phone
+      binary_sensor: phone_nearby
+
+  presence_scan: true
+  # battery_level: battery_pct   # the ADC sensor below
+
+  on_rssi_above:
+    threshold: -65
+    then:
+      - logger.log:
+          format: "Host nearby (RSSI %d dBm)"
+          args: [rssi]
+  on_rssi_below:
+    threshold: -90
+    then:
+      - logger.log:
+          format: "Host far away (RSSI %d dBm)"
+          args: [rssi]
+
+button:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "PC"
+    action:
+      type: switch_host
+      slot: 0
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "iPhone"
+    action:
+      type: switch_host
+      slot: 1
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "TV Box"
+    action:
+      type: switch_host
+      slot: 2
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Laptop"
+    action:
+      type: switch_host
+      slot: 3
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Tablet"
+    action:
+      type: switch_host
+      slot: 4
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Next Host"
+    action: "switch_host:next"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Last Host"
+    action:
+      type: switch_host
+      slot: back
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Forget Tablet"
+    action:
+      type: forget_host
+      slot: 4
+
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Type Hello"
+    action: "Hello\n"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Win + R"
+    action: "combo:0x08:0x15"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Ctrl + A"
+    action:
+      type: combo
+      modifier: 0x01
+      key: 0x04
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Open Calculator"
+    action: "consumer:0x0192"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Play Pause"
+    action: "play_pause"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Ctrl Alt Del"
+    action: "ctrl_alt_del"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Sleep PC"
+    action: "sleep"
+
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Left Click"
+    action: "left_click"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Move Mouse Right"
+    action: "mouse_move:50:0"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Scroll Down"
+    action: "mouse_scroll:-3"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Cursor to Center"
+    action: "mouse_abs:50:50"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Cursor to Right Monitor"
+    action:
+      type: mouse_abs_mon
+      monitor: 1
+      x: 50
+      y: 50
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Click Right Monitor"
+    action: "mouse_goto:2880:540 | left_click"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Click Corner and Return"
+    action: "mouse_abs_save | mouse_abs:5:5 | left_click | mouse_abs_restore"
+
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Send Custom Text"
+    action: "send_custom_text"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Copy-Paste Macro"
+    action: "macro:Copy-Paste"         # record a macro with this name on the web page
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Pause on iPhone"
+    action: "switch_host:1 | wait:connected | pause | switch_host:back"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "TV Box OK"
+    action: "host_action:2:ok"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Volume Down 5"
+    action: "repeat:5:volume_down | delay:100"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Play or Pause"
+    action: "alternate:play || pause"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Phone Home"
+    action: "if:phone: lcd:Phone is home || lcd:Phone is away"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Type Without Caps Lock"
+    action: "caps_lock:off | string:Hello World"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Show Desktop Twice"
+    action: "press_button:show_desktop | delay:1000 | press_button:show_desktop"
+  # - platform: espidf_ble_keyboard
+  #   keyboard_id: my_keyboard
+  #   name: "Bedroom Volume Up"
+  #   action: "peer:bedroom:volume_up"
+  # - platform: espidf_ble_keyboard
+  #   keyboard_id: my_keyboard
+  #   name: "TV Power"
+  #   action: "ha_action:remote.send_command;entity_id=remote.living_room_ir;command=power"
+
+  - platform: template
+    name: "Show Desktop"
+    on_press:
+      - lambda: |-
+          id(my_keyboard).execute_action("combo:0x08:0x07");
+  # - platform: template
+  #   name: "Report 50% Battery"
+  #   on_press:
+  #     - espidf_ble_keyboard.set_battery_level:
+  #         id: my_keyboard
+  #         level: 50
+  # - platform: wake_on_lan
+  #   name: "Wake PC"
+  #   target_mac_address: "AA:BB:CC:DD:EE:FF"
+
+  - platform: restart
+    id: restart_button
+    name: "Restart"
+  - platform: safe_mode
+    id: safe_mode_button
+    name: "Safe Mode"
+
+text:
+  - platform: template
+    name: "Custom Text"
+    id: custom_text
+    mode: text
+    optimistic: true
+
+text_sensor:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: hidden_buttons
+    name: "Hidden Buttons"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: hold_buttons
+    name: "Hold Buttons"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: repeat_buttons
+    name: "Repeat Buttons"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: remote_style
+    name: "Remote Style"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: lcd
+    name: "LCD Values"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: host_mac
+    name: "Host MAC"
+
+  - platform: wifi_info
+    ip_address:
+      id: wifi_ip
+      internal: true
+  - platform: template
+    name: "Web Control"
+    icon: "mdi:keyboard"
+    lambda: |-
+      return {"http://" + id(wifi_ip).state + "/ble_keyboard"};
+    update_interval: 60s
+
+binary_sensor:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "BLE Keyboard Paired"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    slot: 2
+    name: "TV Box Connected"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: num_lock
+    name: "Num Lock"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: caps_lock
+    name: "Caps Lock"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: scroll_lock
+    name: "Scroll Lock"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    id: phone_nearby
+    type: presence
+    slot: 1
+    timeout: 2min
+    name: "iPhone Nearby"
+    on_press:
+      - espidf_ble_keyboard.run_action:
+          id: my_keyboard
+          action: "lcd:Welcome home"
+
+  # Physical keys. The pull-up keeps an unwired pin from pressing anything.
+  # - platform: gpio
+  #   pin: { number: GPIO4, mode: { input: true, pullup: true }, inverted: true }
+  #   name: "Push to Talk"
+  #   on_press:
+  #     - espidf_ble_keyboard.key_hold:
+  #         id: my_keyboard
+  #         modifier: 0x00
+  #         key: 0x3A                 # F1
+  #   on_release:
+  #     - espidf_ble_keyboard.key_release:
+  #         id: my_keyboard
+  # - platform: gpio
+  #   pin: { number: GPIO19, mode: { input: true, pullup: true }, inverted: true }
+  #   name: "Hold Volume Up"
+  #   on_press:
+  #     - espidf_ble_keyboard.hold_action:
+  #         id: my_keyboard
+  #         action: "volume_up"
+  #   on_release:
+  #     - espidf_ble_keyboard.key_release:
+  #         id: my_keyboard
+  # - platform: gpio
+  #   pin: { number: GPIO18, mode: { input: true, pullup: true }, inverted: true }
+  #   name: "Macro Key"
+  #   on_press:
+  #     - espidf_ble_keyboard.run_action:
+  #         id: my_keyboard
+  #         action: "macro:Copy-Paste"
+
+  - platform: status
+    name: "Status"
+
+sensor:
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "BLE Host RSSI"
+    update_interval: 15s
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: active_host
+    name: "Active Host"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: presence_count
+    slot: 1
+    name: "iPhone Sightings"
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    type: presence_rssi
+    slot: 1
+    name: "iPhone Signal"
+    filters:
+      - sliding_window_moving_average:
+          window_size: 3
+          send_every: 1
+
+  - platform: wifi_signal
+    id: wifi_db
+    name: "WiFi Signal"
+    update_interval: 60s
+
+  # A battery on GPIO35 through a 2:1 divider; leave out on a USB-powered build.
+  # - platform: adc
+  #   pin: GPIO35
+  #   id: battery_pct
+  #   name: "Keyboard Battery"
+  #   device_class: battery
+  #   unit_of_measurement: "%"
+  #   accuracy_decimals: 0
+  #   attenuation: 12db
+  #   update_interval: 60s
+  #   filters:
+  #     - calibrate_linear:
+  #         - 1.65 -> 0.0
+  #         - 2.10 -> 100.0
+  #     - clamp:
+  #         min_value: 0
+  #         max_value: 100

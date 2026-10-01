@@ -13,6 +13,7 @@ web control page shows the matching version badge.
   fixed MAC. New `presence`, `presence_count` and `presence_rssi` sensors bring that, signal
   strength included, to Home Assistant and `if:`, and a tick box there marks a host's button on
   the web page with a green dot each time it is heard.
+- **A full example config** with every feature switched on, for five hosts, linked from the README.
 
 ### Fixed
 - **A popped-out remote could close itself just after opening** and drop back into the page: a

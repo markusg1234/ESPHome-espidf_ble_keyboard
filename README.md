@@ -26,12 +26,12 @@ This is a custom [ESPHome](https://esphome.io) component that turns an ESP32 int
 * **Battery Level:** Report a real charge percentage over the BLE Battery Service, so the host's Bluetooth settings show it like any other wireless keyboard. Point `battery_level:` at any sensor reading 0–100. See [Battery level](#battery-level).
 * **Paired Hosts Nearby:** Hear a paired phone in range by its identity key, so its changing address is no obstacle — a green dot on its button in the web page's host bar, plus a presence binary sensor, a sighting count and the signal strength it was heard at for Home Assistant, `if:` and automations. See [Paired hosts nearby](#paired-hosts-nearby).
 
-📖 [Keycode Reference](docs/keycodes.md) · [🌐 View Web Page](https://markusg1234.github.io/ESPHome-espidf_ble_keyboard)
+📖 [Keycode Reference](docs/keycodes.md) · [📄 Full Example YAML](docs/full_example.yaml) · [🌐 View Web Page](https://markusg1234.github.io/ESPHome-espidf_ble_keyboard)
 
 
 ## Usage Example
 
-Add the following to your ESPHome YAML configuration:
+Add the following to your ESPHome YAML configuration. For every feature switched on at once, start from [`docs/full_example.yaml`](docs/full_example.yaml).
 
 > **Versioning:** tagged releases are listed on the [Releases page](https://github.com/markusg1234/ESPHome-espidf_ble_keyboard/releases). `ref: main` always tracks the latest code (re-fetched per ESPHome's [`external_components`](https://esphome.io/components/external_components.html) `refresh:` interval, default 1 day). Pin a tag like `ref: v1.0.0` to stay on a fixed release and upgrade only when you change the ref.
 
