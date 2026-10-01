@@ -263,6 +263,8 @@ const RMT_KNOB=[32,320],RMT_KNOB_C=[16,280],RMT_KNOB_ROOM=8,RMT_KNOB_STEP=[10,90
 
 const RMT_SLIDER=[30,480],RMT_SLIDER_W=[10,120],RMT_SLIDER_T=[8,120];
 
+const RMT_SIDE_GAP=[0,200];
+
 const KNOB_SET={};
 
 const RMT_LCD_OPTS=['sm','lg','xl','left','center','centre','right'];
@@ -363,7 +365,7 @@ function knobShow(k,v){
   k.classList.toggle('nolevel',v===null);
   const f=v===null?0:Math.min(1,Math.max(0,(v-min)/(max-min)));
   // A slider: its fill and thumb that share of the way along.
-  if(k.classList.contains('rmt-slider')){k.style.setProperty('--rb-sl',(f*100)+'%');return}
+  if(k.classList.contains('rmt-slider')){k.style.setProperty('--rb-sl',String(f));return}
   const face=k.querySelector('.rmt-knob-face'),arc=k.querySelector('.rmt-knob-gauge .lv');
   if(face)face.style.transform='rotate('+(-sw/2+sw*f)+'deg)';
   if(arc)arc.style.strokeDasharray=(sw*f)+' 360';
@@ -544,10 +546,11 @@ function knobWire(root,send){
     queue(k,a,1);
   };
   // Where along a slider's track a point lies, 0 at its min end and 1 at max:
-  // left to right across, bottom to top upright.
+  // left to right across, bottom to top upright. The thumb stops half its size
+  // short of each end, so the ends are taken off as it is drawn.
   const sliderAt=(d,x,y)=>{
-    const r=d.rect,f=d.vert?(r.bottom-y)/r.height:(x-r.left)/r.width;
-    return Math.min(1,Math.max(0,f));
+    const r=d.rect,len=d.vert?r.height:r.width,p=d.vert?r.bottom-y:x-r.left;
+    return Math.min(1,Math.max(0,(p-d.ins)/Math.max(1,len-2*d.ins)));
   };
   root.addEventListener('pointerdown',e=>{
     if(!e.target.closest||(e.pointerType==='mouse'&&e.button!==0))return;
@@ -582,7 +585,10 @@ function knobWire(root,send){
       e.preventDefault();
       try{tr.focus({preventScroll:true})}catch(_){}
       try{tr.setPointerCapture(e.pointerId)}catch(_){}
-      drag={k:k,ring:tr,id:e.pointerId,slider:true,vert:k.classList.contains('vert'),rect:tr.getBoundingClientRect(),
+      const vt=k.classList.contains('vert'),rc=tr.getBoundingClientRect(),
+            tb=k.querySelector('.rmt-slider-thumb').getBoundingClientRect();
+      drag={k:k,ring:tr,id:e.pointerId,slider:true,vert:vt,rect:rc,
+            ins:Math.min((vt?tb.height:tb.width)/2,(vt?rc.height:rc.width)/2),
             from:from,sets:sets,x0:e.clientX,y0:e.clientY,moved:false,thumb:thumb,can:can,to:null};
       k.classList.add('drag');
       if(!thumb){drag.to=potVal(k,sliderAt(drag,e.clientX,e.clientY));knobShow(k,drag.to)}
@@ -1016,7 +1022,11 @@ function sectionHtml(s){
       // Sections in a row instead of one under another — a knob between the
       // volume and channel keys, say. One level only: a side inside a side, or a
       // divider, draws nothing, as validateTpl refuses both.
-      inner='<div class="rmt-side">'+s.slice(1).map(c=>
+      // An optional {"gap"} first: the room between the parts, a whole number
+      // inside RMT_SIDE_GAP, checked here too since it reaches an inline style.
+      const g=(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1].gap:undefined;
+      const gap=typeof g==='number'&&g===Math.floor(g)&&g>=RMT_SIDE_GAP[0]&&g<=RMT_SIDE_GAP[1]?' style="gap:'+g+'px"':'';
+      inner='<div class="rmt-side"'+gap+'>'+s.slice(1).map(c=>
         Array.isArray(c)&&c[0]!=='side'&&c[0]!=='-'?sectionHtml(c):'').join('')+'</div>';
     }else if(k==='rocker'){
       // An optional {"width","h"} first: each column's width and each half's
@@ -1208,8 +1218,20 @@ function validateTpl(t){
       if(RMT_KINDS.indexOf(s[0])<0)return 'Unknown section kind "'+s[0]+'" — use '+RMT_KINDS.join(', ');
       if(s[0]==='side'){
         if(inSide)return 'A side section cannot hold another side section';
-        if(s.length<3)return 'A side section puts two or more sections side by side — ["side",["strip",…],["pot"]]';
-        for(const p of s.slice(1)){
+        let parts=s.slice(1);
+        // It may open with {"gap"}: the room between its parts.
+        if(parts.length&&parts[0]&&typeof parts[0]==='object'&&!Array.isArray(parts[0])){
+          const cfg=parts[0];
+          parts=parts.slice(1);
+          for(const k in cfg){
+            if(k!=='gap')return 'A side section takes gap — "'+k+'" is not it';
+            const n=cfg[k];
+            if(typeof n!=='number'||n!==Math.floor(n)||n<RMT_SIDE_GAP[0]||n>RMT_SIDE_GAP[1])
+              return 'side "gap" is '+RMT_SIDE_GAP[0]+'-'+RMT_SIDE_GAP[1]+' pixels, a whole number — e.g. {"gap":24}';
+          }
+        }
+        if(parts.length<2)return 'A side section puts two or more sections side by side — ["side",["strip",…],["pot"]]';
+        for(const p of parts){
           if(Array.isArray(p)&&p[0]==='-')return 'A divider cannot go in a side section';
           const bad=sectionBad(p,true);
           if(bad)return bad;
@@ -1635,7 +1657,7 @@ export const RMT_CSS = `
 .rmt-knob.fu .rmt-knob-mk.up,.rmt-knob.fd .rmt-knob-mk.dn{opacity:1;color:var(--accent)}
 .rmt-knob.fu .rmt-knob-ring,.rmt-knob.fd .rmt-knob-ring{border-color:var(--accent)}
 .rmt-slider{display:flex;flex-direction:column;align-items:center;gap:4px;margin:6px 0}
-.rmt-slider-row{display:flex;align-items:center;gap:8px}
+.rmt-slider-row{display:flex;align-items:center;gap:4px}
 .rmt-slider.vert .rmt-slider-row{flex-direction:column-reverse}
 .rmt-slider-track{position:relative;width:var(--rb-sl-len,160px);height:var(--rb-sl-w,28px);touch-action:pan-y;cursor:pointer;outline:none;
   border-radius:8px;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
@@ -1646,12 +1668,12 @@ export const RMT_CSS = `
   background:var(--rb-label,var(--muted));opacity:.35}
 .rmt-slider.vert .rmt-slider-track::before{left:50%;right:auto;top:0;bottom:0;width:var(--rb-sl-rail,6px);height:auto;
   margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2)}
-.rmt-slider-fill{position:absolute;left:0;top:50%;width:var(--rb-sl,0%);height:var(--rb-sl-rail,6px);
+.rmt-slider-fill{position:absolute;left:0;top:50%;width:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));height:var(--rb-sl-rail,6px);
   margin-top:calc(var(--rb-sl-rail,6px) / -2);border-radius:var(--rb-sl-rail,6px);
   background:var(--rb-lit-bg,var(--accent));transition:width .15s}
-.rmt-slider.vert .rmt-slider-fill{left:50%;top:auto;bottom:0;width:var(--rb-sl-rail,6px);height:var(--rb-sl,0%);
+.rmt-slider.vert .rmt-slider-fill{left:50%;top:auto;bottom:0;width:var(--rb-sl-rail,6px);height:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));
   margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2);transition:height .15s}
-.rmt-slider-thumb{position:absolute;top:50%;left:var(--rb-sl,0%);width:var(--rb-sl-th,20px);height:var(--rb-sl-th,20px);
+.rmt-slider-thumb{position:absolute;top:50%;left:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));width:var(--rb-sl-th,20px);height:var(--rb-sl-th,20px);
   margin:calc(var(--rb-sl-th,20px) / -2) 0 0 calc(var(--rb-sl-th,20px) / -2);border-radius:50%;
   background:var(--rb-ok-bg,var(--rb-btn-bg,var(--bg)));border:1px solid var(--rb-btn-border,var(--border));
   box-shadow:0 1px 4px rgba(0,0,0,.35);transition:left .15s,bottom .15s}
@@ -1661,11 +1683,12 @@ export const RMT_CSS = `
 .rmt-slider[data-press] .rmt-slider-thumb{cursor:pointer}
 .rmt-slider.nolevel[data-press]:not(.off) .rmt-slider-thumb{visibility:visible;opacity:.6}
 .rmt-slider.nopress .rmt-slider-thumb svg{visibility:hidden}
-.rmt-slider.vert .rmt-slider-thumb{left:50%;top:auto;bottom:var(--rb-sl,0%);
+.rmt-slider.vert .rmt-slider-thumb{left:50%;top:auto;bottom:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));
   margin:0 0 calc(var(--rb-sl-th,20px) / -2) calc(var(--rb-sl-th,20px) / -2)}
 .rmt-slider.drag .rmt-slider-fill,.rmt-slider.drag .rmt-slider-thumb{transition:none}
 .rmt-slider.nolevel .rmt-slider-fill,.rmt-slider.nolevel .rmt-slider-thumb{visibility:hidden}
-.rmt-slider-mk{font-size:16px;font-weight:700;line-height:1;padding:4px;opacity:.7;cursor:pointer;
+.rmt-slider-mk{display:flex;align-items:center;justify-content:center;flex:none;width:20px;height:20px;
+  font-size:16px;font-weight:700;line-height:1;opacity:.7;cursor:pointer;
   color:var(--rb-btn-fg,var(--fg));user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .rmt-slider.fu .rmt-slider-mk.up,.rmt-slider.fd .rmt-slider-mk.dn{opacity:1;color:var(--accent)}
 .rmt-slider-cap{display:flex;align-items:baseline;gap:6px}

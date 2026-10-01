@@ -63,6 +63,7 @@ const PARTS = [
   ['const RMT_RING=', () => oneLine('const RMT_RING=')],
   ['const RMT_KNOB=', () => oneLine('const RMT_KNOB=')],
   ['const RMT_SLIDER=', () => oneLine('const RMT_SLIDER=')],
+  ['const RMT_SIDE_GAP=', () => oneLine('const RMT_SIDE_GAP=')],
   ['const KNOB_SET=', () => oneLine('const KNOB_SET=')],
   ['const RMT_LCD_OPTS=', () => oneLine('const RMT_LCD_OPTS=')],
   ['const RMT_LCD_COLOURS=', () => oneLine('const RMT_LCD_COLOURS=')],
@@ -289,12 +290,18 @@ return [sectionHtml(['side',['strip',['Vol','volume_up','volume_down']],['pot',{
         iconNames({sections:[['side',['row',['spare1','A','icon:logo']]]]}).join(),
         lcdLabel({sections:[['side',['strip',['Vol',['volume_up','Louder']]]]]},'volume_up'),
         validateTpl({id:'s',name:'S',sections:[['side',['row','home'],['side',['row','mute']]]]}),
-        validateTpl({id:'s',name:'S',sections:[['side',['row','home'],['pot']]]})];`)();
+        validateTpl({id:'s',name:'S',sections:[['side',['row','home'],['pot']]]}),
+        sectionHtml(['side',{gap:30},['row','home'],['row','mute']]),
+        sectionHtml(['side',{gap:999},['row','home'],['row','mute']]),
+        validateTpl({id:'s',name:'S',sections:[['side',{gap:30},['row','home']]]}),
+        validateTpl({id:'s',name:'S',sections:[['side',{gap:30},['row','home'],['pot']]]})];`)();
 if (!sideProbe[0].startsWith('<div class="rmt-section"><div class="rmt-side"><div class="rmt-section"><div class="rmt-strip">') ||
     (sideProbe[0].match(/class="rmt-section"/g) || []).length !== 4 || !sideProbe[0].includes('data-up="volume_up"') ||
     !sideProbe[1].includes('data-action="home"') || sideProbe[1].includes('data-action="mute"') ||
     sideProbe[1].includes('rmt-divider') || sideProbe[2] !== 'logo' || sideProbe[3] !== 'Louder' ||
-    !/another side/.test(sideProbe[4]) || sideProbe[5] !== '') {
+    !/another side/.test(sideProbe[4]) || sideProbe[5] !== '' ||
+    !sideProbe[6].includes('<div class="rmt-side" style="gap:30px"><div class="rmt-section"><div class="rmt-row">') ||
+    !sideProbe[7].includes('<div class="rmt-side"><div') || !/two or more/.test(sideProbe[8]) || sideProbe[9] !== '') {
   throw new Error(`side renders incorrectly:\n${sideProbe.join('\n')}`);
 }
 const builtins = new Function(`${js}\nreturn RMT_BUILTIN.map(t=>t.id);`)();

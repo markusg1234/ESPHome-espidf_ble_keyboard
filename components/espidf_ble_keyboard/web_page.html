@@ -435,11 +435,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    A track to press or drag to a value, across or upright (.vert), its length
    and thickness set inline from checked whole numbers (--rb-sl-len, and
    --rb-sl-w with the rail and thumb that go with it). The fill and the thumb sit at
-   --rb-sl, which knobShow() sets — not animated while a finger is on it. The
-   track takes a sideways swipe across and an upright one upright, leaving the
-   other way to scroll the page. */
+   --rb-sl, a share from 0 to 1 that knobShow() sets — not animated while a finger
+   is on it. The thumb travels half its size in from each end, never past them,
+   so the − and + can sit close to the track. The track takes a sideways swipe
+   across and an upright one upright, leaving the other way to scroll the page. */
 .rmt-slider{display:flex;flex-direction:column;align-items:center;gap:4px;margin:6px 0}
-.rmt-slider-row{display:flex;align-items:center;gap:8px}
+.rmt-slider-row{display:flex;align-items:center;gap:4px}
 .rmt-slider.vert .rmt-slider-row{flex-direction:column-reverse}
 .rmt-slider-track{position:relative;width:var(--rb-sl-len,160px);height:var(--rb-sl-w,28px);touch-action:pan-y;cursor:pointer;outline:none;
   border-radius:8px;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
@@ -450,12 +451,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
   background:var(--rb-label,var(--muted));opacity:.35}
 .rmt-slider.vert .rmt-slider-track::before{left:50%;right:auto;top:0;bottom:0;width:var(--rb-sl-rail,6px);height:auto;
   margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2)}
-.rmt-slider-fill{position:absolute;left:0;top:50%;width:var(--rb-sl,0%);height:var(--rb-sl-rail,6px);
+.rmt-slider-fill{position:absolute;left:0;top:50%;width:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));height:var(--rb-sl-rail,6px);
   margin-top:calc(var(--rb-sl-rail,6px) / -2);border-radius:var(--rb-sl-rail,6px);
   background:var(--rb-lit-bg,var(--accent));transition:width .15s}
-.rmt-slider.vert .rmt-slider-fill{left:50%;top:auto;bottom:0;width:var(--rb-sl-rail,6px);height:var(--rb-sl,0%);
+.rmt-slider.vert .rmt-slider-fill{left:50%;top:auto;bottom:0;width:var(--rb-sl-rail,6px);height:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));
   margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2);transition:height .15s}
-.rmt-slider-thumb{position:absolute;top:50%;left:var(--rb-sl,0%);width:var(--rb-sl-th,20px);height:var(--rb-sl-th,20px);
+.rmt-slider-thumb{position:absolute;top:50%;left:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));width:var(--rb-sl-th,20px);height:var(--rb-sl-th,20px);
   margin:calc(var(--rb-sl-th,20px) / -2) 0 0 calc(var(--rb-sl-th,20px) / -2);border-radius:50%;
   background:var(--rb-ok-bg,var(--rb-btn-bg,var(--bg)));border:1px solid var(--rb-btn-border,var(--border));
   box-shadow:0 1px 4px rgba(0,0,0,.35);transition:left .15s,bottom .15s}
@@ -466,11 +467,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-slider[data-press] .rmt-slider-thumb{cursor:pointer}
 .rmt-slider.nolevel[data-press]:not(.off) .rmt-slider-thumb{visibility:visible;opacity:.6}
 .rmt-slider.nopress .rmt-slider-thumb svg{visibility:hidden}
-.rmt-slider.vert .rmt-slider-thumb{left:50%;top:auto;bottom:var(--rb-sl,0%);
+.rmt-slider.vert .rmt-slider-thumb{left:50%;top:auto;bottom:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));
   margin:0 0 calc(var(--rb-sl-th,20px) / -2) calc(var(--rb-sl-th,20px) / -2)}
 .rmt-slider.drag .rmt-slider-fill,.rmt-slider.drag .rmt-slider-thumb{transition:none}
 .rmt-slider.nolevel .rmt-slider-fill,.rmt-slider.nolevel .rmt-slider-thumb{visibility:hidden}
-.rmt-slider-mk{font-size:16px;font-weight:700;line-height:1;padding:4px;opacity:.7;cursor:pointer;
+.rmt-slider-mk{display:flex;align-items:center;justify-content:center;flex:none;width:20px;height:20px;
+  font-size:16px;font-weight:700;line-height:1;opacity:.7;cursor:pointer;
   color:var(--rb-btn-fg,var(--fg));user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .rmt-slider.fu .rmt-slider-mk.up,.rmt-slider.fd .rmt-slider-mk.dn{opacity:1;color:var(--accent)}
 .rmt-slider-cap{display:flex;align-items:baseline;gap:6px}
@@ -1022,7 +1024,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <dt><code>["grid",…]</code></dt><dd>Equal rectangles in columns, the layout said once: <code>["grid",{"cols":2,"h":56,"opts":"sq"},["spare1","Copy"],["spare2","Paste"]]</code>. The settings are optional &mdash; <code>cols</code> 1&ndash;8 (2 if left out), <code>h</code> 24&ndash;160 pixels, and <code>opts</code> every key takes. A key's own options add to those, and <code>"|"</code> leaves a cell empty.</dd>
 <dt><code>["lcd",…]</code></dt><dd>A small screen: <code>["lcd",["Room","temp"],["Host","@host"]]</code>. Each line is a label and the value to show &mdash; <code>@host @slot @mac @state @rssi @battery @layout</code> come from the keyboard itself, <code>@last</code> and <code>@station</code> name the button just pressed, <code>@msg</code> shows what an <code>lcd:text</code> action wrote, and any other name is an entry in the component's <code>sources:</code>. A third entry sizes and justifies one line: <code>sm lg xl</code>, <code>left centre right</code>, or a <code>#hex</code> colour. Left alone a line spreads &mdash; label one side, value the other. A settings object in front of the lines sizes the panel itself like a real display: <code>{"cols":16,"rows":2}</code> is 16 characters by 2 lines (4&ndash;40 and 1&ndash;8), and <code>fg bg label border</code> colour that panel alone.</dd>
 <dt><code>["slider",…]</code></dt><dd>A track to press or drag to a value, as an analogue pot is turned to one: <code>["slider",{"set":"spare12","label":"Lamp"}]</code> sends <code>spare12=&lt;value&gt;</code> once when let go, and <code>{"level":"tv_volume"}</code> sends the presses of <code>"volume_up","volume_down"</code> (or two actions you list) from that reading. Upright unless <code>"horizontal":true</code> (or <code>"vertical":false</code>); <code>length</code> 30&ndash;480 pixels and <code>width</code> 10&ndash;120 (how thick), <code>thumb</code> 8&ndash;120 (its size, apart from the width), <code>min</code> <code>max</code> <code>inc</code>, <code>show</code>, <code>label</code>, <code>label_at</code> and <code>marks</code> as on a pot. A pot&rsquo;s settings and actions carry over, so changing <code>"pot"</code> to <code>"slider"</code> is all a swap takes: <code>size</code> is the length, and a third action is pressed by a tap on the thumb, as a pot&rsquo;s middle key is.</dd>
-<dt><code>["side",…]</code></dt><dd>Sections side by side instead of one under another: <code>["side",["strip",["Vol","volume_up","volume_down"]],["pot",{"size":100}],["strip",["Ch","channel_up","channel_down"]]]</code> puts a knob between two columns.</dd>
+<dt><code>["side",…]</code></dt><dd>Sections side by side instead of one under another: <code>["side",["strip",["Vol","volume_up","volume_down"]],["pot",{"size":100}],["strip",["Ch","channel_up","channel_down"]]]</code> puts a knob between two columns. <code>["side",{"gap":24},…]</code> sets the room between them, 0&ndash;200 pixels (12 unless set).</dd>
 <dt><code>["-"]</code></dt><dd>A divider.</dd>
 <dt><code>"theme"</code></dt><dd>Size and colour, e.g. <code>"maxw": "250px", "zoom": "1.25",</code> &mdash; <code>maxw</code> is how wide the remote may draw, <code>zoom</code> scales all of it at once: buttons, their icons and labels, the gaps, the d&#8209;pad and the rockers. <code>maxw</code> is measured before the zoom, so it grows too &mdash; halve one to hold the width while the buttons get bigger.</dd>
 </dl>
@@ -1753,6 +1755,8 @@ const RMT_KNOB=[32,320],RMT_KNOB_C=[16,280],RMT_KNOB_ROOM=8,RMT_KNOB_STEP=[10,90
 // A slider's "length" — its track, across or upright — its "width", how thick
 // it is across the track, and its "thumb", if not in proportion; in pixels.
 const RMT_SLIDER=[30,480],RMT_SLIDER_W=[10,120],RMT_SLIDER_T=[8,120];
+// The room between a side section's parts, in pixels.
+const RMT_SIDE_GAP=[0,200];
 // The same two things for an lcd line: what a line may carry, and the values
 // this firmware can resolve on its own. A built-in is spelled with a leading @
 // so the two namespaces cannot collide — a key naming a `sources:` entry
@@ -1874,7 +1878,7 @@ function knobShow(k,v){
   k.classList.toggle('nolevel',v===null);
   const f=v===null?0:Math.min(1,Math.max(0,(v-min)/(max-min)));
   // A slider: its fill and thumb that share of the way along.
-  if(k.classList.contains('rmt-slider')){k.style.setProperty('--rb-sl',(f*100)+'%');return}
+  if(k.classList.contains('rmt-slider')){k.style.setProperty('--rb-sl',String(f));return}
   const face=k.querySelector('.rmt-knob-face'),arc=k.querySelector('.rmt-knob-gauge .lv');
   if(face)face.style.transform='rotate('+(-sw/2+sw*f)+'deg)';
   if(arc)arc.style.strokeDasharray=(sw*f)+' 360';
@@ -2066,10 +2070,11 @@ function knobWire(root,send){
     queue(k,a,1);
   };
   // Where along a slider's track a point lies, 0 at its min end and 1 at max:
-  // left to right across, bottom to top upright.
+  // left to right across, bottom to top upright. The thumb stops half its size
+  // short of each end, so the ends are taken off as it is drawn.
   const sliderAt=(d,x,y)=>{
-    const r=d.rect,f=d.vert?(r.bottom-y)/r.height:(x-r.left)/r.width;
-    return Math.min(1,Math.max(0,f));
+    const r=d.rect,len=d.vert?r.height:r.width,p=d.vert?r.bottom-y:x-r.left;
+    return Math.min(1,Math.max(0,(p-d.ins)/Math.max(1,len-2*d.ins)));
   };
   root.addEventListener('pointerdown',e=>{
     if(!e.target.closest||(e.pointerType==='mouse'&&e.button!==0))return;
@@ -2104,7 +2109,10 @@ function knobWire(root,send){
       e.preventDefault();
       try{tr.focus({preventScroll:true})}catch(_){}
       try{tr.setPointerCapture(e.pointerId)}catch(_){}
-      drag={k:k,ring:tr,id:e.pointerId,slider:true,vert:k.classList.contains('vert'),rect:tr.getBoundingClientRect(),
+      const vt=k.classList.contains('vert'),rc=tr.getBoundingClientRect(),
+            tb=k.querySelector('.rmt-slider-thumb').getBoundingClientRect();
+      drag={k:k,ring:tr,id:e.pointerId,slider:true,vert:vt,rect:rc,
+            ins:Math.min((vt?tb.height:tb.width)/2,(vt?rc.height:rc.width)/2),
             from:from,sets:sets,x0:e.clientX,y0:e.clientY,moved:false,thumb:thumb,can:can,to:null};
       k.classList.add('drag');
       if(!thumb){drag.to=potVal(k,sliderAt(drag,e.clientX,e.clientY));knobShow(k,drag.to)}
@@ -4428,8 +4436,20 @@ function appendStep(el,val){
       if(RMT_KINDS.indexOf(s[0])<0)return 'Unknown section kind "'+s[0]+'" — use '+RMT_KINDS.join(', ');
       if(s[0]==='side'){
         if(inSide)return 'A side section cannot hold another side section';
-        if(s.length<3)return 'A side section puts two or more sections side by side — ["side",["strip",…],["pot"]]';
-        for(const p of s.slice(1)){
+        let parts=s.slice(1);
+        // It may open with {"gap"}: the room between its parts.
+        if(parts.length&&parts[0]&&typeof parts[0]==='object'&&!Array.isArray(parts[0])){
+          const cfg=parts[0];
+          parts=parts.slice(1);
+          for(const k in cfg){
+            if(k!=='gap')return 'A side section takes gap — "'+k+'" is not it';
+            const n=cfg[k];
+            if(typeof n!=='number'||n!==Math.floor(n)||n<RMT_SIDE_GAP[0]||n>RMT_SIDE_GAP[1])
+              return 'side "gap" is '+RMT_SIDE_GAP[0]+'-'+RMT_SIDE_GAP[1]+' pixels, a whole number — e.g. {"gap":24}';
+          }
+        }
+        if(parts.length<2)return 'A side section puts two or more sections side by side — ["side",["strip",…],["pot"]]';
+        for(const p of parts){
           if(Array.isArray(p)&&p[0]==='-')return 'A divider cannot go in a side section';
           const bad=sectionBad(p,true);
           if(bad)return bad;
@@ -6762,7 +6782,11 @@ buildKeyboard();
       // Sections in a row instead of one under another — a knob between the
       // volume and channel keys, say. One level only: a side inside a side, or a
       // divider, draws nothing, as validateTpl refuses both.
-      inner='<div class="rmt-side">'+s.slice(1).map(c=>
+      // An optional {"gap"} first: the room between the parts, a whole number
+      // inside RMT_SIDE_GAP, checked here too since it reaches an inline style.
+      const g=(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1].gap:undefined;
+      const gap=typeof g==='number'&&g===Math.floor(g)&&g>=RMT_SIDE_GAP[0]&&g<=RMT_SIDE_GAP[1]?' style="gap:'+g+'px"':'';
+      inner='<div class="rmt-side"'+gap+'>'+s.slice(1).map(c=>
         Array.isArray(c)&&c[0]!=='side'&&c[0]!=='-'?sectionHtml(c):'').join('')+'</div>';
     }else if(k==='rocker'){
       // An optional {"width","h"} first: each column's width and each half's
