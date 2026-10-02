@@ -1058,10 +1058,10 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div id="tpl-custom"></div>
 <div class="sb" id="sb">
 <div class="sb-intro"><strong>Build</strong> a style by pointing at it: start from one, then click a key or a section in the drawing to change it. The JSON box follows every change, and nothing is saved until you press Import.</div>
-<div class="macro-form" id="sb-start"><button id="sb-start-btn">Start</button></div>
+<div class="macro-form" id="sb-start"><button id="sb-start-btn">Start</button><button class="cancel sb-blank" title="A new style with one key, to build up from nothing">New</button></div>
 <div class="sb-msg" id="sb-bad" hidden></div>
 <div id="sb-main" hidden>
-<div class="sb-row"><label>Name <input id="sb-name" data-f="name" maxlength="24" autocomplete="off" spellcheck="false"></label><label>id <input id="sb-id" data-f="id" maxlength="15" autocomplete="off" autocapitalize="off" spellcheck="false" title="1-15 characters of a-z, 0-9 or _. The keyboard keeps one style per id, so Import over an id it already has replaces that style."></label><button class="mod-btn" id="sb-undo" data-f="undo" disabled>Undo</button></div>
+<div class="sb-row"><label>Name <input id="sb-name" data-f="name" maxlength="24" autocomplete="off" spellcheck="false"></label><label>id <input id="sb-id" data-f="id" maxlength="15" autocomplete="off" autocapitalize="off" spellcheck="false" title="1-15 characters of a-z, 0-9 or _. The keyboard keeps one style per id, so Import over an id it already has replaces that style."></label><button class="mod-btn" id="sb-undo" data-f="undo" disabled>Undo</button><button class="mod-btn sb-blank" data-f="blank" title="Put this style aside and start a new one with one key — Undo brings it back">New</button></div>
 <details class="sb-theme"><summary>Colours and size</summary><div class="sb-theme-rows" id="sb-theme-rows"></div><div class="sb-hint">A colour left empty follows the page's light or dark mode, so set all of them or none.</div></details>
 <div id="sb-canvas" class="rmt-body sb-canvas"></div>
 <div class="sb-insp" id="sb-insp"></div>
@@ -5998,6 +5998,14 @@ function appendStep(el,val){
     tplPreview();
   });
   if(sbStartBtn)sbStartBtn.addEventListener('click',()=>{if(tplExport)tplExport.click()});
+  // A style with nothing on it but one key, for building up from nothing: a style
+  // needs a section, and a key is something to click. Its id is the first one free.
+  document.querySelectorAll('.sb-blank').forEach(b=>b.addEventListener('click',()=>{
+    let id='my_style',n=1;
+    while(tplById(id)&&n<100)id='my_style_'+(++n);
+    sbLoad(tplText({id:id,name:'New style',theme:{},sections:[['row','remote_power']]}));
+    tplNote('A new style — click its key, or Add section, to build it up.');
+  }));
   if(sbAdd){
     for(const k of Object.keys(SB_KIND))sbAdd.appendChild(sbEl('option',{value:k},[SB_KIND[k][0]]));
     sbAdd.addEventListener('change',()=>{
