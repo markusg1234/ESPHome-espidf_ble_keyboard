@@ -15,6 +15,10 @@ web control page shows the matching version badge.
 ### Changed
 - **The keyboard holds 8 custom remote styles**, up from 6.
 
+### Fixed
+- **Restoring a backup now says it replaces remote styles** and each host's remote button
+  settings too; it always did, but the question before it left them out.
+
 ## v1.14.0 — 2026-10-02
 
 ### Added

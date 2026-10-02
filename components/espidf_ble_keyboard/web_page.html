@@ -6372,6 +6372,8 @@ function appendStep(el,val){
         +'  • calibration for '+Object.keys(scales).length+' slot(s)\n'
         +'  • on-connect actions for '+Object.keys(onc).length+' host slot(s) — the rest are cleared\n'
         +'  • '+(d.icons&&typeof d.icons==='object'?Object.keys(d.icons).length:0)+' button icon(s) — existing icons are deleted first\n'
+        +'  • '+(Array.isArray(d.remote_templates)?d.remote_templates.length:0)+' custom remote style(s), and the style each host uses — existing custom styles are deleted first\n'
+        +'  • Remote Buttons, Hold to Repeat, Press and Hold and Advertise over Bluetooth, for every host\n'
         +'  • UI preferences (theme, zoom, section layout)';
       if(!confirm(msg)){bkFile.value='';return}
       let doHosts=false;
