@@ -1211,7 +1211,7 @@ Press **Export** to drop the style currently shown into the box below as JSON, e
 
 **Import also takes a whole Export all list**, so a set of styles moves between keyboards in one paste — see [Copying styles to another keyboard](#copying-styles-to-another-keyboard). Every style in the list is checked, and given its slot, before any of them is written: one that would not render, or a list with nowhere to put its new styles, leaves the device untouched and says which style is the problem.
 
-The remote card **redraws as you type**, so the layout is visible before it is saved — the preview lives in the browser, and nothing reaches the device until you press Import. A missing or extra comma, curly or single quotes and unquoted names are forgiven, and the note says what was assumed; any other syntax error names the line it is on and puts the cursor there.
+The remote card **redraws as you type**, so the layout is visible before it is saved — the preview lives in the browser, and nothing reaches the device until you press Import. Some common slips, such as a missing comma or curly quotes, are repaired where only one meaning is possible, and the note says what was assumed; any syntax error left names the line it is on and puts the cursor there.
 
 ```json
 {

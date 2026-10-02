@@ -9,8 +9,7 @@ web control page shows the matching version badge.
 ### Added
 - **Remote styles can be built without writing JSON.** The web page draws the style being edited,
   copied from another or started new: click a key or a section to change it, add sections from a
-  list and pick colours. The JSON box follows every change and the drawing follows the box, which
-  now also forgives a missing comma, curly quotes and unquoted names.
+  list and pick colours. The JSON box follows every change and the drawing follows the box.
 
 ### Changed
 - **The keyboard holds 8 custom remote styles**, up from 6.
