@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
+## v1.14.0 — 2026-10-02
 
 ### Added
 - **The keyboard can tell when a paired phone is nearby.** With `presence_scan: true` it listens
