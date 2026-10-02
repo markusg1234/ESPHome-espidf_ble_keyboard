@@ -178,6 +178,48 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .tpl-help code{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0 3px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
 .tpl-help dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:7px 0}
 .tpl-help dt,.tpl-help dd{margin:0}
+/* The style builder. No selector here may name an .rmt- class:
+   tools/gen-remote-styles.mjs lifts every rule that does into the Home Assistant
+   card, which has no builder. The drawing is marked with sb- classes instead. */
+.sb{position:relative;margin:8px 0;padding:8px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.sb [hidden]{display:none!important}
+.sb-intro{font-size:12px;color:var(--muted);line-height:1.5}
+.sb-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:6px 0;font-size:12px;color:var(--muted)}
+.sb label,.sb-col{display:inline-flex;align-items:center;gap:4px}
+.sb input,.sb select{padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;max-width:100%}
+.sb select{max-width:180px}
+.sb input[type=number]{width:64px}
+.sb input[type=color]{width:30px;height:26px;padding:1px 2px;cursor:pointer}
+.sb-col.unset input[type=color]{opacity:.35}
+.sb .mod-btn:disabled{opacity:.4;cursor:default}
+.sb-theme summary{cursor:pointer;font-size:12px;color:var(--name);margin:6px 0}
+.sb-theme-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:4px 14px;font-size:12px;color:var(--muted)}
+.sb-theme-rows>*{display:grid;grid-template-columns:92px auto 1fr auto;align-items:center;gap:4px}
+.sb-theme-rows>label{grid-template-columns:92px 1fr}
+.sb-ctext{width:110px}
+.sb-theme-rows .sb-ctext,.sb-theme-rows input[type=text]{width:100%}
+/* The drawing lays out exactly as the remote does: it is a .rmt-body drawn by the
+   same renderer. Only its margin is the builder's. */
+.sb .sb-canvas{margin:10px auto;cursor:pointer}
+.sb-canvas>*:hover{outline:1px dashed var(--muted);outline-offset:3px}
+.sb-canvas .sb-on{outline:2px dashed var(--accent);outline-offset:3px}
+.sb-canvas .sb-key{outline:2px solid var(--accent);outline-offset:2px}
+/* While the box holds JSON that won't read, the builder shows its last good state
+   and waits — but Undo still works, since it is one way back. */
+.sb-wait #sb-main{opacity:.45;pointer-events:none}
+.sb-wait #sb-undo{pointer-events:auto}
+.sb-insp{border:1px solid var(--border);border-radius:8px;padding:4px 8px;margin:8px 0;background:var(--card)}
+/* On a remote too tall to see whole, the fields float just under what is
+   selected, over the rest of the drawing, so a key at its top is changed without
+   scrolling to the foot of it and back. */
+.sb-insp.float{position:absolute;left:0;right:0;z-index:3;margin:0;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.sb-close{float:right}
+.sb-title{font-size:12px;font-weight:600;color:var(--fg)}
+.sb-msg{font-size:11px;color:#c44;margin:4px 0}
+.sb-hint{font-size:11px;color:var(--muted);margin:4px 0;line-height:1.45}
+.sb-chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:6px 0;font-size:12px;color:var(--muted)}
+.sb-len{font-size:11px;color:var(--muted)}
+.sb-len.over{color:#c44}
 .ico-thumb{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:48px;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg)}
 .ico-thumb svg{width:auto;max-width:42px;height:18px;fill:currentColor}
 /* The same drawing on a dark key and a light one, round and wide, because a
@@ -685,7 +727,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.14.0</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.15.0-dev</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -1014,6 +1056,20 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="macro-form" style="margin-top:0"><span class="tpl-lbl">This host</span><div class="tpl-step"><button id="tpl-prev" title="Previous style">&minus;</button><select class="tpl-name" id="tpl-name" title="The style this host's remote is drawn in &mdash; open it for the whole list, or step with &minus; and +"></select><button id="tpl-next" title="Next style">+</button></div><button id="tpl-export" class="cancel" title="Copy the shown style into the box below as JSON — edit it, give it a new id, and Import it back as your own">Export</button><button id="tpl-export-all" class="cancel" title="Copy every custom style into the box below as one JSON list — paste it into the Home Assistant remote card, or into another keyboard's Import box to copy them all across">Export all</button></div>
 <div class="macro-form" style="margin-top:6px"><span class="tpl-lbl">This tab</span><div class="tpl-step"><button id="tpl-lock-prev" title="Previous style or host page for this tab">&minus;</button><select class="tpl-name" id="tpl-lock-name" title="What this tab keeps whatever host is active: a style, or a host's page with its Host Actions. Open it for the whole list. Nothing is saved on the keyboard."></select><button id="tpl-lock-next" title="Next style or host page for this tab">+</button></div></div>
 <div id="tpl-custom"></div>
+<div class="sb" id="sb">
+<div class="sb-intro"><strong>Build</strong> a style by pointing at it: start from one, then click a key or a section in the drawing to change it. The JSON box follows every change, and nothing is saved until you press Import.</div>
+<div class="macro-form" id="sb-start"><button id="sb-start-btn">Start</button></div>
+<div class="sb-msg" id="sb-bad" hidden></div>
+<div id="sb-main" hidden>
+<div class="sb-row"><label>Name <input id="sb-name" data-f="name" maxlength="24" autocomplete="off" spellcheck="false"></label><label>id <input id="sb-id" data-f="id" maxlength="15" autocomplete="off" autocapitalize="off" spellcheck="false" title="1-15 characters of a-z, 0-9 or _. The keyboard keeps one style per id, so Import over an id it already has replaces that style."></label><button class="mod-btn" id="sb-undo" data-f="undo" disabled>Undo</button></div>
+<details class="sb-theme"><summary>Colours and size</summary><div class="sb-theme-rows" id="sb-theme-rows"></div><div class="sb-hint">A colour left empty follows the page's light or dark mode, so set all of them or none.</div></details>
+<div id="sb-canvas" class="rmt-body sb-canvas"></div>
+<div class="sb-insp" id="sb-insp"></div>
+<div class="sb-row"><select id="sb-add" data-f="add" title="Adds a section after the one selected, or at the end"><option value="">Add section&hellip;</option></select></div>
+<div class="sb-len" id="sb-len"></div>
+</div>
+<datalist id="sb-src"></datalist><datalist id="sb-lit"></datalist><datalist id="sb-icons"></datalist>
+</div>
 <div class="tpl-help"><strong>Roll your own:</strong> Export a style, change its <code>id</code> and <code>name</code>, rearrange its <code>sections</code>, then Import. Import also takes a whole <strong>Export all</strong> list &mdash; one paste copies a set of styles to another keyboard. It adds and replaces by <code>id</code>, never deletes: a style the other keyboard has that the list does not stays where it is. The remote card redraws as you type &mdash; nothing is saved until you press Import.
 <dl>
 <dt><code>["row",…]</code></dt><dd>A row of round buttons. <code>"|"</code> spaces it out.</dd>
@@ -2601,6 +2657,7 @@ function setIcon(n,rec){
   if((rec?JSON.stringify(rec):'')===was)return;
   saveIconCache();
   if(window.redrawRemote)window.redrawRemote(n);
+  if(window.sbRedraw)window.sbRedraw();
 }
 // Fetches whatever a style names that this page load has not re-read yet.
 function wantIcons(t){
@@ -4097,6 +4154,8 @@ function appendStep(el,val){
 
   function showTpl(){
     fillStep(tplName,tplLabels(),tplIdx,tplOpts.length?'':'—');
+    // The builder's Start button names the style it would start from.
+    sbStartLabel();
   }
 
   // Rebuilt whenever the list can have changed — a style imported or deleted
@@ -4248,7 +4307,7 @@ function appendStep(el,val){
       a.className='ovr-act';a.textContent=t.id;
       const eb=document.createElement('button');
       eb.className='macro-act';eb.textContent='✎';eb.title='Load into the box below to edit';
-      eb.addEventListener('click',()=>{tplJson.value=tplText(t);tplNote('Loaded "'+t.name+'" — edit and Import to replace it.')});
+      eb.addEventListener('click',()=>{sbLoad(tplText(t));tplNote('Loaded "'+t.name+'" — edit and Import to replace it.')});
       const db=document.createElement('button');
       db.className='macro-act del';db.textContent='✕';db.title='Delete this style. Hosts using it fall back to the full remote.';
       db.addEventListener('click',()=>{
@@ -4352,33 +4411,87 @@ function appendStep(el,val){
     return {msg:'Not valid JSON — line '+ln+', column '+col+
                 (src?': '+(src.length>48?src.slice(0,48)+'…':src):''),at:at};
   }
-  // A trailing comma is the one paste error that keeps happening — a section
-  // deleted from the end, an editor's last line removed — and JSON.parse answers
-  // it with "Unexpected token }" and nothing else. A regex would also rewrite
-  // the comma inside a label like "Movies, TV", so this walks the text instead:
-  // a comma is dropped only when it is outside a string with nothing but
-  // whitespace between it and the ] or } that closes the list.
-  function tplStripCommas(s){
-    let out='',str=false,esc=false,com=-1;
-    for(let i=0;i<s.length;i++){
+  // What hand-typed JSON gets wrong, repaired where it can only mean one thing: a
+  // comma missing between two values or one too many, curly or single quotes —
+  // which a phone types for you — and names left without quotes, such as
+  // {size:150} or [row, home]. One pass over the text that knows where strings
+  // are, so a comma or a bracket inside a label is never touched. Only ever run on
+  // text JSON.parse has already refused: a style that parses is taken as written.
+  // Returns the repaired text and a note of what was changed, with the line of
+  // the first of each, so whoever typed it can see what was assumed.
+  function tplRelax(s){
+    const open='"“”„\'‘’',dq='"“”„';
+    const stack=[],seen={},order=[];
+    let out='',i=0,line=1,valLine=1,prevVal=false;
+    const fix=(k,ln)=>{if(!seen[k]){seen[k]=ln;order.push(k)}};
+    // The last thing written that is not white space.
+    const lastSig=()=>{for(let j=out.length-1;j>=0;j--)if(!/\s/.test(out[j]))return j;return -1};
+    const value=()=>{if(prevVal){out+=',';fix('missing',valLine)}};
+    while(i<s.length){
       const c=s[i];
-      if(str){out+=c;if(esc)esc=false;else if(c==='\\')esc=true;else if(c==='"')str=false;continue}
-      if(c===']'||c==='}'){if(com>=0)out=out.slice(0,com)+out.slice(com+1);com=-1;out+=c;continue}
-      if(c===','){com=out.length;out+=c;continue}
-      if(c==='"'){str=true;com=-1;out+=c;continue}
-      if(c!==' '&&c!=='\t'&&c!=='\n'&&c!=='\r')com=-1;
-      out+=c;
+      if(c==='\n'){line++;out+=c;i++;continue}
+      if(/\s/.test(c)){out+=c;i++;continue}
+      if(c==='"'){
+        // A real JSON string: copied as it stands, escapes and all.
+        value();
+        let j=i+1;
+        while(j<s.length&&s[j]!=='"'){if(s[j]==='\\')j++;else if(s[j]==='\n')line++;j++}
+        out+=s.slice(i,j+1);i=j+1;prevVal=true;valLine=line;continue;
+      }
+      if(open.indexOf(c)>=0){
+        // Any other quote. It closes at a quote of the same family that is
+        // followed by what can follow a value — so the apostrophe in Mum's TV
+        // stays in the label instead of ending it — and on the same line. One
+        // that never closes is left as it is, for JSON.parse to refuse.
+        value();
+        const fam=dq.indexOf(c)>=0?dq:'\'‘’';
+        let j=i+1;
+        while(j<s.length&&s[j]!=='\n'&&!(fam.indexOf(s[j])>=0&&
+              /^[ \t]*([,\]}:\r\n]|$|["“”„'‘’[{])/.test(s.slice(j+1,j+40))))j++;
+        if(j>=s.length||s[j]==='\n'){out+=s.slice(i,j);i=j;prevVal=true;continue}
+        out+=JSON.stringify(s.slice(i+1,j));i=j+1;fix('quotes',line);prevVal=true;valLine=line;continue;
+      }
+      if(c==='['||c==='{'){value();stack.push(c);out+=c;i++;prevVal=false;continue}
+      if(c===']'||c==='}'){
+        // A comma straight before the close is one too many.
+        const k=lastSig();
+        if(k>=0&&out[k]===','){out=out.slice(0,k)+out.slice(k+1);fix('extra',line)}
+        stack.pop();out+=c;i++;prevVal=true;valLine=line;continue;
+      }
+      if(c===','){
+        // So is one with no value before it: [,"a"] or "a",,"b".
+        const k=lastSig();
+        if(k<0||out[k]===','||out[k]==='['||out[k]==='{'){fix('extra',line);i++;continue}
+        out+=c;i++;prevVal=false;continue;
+      }
+      if(c===':'&&stack[stack.length-1]==='{'){out+=c;i++;prevVal=false;continue}
+      // Anything else is a word: a number, true, false or null stays as it is, and
+      // the rest is a name someone forgot to quote. Inside a list a colon belongs
+      // to the word — lit:monitor — and in an object it ends it.
+      const stop=stack[stack.length-1]==='{'?/[\s,:\[\]{}"“”„'‘’]/:/[\s,\[\]{}"“”„'‘’]/;
+      let j=i;
+      while(j<s.length&&!stop.test(s[j]))j++;
+      if(j===i){out+=c;i++;prevVal=false;continue}   // left for JSON.parse to name
+      const w=s.slice(i,j);
+      value();
+      if(/^(true|false|null|-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?)$/.test(w))out+=w;
+      else{out+=JSON.stringify(w);fix('names',line)}
+      i=j;prevVal=true;valLine=line;
     }
-    return out;
+    const say={missing:'a missing comma',extra:'a comma too many',quotes:'curly or single quotes',
+               names:'names without quotes'};
+    return {text:out,note:order.length?'Fixed for you: '+
+            order.map(k=>say[k]+' (line '+seen[k]+')').join(', ')+'.':''};
   }
-  // {t}, {t,fixed:true} when a trailing comma had to go, or {err,at}. Shared by
-  // Import and the live preview. The message describes the *original* text: the
-  // stripped copy's offsets are short by however many commas came out of it, so
-  // reporting from that would point at the wrong character.
+  // {t}, {t,fixed:<note>} when tplRelax had to repair it, or {err,at}. Shared by
+  // Import, the live preview and the builder. An error is described in the
+  // *original* text: the repaired copy's offsets no longer match what is in the
+  // box, so reporting from that would point at the wrong character.
   function tplParse(text){
     try{return {t:JSON.parse(text)}}
     catch(e){
-      try{return {t:JSON.parse(tplStripCommas(text)),fixed:true}}
+      const x=tplRelax(text);
+      try{return {t:JSON.parse(x.text),fixed:x.note}}
       catch(e2){const w=tplWhere(text,e);return {err:w.msg,at:w.at}}
     }
   }
@@ -4865,7 +4978,7 @@ function appendStep(el,val){
       copy.name=(t.name+' copy').slice(0,24);
     }
     withIcons(copy).then(c=>{
-      tplJson.value=tplText(c);
+      sbLoad(tplText(c));
       tplNote('Exported "'+t.name+'"'+(t.custom?'':' as "'+copy.id+'"')+
               (c.icons?' with its '+Object.keys(c.icons).length+' icon'+(Object.keys(c.icons).length>1?'s':''):'')+
               ' — edit it, then Import.');
@@ -4968,7 +5081,7 @@ function appendStep(el,val){
     chain.then(()=>refreshActiveTemplate())
       // After the refresh, so the style it draws in the preview's place is the
       // one that was just saved rather than the one being replaced.
-      .then(()=>{tplEndPreview();fillTplSel();renderCustomList();
+      .then(()=>{tplEndPreview();fillTplSel();renderCustomList();sbRenderSoon();
                  const icons=sentIcons?' and '+sentIcons+' icon'+(sentIcons>1?'s':''):'';
                  tplNote(many?'Saved '+saved+' styles'+icons+'. Pick one above to give it to a host.'
                              :'Saved "'+list[0].name.trim()+'"'+icons+'. Pick it above to give it to a host.')})
@@ -5003,36 +5116,901 @@ function appendStep(el,val){
     tplPreviewing=false;
     if(window.endPreviewTemplate)window.endPreviewTemplate();
   }
+  // The builder is brought round to the box in every branch, so it shows what
+  // the box holds whichever of them it is.
   function tplPreview(){
     if(!tplJson||!window.previewTemplate)return;
     const raw=tplJson.value.trim();
-    if(!raw){tplEndPreview();tplNote('');return}
+    if(!raw){tplEndPreview();tplNote('');sbShow(null);return}
     const r=tplParse(raw);
     // A failed parse, or a style that would not render, leaves the last good
     // drawing where it is. Blanking the remote on whichever keystroke lands
     // mid-word is worse than a stale preview and a line saying what is wrong.
-    if(r.err){tplNote(r.err,true);return}
+    if(r.err){tplNote(r.err,true);sbShow({err:r.err});return}
     // Export all writes a list rather than a style: nothing to draw, but Import
     // takes it, so the box says how many are in there rather than going quiet.
     if(Array.isArray(r.t)){
       tplEndPreview();
       tplNote(r.t.length?r.t.length+' style'+(r.t.length>1?'s':'')+' — Import saves them all.'
                         :'An empty list — nothing to import.',!r.t.length);
+      sbShow({list:r.t.length});
       return;
     }
     const why=validateTpl(r.t);
-    if(why){tplNote(why,true);return}
+    if(why){tplNote(why,true);sbShow({err:why});return}
     tplPreviewing=true;
     // Saying "preview" while the card is hidden or popped out reads as a bug in
     // the preview rather than as the card being somewhere else.
     let n=window.previewTemplate(r.t)?'Preview — Import to save.'
                                      :'Drawn, but the remote card is not on screen. Import to save.';
-    if(r.fixed)n='A trailing comma was ignored. '+n;
+    if(r.fixed)n=r.fixed+' '+n;
     tplNote(n);
+    sbShow({t:r.t});
   }
   if(tplJson)tplJson.addEventListener('input',()=>{
     clearTimeout(tplPrevT);tplPrevT=setTimeout(tplPreview,300);
   });
+
+  // ── Style builder ──
+  // The style in the box, drawn and changed by pointing at it, for whoever would
+  // rather not write JSON. The box stays the one source of truth: the builder
+  // holds its parse, and every change it makes is checked by the validateTpl that
+  // Import runs and then written back into the box in Export's layout. So the two
+  // never disagree, and anyone who prefers JSON types in the box and watches the
+  // builder follow. Page only: the Home Assistant card takes styles ready-made.
+  const sb=document.getElementById('sb');
+  const sbStart=document.getElementById('sb-start');
+  const sbStartBtn=document.getElementById('sb-start-btn');
+  const sbMain=document.getElementById('sb-main');
+  const sbBad=document.getElementById('sb-bad');
+  const sbName=document.getElementById('sb-name');
+  const sbId=document.getElementById('sb-id');
+  const sbUndoBtn=document.getElementById('sb-undo');
+  const sbTheme=document.getElementById('sb-theme-rows');
+  const sbCanvas=document.getElementById('sb-canvas');
+  const sbInsp=document.getElementById('sb-insp');
+  const sbAdd=document.getElementById('sb-add');
+  const sbLen=document.getElementById('sb-len');
+  let sbT=null;        // the box's style, parsed and valid; the last good one while the box is not
+  let sbState=null;    // what the box holds: null when empty, {t}, {list:n} or {err}
+  // What is selected: {sec} is a section — [i], or [i,j] for part j of side
+  // section i — and item the path to one of its keys from there ([j], or
+  // [group,j] in a strip or rocker). slot names instead a key the section draws
+  // without listing it, such as one of the arrow pad's standard five.
+  let sbSel=null;
+  let sbWhy='';        // why the last change was refused, until the next one
+  let sbUndoList=[],sbTimer=null;
+
+  // Each kind by a plain name — with the JSON one beside it where they differ, so
+  // the box and the README can be matched up — and what Add section puts in: a
+  // section that works, not an empty one.
+  const SB_KIND={
+    row:['Row of keys',()=>['row','back','home']],
+    dpad:['Arrow pad (dpad)',()=>['dpad']],
+    ring:['Nav ring',()=>['ring']],
+    rocker:['Rockers',()=>['rocker',['Vol','volume_up','volume_down'],['','mute'],['Ch','channel_up','channel_down']]],
+    strip:['Key columns (strip)',()=>['strip',['Vol','volume_up','volume_down'],['Ch','channel_up','channel_down']]],
+    media:['Media keys',()=>['media','rewind','play_pause','fast_forward']],
+    apps:['App pills',t=>['apps',[sbSpare(t,0),'App 1'],[sbSpare(t,1),'App 2']]],
+    grid:['Grid of keys',t=>['grid',{cols:2},[sbSpare(t,0),'Key 1'],[sbSpare(t,1),'Key 2']]],
+    lcd:['Screen (lcd)',()=>['lcd',['','@host','centre'],['','@state','sm centre']]],
+    pot:['Pot (dial)',()=>['pot']],
+    slider:['Slider',t=>['slider',{set:sbSpare(t,0),label:'Level'}]],
+    side:['Side by side',()=>['side',['strip',['Vol','volume_up','volume_down']],['pot',{size:100}],
+                                     ['strip',['Ch','channel_up','channel_down']]]],
+    '-':['Divider',()=>['-']]};
+  // Kinds that hold the same things, so one can become another in place.
+  const SB_FAM=[['row','media','apps','grid'],['strip','rocker'],['pot','slider'],['dpad','ring']];
+  // The keys a section draws when it lists none.
+  const SB_DEF={dpad:['up','left','ok','right','down'],ring:['up','left','ok','right','down'],
+                pot:['volume_up','volume_down','mute'],slider:['volume_up','volume_down']};
+  // Each kind's settings: [key, label, type, bounds, shown when unset, unit].
+  // They only draw the fields — whether a value is allowed is validateTpl's to say.
+  const SB_SET={
+    ring:[['size','Size','int',RMT_RING,168,'px'],['center','Centre key','int',RMT_RING_C,84,'px']],
+    rocker:[['width','Width','int',RMT_KEY_H,'auto','px'],['h','Half height','int',RMT_KEY_H,'auto','px']],
+    grid:[['cols','Columns','int',[1,8],2],['h','Key height','int',RMT_KEY_H,'auto','px'],['opts','Every key','opts']],
+    side:[['gap','Gap','int',RMT_SIDE_GAP,12,'px']],
+    lcd:[['cols','Characters across','int',[4,40],'fill'],['rows','Lines','int',[1,8],'auto'],
+         ['fg','Text','hex'],['bg','Screen','hex'],['label','Labels','hex'],['border','Edge','hex']],
+    pot:[['size','Size','int',RMT_KNOB,150,'px'],['center','Middle key','int',RMT_KNOB_C,'half','px'],
+         ['step','A step','int',RMT_KNOB_STEP,30,'°'],['label','Caption','text',16],['label_at','Caption','at'],
+         ['marks','− and + marks','bool',null,true],['show','Shows','src'],['set','Sends its value to','act'],
+         ['level','Follows a reading','src'],['analogue','Analogue','bool',null,false],['min','Min','num',0],
+         ['max','Max','num',100],['inc','Step size','num',''],['sweep','Sweep','int',RMT_KNOB_SWEEP,270,'°']],
+    slider:[['set','Sends its value to','act'],['level','Follows a reading','src'],['label','Caption','text',16],
+         ['label_at','Caption','at'],['show','Shows','src'],['horizontal','Across','bool',null,false],
+         ['marks','− and + marks','bool',null,true],['min','Min','num',0],['max','Max','num',100],
+         ['inc','Step size','num',1],['length','Length','int',RMT_SLIDER,160,'px'],
+         ['width','Thickness','int',RMT_SLIDER_W,28,'px'],['thumb','Thumb','int',RMT_SLIDER_T,'auto','px']]};
+  // The keys each kind's settings may hold, so a change of kind keeps what still
+  // applies. A slider takes a pot's too, as validateTpl lets it.
+  const SB_TAKES={ring:['size','center'],rocker:['width','h'],grid:['cols','h','opts'],side:['gap'],
+    lcd:['cols','rows','fg','bg','label','border'],
+    pot:['size','center','step','show','label','label_at','marks','level','set','min','max','sweep','inc',
+         'analogue','analog']};
+  SB_TAKES.slider=SB_TAKES.pot.concat(['vertical','horizontal','length','width','thumb']);
+  // A line under the kinds whose fields don't explain themselves.
+  const SB_HINT={
+    pot:'Each step clockwise presses the first action and anticlockwise the second; the middle is a key. '+
+        'With “Sends its value to” it sends one number instead, to a key whose Host Action has {value} in it.',
+    slider:'Needs “Sends its value to” — a key whose Host Action has {value} in it — or “Follows a reading”, '+
+           'to step its two actions there.',
+    lcd:'Each line shows a value: one of the @ values, or a key from sources: in the YAML. Leave it empty '+
+        'for a title.',
+    side:'Its parts sit side by side. Click one in the drawing to change it.'};
+  // A theme's keys by plain names: the colours, then the sizes with an example each.
+  const SB_THEME=[['bg','Body'],['border','Body edge'],['btn_bg','Keys'],['btn_fg','Key text'],
+    ['btn_border','Key edges'],['ok_bg','OK key'],['ok_fg','OK text'],['ring_bg','Ring'],['ring_fg','Ring arrows'],
+    ['light_bg','Light keys'],['light_fg','Light key text'],['label','Labels'],['divider','Dividers'],
+    ['lit_bg','Lit keys'],['lit_fg','Lit key text'],['lcd_bg','Screen'],['lcd_fg','Screen text'],
+    ['lcd_label','Screen labels'],['lcd_border','Screen edge'],
+    ['maxw','Width','250px'],['zoom','Zoom','1.25'],['radius','Corners','34px'],['btn_radius','Key corners','12px'],
+    ['pad','Padding','22px 12px'],['shadow','Shadow','0 2px 10px rgba(0,0,0,.4)'],
+    ['clip','Outline','polygon(0% 0%, 100% 0%, 82% 100%, 18% 100%)'],['lcd_radius','Screen corners','8px']];
+
+  const sbCfg=s=>(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1]:null;
+  const sbO=s=>sbCfg(s)?2:1;   // where a section's own items start
+  const sbHas=a=>typeof a==='string'&&Object.prototype.hasOwnProperty.call(RMT_BTNS,a);
+  const sbClone=v=>JSON.parse(JSON.stringify(v));
+  const sbGet=(v,path)=>path.reduce((x,k)=>x==null?x:x[k],v);
+  function sbPut(v,path,val){for(let n=0;n<path.length-1;n++)v=v[path[n]];v[path[path.length-1]]=val}
+  // The section a selection is in.
+  const sbSec=(t,p)=>p.length>1?t.sections[p[0]][p[1]]:t.sections[p[0]];
+  // A side section's parts, as indexes into it.
+  function sbParts(s){
+    const o=[];
+    for(let j=1;j<s.length;j++)if(Array.isArray(s[j])&&s[j][0]!=='side'&&s[j][0]!=='-')o.push(j);
+    return o;
+  }
+  // A key as fields and back, writing the shortest form that says it: "mute",
+  // then ["mute","Label"], then with its options as well.
+  function sbKey(it){
+    return Array.isArray(it)?{a:it[0],l:typeof it[1]==='string'?it[1]:'',o:typeof it[2]==='string'?it[2]:''}
+                            :{a:it,l:'',o:''};
+  }
+  const sbKeyOut=k=>k.o?[k.a,k.l,k.o]:k.l?[k.a,k.l]:k.a;
+  function sbKeyName(it){const k=sbKey(it);return k.l||(sbHas(k.a)?RMT_BTNS[k.a].t:String(k.a))}
+  // The n-th spare the style leaves unused, so a new key does not double up on
+  // one that already does something.
+  function sbSpare(t,n){
+    const used=JSON.stringify(t.sections);
+    for(let i=1;i<=32;i++)if(used.indexOf('"spare'+i+'"')<0&&n--<=0)return 'spare'+i;
+    return 'spare1';
+  }
+  // Writes out the keys a section draws by default, so one of them can be
+  // changed: an arrow pad that lists none draws the standard five.
+  function sbMaterial(s){
+    const c=sbCfg(s);
+    if(s.length===sbO(s)&&SB_DEF[s[0]]&&!(c&&c.set))s.push(...SB_DEF[s[0]]);
+  }
+
+  // The keys sectionHtml draws for a section, in the order it draws them: the
+  // k-th button in a drawn section is the k-th entry, which is how a click in
+  // the drawing finds its key. It has to follow the renderer exactly, so the
+  // builder's suite checks it against every built-in and catalogue style.
+  function sbKeys(s){
+    const k=s[0],o=sbO(s),out=[],known=it=>sbHas(Array.isArray(it)?it[0]:it);
+    if(k==='row'||k==='media'||k==='apps'||k==='grid'){
+      for(let j=o;j<s.length;j++)if(s[j]!=='|'&&known(s[j]))out.push({item:[j]});
+    }else if(k==='dpad'||k==='ring'){
+      if(s.length>o){for(let j=o;j<o+5&&j<s.length;j++)if(known(s[j]))out.push({item:[j]})}
+      else for(let n=0;n<5;n++)out.push({slot:n});
+    }else if(k==='strip'||k==='rocker'){
+      for(let g=o;g<s.length;g++){
+        const G=s[g];
+        if(!Array.isArray(G))continue;
+        // A rocker draws two keys at most, a strip all it lists.
+        const n=k==='rocker'?Math.min(G.length,3):G.length;
+        for(let j=1;j<n;j++)if(known(G[j]))out.push({item:[g,j]});
+      }
+    }else if(k==='pot'){
+      // Only the middle is a key; turning has no face to click.
+      const c=sbCfg(s);
+      if(c&&known(c.set)){if(s.length>o&&known(s[o]))out.push({item:[o]})}
+      else if(s.length===o)out.push({slot:2});
+      else if(s.length>o+2&&known(s[o+2]))out.push({item:[o+2]});
+    }else if(k==='side'){
+      for(const j of sbParts(s))for(const e of sbKeys(s[j]))out.push(Object.assign({part:j},e));
+    }
+    return out;
+  }
+  // Whether a selection still points at something, after the style changed under it.
+  function sbSelOk(t,q){
+    const top=t.sections[q.sec[0]];
+    if(!Array.isArray(top))return false;
+    if(q.sec.length>1&&(top[0]!=='side'||sbParts(top).indexOf(q.sec[1])<0))return false;
+    const s=sbSec(t,q.sec),c=sbCfg(s);
+    if(q.slot!=null)return s.length===sbO(s)&&['dpad','ring','pot'].indexOf(s[0])>=0&&!(c&&c.set);
+    if(!q.item)return true;
+    const v=sbGet(s,q.item);
+    return v==='|'||sbHas(Array.isArray(v)?v[0]:v);
+  }
+
+  // Every change comes through here. It is made on a copy and checked by
+  // validateTpl before anything is written, so a change the importer would
+  // refuse never reaches the box — the reason is shown instead. fn edits the copy
+  // and returns the selection to have afterwards, or nothing to keep this one.
+  function sbDo(fn){
+    if(!sbT||!sbState||!sbState.t)return;
+    const t=sbClone(sbT);
+    let sel;
+    try{sel=fn(t)}catch(e){sbWhy=e.message;sbRenderSoon();return}
+    const why=validateTpl(t);
+    if(why){sbWhy=why;sbRenderSoon();return}
+    sbWhy='';
+    if(sel!==undefined)sbSel=sel;
+    const text=tplText(t);
+    if(text===tplJson.value){sbRenderSoon();return}
+    sbPush(tplJson.value);
+    const top=tplJson.scrollTop;
+    tplJson.value=text;
+    tplJson.scrollTop=top;
+    // Draws the remote card, says the style is unsaved, and brings the builder
+    // round to the box — the one way it is redrawn after a change.
+    tplPreview();
+  }
+  function sbPush(text){
+    if(!text.trim()||text===sbUndoList[sbUndoList.length-1])return;
+    sbUndoList.push(text);
+    if(sbUndoList.length>30)sbUndoList.shift();
+  }
+  // A whole style into the box — from Export or ✎ — after keeping what was there,
+  // so pressing either never costs work that was not imported yet.
+  function sbLoad(text){
+    sbPush(tplJson.value);
+    tplJson.value=text;
+    sbSel=null;sbWhy='';
+    // The remote goes back to the host's own style; the first change previews this one.
+    tplEndPreview();
+    sbFromBox();
+  }
+  // Brings the builder round to what the box holds.
+  function sbShow(st){
+    sbState=st;
+    if(!st)sbT=null;
+    else if(st.t){sbT=st.t;if(sbSel&&!sbSelOk(sbT,sbSel))sbSel=null}
+    sbRenderSoon();
+  }
+  // The same without drawing on the remote: for the panel opening onto a box
+  // that already holds something, and for a style just loaded into it.
+  function sbFromBox(){
+    const raw=tplJson?tplJson.value.trim():'';
+    if(!raw)return sbShow(null);
+    const r=tplParse(raw);
+    if(r.err)return sbShow({err:r.err});
+    if(Array.isArray(r.t))return sbShow({list:r.t.length});
+    const why=validateTpl(r.t);
+    sbShow(why?{err:why}:{t:r.t});
+  }
+  // An icon arriving redraws the drawing alone: rebuilding the fields under
+  // someone typing in one would throw away what they had not committed.
+  window.sbRedraw=()=>{if(sbT&&sbState&&sbState.t&&sbMain&&!sbMain.hidden)sbDraw(sbT)};
+  function sbStartLabel(){
+    if(!sbStartBtn)return;
+    const c=tplOpts[tplIdx];
+    sbStartBtn.textContent=c?(c.custom?'Edit “'+c.name+'”':'Start from “'+c.name+'”'):'Start';
+  }
+
+  function sbRenderSoon(){clearTimeout(sbTimer);sbTimer=setTimeout(sbRender,0)}
+  // Rebuilt whole on every change — it is small — with focus put back on the
+  // field that had it, so tabbing through the fields survives a change.
+  function sbRender(){
+    if(!sb||!tplPanel.classList.contains('open'))return;
+    const st=sbState,a=document.activeElement;
+    const f=a&&a!==document.body&&sb.contains(a)?a.dataset.f||'':'';
+    const fromDrawing=!!(a&&sbCanvas.contains(a));
+    sbStart.hidden=!!st;
+    sbStartLabel();
+    sbBad.hidden=!(st&&(st.err||st.list));
+    sbBad.textContent=!st?'':st.list?'The JSON box holds a list of '+st.list+' styles. Import saves them all; '+
+      'to change one, Import it, then ✎ it.':st.err?'The JSON box has a problem, so the builder waits: '+st.err:'';
+    sb.classList.toggle('sb-wait',!!(st&&st.err));
+    const t=st&&(st.t||st.err)?sbT:null;
+    sbMain.hidden=!t;
+    if(!t)return;
+    if(a!==sbName)sbName.value=t.name||'';
+    if(a!==sbId)sbId.value=t.id||'';
+    sbUndoBtn.disabled=!sbUndoList.length;
+    sbLists(t);
+    sbThemeRows(t);
+    sbDraw(t);
+    sbInspector(t);
+    sbPlace();
+    sbMeter(t);
+    if(f){const n=sb.querySelector('[data-f="'+f+'"]');if(n&&n!==document.activeElement)n.focus()}
+    else if(fromDrawing){const k=sbCanvas.querySelector('.sb-key');if(k)k.focus()}
+  }
+
+  // A small element builder, so the fields read as a list rather than a page of
+  // createElement calls. Strings become text, never markup.
+  function sbEl(tag,props,kids){
+    const e=document.createElement(tag);
+    if(props)for(const k of Object.keys(props)){
+      const v=props[k];
+      if(k==='class')e.className=v;
+      else if(k==='f')e.dataset.f=v;
+      else if(k==='list')e.setAttribute('list',v);
+      else e[k]=v;
+    }
+    if(kids)for(const c of kids)if(c!=null&&c!==false)e.appendChild(typeof c==='string'?document.createTextNode(c):c);
+    return e;
+  }
+  function sbBtn(text,title,f,fn,off){
+    const b=sbEl('button',{type:'button',class:'mod-btn',title:title,disabled:!!off,f:f},[text]);
+    b.addEventListener('click',fn);
+    return b;
+  }
+  // The fields. Each commits on change — a typed value when it is left or Enter is
+  // pressed, a choice as it is made — and f names it for sbRender's focus.
+  function sbText(label,f,val,put,o){
+    o=o||{};
+    const i=sbEl('input',{type:'text',value:val==null?'':String(val),maxLength:o.max||64,placeholder:o.ph||'',
+                          spellcheck:false,autocomplete:'off',f:f});
+    if(o.list)i.setAttribute('list',o.list);
+    if(o.w)i.style.width=o.w;
+    i.addEventListener('change',()=>put(i.value));
+    return label?sbEl('label',null,[label,i]):i;
+  }
+  function sbNum(label,f,val,range,def,put,unit,any){
+    const i=sbEl('input',{type:'number',value:val==null||val===''?'':String(val),
+                          placeholder:def==null?'':String(def),step:any?'any':'1',f:f});
+    if(range){i.min=range[0];i.max=range[1]}
+    i.addEventListener('change',()=>put(i.value===''?undefined:Number(i.value)));
+    return sbEl('label',null,[label,i,unit||null]);
+  }
+  function sbSelect(label,f,val,opts,put){
+    const s=sbEl('select',{f:f});
+    for(const o of opts)s.appendChild(sbEl('option',{value:o[0]},[o[1]]));
+    s.value=val==null?'':String(val);
+    s.addEventListener('change',()=>put(s.value));
+    return label?sbEl('label',null,[label,s]):s;
+  }
+  function sbCheck(label,f,on,put){
+    const c=sbEl('input',{type:'checkbox',checked:!!on,f:f});
+    c.addEventListener('change',()=>put(c.checked));
+    return sbEl('label',null,[c,label]);
+  }
+  // A colour: the picker for a #hex, and ✕ to leave it unset. A picker only knows
+  // #rrggbb, so #abc is widened for it; with text, a box beside it takes anything
+  // else a theme may hold, such as a gradient.
+  function sbColour(label,f,val,put,text){
+    val=val||'';
+    const six=/^#[0-9a-f]{6}$/i.test(val)?val:/^#[0-9a-f]{3}$/i.test(val)?'#'+val.slice(1).replace(/./g,'$&$&'):'';
+    const p=sbEl('input',{type:'color',value:six||'#808080',title:(label||'Colour')+': '+(val||'not set'),f:f});
+    p.addEventListener('change',()=>put(p.value));
+    const kids=[label,p];
+    if(text){
+      const x=sbEl('input',{type:'text',class:'sb-ctext',value:val,placeholder:'not set',spellcheck:false,
+                            autocomplete:'off',f:f+'-t'});
+      x.addEventListener('change',()=>put(x.value.trim()||undefined));
+      kids.push(x);
+    }
+    if(val)kids.push(sbBtn('✕','Clear it','x-'+f,()=>put(undefined)));
+    return sbEl('span',{class:'sb-col'+(val?'':' unset')},kids);
+  }
+  // Every action the remote has, grouped as the Remote Buttons panel groups them.
+  function sbActSel(f,val,put,none){
+    const s=sbEl('select',{f:f});
+    if(none!=null)s.appendChild(sbEl('option',{value:''},[none]));
+    const groups={};
+    remoteButtons().forEach(b=>{(groups[b.group]=groups[b.group]||[]).push(b)});
+    Object.keys(groups).sort((x,y)=>x-y).forEach(g=>{
+      const og=sbEl('optgroup',{label:(GROUP_NAMES[g]||'').replace(/&amp;/g,'&')});
+      groups[g].forEach(b=>og.appendChild(sbEl('option',{value:b.action},[b.label])));
+      s.appendChild(og);
+    });
+    s.value=val||'';
+    s.addEventListener('change',()=>put(s.value));
+    return s;
+  }
+  // Suggestions for the fields that name a value or an icon: the @ values and this
+  // device's sources: keys as its last /status reported them, and every icon this
+  // browser knows of. Any other name can still be typed.
+  function sbLists(t){
+    const fill=(id,vals)=>{
+      const d=document.getElementById(id);
+      if(!d)return;
+      d.textContent='';
+      [...new Set(vals)].forEach(v=>d.appendChild(sbEl('option',{value:v})));
+    };
+    const src=window.lcdKeysNow?window.lcdKeysNow():[];
+    fill('sb-src',RMT_LCD_KEYS.concat(src));
+    fill('sb-lit',src.filter(k=>k.charAt(0)!=='@'));
+    fill('sb-icons',Object.keys(ICON_CACHE).concat(Object.keys(t.icons||{}),Object.keys(RI)));
+  }
+
+  function sbThemeRows(t){
+    sbTheme.textContent='';
+    const th=t.theme||{};
+    for(const [k,name,ex] of SB_THEME){
+      const v=typeof th[k]==='string'?th[k]:'';
+      const put=val=>sbDo(x=>{
+        x.theme=x.theme||{};
+        if(val===undefined||val==='')delete x.theme[k];else x.theme[k]=String(val);
+      });
+      sbTheme.appendChild(ex?sbText(name,'th-'+k,v,val=>put(val.trim()),{ph:'e.g. '+ex,max:160})
+                            :sbColour(name,'th-'+k,v,put,true));
+    }
+  }
+  // Drawn the way drawTemplate draws the remote, into a .rmt-body of its own —
+  // same renderer, same rules — so it lays out as the remote will. Nothing on it
+  // is wired: the remote's handlers belong to the remote's own card.
+  function sbDraw(t){
+    for(const k of Object.keys(RMT_VARS))sbCanvas.style.removeProperty(RMT_VARS[k]);
+    if(t.theme)for(const k of Object.keys(RMT_VARS))
+      if(typeof t.theme[k]==='string'&&!themeValueBad(k,t.theme[k]))sbCanvas.style.setProperty(RMT_VARS[k],t.theme[k]);
+    useIcons(Object.assign({},ICON_CACHE,t.icons||{}));
+    sbCanvas.innerHTML=window.rmtSectionHtml?t.sections.map(s=>window.rmtSectionHtml(s)).join(''):'';
+    wantIcons(t);
+    const q=sbSel;
+    const top=q&&sbCanvas.children[q.sec[0]];
+    if(!top)return;
+    if(q.item||q.slot!=null){
+      const part=q.sec.length>1?q.sec[1]:undefined,id=q.item?q.item.join():'';
+      const n=sbKeys(t.sections[q.sec[0]]).findIndex(e=>e.part===part&&
+        (q.item?!!e.item&&e.item.join()===id:e.slot===q.slot));
+      const b=n>=0?top.querySelectorAll('.rmt-btn')[n]:null;
+      if(b){b.classList.add('sb-key');return}
+    }
+    let el=top;
+    if(q.sec.length>1){
+      const ps=top.querySelectorAll('.rmt-side>.rmt-section'),j=sbParts(t.sections[q.sec[0]]).indexOf(q.sec[1]);
+      if(ps[j])el=ps[j];
+    }
+    el.classList.add('sb-on');
+  }
+  // The fields sit under the drawing while that is on screen, and float just under
+  // what is selected when it is not — a tall remote whose foot is out of sight.
+  // The page may be zoomed, which scales what getBoundingClientRect reports but
+  // not the CSS pixels top is set in.
+  function sbPlace(){
+    sbInsp.classList.remove('float');
+    const el=sbSel&&sbCanvas.getBoundingClientRect().bottom+8>window.innerHeight&&
+             sbCanvas.querySelector('.sb-key,.sb-on');
+    sbInsp.classList.toggle('float',!!el);
+    if(!el){sbInsp.style.top='';return}
+    const box=sb.getBoundingClientRect(),r=el.getBoundingClientRect(),k=sb.offsetWidth?box.width/sb.offsetWidth:1;
+    sbInsp.style.top=Math.round((r.bottom-box.top)/k+8)+'px';
+  }
+  // How much of a stored style this one uses, and where Import would put it.
+  function sbMeter(t){
+    const len=JSON.stringify({id:t.id,name:String(t.name).trim(),theme:t.theme||{},sections:t.sections}).length;
+    const was=RMT_CUSTOM.find(c=>c.id===t.id),full=!was&&RMT_CUSTOM.length>=RMT_CUSTOM_MAX;
+    sbLen.textContent=len+' of '+RMT_CUSTOM_LEN+' characters · '+(was?'Import replaces “'+was.name+'”':
+      full?'all '+RMT_CUSTOM_MAX+' places are taken, so delete a style first':
+      'Import adds it as a new style ('+RMT_CUSTOM.length+' of '+RMT_CUSTOM_MAX+' used)');
+    sbLen.classList.toggle('over',len>RMT_CUSTOM_LEN||full);
+  }
+
+  function sbInspector(t){
+    sbInsp.textContent='';
+    if(sbSel)sbInsp.appendChild(sbBtn('✕','Done — put the fields away (Esc)','close',()=>{sbSel=null;sbWhy='';sbRenderSoon()}));
+    if(sbWhy)sbInsp.appendChild(sbEl('div',{class:'sb-msg'},[sbWhy]));
+    if(!sbSel){
+      sbInsp.appendChild(sbEl('div',{class:'sb-hint'},['Click a key or a section in the drawing to change it.']));
+      return;
+    }
+    if(sbSel.item||sbSel.slot!=null)sbKeyInsp(t);else sbSecInsp(t);
+  }
+  // A section, or a side section's part, one place along.
+  function sbMove(p,d){
+    sbDo(t=>{
+      if(p.length===1){
+        const a=t.sections,j=p[0]+d;
+        if(j<0||j>=a.length)return;
+        [a[p[0]],a[j]]=[a[j],a[p[0]]];
+        return {sec:[j]};
+      }
+      const s=t.sections[p[0]],ps=sbParts(s),m=ps.indexOf(p[1])+d;
+      if(m<0||m>=ps.length)return;
+      const j=ps[m];
+      [s[p[1]],s[j]]=[s[j],s[p[1]]];
+      return {sec:[p[0],j]};
+    });
+  }
+  function sbSetCfg(s,key,val){
+    let c=sbCfg(s);
+    if(val===undefined){
+      if(!c)return;
+      delete c[key];
+      if(!Object.keys(c).length)s.splice(1,1);
+      return;
+    }
+    if(!c){c={};s.splice(1,0,c)}
+    c[key]=val;
+  }
+  // A change of kind keeps what still applies and drops the settings the new
+  // kind has no use for; validateTpl refuses whatever else does not fit.
+  function sbKindTo(s,k){
+    const c=sbCfg(s);
+    if(k==='slider'&&!(c&&(c.set!==undefined||c.level!==undefined)))
+      throw new Error('A slider needs “Sends its value to” or “Follows a reading” — give the pot one first.');
+    s[0]=k;
+    if(!c)return;
+    const keep=SB_TAKES[k]||[];
+    for(const x of Object.keys(c))if(keep.indexOf(x)<0)delete c[x];
+    if(!Object.keys(c).length)s.splice(1,1);
+  }
+  // "set" changes what a pot's or slider's actions are for: with it the value
+  // goes to that key and only the middle one stays; without it they turn again —
+  // volume, unless the section names its own.
+  function sbSetSet(S,val){
+    const keys=S.slice(sbO(S)),had=!!(sbCfg(S)&&sbCfg(S).set);
+    sbSetCfg(S,'set',val);
+    S.splice(sbO(S));
+    if(val){const mid=had?keys[0]:keys[2];if(mid!==undefined)S.push(mid)}
+    else if(had&&keys.length)S.push(SB_DEF[S[0]][0],SB_DEF[S[0]][1],keys[0]);
+    else S.push(...keys);
+  }
+  // One setting as a field.
+  function sbSetting(p,s,[key,label,type,range,def,unit]){
+    const c=sbCfg(s)||{},v=c[key],f='set-'+key;
+    const put=val=>sbDo(x=>{
+      const S=sbSec(x,p),C=sbCfg(S);
+      if(key==='set'){sbSetSet(S,val);return}
+      // One spelling each, the one the README uses.
+      if(C&&key==='horizontal')delete C.vertical;
+      if(C&&key==='analogue')delete C.analog;
+      sbSetCfg(S,key,val);
+    });
+    if(type==='int'||type==='num')return sbNum(label,f,v,type==='int'?range:null,def,put,unit,type==='num');
+    if(type==='text')return sbText(label,f,v,val=>put(val===''?undefined:val),{max:range,w:'100px'});
+    if(type==='src')return sbText(label,f,v,val=>put(val.trim()||undefined),
+                                  {list:'sb-src',max:16,w:'100px',ph:'@host or a source'});
+    if(type==='hex')return sbColour(label,f,v,put);
+    if(type==='at')return sbSelect(label,f,v==='bottom'?'bottom':'',[['','over it'],['bottom','under it']],
+                                   val=>put(val||undefined));
+    if(type==='act')return sbEl('label',null,[label,sbActSel(f,v,val=>put(val||undefined),'nothing')]);
+    // A tick box, written only when it differs from what an unset one means.
+    const on=key==='horizontal'?(c.horizontal===true||c.vertical===false):
+             key==='analogue'?(c.analogue===true||c.analog===true):v===undefined?def:v;
+    return sbCheck(label,f,on,val=>put(val===def?undefined:val));
+  }
+
+  function sbSecInsp(t){
+    const p=sbSel.sec,s=sbSec(t,p),k=s[0],i=p[0],n=t.sections.length;
+    const fam=SB_FAM.find(x=>x.indexOf(k)>=0);
+    const head=sbEl('div',{class:'sb-row'},[fam?
+      sbSelect('','kind',k,fam.map(x=>[x,SB_KIND[x][0]]),v=>sbDo(x=>{sbKindTo(sbSec(x,p),v)})):
+      sbEl('span',{class:'sb-title'},[SB_KIND[k]?SB_KIND[k][0]:k])]);
+    if(p.length>1){
+      const ps=sbParts(t.sections[i]),at=ps.indexOf(p[1]);
+      head.appendChild(sbEl('span',null,['part '+(at+1)+' of '+ps.length]));
+      head.appendChild(sbBtn('‹ Side by side','Select the section this is part of','up',()=>{sbSel={sec:[i]};sbWhy='';sbRenderSoon()}));
+      head.appendChild(sbBtn('◀','Move it left','mv-l',()=>sbMove(p,-1),at===0));
+      head.appendChild(sbBtn('▶','Move it right','mv-r',()=>sbMove(p,1),at===ps.length-1));
+    }else{
+      head.appendChild(sbEl('span',null,['section '+(i+1)+' of '+n]));
+      head.appendChild(sbBtn('‹','Select the section before','prev',()=>{sbSel={sec:[i-1]};sbWhy='';sbRenderSoon()},i===0));
+      head.appendChild(sbBtn('›','Select the section after','next',()=>{sbSel={sec:[i+1]};sbWhy='';sbRenderSoon()},i===n-1));
+      head.appendChild(sbBtn('▲','Move it up','mv-u',()=>sbMove(p,-1),i===0));
+      head.appendChild(sbBtn('▼','Move it down','mv-d',()=>sbMove(p,1),i===n-1));
+    }
+    head.appendChild(sbBtn('Duplicate','Add a copy after it','dup',()=>sbDo(x=>{
+      const a=p.length>1?x.sections[i]:x.sections,j=p[p.length-1];
+      a.splice(j+1,0,sbClone(a[j]));
+      return {sec:p.length>1?[i,j+1]:[j+1]};
+    })));
+    // What takes its place is selected next, so a run of them goes one press each.
+    head.appendChild(sbBtn('Delete','Remove it','del',()=>sbDo(x=>{
+      (p.length>1?x.sections[i]:x.sections).splice(p[p.length-1],1);
+      return p.length>1?{sec:[i]}:{sec:[Math.min(i,x.sections.length-1)]};
+    })));
+    sbInsp.appendChild(head);
+    if(SB_HINT[k])sbInsp.appendChild(sbEl('div',{class:'sb-hint'},[SB_HINT[k]]));
+    const set=SB_SET[k];
+    if(set){
+      sbInsp.appendChild(sbEl('div',{class:'sb-row'},set.filter(d=>d[2]!=='opts').map(d=>sbSetting(p,s,d))));
+      // A grid's options for every key, as the same fields a key has.
+      if(set.some(d=>d[2]==='opts')){
+        const c=sbCfg(s);
+        sbInsp.appendChild(sbEl('div',{class:'sb-row'},[sbEl('span',{class:'sb-title'},['Every key:'])].concat(
+          sbLook(sbOpts(c&&typeof c.opts==='string'?c.opts:''),fn=>sbDo(x=>{
+            const S=sbSec(x,p),C=sbCfg(S),r=sbOpts(C&&C.opts);
+            fn(r);
+            sbSetCfg(S,'opts',sbOptsOut(r)||undefined);
+          }),'go-'))));
+      }
+    }
+    sbItems(t,p,s);
+  }
+  // What a section holds, as the kind holds it.
+  function sbItems(t,p,s){
+    const k=s[0],o=sbO(s);
+    const pick=q=>()=>{sbSel=q;sbWhy='';sbRenderSoon()};
+    if(k==='row'||k==='media'||k==='apps'||k==='grid'){
+      const row=sbEl('div',{class:'sb-chips'},[sbEl('span',null,['Keys:'])]);
+      for(let j=o;j<s.length;j++)
+        row.appendChild(sbBtn(s[j]==='|'?(k==='grid'?'empty cell':'gap'):sbKeyName(s[j]),'Select it','it'+j,pick({sec:p,item:[j]})));
+      row.appendChild(sbActSel('add-key','',a=>{if(a)sbDo(x=>{const S=sbSec(x,p);S.push(a);return {sec:p,item:[S.length-1]}})},'Add key…'));
+      if(k==='row'||k==='grid')row.appendChild(sbBtn(k==='row'?'+ gap':'+ empty cell',
+        k==='row'?'A gap that pushes the keys either side of it apart':'A cell left empty','add-gap',
+        ()=>sbDo(x=>{const S=sbSec(x,p);S.push('|');return {sec:p,item:[S.length-1]}})));
+      sbInsp.appendChild(row);
+    }else if(k==='dpad'||k==='ring'){
+      const listed=s.length>o,row=sbEl('div',{class:'sb-chips'});
+      ['Up','Left','Centre','Right','Down'].forEach((nm,x)=>row.appendChild(sbBtn(
+        nm+': '+sbKeyName(listed?s[o+x]:SB_DEF[k][x]),'Select it','it'+x,
+        pick(listed?{sec:p,item:[o+x]}:{sec:p,slot:x}))));
+      if(listed)row.appendChild(sbBtn('Standard keys','Back to up, left, OK, right and down','std',
+                                      ()=>sbDo(x=>{sbSec(x,p).splice(o)})));
+      sbInsp.appendChild(row);
+    }else if(k==='strip'||k==='rocker'){
+      for(let g=o;g<s.length;g++){
+        const G=s[g],row=sbEl('div',{class:'sb-chips'});
+        row.appendChild(sbText('Label','g'+g+'-l',G[0],v=>sbDo(x=>{sbSec(x,p)[g][0]=v}),{max:8,w:'60px'}));
+        for(let j=1;j<G.length;j++)row.appendChild(sbBtn(sbKeyName(G[j]),'Select it','g'+g+'-'+j,pick({sec:p,item:[g,j]})));
+        if(k==='strip'||G.length<3)row.appendChild(sbActSel('g'+g+'-a','',a=>{if(a)sbDo(x=>{
+          const H=sbSec(x,p)[g];H.push(a);return {sec:p,item:[g,H.length-1]};
+        })},'Add key…'));
+        row.appendChild(sbBtn('▲','Move this group up','g'+g+'-u',()=>sbDo(x=>{const S=sbSec(x,p);[S[g-1],S[g]]=[S[g],S[g-1]]}),g===o));
+        row.appendChild(sbBtn('▼','Move this group down','g'+g+'-d',()=>sbDo(x=>{const S=sbSec(x,p);[S[g+1],S[g]]=[S[g],S[g+1]]}),g===s.length-1));
+        row.appendChild(sbBtn('✕','Remove this group','g'+g+'-x',()=>sbDo(x=>{sbSec(x,p).splice(g,1)})));
+        sbInsp.appendChild(row);
+      }
+      sbInsp.appendChild(sbEl('div',{class:'sb-chips'},[sbBtn('+ group','Add a group after the last','add-grp',()=>sbDo(x=>{
+        const S=sbSec(x,p);
+        S.push(S.length>sbO(S)?sbClone(S[S.length-1]):['','volume_up','volume_down']);
+      }))]));
+    }else if(k==='pot'||k==='slider'){
+      sbTurn(p,s);
+    }else if(k==='lcd'){
+      sbLines(p,s);
+    }else if(k==='side'){
+      const row=sbEl('div',{class:'sb-chips'},[sbEl('span',null,['Parts:'])]);
+      for(const j of sbParts(s))row.appendChild(sbBtn(SB_KIND[s[j][0]]?SB_KIND[s[j][0]][0]:s[j][0],'Select it','pt'+j,pick({sec:[p[0],j]})));
+      row.appendChild(sbSelect('','add-part','',[['','Add part…']].concat(
+        Object.keys(SB_KIND).filter(x=>x!=='side'&&x!=='-').map(x=>[x,SB_KIND[x][0]])),
+        v=>{if(SB_KIND[v])sbDo(x=>{const S=sbSec(x,p);S.push(SB_KIND[v][1](x));return {sec:[p[0],S.length-1]}})}));
+      sbInsp.appendChild(row);
+    }
+  }
+  // A pot's or slider's actions: the two pressed as it moves, and the key in its
+  // middle — with "set", that key alone.
+  function sbTurn(p,s){
+    const k=s[0],o=sbO(s),c=sbCfg(s)||{},set=!!c.set,keys=s.slice(o);
+    const names=k==='pot'?['Clockwise','Anticlockwise','Middle key']:['Up','Down','Thumb tap'];
+    const row=sbEl('div',{class:'sb-row'});
+    if(!set)[0,1].forEach(x=>{
+      const K=sbKey(keys.length?keys[x]:SB_DEF[k][x]);
+      // A turn action takes a label — its tooltip, and its name on an @last line — and nothing else.
+      const put=fn=>sbDo(y=>{
+        const S=sbSec(y,p);
+        sbMaterial(S);
+        const at=sbO(S)+x,cur=sbKey(S[at]);
+        fn(cur);
+        S[at]=cur.l?[cur.a,cur.l]:cur.a;
+      });
+      row.appendChild(sbEl('label',null,[names[x],sbActSel('turn'+x,K.a,a=>{if(a)put(cur=>{cur.a=a})})]));
+      row.appendChild(sbText('Label','turn'+x+'-l',K.l,v=>put(cur=>{cur.l=v}),{max:16,w:'80px',ph:'its name'}));
+    });
+    const at=set?0:2;
+    const mid=keys.length>at?keys[at]:(!set&&!keys.length&&k==='pot'?SB_DEF.pot[2]:undefined);
+    row.appendChild(sbEl('label',null,[names[2],sbActSel('mid',mid===undefined?'':sbKey(mid).a,a=>sbDo(y=>{
+      const S=sbSec(y,p);
+      if(!set)sbMaterial(S);
+      const O=sbO(S);
+      if(!a){S.splice(O+at);return}
+      const cur=S[O+at]!==undefined?sbKey(S[O+at]):{a:'',l:'',o:''};
+      cur.a=a;
+      S[O+at]=sbKeyOut(cur);
+    }),'nothing')]));
+    sbInsp.appendChild(row);
+    // The middle of a pot is a key like any other, so it has a key's fields.
+    if(k==='pot'&&mid!==undefined)sbInsp.appendChild(sbEl('div',{class:'sb-chips'},[sbBtn('Middle key’s look…',
+      'Change how the middle key looks','mid-look',()=>{sbSel=keys.length>at?{sec:p,item:[o+at]}:{sec:p,slot:2};sbRenderSoon()})]));
+  }
+  // An lcd's lines: what each one says, and how.
+  function sbLcdOpts(str){
+    const r={size:'',align:'',colour:'',rest:[]};
+    for(const tok of String(str||'').split(/\s+/)){
+      if(!tok)continue;
+      if(RMT_HEX.test(tok)&&!r.colour)r.colour=tok;
+      else if((tok==='centre'||tok==='center')&&!r.align)r.align='centre';
+      else if((tok==='left'||tok==='right')&&!r.align)r.align=tok;
+      else if(['sm','lg','xl'].indexOf(tok)>=0&&!r.size)r.size=tok;
+      else r.rest.push(tok);
+    }
+    return r;
+  }
+  const sbLcdOut=r=>[r.size,r.align,r.colour].concat(r.rest).filter(Boolean).join(' ');
+  function sbLines(p,s){
+    const o=sbO(s);
+    for(let j=o;j<s.length;j++){
+      const L=s[j],r=sbLcdOpts(L[2]);
+      const put=fn=>sbDo(x=>{
+        const S=sbSec(x,p),M=S[j],q=sbLcdOpts(M[2]),n={l:M[0],v:M[1]};
+        fn(n,q);
+        const op=sbLcdOut(q);
+        S[j]=op?[n.l,n.v,op]:[n.l,n.v];
+      });
+      sbInsp.appendChild(sbEl('div',{class:'sb-chips'},[
+        sbText('Label','ln'+j+'-l',L[0],v=>put(n=>{n.l=v}),{max:16,w:'80px'}),
+        sbText('Shows','ln'+j+'-v',L[1],v=>put(n=>{n.v=v.trim()}),{max:16,w:'100px',list:'sb-src',ph:'nothing: a title'}),
+        sbSelect('','ln'+j+'-s',r.size,[['','normal'],['sm','small'],['lg','large'],['xl','larger']],v=>put((n,q)=>{q.size=v})),
+        sbSelect('','ln'+j+'-a',r.align,[['','spread'],['left','left'],['centre','centre'],['right','right']],
+                 v=>put((n,q)=>{q.align=v})),
+        sbColour('','ln'+j+'-c',r.colour,v=>put((n,q)=>{q.colour=v||''})),
+        sbBtn('▲','Move this line up','ln'+j+'-u',()=>sbDo(x=>{const S=sbSec(x,p);[S[j-1],S[j]]=[S[j],S[j-1]]}),j===o),
+        sbBtn('▼','Move this line down','ln'+j+'-d',()=>sbDo(x=>{const S=sbSec(x,p);[S[j+1],S[j]]=[S[j],S[j+1]]}),j===s.length-1),
+        sbBtn('✕','Remove this line','ln'+j+'-x',()=>sbDo(x=>{sbSec(x,p).splice(j,1)}))]));
+    }
+    sbInsp.appendChild(sbEl('div',{class:'sb-chips'},[sbBtn('+ line','Add a line under the last','add-ln',
+      ()=>sbDo(x=>{sbSec(x,p).push(['','@host'])}))]));
+  }
+
+  // A key's option string as separate choices, and back in a fixed order. A
+  // token the fields have no place for — a second colour, say — is kept as it is,
+  // and still comes last, so it still wins as it did.
+  function sbOpts(str){
+    const r={icon:'',size:'',shape:'',width:'',light:false,colour:'',h:'',ih:'',lit:'',litc:'',rest:[]};
+    for(const tok of String(str||'').split(/\s+/)){
+      if(!tok)continue;
+      if(tok.indexOf('icon:')===0&&!r.icon)r.icon=tok.slice(5);
+      else if(tok.indexOf('lit:')===0&&!r.lit){const b=tok.split(':');r.lit=b[1]||'';r.litc=b[2]||''}
+      else if(/^h:\d+$/.test(tok)&&!r.h)r.h=tok.slice(2);
+      else if(/^ih:\d+$/.test(tok)&&!r.ih)r.ih=tok.slice(3);
+      else if(RMT_HEX.test(tok)&&!r.colour)r.colour=tok;
+      else if(['sm','md','lg','xl'].indexOf(tok)>=0&&!r.size)r.size=tok;
+      else if((tok==='sq'||tok==='squircle')&&!r.shape)r.shape=tok;
+      else if((tok==='wide'||tok==='fill')&&!r.width)r.width=tok;
+      else if(tok==='light')r.light=true;
+      else r.rest.push(tok);
+    }
+    return r;
+  }
+  const sbOptsOut=r=>[r.icon&&'icon:'+r.icon,r.size,r.shape,r.width,r.light&&'light',r.colour,r.h&&'h:'+r.h,
+    r.ih&&'ih:'+r.ih,r.lit&&'lit:'+r.lit+(r.litc?':'+r.litc:'')].concat(r.rest).filter(Boolean).join(' ');
+  // How a key looks, as fields. put(fn) runs fn on the parsed options and writes
+  // them back; a grid's options for every key use the same fields.
+  function sbLook(o,put,fp){
+    return [
+      sbText('Icon',fp+'ic',o.icon,v=>put(r=>{r.icon=v.trim()}),{list:'sb-icons',max:15,w:'90px',ph:'none'}),
+      sbSelect('Size',fp+'sz',o.size,[['','normal (48)'],['sm','sm (36)'],['md','md (42)'],['lg','lg (56)'],
+                                      ['xl','xl (64)']],v=>put(r=>{r.size=v})),
+      sbSelect('Shape',fp+'sh',o.shape,[['','round'],['sq','sq — squarer'],['squircle','squircle — app tile']],
+               v=>put(r=>{r.shape=v})),
+      sbSelect('Width',fp+'wd',o.width,[['','its own'],['wide','wide — a pill'],['fill','fill — shares the row']],
+               v=>put(r=>{r.width=v})),
+      sbCheck('Light',fp+'lt',o.light,v=>put(r=>{r.light=v})),
+      sbColour('Colour',fp+'co',o.colour,v=>put(r=>{r.colour=v||''})),
+      sbNum('Height',fp+'h',o.h,RMT_KEY_H,'auto',v=>put(r=>{r.h=v===undefined?'':String(v)}),'px'),
+      sbNum('Icon height',fp+'ih',o.ih,RMT_ICON_H,'auto',v=>put(r=>{r.ih=v===undefined?'':String(v)}),'px'),
+      sbText('Lights with',fp+'li',o.lit,v=>put(r=>{r.lit=v.trim();if(!r.lit)r.litc=''}),
+             {list:'sb-lit',max:16,w:'90px',ph:'a source'}),
+      o.lit?sbColour('lit colour',fp+'lc',o.litc,v=>put(r=>{r.litc=v||''})):null];
+  }
+  // A key or gap one place along its list.
+  function sbKeyMove(p,path,d){
+    sbDo(t=>{
+      const S=sbSec(t,p),grp=path.length>1,L=grp?S[path[0]]:S,i=path[path.length-1],j=i+d;
+      if(j<(grp?1:sbO(S))||j>=L.length)return;
+      [L[i],L[j]]=[L[j],L[i]];
+      return {sec:p,item:grp?[path[0],j]:[j]};
+    });
+  }
+  function sbKeyInsp(t){
+    const q=sbSel,p=q.sec,s=sbSec(t,p),k=s[0],virt=q.slot!=null;
+    const it=virt?SB_DEF[k][q.slot]:sbGet(s,q.item);
+    const back=sbBtn('‹ '+(SB_KIND[k]?SB_KIND[k][0]:k),'Select the section it is in','back',
+                     ()=>{sbSel={sec:p};sbWhy='';sbRenderSoon()});
+    // Where it sits decides what can happen to it: a key in a list moves along
+    // it, while an arrow pad's five and a pot's middle have places of their own.
+    const grp=!virt&&q.item.length>1,list=virt?null:grp?s[q.item[0]]:s;
+    const lo=grp?1:sbO(s),idx=virt?-1:q.item[q.item.length-1];
+    const fixed=virt||k==='dpad'||k==='ring'||k==='pot';
+    const holder=x=>grp?sbSec(x,p)[q.item[0]]:sbSec(x,p);
+    const at=j=>({sec:p,item:grp?[q.item[0],j]:[j]});
+    if(it==='|'){
+      sbInsp.appendChild(sbEl('div',{class:'sb-row'},[back,sbEl('span',{class:'sb-title'},[k==='grid'?'An empty cell':'A gap']),
+        sbBtn('◀','Move it left','mv-l',()=>sbKeyMove(p,q.item,-1),idx<=lo),
+        sbBtn('▶','Move it right','mv-r',()=>sbKeyMove(p,q.item,1),idx>=list.length-1),
+        sbBtn('Delete','Remove it','del',()=>sbDo(x=>{holder(x).splice(idx,1);return {sec:p}}))]));
+      return;
+    }
+    const K=sbKey(it);
+    // Every change to the key, made on the copy — with a default key written
+    // out first, so the one clicked is the one that changes.
+    const put=fn=>sbDo(x=>{
+      const S=sbSec(x,p);
+      let path=q.item;
+      if(virt){sbMaterial(S);path=[sbO(S)+q.slot]}
+      const cur=sbKey(sbGet(S,path));
+      fn(cur);
+      sbPut(S,path,sbKeyOut(cur));
+      return {sec:p,item:path};
+    });
+    const head=sbEl('div',{class:'sb-row'},[back,sbEl('span',{class:'sb-title'},[sbKeyName(it)]),sbEl('code',null,[String(K.a)])]);
+    // A rocker group holds one key or two.
+    const rk=k==='rocker'&&grp;
+    if(!fixed){
+      head.appendChild(sbBtn('◀','Move it left','mv-l',()=>sbKeyMove(p,q.item,-1),idx<=lo));
+      head.appendChild(sbBtn('▶','Move it right','mv-r',()=>sbKeyMove(p,q.item,1),idx>=list.length-1));
+      if(!rk||list.length<3)head.appendChild(sbBtn('Duplicate','Add a copy after it','dup',
+        ()=>sbDo(x=>{const L=holder(x);L.splice(idx+1,0,sbClone(L[idx]));return at(idx+1)})));
+      if(!rk||list.length>2)head.appendChild(sbBtn('Delete','Remove the key','del',
+        ()=>sbDo(x=>{holder(x).splice(idx,1);return {sec:p}})));
+    }else if(k==='pot')head.appendChild(sbBtn('Delete','Leave the middle without a key','del',()=>sbDo(x=>{
+      const S=sbSec(x,p),c=sbCfg(S);
+      if(virt)sbMaterial(S);
+      S.splice(c&&c.set?sbO(S):sbO(S)+2);
+      return {sec:p};
+    })));
+    sbInsp.appendChild(head);
+    const row=sbEl('div',{class:'sb-row'},[
+      sbEl('label',null,['Action',sbActSel('k-act',K.a,a=>{if(a)put(c=>{c.a=a})})]),
+      sbText('Label','k-lab',K.l,v=>put(c=>{c.l=v}),{max:16,w:'100px',
+             ph:sbHas(K.a)&&RMT_BTNS[K.a].x?RMT_BTNS[K.a].x:'its icon'})]);
+    if(!fixed&&!(rk&&list.length>2))row.appendChild(sbActSel('k-add','',a=>{if(a)sbDo(x=>{
+      holder(x).splice(idx+1,0,a);return at(idx+1);
+    })},'Add a key after it…'));
+    sbInsp.appendChild(row);
+    sbInsp.appendChild(sbEl('div',{class:'sb-row'},sbLook(sbOpts(K.o),fn=>put(c=>{
+      const r=sbOpts(c.o);fn(r);c.o=sbOptsOut(r);
+    }),'k-')));
+    if(/^spare\d+$/.test(K.a))sbInsp.appendChild(sbEl('div',{class:'sb-hint'},
+      ['A spare does nothing until a host gives it a Host Action.']));
+  }
+
+  if(sbCanvas)sbCanvas.addEventListener('click',e=>{
+    if(!sbT||!sbState||!sbState.t)return;
+    let top=e.target;
+    while(top&&top.parentElement!==sbCanvas)top=top.parentElement;
+    const i=top?[...sbCanvas.children].indexOf(top):-1;
+    sbWhy='';
+    // The body around the sections: nothing.
+    if(i<0){sbSel=null;sbRenderSoon();return}
+    const s=sbT.sections[i];
+    const btn=e.target.closest('.rmt-btn');
+    if(btn&&top.contains(btn)){
+      const k=sbKeys(s)[[...top.querySelectorAll('.rmt-btn')].indexOf(btn)];
+      if(k){sbSel={sec:k.part!=null?[i,k.part]:[i],item:k.item||null,slot:k.slot};sbRenderSoon();return}
+    }
+    const part=e.target.closest('.rmt-side>.rmt-section');
+    if(part&&top.contains(part)&&s[0]==='side'){
+      const j=sbParts(s)[[...part.parentElement.children].indexOf(part)];
+      if(j!=null){sbSel={sec:[i,j]};sbRenderSoon();return}
+    }
+    sbSel={sec:[i]};
+    sbRenderSoon();
+  });
+  // Anything that moves the drawing moves floating fields with it: the colours
+  // opening above it, or the window changing width and the rows above rewrapping.
+  const sbThemeBox=sbTheme&&sbTheme.parentElement;
+  if(sbThemeBox)sbThemeBox.addEventListener('toggle',()=>{if(sbSel)sbPlace()});
+  window.addEventListener('resize',()=>{if(sbSel&&sbMain&&!sbMain.hidden)sbPlace()});
+  // Esc puts the fields away — except in a list, where it closes the list.
+  if(sb)sb.addEventListener('keydown',e=>{
+    if(e.key!=='Escape'||!sbSel||e.target.tagName==='SELECT')return;
+    sbSel=null;sbWhy='';sbRenderSoon();
+  });
+  if(sbName)sbName.addEventListener('change',()=>sbDo(t=>{t.name=sbName.value}));
+  // An id is written for whoever types it: capitals and spaces become what an id
+  // may hold, so "Lounge Box" is lounge_box.
+  if(sbId)sbId.addEventListener('change',()=>sbDo(t=>{
+    t.id=sbId.value.trim().toLowerCase().replace(/[^a-z0-9_]+/g,'_').replace(/^_+|_+$/g,'');
+  }));
+  if(sbUndoBtn)sbUndoBtn.addEventListener('click',()=>{
+    if(!sbUndoList.length)return;
+    tplJson.value=sbUndoList.pop();
+    sbWhy='';
+    tplPreview();
+  });
+  if(sbStartBtn)sbStartBtn.addEventListener('click',()=>{if(tplExport)tplExport.click()});
+  if(sbAdd){
+    for(const k of Object.keys(SB_KIND))sbAdd.appendChild(sbEl('option',{value:k},[SB_KIND[k][0]]));
+    sbAdd.addEventListener('change',()=>{
+      const k=sbAdd.value;
+      sbAdd.value='';
+      if(!Object.prototype.hasOwnProperty.call(SB_KIND,k))return;
+      sbDo(t=>{
+        const at=sbSel?sbSel.sec[0]+1:t.sections.length;
+        t.sections.splice(at,0,SB_KIND[k][1](t));
+        return {sec:[at]};
+      });
+    });
+  }
 
   function loadTpl(){
     return hostsJSON().then(d=>{
@@ -5046,7 +6024,7 @@ function appendStep(el,val){
   if(tplToggle)tplToggle.addEventListener('click',()=>{
     tplPanel.classList.toggle('open');
     tplToggle.innerHTML='Remote Style '+(tplPanel.classList.contains('open')?'▴':'▾');
-    if(tplPanel.classList.contains('open')){tplNote('');loadTpl()}
+    if(tplPanel.classList.contains('open')){tplNote('');loadTpl().then(sbFromBox)}
     // Closing the panel puts the host's own style back: a preview that outlived
     // the editor it belongs to just looks like the remote went wrong.
     else tplEndPreview();
@@ -6471,6 +7449,9 @@ buildKeyboard();
     knobLevel(card,lastLcdVals);
   };
 
+  // The keys the last status carried values for, which the builder suggests.
+  window.lcdKeysNow=()=>lastLcdVals?Object.keys(lastLcdVals):[];
+
   // ── Per-host hidden buttons ──
   // Hides the buttons this host has no use for, then collapses any container
   // left empty so no stray label or divider is stranded behind them.
@@ -7033,6 +8014,9 @@ buildKeyboard();
   // display:none, and popping it out replaces it with a placeholder — moved
   // into a picture-in-picture window it still shows, detached into a pop-up it
   // does not. Client rects answer all four cases at once.
+  // The style builder draws the style it is editing with this same renderer, so
+  // its drawing lays out exactly as the remote will.
+  window.rmtSectionHtml=sectionHtml;
   window.previewTemplate=function(t){
     rmtPreview=t;drawTemplate(t);
     return body.getClientRects().length>0;

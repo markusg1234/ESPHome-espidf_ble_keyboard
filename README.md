@@ -1207,9 +1207,11 @@ The [Media Remote Card](#media-remote-card-for-home-assistant) draws from the sa
 
 Press **Export** to drop the style currently shown into the box below as JSON, edit it, and press **Import**. Importing over an id that already exists replaces it; a new id adds a style. The device holds **6** custom styles of up to **1500 characters** each.
 
+**No JSON needed.** Remote Style also draws the style being edited. Press **Start from** (or Export, or ✎ on one of your own), click a key or a section in the drawing, and change it with plain fields: what a key does, its label, size, colour and icon; a section's settings, keys and order. **Add section** puts in a working one of any kind, **Colours and size** sets the theme, and **Undo** steps back. Every change is written into the JSON box, which Import saves as usual, and whatever is typed there is drawn, so the two work together.
+
 **Import also takes a whole Export all list**, so a set of styles moves between keyboards in one paste — see [Copying styles to another keyboard](#copying-styles-to-another-keyboard). Every style in the list is checked, and given its slot, before any of them is written: one that would not render, or a list with nowhere to put its new styles, leaves the device untouched and says which style is the problem.
 
-The remote card **redraws as you type**, so the layout is visible before it is saved — the preview lives in the browser, and nothing reaches the device until you press Import. A trailing comma is forgiven; any other syntax error names the line it is on and puts the cursor there.
+The remote card **redraws as you type**, so the layout is visible before it is saved — the preview lives in the browser, and nothing reaches the device until you press Import. A missing or extra comma, curly or single quotes and unquoted names are forgiven, and the note says what was assumed; any other syntax error names the line it is on and puts the cursor there.
 
 ```json
 {
