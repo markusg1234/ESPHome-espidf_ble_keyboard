@@ -207,7 +207,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 /* While the box holds JSON that won't read, the builder shows its last good state
    and waits — but Undo still works, since it is one way back. */
 .sb-wait #sb-main{opacity:.45;pointer-events:none}
-.sb-wait #sb-undo{pointer-events:auto}
+.sb-wait #sb-undo,.sb-wait #sb-close{pointer-events:auto}
 .sb-insp{border:1px solid var(--border);border-radius:8px;padding:4px 8px;margin:8px 0;background:var(--card)}
 /* On a remote too tall to see whole, the fields float just under what is
    selected, over the rest of the drawing, so a key at its top is changed without
@@ -218,6 +218,11 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .sb-msg{font-size:11px;color:#c44;margin:4px 0}
 .sb-hint{font-size:11px;color:var(--muted);margin:4px 0;line-height:1.45}
 .sb-chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:6px 0;font-size:12px;color:var(--muted)}
+/* Save and its neighbours wrap as one group, never split across lines. */
+.sb-acts{display:inline-flex;gap:6px;align-items:center}
+.sb-save{padding:6px 14px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer}
+.sb-save:active{opacity:.8}
+.sb-note{font-size:11px;color:var(--muted);min-height:14px}
 .sb-len{font-size:11px;color:var(--muted)}
 .sb-len.over{color:#c44}
 .ico-thumb{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:48px;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg)}
@@ -1052,25 +1057,29 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="hid-panel" id="tpl-panel">
 <button class="hid-toggle" id="tpl-toggle">Remote Style &#9662;</button>
 <div class="hid-body" id="tpl-body">
-<div style="font-size:12px;color:var(--muted);margin:6px 0">Choose the remote layout this host gets &mdash; switch to the host and the remote re-skins to match it. The hidden, repeat and hold settings above still apply on top of whatever style is showing, and every action stays available to macros, buttons and Home Assistant either way. <strong>This tab</strong> keeps just this tab on one style whatever host is active &mdash; it adds <code>?style=</code> and the style's id to the address, so bookmark it or add it to a tablet's home screen to keep it there, while other tabs go on following the host. It can also show a host's <em>page</em> (<code>?host=</code>): that host's style and its Host Actions on every key, with any key that host leaves unset going to the active host as usual &mdash; so a slot that doesn't advertise becomes a tablet's own programmable remote.</div>
+<div style="font-size:12px;color:var(--muted);margin:6px 0;line-height:1.5"><p style="margin:0 0 4px"><strong>This host</strong> &mdash; the style this host&rsquo;s remote is drawn in; switch host and the remote follows. Remote Buttons, Hold to Repeat and Press and Hold still apply on top.</p><p style="margin:0"><strong>This tab</strong> &mdash; keeps just this tab on one style (<code>?style=</code>), or on a host&rsquo;s page (<code>?host=</code>): its style and Host Actions, whichever host is active. Bookmark the address to keep it, say on a tablet.</p></div>
 <div class="macro-form" style="margin-top:0"><span class="tpl-lbl">This host</span><div class="tpl-step"><button id="tpl-prev" title="Previous style">&minus;</button><select class="tpl-name" id="tpl-name" title="The style this host's remote is drawn in &mdash; open it for the whole list, or step with &minus; and +"></select><button id="tpl-next" title="Next style">+</button></div><button id="tpl-export" class="cancel" title="Copy the shown style into the box below as JSON — edit it, give it a new id, and Import it back as your own">Export</button><button id="tpl-export-all" class="cancel" title="Copy every custom style into the box below as one JSON list — paste it into the Home Assistant remote card, or into another keyboard's Import box to copy them all across">Export all</button></div>
 <div class="macro-form" style="margin-top:6px"><span class="tpl-lbl">This tab</span><div class="tpl-step"><button id="tpl-lock-prev" title="Previous style or host page for this tab">&minus;</button><select class="tpl-name" id="tpl-lock-name" title="What this tab keeps whatever host is active: a style, or a host's page with its Host Actions. Open it for the whole list. Nothing is saved on the keyboard."></select><button id="tpl-lock-next" title="Next style or host page for this tab">+</button></div></div>
 <div id="tpl-custom"></div>
 <div class="sb" id="sb">
-<div class="sb-intro"><strong>Build</strong> a style by pointing at it: start from one, then click a key or a section in the drawing to change it. The JSON box follows every change, and nothing is saved until you press Import.</div>
+<div class="sb-intro"><strong>Build</strong> a style by pointing at it: start from one, then click a key or a section in the drawing to change it. The JSON box follows every change, and nothing is saved until you press Save.</div>
 <div class="macro-form" id="sb-start"><button id="sb-start-btn">Start</button><button class="cancel sb-blank" title="A new style with one key, to build up from nothing">New</button></div>
 <div class="sb-msg" id="sb-bad" hidden></div>
 <div id="sb-main" hidden>
-<div class="sb-row"><label>Name <input id="sb-name" data-f="name" maxlength="24" autocomplete="off" spellcheck="false"></label><label>id <input id="sb-id" data-f="id" maxlength="15" autocomplete="off" autocapitalize="off" spellcheck="false" title="1-15 characters of a-z, 0-9 or _. The keyboard keeps one style per id, so Import over an id it already has replaces that style."></label><button class="mod-btn" id="sb-undo" data-f="undo" disabled>Undo</button><button class="mod-btn sb-blank" data-f="blank" title="Put this style aside and start a new one with one key — Undo brings it back">New</button></div>
+<div class="sb-row"><label>Name <input id="sb-name" data-f="name" maxlength="24" autocomplete="off" spellcheck="false"></label><label>id <input id="sb-id" data-f="id" maxlength="15" autocomplete="off" autocapitalize="off" spellcheck="false" title="1-15 characters of a-z, 0-9 or _. The keyboard keeps one style per id, so Import over an id it already has replaces that style."></label><span class="sb-acts"><button class="sb-save" id="sb-save" data-f="save" title="Save this style on the keyboard — the same as Import under the JSON box">Save</button><button class="mod-btn" id="sb-undo" data-f="undo" disabled>Undo</button><button class="mod-btn sb-blank" data-f="blank" title="Put this style aside and start a new one with one key — Undo brings it back">New</button><button class="mod-btn" id="sb-close" data-f="close-ed" title="Stop editing: empty the box and put the remote back on the host's style">Exit</button></span></div>
+<div class="sb-len" id="sb-len"></div>
+<div class="sb-note" id="sb-note"></div>
 <details class="sb-theme"><summary>Colours and size</summary><div class="sb-theme-rows" id="sb-theme-rows"></div><div class="sb-hint">A colour left empty follows the page's light or dark mode, so set all of them or none.</div></details>
 <div id="sb-canvas" class="rmt-body sb-canvas"></div>
 <div class="sb-insp" id="sb-insp"></div>
 <div class="sb-row"><select id="sb-add" data-f="add" title="Adds a section after the one selected, or at the end"><option value="">Add section&hellip;</option></select></div>
-<div class="sb-len" id="sb-len"></div>
 </div>
 <datalist id="sb-src"></datalist><datalist id="sb-lit"></datalist><datalist id="sb-icons"></datalist>
 </div>
-<div class="tpl-help"><strong>Roll your own:</strong> Export a style, change its <code>id</code> and <code>name</code>, rearrange its <code>sections</code>, then Import. Import also takes a whole <strong>Export all</strong> list &mdash; one paste copies a set of styles to another keyboard. It adds and replaces by <code>id</code>, never deletes: a style the other keyboard has that the list does not stays where it is. The remote card redraws as you type &mdash; nothing is saved until you press Import.
+<div class="tpl-help" style="margin-bottom:0"><strong>Roll your own</strong> in JSON</div>
+<div class="macro-form"><textarea id="tpl-json" placeholder="Paste a style JSON here to import &mdash; or a whole Export all list&hellip;" rows="8" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="tpl-import">Import</button></div>
+<div id="tpl-msg" style="font-size:11px;color:var(--muted)"></div>
+<div class="tpl-help">Export a style, change its <code>id</code> and <code>name</code>, rearrange its <code>sections</code>, then Import. Import also takes a whole <strong>Export all</strong> list &mdash; one paste copies a set of styles to another keyboard. It adds and replaces by <code>id</code>, never deletes: a style the other keyboard has that the list does not stays where it is. The remote card redraws as you type &mdash; nothing is saved until you press Import.
 <dl>
 <dt><code>["row",…]</code></dt><dd>A row of round buttons. <code>"|"</code> spaces it out.</dd>
 <dt><code>["dpad"]</code></dt><dd>The arrow cluster.</dd>
@@ -1088,8 +1097,6 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <dt><code>"theme"</code></dt><dd>Size and colour, e.g. <code>"maxw": "250px", "zoom": "1.25",</code> &mdash; <code>maxw</code> is how wide the remote may draw, <code>zoom</code> scales all of it at once: buttons, their icons and labels, the gaps, the d&#8209;pad and the rockers. <code>maxw</code> is measured before the zoom, so it grows too &mdash; halve one to hold the width while the buttons get bigger.</dd>
 </dl>
 A button is its action name, or <code>["spare1","Netflix"]</code> to label it &mdash; pair that with an override on the same host and the key both reads and does what you want &mdash; or <code>["spare1","Netflix","#e50914 wide"]</code> to colour and size it (<code>light sm md lg xl wide sq squircle</code>, or <code>fill h:80</code> for rectangles that share their row's width). Add <code>icon:</code> and a name among those options to put an icon from <strong>Button Icons</strong> on the key &mdash; <code>["spare1","Netflix","icon:netflix lg sq"]</code>, with <code>ih:36</code> to draw it larger or smaller than the key's size gives it &mdash; and its label becomes the tooltip, and what the key shows if the icon is missing. <code>theme</code> is optional, and its <code>bg</code> takes a gradient.</div>
-<div class="macro-form"><textarea id="tpl-json" placeholder="Paste a style JSON here to import &mdash; or a whole Export all list&hellip;" rows="8" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="tpl-import">Import</button></div>
-<div id="tpl-msg" style="font-size:11px;color:var(--muted)"></div>
 </div>
 </div>
 <div class="hid-panel" id="ico-panel">
@@ -4136,7 +4143,11 @@ function appendStep(el,val){
   let slotTpl={};                       // slot -> stored style id ('' = default)
   let slotNames={};                     // slot -> the name the host bar shows
   let tplOpts=[],tplIdx=0;              // the styles to step through, and where we are
-  function tplNote(m,err){if(tplMsg){tplMsg.textContent=m||'';tplMsg.style.color=err?'#c44':'var(--muted)'}}
+  // Shown beside the builder's Save as well, so what a save did is read where it was pressed.
+  function tplNote(m,err){
+    for(const el of [tplMsg,document.getElementById('sb-note')])
+      if(el){el.textContent=m||'';el.style.color=err?'#c44':'var(--muted)'}
+  }
 
   // Both steppers show their choice in a dropdown, so the whole list can be
   // read at once instead of stepped through blind. Rebuilt on every change:
@@ -4306,8 +4317,8 @@ function appendStep(el,val){
       const a=document.createElement('span');
       a.className='ovr-act';a.textContent=t.id;
       const eb=document.createElement('button');
-      eb.className='macro-act';eb.textContent='✎';eb.title='Load into the box below to edit';
-      eb.addEventListener('click',()=>{sbLoad(tplText(t));tplNote('Loaded "'+t.name+'" — edit and Import to replace it.')});
+      eb.className='macro-act';eb.textContent='✎';eb.title='Edit in the builder';
+      eb.addEventListener('click',()=>{if(!sbLeave())return;sbLoad(tplText(t),true);tplNote('Editing "'+t.name+'" — Save keeps it.')});
       const db=document.createElement('button');
       db.className='macro-act del';db.textContent='✕';db.title='Delete this style. Hosts using it fall back to the full remote.';
       db.addEventListener('click',()=>{
@@ -4966,9 +4977,12 @@ function appendStep(el,val){
     return chain.then(()=>sent);
   }
 
-  if(tplExport)tplExport.addEventListener('click',()=>{
+  // Export is JSON's: it fills the box and leaves the builder shut. Start, ✎ and
+  // New are what open the builder — Start takes the same copy, with open set.
+  function tplExportShown(open){
     const t=tplOpts[tplIdx];
     if(!t){tplNote('Nothing to export.',true);return}
+    if(!sbLeave())return;
     // A built-in is exported under a free id, so importing it straight back
     // lands as a new custom style rather than being refused as a duplicate.
     const copy=JSON.parse(JSON.stringify(t));
@@ -4978,12 +4992,14 @@ function appendStep(el,val){
       copy.name=(t.name+' copy').slice(0,24);
     }
     withIcons(copy).then(c=>{
-      sbLoad(tplText(c));
-      tplNote('Exported "'+t.name+'"'+(t.custom?'':' as "'+copy.id+'"')+
+      sbLoad(tplText(c),open);
+      tplNote(open?'Editing '+(t.custom?'"'+t.name+'"':'a copy of "'+t.name+'"')+' — Save keeps it.':
+              'Exported "'+t.name+'"'+(t.custom?'':' as "'+copy.id+'"')+
               (c.icons?' with its '+Object.keys(c.icons).length+' icon'+(Object.keys(c.icons).length>1?'s':''):'')+
               ' — edit it, then Import.');
     });
-  });
+  }
+  if(tplExport)tplExport.addEventListener('click',()=>tplExportShown(false));
 
   // Every custom style at once, as the JSON list the Home Assistant card takes.
   // Exporting one at a time meant only a single custom remote ever reached the
@@ -4998,8 +5014,9 @@ function appendStep(el,val){
       tplNote('No custom styles yet — Import one first, then Export all.',true);
       return;
     }
+    if(!sbLeave())return;
     Promise.all(RMT_CUSTOM.map(t=>withIcons(tplPlain(t)))).then(list=>{
-      tplJson.value=JSON.stringify(list);
+      sbLoad(JSON.stringify(list),false);
       tplNote('Exported all '+RMT_CUSTOM.length+' custom style'+(RMT_CUSTOM.length>1?'s':'')+
               ' — paste this into the Home Assistant card to add them all to its list.');
     });
@@ -5141,8 +5158,8 @@ function appendStep(el,val){
     tplPreviewing=true;
     // Saying "preview" while the card is hidden or popped out reads as a bug in
     // the preview rather than as the card being somewhere else.
-    let n=window.previewTemplate(r.t)?'Preview — Import to save.'
-                                     :'Drawn, but the remote card is not on screen. Import to save.';
+    let n=window.previewTemplate(r.t)?'Preview — not saved yet.'
+                                     :'Drawn, but the remote card is not on screen. Not saved yet.';
     if(r.fixed)n=r.fixed+' '+n;
     tplNote(n);
     sbShow({t:r.t});
@@ -5180,6 +5197,9 @@ function appendStep(el,val){
   let sbSel=null;
   let sbWhy='';        // why the last change was refused, until the next one
   let sbUndoList=[],sbTimer=null;
+  // Whether the builder is open. The box can hold a style without it — from Export,
+  // or typed — and then the builder stays shut until Start, ✎ or New.
+  let sbOpen=false;
 
   // Each kind by a plain name — with the JSON one beside it where they differ, so
   // the box and the README can be matched up — and what Add section puts in: a
@@ -5357,10 +5377,10 @@ function appendStep(el,val){
   }
   // A whole style into the box — from Export or ✎ — after keeping what was there,
   // so pressing either never costs work that was not imported yet.
-  function sbLoad(text){
+  function sbLoad(text,open){
     sbPush(tplJson.value);
     tplJson.value=text;
-    sbSel=null;sbWhy='';
+    sbSel=null;sbWhy='';sbOpen=!!open;
     // The remote goes back to the host's own style; the first change previews this one.
     tplEndPreview();
     sbFromBox();
@@ -5368,7 +5388,7 @@ function appendStep(el,val){
   // Brings the builder round to what the box holds.
   function sbShow(st){
     sbState=st;
-    if(!st)sbT=null;
+    if(!st){sbT=null;sbOpen=false}
     else if(st.t){sbT=st.t;if(sbSel&&!sbSelOk(sbT,sbSel))sbSel=null}
     sbRenderSoon();
   }
@@ -5382,6 +5402,18 @@ function appendStep(el,val){
     if(Array.isArray(r.t))return sbShow({list:r.t.length});
     const why=validateTpl(r.t);
     sbShow(why?{err:why}:{t:r.t});
+  }
+  // Whether the builder may be left — by Exit, or by Export putting other JSON in
+  // the box. Asks only when there is something to lose: a style that differs from
+  // what the keyboard holds under its id, or (on Exit) a box that won't read.
+  function sbLeave(exit){
+    if(!sbOpen||!sbState)return true;
+    if(sbState.t){
+      const t=sbState.t,was=RMT_CUSTOM.find(c=>c.id===t.id);
+      const flat=x=>JSON.stringify({id:x.id,name:String(x.name).trim(),theme:x.theme||{},sections:x.sections});
+      return (was&&flat(was)===flat(t))||confirm('Leave "'+t.name+'" without saving it?');
+    }
+    return !exit||!sbState.err||confirm('Exit and empty the JSON box?');
   }
   // An icon arriving redraws the drawing alone: rebuilding the fields under
   // someone typing in one would throw away what they had not committed.
@@ -5400,13 +5432,13 @@ function appendStep(el,val){
     const st=sbState,a=document.activeElement;
     const f=a&&a!==document.body&&sb.contains(a)?a.dataset.f||'':'';
     const fromDrawing=!!(a&&sbCanvas.contains(a));
-    sbStart.hidden=!!st;
+    sbStart.hidden=sbOpen;
     sbStartLabel();
-    sbBad.hidden=!(st&&(st.err||st.list));
+    sbBad.hidden=!(sbOpen&&st&&(st.err||st.list));
     sbBad.textContent=!st?'':st.list?'The JSON box holds a list of '+st.list+' styles. Import saves them all; '+
       'to change one, Import it, then ✎ it.':st.err?'The JSON box has a problem, so the builder waits: '+st.err:'';
-    sb.classList.toggle('sb-wait',!!(st&&st.err));
-    const t=st&&(st.t||st.err)?sbT:null;
+    sb.classList.toggle('sb-wait',!!(sbOpen&&st&&st.err));
+    const t=sbOpen&&st&&(st.t||st.err)?sbT:null;
     sbMain.hidden=!t;
     if(!t)return;
     if(a!==sbName)sbName.value=t.name||'';
@@ -5577,9 +5609,9 @@ function appendStep(el,val){
   function sbMeter(t){
     const len=JSON.stringify({id:t.id,name:String(t.name).trim(),theme:t.theme||{},sections:t.sections}).length;
     const was=RMT_CUSTOM.find(c=>c.id===t.id),full=!was&&RMT_CUSTOM.length>=RMT_CUSTOM_MAX;
-    sbLen.textContent=len+' of '+RMT_CUSTOM_LEN+' characters · '+(was?'Import replaces “'+was.name+'”':
+    sbLen.textContent=len+' of '+RMT_CUSTOM_LEN+' characters · '+(was?'saving replaces “'+was.name+'”':
       full?'all '+RMT_CUSTOM_MAX+' places are taken, so delete a style first':
-      'Import adds it as a new style ('+RMT_CUSTOM.length+' of '+RMT_CUSTOM_MAX+' used)');
+      'saving adds it as a new style ('+RMT_CUSTOM.length+' of '+RMT_CUSTOM_MAX+' used)');
     sbLen.classList.toggle('over',len>RMT_CUSTOM_LEN||full);
   }
 
@@ -5997,13 +6029,25 @@ function appendStep(el,val){
     sbWhy='';
     tplPreview();
   });
-  if(sbStartBtn)sbStartBtn.addEventListener('click',()=>{if(tplExport)tplExport.click()});
+  if(sbStartBtn)sbStartBtn.addEventListener('click',()=>tplExportShown(true));
+  // Exit stops editing: the box empties, the remote goes back to the host's own
+  // style and Start and New come back. Asks first only when there is something to
+  // lose — a style that differs from what the keyboard holds under its id.
+  const sbCloseBtn=document.getElementById('sb-close');
+  if(sbCloseBtn)sbCloseBtn.addEventListener('click',()=>{
+    if(!sbLeave(true))return;
+    sbLoad('',false);
+    tplNote('');
+  });
+  // Save is Import: the builder's style is the box's.
+  const sbSave=document.getElementById('sb-save');
+  if(sbSave)sbSave.addEventListener('click',()=>{if(tplImport)tplImport.click()});
   // A style with nothing on it but one key, for building up from nothing: a style
   // needs a section, and a key is something to click. Its id is the first one free.
   document.querySelectorAll('.sb-blank').forEach(b=>b.addEventListener('click',()=>{
     let id='my_style',n=1;
     while(tplById(id)&&n<100)id='my_style_'+(++n);
-    sbLoad(tplText({id:id,name:'New style',theme:{},sections:[['row','remote_power']]}));
+    sbLoad(tplText({id:id,name:'New style',theme:{},sections:[['row','remote_power']]}),true);
     tplNote('A new style — click its key, or Add section, to build it up.');
   }));
   if(sbAdd){

@@ -1205,9 +1205,9 @@ The [Media Remote Card](#media-remote-card-for-home-assistant) draws from the sa
 
 #### Making your own
 
-Press **Export** to drop the style currently shown into the box below as JSON, edit it, and press **Import**. Importing over an id that already exists replaces it; a new id adds a style. The device holds **6** custom styles of up to **1500 characters** each.
+Press **Export** to drop the style currently shown into the box below as JSON, edit it, and press **Import**. Importing over an id that already exists replaces it; a new id adds a style. The device holds **8** custom styles of up to **1500 characters** each.
 
-**No JSON needed.** Remote Style also draws the style being edited. Press **Start from** (or Export, or ✎ on one of your own) — or **New** for a style with a single key — then click a key or a section in the drawing, and change it with plain fields: what a key does, its label, size, colour and icon; a section's settings, keys and order. **Add section** puts in a working one of any kind, **Colours and size** sets the theme, and **Undo** steps back. Every change is written into the JSON box, which Import saves as usual, and whatever is typed there is drawn, so the two work together.
+**No JSON needed.** Remote Style also draws the style being edited. Press **Start from** for the style the host uses, ✎ on one of your own, or **New** for a style with a single key, then click a key or a section in the drawing, and change it with plain fields: what a key does, its label, size, colour and icon; a section's settings, keys and order. **Add section** puts in a working one of any kind, **Colours and size** sets the theme, and **Undo** steps back. **Save** keeps it on the keyboard — the same as Import — and **Exit** stops editing, asking first if there is anything unsaved. Every change is written into the JSON box, and whatever is typed there is drawn, so the two work together.
 
 **Import also takes a whole Export all list**, so a set of styles moves between keyboards in one paste — see [Copying styles to another keyboard](#copying-styles-to-another-keyboard). Every style in the list is checked, and given its slot, before any of them is written: one that would not render, or a list with nowhere to put its new styles, leaves the device untouched and says which style is the problem.
 

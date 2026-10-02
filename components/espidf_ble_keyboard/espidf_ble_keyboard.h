@@ -444,7 +444,10 @@ class EspidfBleKeyboard : public Component
   // Opaque too: the browser validates the structure (it is the only thing that
   // can — it owns the button catalogue), the device guards size and character
   // range. Uploaded in chunks because the web server takes 512 bytes of URL.
-  static const uint8_t MAX_CUSTOM_TEMPLATES = 6;
+  // Eight: each costs RAM only once used (up to 1.5 KB), and the style list and
+  // backup are built in one block — about 15 KB with all eight full, refused
+  // rather than attempted when the heap has no block that size.
+  static const uint8_t MAX_CUSTOM_TEMPLATES = 8;
   static const uint16_t MAX_TEMPLATE_LEN = 1500;
   const std::string &get_custom_template(uint8_t index) const;
   /// Append one chunk of an upload; seq 0 starts a new one. False = out of

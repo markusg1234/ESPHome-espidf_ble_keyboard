@@ -1202,7 +1202,7 @@ class BleKbWebHandler : public AsyncWebHandler {
         est += json_escaped_size(kb_->get_on_connect(s)) + 8;
       }
       // The custom styles, which nothing above covers and which are by far the
-      // largest thing in here: six of them is 9 KB stored and more once
+      // largest thing in here: eight of them is 12 KB stored and more once
       // escaped, because every key, token and colour in a style is quoted.
       // Counted exactly, as /remote_templates does. Without this the reserve
       // came out a couple of KB for a document of twenty, and the += chain

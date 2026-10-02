@@ -12,6 +12,9 @@ web control page shows the matching version badge.
   list and pick colours. The JSON box follows every change and the drawing follows the box, which
   now also forgives a missing comma, curly quotes and unquoted names.
 
+### Changed
+- **The keyboard holds 8 custom remote styles**, up from 6.
+
 ## v1.14.0 — 2026-10-02
 
 ### Added
