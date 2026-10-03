@@ -1037,7 +1037,9 @@ function sectionHtml(s){
       const tip=esc(setA?'Sets '+(lab||RMT_BTNS[setA].t):'Slide to a level: '+nm(ua)+' / '+nm(da));
       // Upright unless told across — either way of saying it.
       const vert=!(cfg.horizontal===true||cfg.vertical===false);
-      inner='<div class="rmt-slider nolevel'+(vert?' vert':'')+'" data-up="'+ua+'" data-down="'+da+'"'+
+      // "thumb_shape":"line" draws the thumb as a fader cap.
+      const line=cfg.thumb_shape==='line';
+      inner='<div class="rmt-slider nolevel'+(vert?' vert':'')+(line?' line':'')+'" data-up="'+ua+'" data-down="'+da+'"'+
             (lvl?' data-level="'+esc(lvl)+'"':'')+(setA?' data-set="'+setA+'"':'')+(pa?' data-press="'+pa+'"':'')+
             ' data-min="'+lo+'" data-max="'+hi+'" data-inc="'+inc+'" style="--rb-sl-len:'+len+'px'+wide+thumbSz+'">'+(capTop?cap:'')+
             '<div class="rmt-slider-row">'+(marks?'<span class="rmt-slider-mk dn">&minus;</span>':'')+
@@ -1431,11 +1433,13 @@ function validateTpl(t){
           }else if(k==='thumb'){
             if(typeof v!=='number'||v!==Math.floor(v)||v<RMT_SLIDER_T[0]||v>RMT_SLIDER_T[1])
               return 'slider "thumb" is '+RMT_SLIDER_T[0]+'-'+RMT_SLIDER_T[1]+' pixels, a whole number';
+          }else if(k==='thumb_shape'){
+            if(v!=='round'&&v!=='line')return 'slider "thumb_shape" is "round" or "line"';
           }else if(k==='size'||k==='center'||k==='step'||k==='sweep'){
             // A knob's, taken so that "knob" can be changed to "slider" and
             // nothing else: size is the length, the rest have nothing to do here.
             if(typeof v!=='number'||v!==Math.floor(v)||v<1)return 'slider "'+k+'" must be a whole number';
-          }else return 'A slider takes set, level, show, label, label_at, marks, horizontal, vertical, min, max, inc, length, width and thumb, '+
+          }else return 'A slider takes set, level, show, label, label_at, marks, horizontal, vertical, min, max, inc, length, width, thumb and thumb_shape, '+
                        'and a pot\'s settings — "'+k+'" is none of them';
         }
         if(cfg.vertical!==undefined&&cfg.horizontal!==undefined&&cfg.vertical===cfg.horizontal)
@@ -1713,6 +1717,16 @@ export const RMT_CSS = `
 .rmt-slider.vert .rmt-slider-thumb{left:50%;top:auto;bottom:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));
   margin:0 0 calc(var(--rb-sl-th,20px) / -2) calc(var(--rb-sl-th,20px) / -2)}
 .rmt-slider.drag .rmt-slider-fill,.rmt-slider.drag .rmt-slider-thumb{transition:none}
+.rmt-slider.line .rmt-slider-thumb{background:none;border:none;box-shadow:none;border-radius:0}
+.rmt-slider.line .rmt-slider-thumb::before{content:"";position:absolute;top:0;bottom:0;left:22%;right:22%;border-radius:3px;
+  background:var(--rb-ok-bg,var(--rb-btn-bg,var(--bg)));border:1px solid var(--rb-btn-border,var(--border));
+  box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.rmt-slider.line .rmt-slider-thumb::after{content:"";position:absolute;top:16%;bottom:16%;left:50%;width:2px;margin-left:-1px;
+  border-radius:1px;background:var(--rb-btn-fg,var(--fg))}
+.rmt-slider.line.vert .rmt-slider-thumb::before{left:0;right:0;top:22%;bottom:22%}
+.rmt-slider.line.vert .rmt-slider-thumb::after{left:16%;right:16%;top:50%;bottom:auto;width:auto;height:2px;margin:-1px 0 0}
+.rmt-slider.line .rmt-slider-thumb svg{display:none}
+.rmt-slider.line .rmt-slider-thumb.p::before{background:var(--active);border-color:var(--active)}
 .rmt-slider.nolevel .rmt-slider-fill,.rmt-slider.nolevel .rmt-slider-thumb{visibility:hidden}
 .rmt-slider-mk{display:flex;align-items:center;justify-content:center;flex:none;width:20px;height:20px;
   font-size:16px;font-weight:700;line-height:1;opacity:.7;cursor:pointer;

@@ -521,6 +521,19 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-slider.vert .rmt-slider-thumb{left:50%;top:auto;bottom:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));
   margin:0 0 calc(var(--rb-sl-th,20px) / -2) calc(var(--rb-sl-th,20px) / -2)}
 .rmt-slider.drag .rmt-slider-fill,.rmt-slider.drag .rmt-slider-thumb{transition:none}
+/* "thumb_shape":"line" — a fader cap: a small block across the track with a line
+   through it where the value is. The thumb keeps its square box, which the
+   position maths and the touch target are worked out from; the cap is drawn in it. */
+.rmt-slider.line .rmt-slider-thumb{background:none;border:none;box-shadow:none;border-radius:0}
+.rmt-slider.line .rmt-slider-thumb::before{content:"";position:absolute;top:0;bottom:0;left:22%;right:22%;border-radius:3px;
+  background:var(--rb-ok-bg,var(--rb-btn-bg,var(--bg)));border:1px solid var(--rb-btn-border,var(--border));
+  box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.rmt-slider.line .rmt-slider-thumb::after{content:"";position:absolute;top:16%;bottom:16%;left:50%;width:2px;margin-left:-1px;
+  border-radius:1px;background:var(--rb-btn-fg,var(--fg))}
+.rmt-slider.line.vert .rmt-slider-thumb::before{left:0;right:0;top:22%;bottom:22%}
+.rmt-slider.line.vert .rmt-slider-thumb::after{left:16%;right:16%;top:50%;bottom:auto;width:auto;height:2px;margin:-1px 0 0}
+.rmt-slider.line .rmt-slider-thumb svg{display:none}
+.rmt-slider.line .rmt-slider-thumb.p::before{background:var(--active);border-color:var(--active)}
 .rmt-slider.nolevel .rmt-slider-fill,.rmt-slider.nolevel .rmt-slider-thumb{visibility:hidden}
 .rmt-slider-mk{display:flex;align-items:center;justify-content:center;flex:none;width:20px;height:20px;
   font-size:16px;font-weight:700;line-height:1;opacity:.7;cursor:pointer;
@@ -1092,7 +1105,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <dt><code>["apps",…]</code></dt><dd>A row of wide pills.</dd>
 <dt><code>["grid",…]</code></dt><dd>Equal rectangles in columns, the layout said once: <code>["grid",{"cols":2,"h":56,"opts":"sq"},["spare1","Copy"],["spare2","Paste"]]</code>. The settings are optional &mdash; <code>cols</code> 1&ndash;8 (2 if left out), <code>h</code> 24&ndash;160 pixels, and <code>opts</code> every key takes. A key's own options add to those, and <code>"|"</code> leaves a cell empty.</dd>
 <dt><code>["lcd",…]</code></dt><dd>A small screen: <code>["lcd",["Room","temp"],["Host","@host"]]</code>. Each line is a label and the value to show &mdash; <code>@host @slot @mac @state @rssi @battery @layout</code> come from the keyboard itself, <code>@last</code> and <code>@station</code> name the button just pressed, <code>@msg</code> shows what an <code>lcd:text</code> action wrote, and any other name is an entry in the component's <code>sources:</code>. A third entry sizes and justifies one line: <code>sm lg xl</code>, <code>left centre right</code>, or a <code>#hex</code> colour. Left alone a line spreads &mdash; label one side, value the other. A settings object in front of the lines sizes the panel itself like a real display: <code>{"cols":16,"rows":2}</code> is 16 characters by 2 lines (4&ndash;40 and 1&ndash;8), and <code>fg bg label border</code> colour that panel alone.</dd>
-<dt><code>["slider",…]</code></dt><dd>A track to press or drag to a value, as an analogue pot is turned to one: <code>["slider",{"set":"spare12","label":"Lamp"}]</code> sends <code>spare12=&lt;value&gt;</code> once when let go, and <code>{"level":"tv_volume"}</code> sends the presses of <code>"volume_up","volume_down"</code> (or two actions you list) from that reading. Upright unless <code>"horizontal":true</code> (or <code>"vertical":false</code>); <code>length</code> 30&ndash;480 pixels and <code>width</code> 10&ndash;120 (how thick), <code>thumb</code> 8&ndash;120 (its size, apart from the width), <code>min</code> <code>max</code> <code>inc</code>, <code>show</code>, <code>label</code>, <code>label_at</code> and <code>marks</code> as on a pot. A pot&rsquo;s settings and actions carry over, so changing <code>"pot"</code> to <code>"slider"</code> is all a swap takes: <code>size</code> is the length, and a third action is pressed by a tap on the thumb, as a pot&rsquo;s middle key is.</dd>
+<dt><code>["slider",…]</code></dt><dd>A track to press or drag to a value, as an analogue pot is turned to one: <code>["slider",{"set":"spare12","label":"Lamp"}]</code> sends <code>spare12=&lt;value&gt;</code> once when let go, and <code>{"level":"tv_volume"}</code> sends the presses of <code>"volume_up","volume_down"</code> (or two actions you list) from that reading. Upright unless <code>"horizontal":true</code> (or <code>"vertical":false</code>); <code>length</code> 30&ndash;480 pixels and <code>width</code> 10&ndash;120 (how thick), <code>thumb</code> 8&ndash;120 (its size, apart from the width), <code>"thumb_shape":"line"</code> for a fader cap, <code>min</code> <code>max</code> <code>inc</code>, <code>show</code>, <code>label</code>, <code>label_at</code> and <code>marks</code> as on a pot. A pot&rsquo;s settings and actions carry over, so changing <code>"pot"</code> to <code>"slider"</code> is all a swap takes: <code>size</code> is the length, and a third action is pressed by a tap on the thumb, as a pot&rsquo;s middle key is.</dd>
 <dt><code>["side",…]</code></dt><dd>Sections side by side instead of one under another: <code>["side",["strip",["Vol","volume_up","volume_down"]],["pot",{"size":100}],["strip",["Ch","channel_up","channel_down"]]]</code> puts a knob between two columns. <code>["side",{"gap":24},…]</code> sets the room between them, 0&ndash;200 pixels (12 unless set).</dd>
 <dt><code>["-"]</code></dt><dd>A divider.</dd>
 <dt><code>"theme"</code></dt><dd>Size and colour, e.g. <code>"maxw": "250px", "zoom": "1.25",</code> &mdash; <code>maxw</code> is how wide the remote may draw, <code>zoom</code> scales all of it at once: buttons, their icons and labels, the gaps, the d&#8209;pad and the rockers. <code>maxw</code> is measured before the zoom, so it grows too &mdash; halve one to hold the width while the buttons get bigger.</dd>
@@ -4781,11 +4794,13 @@ function appendStep(el,val){
           }else if(k==='thumb'){
             if(typeof v!=='number'||v!==Math.floor(v)||v<RMT_SLIDER_T[0]||v>RMT_SLIDER_T[1])
               return 'slider "thumb" is '+RMT_SLIDER_T[0]+'-'+RMT_SLIDER_T[1]+' pixels, a whole number';
+          }else if(k==='thumb_shape'){
+            if(v!=='round'&&v!=='line')return 'slider "thumb_shape" is "round" or "line"';
           }else if(k==='size'||k==='center'||k==='step'||k==='sweep'){
             // A knob's, taken so that "knob" can be changed to "slider" and
             // nothing else: size is the length, the rest have nothing to do here.
             if(typeof v!=='number'||v!==Math.floor(v)||v<1)return 'slider "'+k+'" must be a whole number';
-          }else return 'A slider takes set, level, show, label, label_at, marks, horizontal, vertical, min, max, inc, length, width and thumb, '+
+          }else return 'A slider takes set, level, show, label, label_at, marks, horizontal, vertical, min, max, inc, length, width, thumb and thumb_shape, '+
                        'and a pot\'s settings — "'+k+'" is none of them';
         }
         if(cfg.vertical!==undefined&&cfg.horizontal!==undefined&&cfg.vertical===cfg.horizontal)
@@ -5243,14 +5258,15 @@ function appendStep(el,val){
          ['label_at','Caption','at'],['show','Shows','src'],['horizontal','Across','bool',null,false],
          ['marks','− and + marks','bool',null,true],['min','Min','num',0],['max','Max','num',100],
          ['inc','Step size','num',1],['length','Length','int',RMT_SLIDER,160,'px'],
-         ['width','Thickness','int',RMT_SLIDER_W,28,'px'],['thumb','Thumb','int',RMT_SLIDER_T,'auto','px']]};
+         ['width','Thickness','int',RMT_SLIDER_W,28,'px'],['thumb','Thumb','int',RMT_SLIDER_T,'auto','px'],
+         ['thumb_shape','Thumb','pick',[['','round'],['line','fader cap']]]]};
   // The keys each kind's settings may hold, so a change of kind keeps what still
   // applies. A slider takes a pot's too, as validateTpl lets it.
   const SB_TAKES={ring:['size','center'],rocker:['width','h'],grid:['cols','h','opts'],side:['gap'],
     lcd:['cols','rows','fg','bg','label','border'],
     pot:['size','center','step','show','label','label_at','marks','level','set','min','max','sweep','inc',
          'analogue','analog']};
-  SB_TAKES.slider=SB_TAKES.pot.concat(['vertical','horizontal','length','width','thumb']);
+  SB_TAKES.slider=SB_TAKES.pot.concat(['vertical','horizontal','length','width','thumb','thumb_shape']);
   // A line under the kinds whose fields don't explain themselves.
   const SB_HINT={
     pot:'Each step clockwise presses the first action and anticlockwise the second; the middle is a key. '+
@@ -5692,6 +5708,8 @@ function appendStep(el,val){
     if(type==='src')return sbText(label,f,v,val=>put(val.trim()||undefined),
                                   {list:'sb-src',max:16,w:'100px',ph:'@host or a source'});
     if(type==='hex')return sbColour(label,f,v,put);
+    // A choice among a few; the first is what unset means, and writes nothing.
+    if(type==='pick')return sbSelect(label,f,v||'',range,val=>put(val||undefined));
     if(type==='at')return sbSelect(label,f,v==='bottom'?'bottom':'',[['','over it'],['bottom','under it']],
                                    val=>put(val||undefined));
     if(type==='act')return sbEl('label',null,[label,sbActSel(f,v,val=>put(val||undefined),'nothing')]);
@@ -7840,7 +7858,9 @@ buildKeyboard();
       const tip=esc(setA?'Sets '+(lab||RMT_BTNS[setA].t):'Slide to a level: '+nm(ua)+' / '+nm(da));
       // Upright unless told across — either way of saying it.
       const vert=!(cfg.horizontal===true||cfg.vertical===false);
-      inner='<div class="rmt-slider nolevel'+(vert?' vert':'')+'" data-up="'+ua+'" data-down="'+da+'"'+
+      // "thumb_shape":"line" draws the thumb as a fader cap.
+      const line=cfg.thumb_shape==='line';
+      inner='<div class="rmt-slider nolevel'+(vert?' vert':'')+(line?' line':'')+'" data-up="'+ua+'" data-down="'+da+'"'+
             (lvl?' data-level="'+esc(lvl)+'"':'')+(setA?' data-set="'+setA+'"':'')+(pa?' data-press="'+pa+'"':'')+
             ' data-min="'+lo+'" data-max="'+hi+'" data-inc="'+inc+'" style="--rb-sl-len:'+len+'px'+wide+thumbSz+'">'+(capTop?cap:'')+
             '<div class="rmt-slider-row">'+(marks?'<span class="rmt-slider-mk dn">&minus;</span>':'')+

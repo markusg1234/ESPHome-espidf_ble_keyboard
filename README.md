@@ -1499,6 +1499,7 @@ It takes a pot's settings, so changing `"pot"` to `"slider"` is all a swap takes
 | `length` | The track's length, 30–480 px (160), in place of `size`. |
 | `width` | How thick it is across the track, 10–120 px (28); the rail and the thumb grow with it. |
 | `thumb` | The thumb's own size, 8–120 px, apart from the width — a big key on a thin rail. |
+| `thumb_shape` | `"line"` draws the thumb as a fader cap — a small block across the track with a line through it — instead of a round knob. |
 | `show` | A reading beside the caption. |
 
 `set`, `level`, `min`, `max`, `inc`, `label`, `label_at` and `marks` work as on a [pot](#pots). In a [side](#making-your-own) section an upright slider fits between two strips.
