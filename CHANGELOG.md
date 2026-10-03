@@ -20,6 +20,7 @@ web control page shows the matching version badge.
 - **The keyboard holds 8 custom remote styles**, up from 6.
 
 ### Fixed
+- **No pale line down the edge of a popped-out remote** on a scaled display.
 - **Restoring a backup now says it replaces remote styles** and each host's remote button
   settings too; it always did, but the question before it left them out.
 

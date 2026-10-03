@@ -476,7 +476,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    pointer follows. .nolevel until a reading arrives. */
 .rmt-knob-gauge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .rmt-knob-gauge .tr{fill:none;stroke:var(--rb-label,var(--muted));opacity:.35;stroke-linecap:round}
-.rmt-knob-gauge .lv{fill:none;stroke:var(--rb-level,#00d4aa);stroke-linecap:round;transition:stroke-dasharray .2s}
+.rmt-knob-gauge .lv{fill:none;stroke:var(--rb-level,#43a047);stroke-linecap:round;transition:stroke-dasharray .2s}
 .rmt-knob[data-level] .rmt-knob-face{transition:transform .2s}
 .rmt-knob.nolevel .rmt-knob-face,.rmt-knob.nolevel .rmt-knob-gauge .lv{visibility:hidden}
 /* A step on a level knob, before the reading catches up: the side it went lights. */
@@ -504,7 +504,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
   margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2)}
 .rmt-slider-fill{position:absolute;left:0;top:50%;width:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));height:var(--rb-sl-rail,6px);
   margin-top:calc(var(--rb-sl-rail,6px) / -2);border-radius:var(--rb-sl-rail,6px);
-  background:var(--rb-level,#00d4aa);transition:width .15s}
+  background:var(--rb-level,#43a047);transition:width .15s}
 .rmt-slider.vert .rmt-slider-fill{left:50%;top:auto;bottom:0;width:var(--rb-sl-rail,6px);height:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));
   margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2);transition:height .15s}
 .rmt-slider-thumb{position:absolute;top:50%;left:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));width:var(--rb-sl-th,20px);height:var(--rb-sl-th,20px);
@@ -714,8 +714,11 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    errors under 3px alone — correcting them is what used to walk the window across
    the screen. So the last three pixels are covered rather than chased. A shadow,
    because it takes the border radius with it and costs no layout, so nothing that
-   measures the remote sees it; the theme's own shadow is kept alongside. */
-.popout .rmt-body{box-shadow:var(--rb-shadow,0 0 #0000),0 4px 0 var(--rb-bg,transparent)}
+   measures the remote sees it; the theme's own shadow is kept alongside.
+   The sides get the same, 3px all round: on a scaled display the window's width
+   rounds too, and the fraction left beside the remote showed as a pale line down
+   its left edge (measured at 125% with the page at 110%). */
+.popout .rmt-body{box-shadow:var(--rb-shadow,0 0 #0000),0 4px 0 var(--rb-bg,transparent),0 0 0 3px var(--rb-bg,transparent)}
 .popout #zoomport{overflow:visible}
 .popout #zoomsizer{position:static;width:auto;height:auto}
 .popout .card:not(#media-card){display:none}

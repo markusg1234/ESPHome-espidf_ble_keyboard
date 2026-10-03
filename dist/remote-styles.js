@@ -1692,7 +1692,7 @@ export const RMT_CSS = `
 .rmt-knob.off .rmt-knob-ring{cursor:default}
 .rmt-knob-gauge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .rmt-knob-gauge .tr{fill:none;stroke:var(--rb-label,var(--muted));opacity:.35;stroke-linecap:round}
-.rmt-knob-gauge .lv{fill:none;stroke:var(--rb-level,#00d4aa);stroke-linecap:round;transition:stroke-dasharray .2s}
+.rmt-knob-gauge .lv{fill:none;stroke:var(--rb-level,#43a047);stroke-linecap:round;transition:stroke-dasharray .2s}
 .rmt-knob[data-level] .rmt-knob-face{transition:transform .2s}
 .rmt-knob.nolevel .rmt-knob-face,.rmt-knob.nolevel .rmt-knob-gauge .lv{visibility:hidden}
 .rmt-knob.fu .rmt-knob-mk.up,.rmt-knob.fd .rmt-knob-mk.dn{opacity:1;color:var(--accent)}
@@ -1711,7 +1711,7 @@ export const RMT_CSS = `
   margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2)}
 .rmt-slider-fill{position:absolute;left:0;top:50%;width:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));height:var(--rb-sl-rail,6px);
   margin-top:calc(var(--rb-sl-rail,6px) / -2);border-radius:var(--rb-sl-rail,6px);
-  background:var(--rb-level,#00d4aa);transition:width .15s}
+  background:var(--rb-level,#43a047);transition:width .15s}
 .rmt-slider.vert .rmt-slider-fill{left:50%;top:auto;bottom:0;width:var(--rb-sl-rail,6px);height:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));
   margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2);transition:height .15s}
 .rmt-slider-thumb{position:absolute;top:50%;left:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));width:var(--rb-sl-th,20px);height:var(--rb-sl-th,20px);
@@ -1809,7 +1809,7 @@ export const RMT_CSS = `
   color:var(--rb-lit-fg,#fff);border-color:var(--rb-lit-bg,var(--rb-ok-bg,var(--active)))}
 .rmt-btn.light{background:var(--rb-light-bg,#e9e9ee);color:var(--rb-light-fg,#16161a);border-color:var(--rb-light-bg,#e9e9ee)}
 .rmt-btn.light:active,.rmt-btn.light.p{background:#fff;color:#000}
-.popout .rmt-body{box-shadow:var(--rb-shadow,0 0 #0000),0 4px 0 var(--rb-bg,transparent)}
+.popout .rmt-body{box-shadow:var(--rb-shadow,0 0 #0000),0 4px 0 var(--rb-bg,transparent),0 0 0 3px var(--rb-bg,transparent)}
 .rmt-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto}
 .rmt-head .macro-edit-btn{margin-left:0}
 `;
