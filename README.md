@@ -1278,7 +1278,7 @@ Labels are 1–16 characters. A round key fits about four; the wide app pill fit
 
 Buttons are named by action — any name from the [Action Reference](#action-reference) table below that the remote knows (`remote_power`, `search`, `info`, `mute`, `home`, `back`, the D-pad five, `volume_*`, `channel_*`, `brightness_*`, the seven transport keys plus `play` and `pause`, `color_*`, `app_*`, `menu`, `guide`, `voice`, `captions`, `tv`, `num0`–`num9`, `backspace`, `prev_host`, `next_host`, `last_host`, `next_keyboard`, `prev_host_all`, `next_host_all`, `spare1`–`spare32`). An unknown name is refused on import rather than rendering a dead button.
 
-**Shaping the body.** `theme` is optional. Colours: `bg`, `border`, `btn_bg`, `btn_fg`, `btn_border`, `ok_bg`, `ok_fg`, `ring_bg`, `ring_fg`, `light_bg`, `light_fg`, `label`, `divider`, for a [panel](#lcd-panels) `lcd_bg`, `lcd_fg`, `lcd_label`, `lcd_border`, and for a `lit:` button `lit_bg`, `lit_fg` — `lit_bg` also fills a [level pot](#pots)'s track. Geometry: `pad`, `maxw`, `radius`, `btn_radius`, `shadow`, `clip`, `zoom`, `lcd_radius`. Anything else is ignored, so an imported style cannot restyle the rest of the page.
+**Shaping the body.** `theme` is optional. Colours: `bg`, `border`, `btn_bg`, `btn_fg`, `btn_border`, `ok_bg`, `ok_fg`, `ring_bg`, `ring_fg`, `light_bg`, `light_fg`, `label`, `divider`, for a [panel](#lcd-panels) `lcd_bg`, `lcd_fg`, `lcd_label`, `lcd_border`, for a `lit:` button `lit_bg`, `lit_fg`, and `level` for the track of a [level pot](#pots) or a [slider](#sliders) — green unless set. Geometry: `pad`, `maxw`, `radius`, `btn_radius`, `shadow`, `clip`, `zoom`, `lcd_radius`. Anything else is ignored, so an imported style cannot restyle the rest of the page.
 
 **Making the buttons bigger or smaller.** `zoom` scales the whole remote — buttons, their icons and labels, the gaps between them, the d-pad and the rockers — by one factor: `"zoom": "1.25"` for a quarter larger, `"0.8"` for smaller. It is the only size control, deliberately: the buttons come in several sizes that are tuned against each other and against the gaps, so scaling them as a set keeps a layout that was designed to fit still fitting.
 
@@ -1460,6 +1460,7 @@ A pot is turned, not pressed. Drag round its ring and every `step` degrees press
 | `inc` | How much one step moves the level, so the pointer moves as you turn instead of waiting for the next reading. |
 | `analogue` | `true` makes the pot's position the level, as on a real one, instead of stepping it — see below. `analog` works too. `inc` is 1 unless set. |
 | `set` | A key whose Host Action takes the value — the pot sends it once instead of steps. See below. |
+| `fill` | The colour of this pot's level, a `#hex` — over the style's `level`, which is green unless set. |
 
 That one is a thermostat: list the set point under `sources:` as `setpoint`, and give `spare1` and `spare2` per-host overrides such as `ha_action:script.heating_up` and `ha_action:script.heating_down`. Turn actions take a label — the tooltip, and the name on an `@last` line — but no options. The ring takes the style's `ring_bg` and `ring_fg`, the middle `ok_bg` and `ok_fg`. Hiding both turn actions for a host under Remote Buttons stops the pot turning there; a level pot still shows its reading.
 
@@ -1502,7 +1503,7 @@ It takes a pot's settings, so changing `"pot"` to `"slider"` is all a swap takes
 | `thumb_shape` | `"line"` draws the thumb as a fader cap — a small block across the track with a line through it — instead of a round knob. |
 | `show` | A reading beside the caption. |
 
-`set`, `level`, `min`, `max`, `inc`, `label`, `label_at` and `marks` work as on a [pot](#pots). In a [side](#making-your-own) section an upright slider fits between two strips.
+`set`, `level`, `min`, `max`, `inc`, `label`, `label_at`, `marks` and `fill` work as on a [pot](#pots). In a [side](#making-your-own) section an upright slider fits between two strips.
 
 #### A complete example
 

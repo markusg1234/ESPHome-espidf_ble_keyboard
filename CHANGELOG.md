@@ -12,6 +12,9 @@ web control page shows the matching version badge.
   list and pick colours. The JSON box follows every change and the drawing follows the box.
 - **A slider's thumb can be a fader cap** instead of a round knob. On the web page and the Home
   Assistant card alike.
+- **A level can be any colour**: for the whole style, or one pot or slider. Unset, it is the same green
+  on the web page and the Home Assistant card, where it used to follow the dashboard theme, and it no
+  longer takes the lit-key colour.
 
 ### Changed
 - **The keyboard holds 8 custom remote styles**, up from 6.

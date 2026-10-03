@@ -476,7 +476,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    pointer follows. .nolevel until a reading arrives. */
 .rmt-knob-gauge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .rmt-knob-gauge .tr{fill:none;stroke:var(--rb-label,var(--muted));opacity:.35;stroke-linecap:round}
-.rmt-knob-gauge .lv{fill:none;stroke:var(--rb-lit-bg,var(--accent));stroke-linecap:round;transition:stroke-dasharray .2s}
+.rmt-knob-gauge .lv{fill:none;stroke:var(--rb-level,#00d4aa);stroke-linecap:round;transition:stroke-dasharray .2s}
 .rmt-knob[data-level] .rmt-knob-face{transition:transform .2s}
 .rmt-knob.nolevel .rmt-knob-face,.rmt-knob.nolevel .rmt-knob-gauge .lv{visibility:hidden}
 /* A step on a level knob, before the reading catches up: the side it went lights. */
@@ -504,7 +504,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
   margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2)}
 .rmt-slider-fill{position:absolute;left:0;top:50%;width:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));height:var(--rb-sl-rail,6px);
   margin-top:calc(var(--rb-sl-rail,6px) / -2);border-radius:var(--rb-sl-rail,6px);
-  background:var(--rb-lit-bg,var(--accent));transition:width .15s}
+  background:var(--rb-level,#00d4aa);transition:width .15s}
 .rmt-slider.vert .rmt-slider-fill{left:50%;top:auto;bottom:0;width:var(--rb-sl-rail,6px);height:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));
   margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2);transition:height .15s}
 .rmt-slider-thumb{position:absolute;top:50%;left:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));width:var(--rb-sl-th,20px);height:var(--rb-sl-th,20px);
@@ -1098,7 +1098,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <dt><code>["row",…]</code></dt><dd>A row of round buttons. <code>"|"</code> spaces it out.</dd>
 <dt><code>["dpad"]</code></dt><dd>The arrow cluster.</dd>
 <dt><code>["ring"]</code></dt><dd>The same five keys as a round nav ring. <code>["ring",{"size":200,"center":96}]</code> sizes the ring and its centre button.</dd>
-<dt><code>["pot"]</code></dt><dd>A dial you turn: drag round it, tap either side for one step, or click it and use the wheel or arrow keys. Each step clockwise presses the first action, anticlockwise the second, and the middle is a key for the third &mdash; with none listed, <code>"volume_up","volume_down","mute"</code>. Settings first: <code>{"size":150,"center":75,"step":30,"show":"temp","label":"Heat","marks":false}</code> &mdash; <code>size</code> 32&ndash;320 pixels, <code>center</code> the middle key's, <code>step</code> 10&ndash;90 degrees a step, <code>show</code> a value for the middle as an lcd line names one, <code>label</code> a caption over it (<code>"label_at":"bottom"</code> puts it under), <code>marks</code> <code>false</code> to hide the &minus; and +. <code>{"level":"tv_volume","inc":1}</code> points it at a reading instead &mdash; <code>min</code> and <code>max</code> (0 and 100) at the two ends of a 270&deg; <code>sweep</code>, so 100 is fully clockwise, and <code>inc</code> how much a step moves it. <code>"analogue":true</code> makes its position the level, as on a pot: press or drag to a level and the keyboard sends the presses to get there. <code>{"set":"spare12"}</code> sends the value once instead &mdash; <code>spare12=40</code>, filling <code>{value}</code> in that spare&rsquo;s Host Action, e.g. <code>ha_action:light.turn_on;entity_id=light.lamp;brightness_pct={value}</code>.</dd>
+<dt><code>["pot"]</code></dt><dd>A dial you turn: drag round it, tap either side for one step, or click it and use the wheel or arrow keys. Each step clockwise presses the first action, anticlockwise the second, and the middle is a key for the third &mdash; with none listed, <code>"volume_up","volume_down","mute"</code>. Settings first: <code>{"size":150,"center":75,"step":30,"show":"temp","label":"Heat","marks":false}</code> &mdash; <code>size</code> 32&ndash;320 pixels, <code>center</code> the middle key's, <code>step</code> 10&ndash;90 degrees a step, <code>show</code> a value for the middle as an lcd line names one, <code>label</code> a caption over it (<code>"label_at":"bottom"</code> puts it under), <code>marks</code> <code>false</code> to hide the &minus; and +. <code>{"level":"tv_volume","inc":1}</code> points it at a reading instead &mdash; <code>min</code> and <code>max</code> (0 and 100) at the two ends of a 270&deg; <code>sweep</code>, so 100 is fully clockwise, and <code>inc</code> how much a step moves it. <code>"fill":"#e53935"</code> colours its level (green unless the theme&rsquo;s <code>level</code> says otherwise), and <code>"analogue":true</code> makes its position the level, as on a pot: press or drag to a level and the keyboard sends the presses to get there. <code>{"set":"spare12"}</code> sends the value once instead &mdash; <code>spare12=40</code>, filling <code>{value}</code> in that spare&rsquo;s Host Action, e.g. <code>ha_action:light.turn_on;entity_id=light.lamp;brightness_pct={value}</code>.</dd>
 <dt><code>["strip",…]</code></dt><dd>Labelled columns side by side: <code>["strip",["Vol","volume_up","volume_down"],…]</code></dd>
 <dt><code>["rocker",…]</code></dt><dd>The same groups as one-piece rocker keys. <code>["","mute"]</code> is a single key of the same height. A rocker is as wide as its keys; <code>["rocker",{"width":60,"h":48},…]</code> sets each column's width and each half's height instead, 24&ndash;160 pixels.</dd>
 <dt><code>["media",…]</code></dt><dd>A row of small transport buttons.</dd>
@@ -1782,7 +1782,7 @@ ring_bg:'--rb-ring-bg',ring_fg:'--rb-ring-fg',light_bg:'--rb-light-bg',light_fg:
 label:'--rb-label',divider:'--rb-divider',clip:'--rb-clip',
 lcd_bg:'--rb-lcd-bg',lcd_fg:'--rb-lcd-fg',lcd_label:'--rb-lcd-label',
 lcd_border:'--rb-lcd-border',lcd_radius:'--rb-lcd-radius',
-lit_bg:'--rb-lit-bg',lit_fg:'--rb-lit-fg'};
+lit_bg:'--rb-lit-bg',lit_fg:'--rb-lit-fg',level:'--rb-level'};
 // `radius` takes the whole CSS border-radius grammar, including the two-axis
 // `/` form — that is what makes an egg or a teardrop body, no code needed.
 // `clip` goes further for a genuine taper, and is the one theme value with a
@@ -4708,6 +4708,11 @@ function appendStep(el,val){
               if(typeof cfg.label!=='string'||!cfg.label)return 'pot "label_at" places the caption — add a "label"';
               continue;
             }
+            // The colour of its level, this pot's own over the style's "level".
+            if(k==='fill'){
+              if(typeof v!=='string'||!RMT_HEX.test(v))return 'pot "fill" is a #hex colour, e.g. {"fill":"#e53935"}';
+              continue;
+            }
             // "analogue" (or "analog"): the position is the level, as on a pot.
             if(k==='marks'||k==='analogue'||k==='analog'){
               if(typeof v!=='boolean')return 'pot "'+k+'" is true or false';
@@ -4725,12 +4730,12 @@ function appendStep(el,val){
               continue;
             }
             if(k!=='size'&&k!=='center'&&k!=='step'&&k!=='sweep')
-              return 'A pot takes size, center, step, show, label, label_at, marks, level, set, min, max, sweep, inc and analogue — "'+k+'" is none of them';
+              return 'A pot takes size, center, step, show, label, label_at, marks, level, set, min, max, sweep, inc, analogue and fill — "'+k+'" is none of them';
             if(typeof v!=='number'||!isFinite(v)||v!==Math.floor(v))
               return 'pot "'+k+'" must be a whole number, e.g. {"size":160,"center":80,"step":30}';
           }
           if(cfg.level===undefined&&cfg.set===undefined){
-            for(const k of ['min','max','sweep','inc','analogue','analog'])
+            for(const k of ['min','max','sweep','inc','analogue','analog','fill'])
               if(cfg[k]!==undefined)return 'pot "'+k+'" sets out a level — add "level" naming the reading it is for, or "set"';
           }else{
             const lo=cfg.min!==undefined?cfg.min:0,hi=cfg.max!==undefined?cfg.max:100;
@@ -4796,11 +4801,13 @@ function appendStep(el,val){
               return 'slider "thumb" is '+RMT_SLIDER_T[0]+'-'+RMT_SLIDER_T[1]+' pixels, a whole number';
           }else if(k==='thumb_shape'){
             if(v!=='round'&&v!=='line')return 'slider "thumb_shape" is "round" or "line"';
+          }else if(k==='fill'){
+            if(typeof v!=='string'||!RMT_HEX.test(v))return 'slider "fill" is a #hex colour, e.g. {"fill":"#e53935"}';
           }else if(k==='size'||k==='center'||k==='step'||k==='sweep'){
             // A knob's, taken so that "knob" can be changed to "slider" and
             // nothing else: size is the length, the rest have nothing to do here.
             if(typeof v!=='number'||v!==Math.floor(v)||v<1)return 'slider "'+k+'" must be a whole number';
-          }else return 'A slider takes set, level, show, label, label_at, marks, horizontal, vertical, min, max, inc, length, width, thumb and thumb_shape, '+
+          }else return 'A slider takes set, level, show, label, label_at, marks, horizontal, vertical, min, max, inc, length, width, thumb, thumb_shape and fill, '+
                        'and a pot\'s settings — "'+k+'" is none of them';
         }
         if(cfg.vertical!==undefined&&cfg.horizontal!==undefined&&cfg.vertical===cfg.horizontal)
@@ -5253,19 +5260,20 @@ function appendStep(el,val){
          ['step','A step','int',RMT_KNOB_STEP,30,'°'],['label','Caption','text',16],['label_at','Caption','at'],
          ['marks','− and + marks','bool',null,true],['show','Shows','src'],['set','Sends its value to','act'],
          ['level','Follows a reading','src'],['analogue','Analogue','bool',null,false],['min','Min','num',0],
-         ['max','Max','num',100],['inc','Step size','num',''],['sweep','Sweep','int',RMT_KNOB_SWEEP,270,'°']],
+         ['max','Max','num',100],['inc','Step size','num',''],['sweep','Sweep','int',RMT_KNOB_SWEEP,270,'°'],
+         ['fill','Level colour','hex']],
     slider:[['set','Sends its value to','act'],['level','Follows a reading','src'],['label','Caption','text',16],
          ['label_at','Caption','at'],['show','Shows','src'],['horizontal','Across','bool',null,false],
          ['marks','− and + marks','bool',null,true],['min','Min','num',0],['max','Max','num',100],
          ['inc','Step size','num',1],['length','Length','int',RMT_SLIDER,160,'px'],
          ['width','Thickness','int',RMT_SLIDER_W,28,'px'],['thumb','Thumb','int',RMT_SLIDER_T,'auto','px'],
-         ['thumb_shape','Thumb','pick',[['','round'],['line','fader cap']]]]};
+         ['thumb_shape','Thumb','pick',[['','round'],['line','fader cap']]],['fill','Level colour','hex']]};
   // The keys each kind's settings may hold, so a change of kind keeps what still
   // applies. A slider takes a pot's too, as validateTpl lets it.
   const SB_TAKES={ring:['size','center'],rocker:['width','h'],grid:['cols','h','opts'],side:['gap'],
     lcd:['cols','rows','fg','bg','label','border'],
     pot:['size','center','step','show','label','label_at','marks','level','set','min','max','sweep','inc',
-         'analogue','analog']};
+         'analogue','analog','fill']};
   SB_TAKES.slider=SB_TAKES.pot.concat(['vertical','horizontal','length','width','thumb','thumb_shape']);
   // A line under the kinds whose fields don't explain themselves.
   const SB_HINT={
@@ -5280,7 +5288,7 @@ function appendStep(el,val){
   const SB_THEME=[['bg','Body'],['border','Body edge'],['btn_bg','Keys'],['btn_fg','Key text'],
     ['btn_border','Key edges'],['ok_bg','OK key'],['ok_fg','OK text'],['ring_bg','Ring'],['ring_fg','Ring arrows'],
     ['light_bg','Light keys'],['light_fg','Light key text'],['label','Labels'],['divider','Dividers'],
-    ['lit_bg','Lit keys'],['lit_fg','Lit key text'],['lcd_bg','Screen'],['lcd_fg','Screen text'],
+    ['lit_bg','Lit keys'],['lit_fg','Lit key text'],['level','Levels'],['lcd_bg','Screen'],['lcd_fg','Screen text'],
     ['lcd_label','Screen labels'],['lcd_border','Screen edge'],
     ['maxw','Width','250px'],['zoom','Zoom','1.25'],['radius','Corners','34px'],['btn_radius','Key corners','12px'],
     ['pad','Padding','22px 12px'],['shadow','Shadow','0 2px 10px rgba(0,0,0,.4)'],
@@ -7812,7 +7820,9 @@ buildKeyboard();
       const cap=lab?'<span class="rmt-knob-label">'+esc(lab)+'</span>':'';
       const capTop=!(cfg&&cfg.label_at==='bottom');
       inner='<div class="rmt-knob'+(gm?' nolevel':'')+'" data-up="'+act(d[0])+'" data-down="'+act(d[1])+'" data-step="'+step+'"'+
-            lvAttrs+' style="--rb-knob:'+sz+'px;--rb-knob-c:'+cz+'px;--rb-knob-mk:'+mk+'px;--rb-knob-mf:'+mf+'px">'+(capTop?cap:'')+
+            lvAttrs+' style="--rb-knob:'+sz+'px;--rb-knob-c:'+cz+'px;--rb-knob-mk:'+mk+'px;--rb-knob-mf:'+mf+'px'+
+            // Its level's own colour: a strict #hex, tested here too since it reaches the style.
+            (cfg&&typeof cfg.fill==='string'&&RMT_HEX.test(cfg.fill)?';--rb-level:'+cfg.fill:'')+'">'+(capTop?cap:'')+
             '<div class="rmt-knob-dial"><div class="rmt-knob-ring" tabindex="0" role="spinbutton" title="'+tip+
             '" aria-label="'+tip+'">'+face+marks+'</div>'+
             '<div class="rmt-knob-c">'+mid+'</div></div>'+(capTop?'':cap)+'</div>';
@@ -7862,7 +7872,8 @@ buildKeyboard();
       const line=cfg.thumb_shape==='line';
       inner='<div class="rmt-slider nolevel'+(vert?' vert':'')+(line?' line':'')+'" data-up="'+ua+'" data-down="'+da+'"'+
             (lvl?' data-level="'+esc(lvl)+'"':'')+(setA?' data-set="'+setA+'"':'')+(pa?' data-press="'+pa+'"':'')+
-            ' data-min="'+lo+'" data-max="'+hi+'" data-inc="'+inc+'" style="--rb-sl-len:'+len+'px'+wide+thumbSz+'">'+(capTop?cap:'')+
+            ' data-min="'+lo+'" data-max="'+hi+'" data-inc="'+inc+'" style="--rb-sl-len:'+len+'px'+wide+thumbSz+
+            (typeof cfg.fill==='string'&&RMT_HEX.test(cfg.fill)?';--rb-level:'+cfg.fill:'')+'">'+(capTop?cap:'')+
             '<div class="rmt-slider-row">'+(marks?'<span class="rmt-slider-mk dn">&minus;</span>':'')+
             '<div class="rmt-slider-track" tabindex="0" role="slider" title="'+tip+'" aria-label="'+tip+'">'+
             '<div class="rmt-slider-fill"></div>'+thumb+'</div>'+

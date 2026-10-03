@@ -151,7 +151,7 @@ ring_bg:'--rb-ring-bg',ring_fg:'--rb-ring-fg',light_bg:'--rb-light-bg',light_fg:
 label:'--rb-label',divider:'--rb-divider',clip:'--rb-clip',
 lcd_bg:'--rb-lcd-bg',lcd_fg:'--rb-lcd-fg',lcd_label:'--rb-lcd-label',
 lcd_border:'--rb-lcd-border',lcd_radius:'--rb-lcd-radius',
-lit_bg:'--rb-lit-bg',lit_fg:'--rb-lit-fg'};
+lit_bg:'--rb-lit-bg',lit_fg:'--rb-lit-fg',level:'--rb-level'};
 
 const RMT_BUILTIN=[
 {id:'default',name:'Full remote',theme:{},sections:[
@@ -991,7 +991,9 @@ function sectionHtml(s){
       const cap=lab?'<span class="rmt-knob-label">'+esc(lab)+'</span>':'';
       const capTop=!(cfg&&cfg.label_at==='bottom');
       inner='<div class="rmt-knob'+(gm?' nolevel':'')+'" data-up="'+act(d[0])+'" data-down="'+act(d[1])+'" data-step="'+step+'"'+
-            lvAttrs+' style="--rb-knob:'+sz+'px;--rb-knob-c:'+cz+'px;--rb-knob-mk:'+mk+'px;--rb-knob-mf:'+mf+'px">'+(capTop?cap:'')+
+            lvAttrs+' style="--rb-knob:'+sz+'px;--rb-knob-c:'+cz+'px;--rb-knob-mk:'+mk+'px;--rb-knob-mf:'+mf+'px'+
+            // Its level's own colour: a strict #hex, tested here too since it reaches the style.
+            (cfg&&typeof cfg.fill==='string'&&RMT_HEX.test(cfg.fill)?';--rb-level:'+cfg.fill:'')+'">'+(capTop?cap:'')+
             '<div class="rmt-knob-dial"><div class="rmt-knob-ring" tabindex="0" role="spinbutton" title="'+tip+
             '" aria-label="'+tip+'">'+face+marks+'</div>'+
             '<div class="rmt-knob-c">'+mid+'</div></div>'+(capTop?'':cap)+'</div>';
@@ -1041,7 +1043,8 @@ function sectionHtml(s){
       const line=cfg.thumb_shape==='line';
       inner='<div class="rmt-slider nolevel'+(vert?' vert':'')+(line?' line':'')+'" data-up="'+ua+'" data-down="'+da+'"'+
             (lvl?' data-level="'+esc(lvl)+'"':'')+(setA?' data-set="'+setA+'"':'')+(pa?' data-press="'+pa+'"':'')+
-            ' data-min="'+lo+'" data-max="'+hi+'" data-inc="'+inc+'" style="--rb-sl-len:'+len+'px'+wide+thumbSz+'">'+(capTop?cap:'')+
+            ' data-min="'+lo+'" data-max="'+hi+'" data-inc="'+inc+'" style="--rb-sl-len:'+len+'px'+wide+thumbSz+
+            (typeof cfg.fill==='string'&&RMT_HEX.test(cfg.fill)?';--rb-level:'+cfg.fill:'')+'">'+(capTop?cap:'')+
             '<div class="rmt-slider-row">'+(marks?'<span class="rmt-slider-mk dn">&minus;</span>':'')+
             '<div class="rmt-slider-track" tabindex="0" role="slider" title="'+tip+'" aria-label="'+tip+'">'+
             '<div class="rmt-slider-fill"></div>'+thumb+'</div>'+
@@ -1347,6 +1350,11 @@ function validateTpl(t){
               if(typeof cfg.label!=='string'||!cfg.label)return 'pot "label_at" places the caption — add a "label"';
               continue;
             }
+            // The colour of its level, this pot's own over the style's "level".
+            if(k==='fill'){
+              if(typeof v!=='string'||!RMT_HEX.test(v))return 'pot "fill" is a #hex colour, e.g. {"fill":"#e53935"}';
+              continue;
+            }
             // "analogue" (or "analog"): the position is the level, as on a pot.
             if(k==='marks'||k==='analogue'||k==='analog'){
               if(typeof v!=='boolean')return 'pot "'+k+'" is true or false';
@@ -1364,12 +1372,12 @@ function validateTpl(t){
               continue;
             }
             if(k!=='size'&&k!=='center'&&k!=='step'&&k!=='sweep')
-              return 'A pot takes size, center, step, show, label, label_at, marks, level, set, min, max, sweep, inc and analogue — "'+k+'" is none of them';
+              return 'A pot takes size, center, step, show, label, label_at, marks, level, set, min, max, sweep, inc, analogue and fill — "'+k+'" is none of them';
             if(typeof v!=='number'||!isFinite(v)||v!==Math.floor(v))
               return 'pot "'+k+'" must be a whole number, e.g. {"size":160,"center":80,"step":30}';
           }
           if(cfg.level===undefined&&cfg.set===undefined){
-            for(const k of ['min','max','sweep','inc','analogue','analog'])
+            for(const k of ['min','max','sweep','inc','analogue','analog','fill'])
               if(cfg[k]!==undefined)return 'pot "'+k+'" sets out a level — add "level" naming the reading it is for, or "set"';
           }else{
             const lo=cfg.min!==undefined?cfg.min:0,hi=cfg.max!==undefined?cfg.max:100;
@@ -1435,11 +1443,13 @@ function validateTpl(t){
               return 'slider "thumb" is '+RMT_SLIDER_T[0]+'-'+RMT_SLIDER_T[1]+' pixels, a whole number';
           }else if(k==='thumb_shape'){
             if(v!=='round'&&v!=='line')return 'slider "thumb_shape" is "round" or "line"';
+          }else if(k==='fill'){
+            if(typeof v!=='string'||!RMT_HEX.test(v))return 'slider "fill" is a #hex colour, e.g. {"fill":"#e53935"}';
           }else if(k==='size'||k==='center'||k==='step'||k==='sweep'){
             // A knob's, taken so that "knob" can be changed to "slider" and
             // nothing else: size is the length, the rest have nothing to do here.
             if(typeof v!=='number'||v!==Math.floor(v)||v<1)return 'slider "'+k+'" must be a whole number';
-          }else return 'A slider takes set, level, show, label, label_at, marks, horizontal, vertical, min, max, inc, length, width, thumb and thumb_shape, '+
+          }else return 'A slider takes set, level, show, label, label_at, marks, horizontal, vertical, min, max, inc, length, width, thumb, thumb_shape and fill, '+
                        'and a pot\'s settings — "'+k+'" is none of them';
         }
         if(cfg.vertical!==undefined&&cfg.horizontal!==undefined&&cfg.vertical===cfg.horizontal)
@@ -1682,7 +1692,7 @@ export const RMT_CSS = `
 .rmt-knob.off .rmt-knob-ring{cursor:default}
 .rmt-knob-gauge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .rmt-knob-gauge .tr{fill:none;stroke:var(--rb-label,var(--muted));opacity:.35;stroke-linecap:round}
-.rmt-knob-gauge .lv{fill:none;stroke:var(--rb-lit-bg,var(--accent));stroke-linecap:round;transition:stroke-dasharray .2s}
+.rmt-knob-gauge .lv{fill:none;stroke:var(--rb-level,#00d4aa);stroke-linecap:round;transition:stroke-dasharray .2s}
 .rmt-knob[data-level] .rmt-knob-face{transition:transform .2s}
 .rmt-knob.nolevel .rmt-knob-face,.rmt-knob.nolevel .rmt-knob-gauge .lv{visibility:hidden}
 .rmt-knob.fu .rmt-knob-mk.up,.rmt-knob.fd .rmt-knob-mk.dn{opacity:1;color:var(--accent)}
@@ -1701,7 +1711,7 @@ export const RMT_CSS = `
   margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2)}
 .rmt-slider-fill{position:absolute;left:0;top:50%;width:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));height:var(--rb-sl-rail,6px);
   margin-top:calc(var(--rb-sl-rail,6px) / -2);border-radius:var(--rb-sl-rail,6px);
-  background:var(--rb-lit-bg,var(--accent));transition:width .15s}
+  background:var(--rb-level,#00d4aa);transition:width .15s}
 .rmt-slider.vert .rmt-slider-fill{left:50%;top:auto;bottom:0;width:var(--rb-sl-rail,6px);height:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));
   margin:0 0 0 calc(var(--rb-sl-rail,6px) / -2);transition:height .15s}
 .rmt-slider-thumb{position:absolute;top:50%;left:calc(var(--rb-sl-th,20px) / 2 + max(0px,100% - var(--rb-sl-th,20px)) * var(--rb-sl,0));width:var(--rb-sl-th,20px);height:var(--rb-sl-th,20px);
