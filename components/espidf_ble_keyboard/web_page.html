@@ -3522,6 +3522,29 @@ function appendStep(el,val){
   const last=cur.charAt(cur.length-1);
   el.value=cur+(last==='|'?' ':last===':'?'':' | ')+val;
 }
+// A picked preset goes where the cursor was left in the box, as its own step,
+// rather than always on the end. A cursor inside a step moves to that step's end,
+// so a step is never split in two; at the end of the box this is appendStep. The
+// cursor then sits after what went in, so a run of presets goes in in order.
+// A box only ever written by script reports its cursor at the end — setting a
+// value puts it there — so the presets of someone who never clicked in it still
+// append, as they always did.
+function insertStep(el,val){
+  const v=el.value;
+  let at=typeof el.selectionEnd==='number'?el.selectionEnd:v.length;
+  if(at>=v.trimEnd().length){appendStep(el,val);el.selectionStart=el.selectionEnd=el.value.length;return}
+  // Inside a step: on to its end, the next '|' or the end of the box.
+  const before=v.slice(0,at),after=v.slice(at);
+  const inStep=/[^|\s]\s*$/.test(before)&&/^\s*[^|\s]/.test(after);
+  if(inStep){const n=after.indexOf('|');at=n<0?v.length:at+n}
+  const head=v.slice(0,at).replace(/\s+$/,''),tail=v.slice(at).replace(/^\s+/,'');
+  const last=head.charAt(head.length-1);
+  // The same joins appendStep makes on the left, and their mirror on the right.
+  const left=!head?'':last==='|'?' ':last===':'?'':' | ';
+  const right=!tail?'':tail.charAt(0)==='|'?' ':' | ';
+  el.value=head+left+val+right+tail;
+  el.selectionStart=el.selectionEnd=(head+left+val).length;
+}
 
 // ── Buttons & Macros ──
 (function(){
@@ -3551,7 +3574,7 @@ function appendStep(el,val){
     }else if(presetSel.value==='__br__'){
       newBranch(actIn);
     }else if(presetSel.value){
-      appendStep(actIn,presetSel.value);
+      insertStep(actIn,presetSel.value);
       if(!nameIn.value)nameIn.value=presetSel.options[presetSel.selectedIndex].text;
     }
     presetSel.value='';
@@ -3567,7 +3590,7 @@ function appendStep(el,val){
     modBtns.forEach(b=>{if(b.classList.contains('on'))mod|=parseInt(b.dataset.mod)});
     const combo='combo:'+mod+':'+keySel.value;
     const label=(mod?[...modBtns].filter(b=>b.classList.contains('on')).map(b=>b.textContent).join('+')+'+':'')+keySel.options[keySel.selectedIndex].text;
-    if(actIn.value.trim()){actIn.value+=' | '+combo}else{actIn.value=combo}
+    insertStep(actIn,combo);
     if(!nameIn.value)nameIn.value=label;
     keySel.value='';
   });
@@ -3745,7 +3768,7 @@ function appendStep(el,val){
     }else if(preset.value==='__br__'){
       newBranch(actIn);
     }else if(preset.value){
-      appendStep(actIn,preset.value);
+      insertStep(actIn,preset.value);
     }
     preset.value='';
   });
@@ -4004,7 +4027,7 @@ function appendStep(el,val){
     oncPreset.addEventListener('change',()=>{
       if(oncPreset.value==='__alt__')wrapAlternate(oncIn);
       else if(oncPreset.value==='__br__')newBranch(oncIn);
-      else if(oncPreset.value)appendStep(oncIn,oncPreset.value);
+      else if(oncPreset.value)insertStep(oncIn,oncPreset.value);
       oncPreset.value='';
       oncDirty=true;
     });

@@ -2818,7 +2818,7 @@ The web UI provides:
 - **Edit/Delete** controls on each macro (pencil and X buttons)
 - **Macro index** shown as `[0]`, `[1]`, etc. next to each macro name — for the legacy `execute_macro(N)` form. Hovering a macro also shows its `macro:<name>` reference, which is what to use in YAML and automations: indices shift when a macro above them is deleted, names don't
 - YAML-defined buttons appear alongside macros but are not editable
-- Selecting a preset or key appends to the action field with `|`, making it easy to build multi-step macros
+- Selecting a preset or key adds it to the action field as a step of its own, joined with `|` — where the cursor was left in the field, or at the end if you haven't clicked in it — making it easy to build multi-step macros
 
 ### Recording a Macro
 

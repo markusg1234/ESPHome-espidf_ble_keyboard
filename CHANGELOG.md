@@ -19,6 +19,8 @@ web control page shows the matching version badge.
 
 ### Changed
 - **The keyboard holds 8 custom remote styles**, up from 6.
+- **A preset goes in where the cursor is** in a macro, Host Action or on-connect action, instead of
+  always at the end.
 
 ### Fixed
 - **No pale line down the edge of a popped-out remote** on a scaled display.
