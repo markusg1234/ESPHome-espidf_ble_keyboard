@@ -3972,6 +3972,11 @@ function appendStep(el,val){
         return chain.then(()=>{
           copyMsg('Copied '+items.length+' Host Action'+(items.length>1?'s':'')+' to '+targets.map(name).join(', ')+'.');
           items.forEach(it=>longChanged(it.name));
+          // Done, so the ticks go — the line above says what went where. A copy
+          // that stops part-way keeps them, so trying again is one press.
+          picked.clear();copyTo.clear();
+          list.querySelectorAll('.ovr-row>input[type=checkbox]').forEach(c=>{c.checked=false});
+          renderCopy();
         });
       })
       .catch(e=>copyMsg((done?'Copied '+done+', then stopped — ':'Nothing copied — ')+e.message,true))
