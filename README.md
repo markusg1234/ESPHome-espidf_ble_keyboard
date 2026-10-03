@@ -1108,7 +1108,7 @@ A dangling reference is flagged: any override row pointing at a macro that no lo
 
 > Overrides created before v1.5.0 hold a *copy* of the macro's text and keep working unchanged — they just don't track edits. Re-pick the macro from the dropdown to turn one into a reference.
 
-**Editing without a reflash:** the web UI has a **Host Actions** card. Pick a host slot, then add or edit overrides for it; they persist to NVS and win over the YAML value. The action-name box offers every overridable name as you type, and the replacement box has the same preset dropdown as the macro editor, so neither has to be typed from memory. Rows tagged `YAML` come from your config and are read-only — set an override of the same name to shadow one, and delete that override to fall back. You can edit a slot other than the one currently active.
+**Editing without a reflash:** the web UI has a **Host Actions** card. Pick a host slot, then add or edit overrides for it; they persist to NVS and win over the YAML value. To give other hosts the same ones, tick them, tick the hosts under the list and press **Copy**; if a host already has a different action under the same name, it asks before replacing it. The action-name box offers every overridable name as you type, and the replacement box has the same preset dropdown as the macro editor, so neither has to be typed from memory. Rows tagged `YAML` come from your config and are read-only — set an override of the same name to shadow one, and delete that override to fall back. You can edit a slot other than the one currently active.
 
 <img src="docs/host_actions.png" width="420" alt="Host Actions card in the web UI">
 

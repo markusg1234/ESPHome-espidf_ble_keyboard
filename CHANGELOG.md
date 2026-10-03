@@ -15,6 +15,7 @@ web control page shows the matching version badge.
 - **A level can be any colour**: for the whole style, or one pot or slider. Unset, it is the same green
   on the web page and the Home Assistant card, where it used to follow the dashboard theme, and it no
   longer takes the lit-key colour.
+- **Host Actions can be copied to other hosts**: tick the ones to copy and the hosts to copy them to.
 
 ### Changed
 - **The keyboard holds 8 custom remote styles**, up from 6.

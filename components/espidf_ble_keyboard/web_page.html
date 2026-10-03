@@ -254,6 +254,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .macros-card:not(.editing) .macro-act,.macros-card:not(.editing) .macro-form{display:none}
 .ovr-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
 .ovr-row:last-child{border-bottom:none}
+.ovr-row>input[type=checkbox]{margin:0;flex-shrink:0;cursor:pointer}
+/* Copying Host Actions to other hosts: the ticks on the rows, then this. */
+.ov-copy{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:6px 0;font-size:12px;color:var(--muted)}
+.ov-copy[hidden]{display:none}
+.ov-copy-hosts{display:flex;flex-wrap:wrap;gap:4px 12px}
+.ov-copy-hosts label{display:flex;align-items:center;gap:4px;color:var(--fg);cursor:pointer}
+.ov-copy-note{font-size:11px;color:var(--muted);min-height:0}
 .ovr-name{font-weight:600;color:var(--name);flex-shrink:0}
 .ovr-act{color:var(--fg);font-family:ui-monospace,monospace;word-break:break-all;flex:1}
 .ovr-tag{font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 5px;border-radius:4px;background:var(--bg);border:1px solid var(--border);color:var(--muted);flex-shrink:0}
@@ -1009,6 +1016,8 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </div>
 <label class="kb-paste-auto" id="ov-bcast-lbl" style="margin-bottom:8px" title="On: an ordinary BLE host slot &mdash; it advertises, pairs and sends HID.&#10;&#10;Off: the radio stays silent on this slot. Nothing can find or connect to it and HID keys go nowhere, so use it as a remote page whose buttons drive Home Assistant instead &mdash; an IR blaster, say.&#10;&#10;Turning it off while this slot is the active one disconnects its host straight away."><input type="checkbox" id="ov-bcast">Advertise over Bluetooth</label>
 <div id="ov-list"><span class="prog-empty">Loading...</span></div>
+<div class="ov-copy" id="ov-copy" hidden><span>Copy ticked to:</span><span class="ov-copy-hosts" id="ov-copy-hosts"></span><button class="mod-btn" id="ov-copy-go" disabled>Copy</button></div>
+<div class="ov-copy-note" id="ov-copy-note"></div>
 <div class="macro-form">
 <input id="ov-name" list="ov-names" placeholder="Action name (e.g. record)" maxlength="31" title="The named action to remap on this host &mdash; start typing to pick from the list.&#10;Only named actions can be overridden; parametric forms like combo: and consumer: always mean exactly what they say.">
 <datalist id="ov-names">
@@ -3705,7 +3714,15 @@ function appendStep(el,val){
   const oncPreset=document.getElementById('onc-preset');
   const oncSave=document.getElementById('onc-save');
   const oncNote=document.getElementById('onc-note');
+  const copyBar=document.getElementById('ov-copy');
+  const copyHosts=document.getElementById('ov-copy-hosts');
+  const copyGo=document.getElementById('ov-copy-go');
+  const copyNote=document.getElementById('ov-copy-note');
   if(!slotSel)return;
+  // Copying Host Actions to other hosts: the ones ticked on this host's list, and
+  // the hosts ticked to receive them. What this host has is kept as it was last
+  // listed, so a copy sends exactly what was on screen.
+  let shownItems=[],picked=new Set(),copyTo=new Set(),hostNames={},allSlots=[];
   // What the on-connect box holds belongs to oncSlot. While it has unsaved
   // edits, a reload (a host switch moves this card) leaves it alone, and Save
   // still goes to the slot it was typed for.
@@ -3747,6 +3764,7 @@ function appendStep(el,val){
         // button's name), but also state the raw slot number — this card maps
         // straight onto YAML `slot:` and the API's 0-based slot argument.
         const label=s.name||('Host '+(s.slot+1));
+        hostNames[s.slot]=label;
         // A slot that holds a host the stack has no key for still looks perfectly
         // normal otherwise, so say so here — it will not connect until that host
         // is paired again from its own side.
@@ -3756,10 +3774,35 @@ function appendStep(el,val){
         slotSel.appendChild(o);
         bcastBySlot[s.slot]=s.broadcast!==false;
       });
+      allSlots=d.slots.map(s=>s.slot);
       slotSel.value=slot;
       syncBcast();
+      renderCopy();
     });
   }
+
+  // The hosts a copy can go to — every one but this — and what the button says.
+  function renderCopy(){
+    if(!copyBar)return;
+    const others=allSlots.filter(t=>t!==slot);
+    copyBar.hidden=!shownItems.length||!others.length;
+    copyHosts.textContent='';
+    others.forEach(t=>{
+      const l=document.createElement('label'),c=document.createElement('input');
+      c.type='checkbox';c.checked=copyTo.has(t);
+      c.addEventListener('change',()=>{if(c.checked)copyTo.add(t);else copyTo.delete(t);syncCopy()});
+      l.appendChild(c);l.appendChild(document.createTextNode(hostNames[t]||('Host '+(t+1))));
+      copyHosts.appendChild(l);
+    });
+    syncCopy();
+  }
+  function syncCopy(){
+    if(!copyGo)return;
+    const n=shownItems.filter(it=>picked.has(it.name)).length,m=[...copyTo].filter(t=>t!==slot).length;
+    copyGo.textContent=n&&m?'Copy '+n+' to '+m+' host'+(m>1?'s':''):'Copy';
+    copyGo.disabled=!n||!m;
+  }
+  function copyMsg(m,err){if(copyNote){copyNote.textContent=m||'';copyNote.style.color=err?'#c44':'var(--muted)'}}
 
   // A device from before this setting existed answers without the field, and
   // every slot on it advertises — hence !==false rather than a truth test.
@@ -3815,10 +3858,18 @@ function appendStep(el,val){
     apiGetJSON('overrides?'+new URLSearchParams({slot:slot})).then(d=>{
       if(oncIn&&!oncDirty){oncIn.value=d.on_connect||'';oncSlot=slot}
       list.innerHTML='';
+      shownItems=d.items||[];
+      // A tick only for what this host still has.
+      picked=new Set([...picked].filter(n=>shownItems.some(it=>it.name===n)));
+      renderCopy();
       if(!d.items.length){list.innerHTML='<span class="prog-empty">No overrides — this host uses the built-in actions</span>';return}
       d.items.forEach(it=>{
         const row=document.createElement('div');
         row.className='ovr-row';
+        const pick=document.createElement('input');
+        pick.type='checkbox';pick.checked=picked.has(it.name);pick.title='Tick to copy it to other hosts';
+        pick.addEventListener('change',()=>{if(pick.checked)picked.add(it.name);else picked.delete(it.name);syncCopy()});
+        row.appendChild(pick);
         // Kept on the element so flags can be re-evaluated after a macro
         // changes without refetching the override list.
         row.dataset.act=it.action;
@@ -3878,6 +3929,7 @@ function appendStep(el,val){
   slotSel.addEventListener('change',()=>{
     slot=parseInt(slotSel.value);
     oncDirty=false;   // picking another host shows that host's action
+    picked.clear();copyTo.delete(slot);copyMsg('');
     // An armed confirm belongs to the slot it was armed on, never the new one.
     if(forgetBtn)resetForget();
     syncBcast();
@@ -3888,6 +3940,42 @@ function appendStep(el,val){
     if(tplPanel&&tplPanel.classList.contains('open')){tplNote('');fillTplSel()}
     // Never leave a key on screen under a different host's label.
     irkClear();
+  });
+
+  // Copy: each ticked Host Action to each ticked host, one write at a time (each
+  // is a flash write on the device). Asks first only if that would replace
+  // something different a host already has under the same name.
+  if(copyGo)copyGo.addEventListener('click',()=>{
+    const items=shownItems.filter(it=>picked.has(it.name));
+    const targets=[...copyTo].filter(t=>t!==slot).sort((a,b)=>a-b);
+    if(!items.length||!targets.length)return;
+    const name=t=>hostNames[t]||('Host '+(t+1));
+    copyGo.disabled=true;copyMsg('Copying…');
+    let done=0;
+    Promise.all(targets.map(t=>apiGetJSON('overrides?'+new URLSearchParams({slot:t})).then(d=>({t:t,items:d.items||[]}))))
+      .then(found=>{
+        const clash=[];
+        found.forEach(f=>items.forEach(it=>{
+          const o=f.items.find(x=>x.name===it.name);
+          if(o&&o.action!==it.action)clash.push(name(f.t)+': '+it.name+' — '+o.action);
+        }));
+        if(clash.length&&!confirm('Copying replaces what these hosts already have:\n\n'+clash.join('\n')+'\n\nCopy anyway?')){
+          copyMsg('');return;
+        }
+        let chain=Promise.resolve();
+        targets.forEach(t=>items.forEach(it=>{
+          chain=chain.then(()=>apiPost('override_set',{slot:t,name:it.name,action:it.action})).then(r=>{
+            if(!r.ok)return r.text().then(x=>{throw new Error(name(t)+', '+it.name+': '+x)});
+            done++;
+          });
+        }));
+        return chain.then(()=>{
+          copyMsg('Copied '+items.length+' Host Action'+(items.length>1?'s':'')+' to '+targets.map(name).join(', ')+'.');
+          items.forEach(it=>longChanged(it.name));
+        });
+      })
+      .catch(e=>copyMsg((done?'Copied '+done+', then stopped — ':'Nothing copied — ')+e.message,true))
+      .then(syncCopy);
   });
 
   saveBtn.addEventListener('click',()=>{
