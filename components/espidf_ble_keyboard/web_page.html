@@ -863,7 +863,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="prog-btns" id="macro-btns"><span class="prog-empty">Loading...</span></div>
 <div class="macro-form" id="macro-form">
 <input id="mn" placeholder="Name" maxlength="31" title="Must be unique and cannot contain '|'.&#10;Host actions reference a macro by name (macro:&lt;name&gt;), so renaming one breaks any override pointing at it.">
-<textarea id="ma" placeholder="Action (use | to chain steps)" maxlength="255" rows="3"></textarea>
+<textarea id="ma" placeholder="Action (use | to chain steps)" maxlength="255" rows="5"></textarea>
 <select id="mp"><option value="">Preset...</option>
 <optgroup label="Media">
 <option value="play_pause">Play/Pause</option>
@@ -1041,13 +1041,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="left_click"><option value="right_click"><option value="middle_click"><option value="mouse_release">
 <option value="ok@long"><option value="back@long"><option value="home@long"><option value="power@long"><option value="remote_power@long">
 </datalist>
-<textarea id="ov-act" placeholder="Replacement action" maxlength="255" rows="3" title="What this action should do on the selected host.&#10;&#10;Examples:&#10;combo:0x0C:0x15 = Win+Alt+R (Game Bar record)&#10;combo:0x01:0x15 = Ctrl+R (Sound Recorder, needs focus)&#10;consumer:0x00B2 = raw HID usage&#10;play_pause = another named action&#10;string:hello = type text&#10;ha_action:remote.send_command;entity_id=remote.X;command=power = fire a Home Assistant action (needs ha_action: true in YAML)&#10;&#10;Chain steps with a | between them:&#10;combo:0x0C:0x15 | delay:500 | string:rec&#10;&#10;Modifier bits add up: 1=Ctrl, 2=Shift, 4=Alt, 8=Win&#10;so Win+Alt = 12 = 0x0C. Decimal or 0x hex both work."></textarea>
+<textarea id="ov-act" placeholder="Replacement action" maxlength="255" rows="5" title="What this action should do on the selected host.&#10;&#10;Examples:&#10;combo:0x0C:0x15 = Win+Alt+R (Game Bar record)&#10;combo:0x01:0x15 = Ctrl+R (Sound Recorder, needs focus)&#10;consumer:0x00B2 = raw HID usage&#10;play_pause = another named action&#10;string:hello = type text&#10;ha_action:remote.send_command;entity_id=remote.X;command=power = fire a Home Assistant action (needs ha_action: true in YAML)&#10;&#10;Chain steps with a | between them:&#10;combo:0x0C:0x15 | delay:500 | string:rec&#10;&#10;Modifier bits add up: 1=Ctrl, 2=Shift, 4=Alt, 8=Win&#10;so Win+Alt = 12 = 0x0C. Decimal or 0x hex both work."></textarea>
 <select id="ov-preset"><option value="">Preset...</option></select>
 <button id="ov-save">Save</button>
 </div>
 <div style="font-size:12px;color:var(--muted);margin:10px 0 4px">When this host connects</div>
 <div class="macro-form" style="margin-top:0">
-<textarea id="onc-act" placeholder="Action to run when it connects (optional)" maxlength="255" rows="2" title="Runs each time this host connects and is ready for keys &mdash; after a switch, a reboot or waking from sleep. Not again within 30 seconds, and not while a macro is visiting this host.&#10;&#10;Any action works, chained with | as above. Empty = nothing."></textarea>
+<textarea id="onc-act" placeholder="Action to run when it connects (optional)" maxlength="255" rows="4" title="Runs each time this host connects and is ready for keys &mdash; after a switch, a reboot or waking from sleep. Not again within 30 seconds, and not while a macro is visiting this host.&#10;&#10;Any action works, chained with | as above. Empty = nothing."></textarea>
 <select id="onc-preset"><option value="">Preset...</option></select>
 <button id="onc-save">Save</button>
 </div>
