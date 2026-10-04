@@ -45,11 +45,16 @@
  *   #   - TV
  *   #   - Phone
  *   # active_host_entity: sensor.bluetooth_keyboard_active_host  # (auto-detected)
+ *   # show_host_switcher: false    # hide the switcher, still follow the host (default true)
  *   # show_mac: true               # show the active host's MAC address (default true)
  *   # host_url: http://192.168.1.50  # ESP address (auto-detected from HA)
  *   # lcd_entity: sensor.x_lcd      # values for ["lcd",…] panels (auto-detected)
  *   # lcd_entities:                 # read these keys from HA instead
  *   #   temp: sensor.lounge_temperature
+ *   # popout: on_top               # pop-out button: on_top | window | false
+ *   # popout_border: true          # the card around the popped-out remote (default false;
+ *   #                             # a shown host switcher brings it anyway)
+ *   # popout_header: false         # no name/host switcher line in the pop-out (default true)
  *
  * Per-host hiding: if the device exposes the optional `hidden_buttons` text
  * sensor, this card hides whatever the active host hides on the web remote, and
@@ -118,6 +123,81 @@ if (CARD_VER !== 'unversioned' && RMT_VER !== 'unversioned' && RMT_VER !== CARD_
 // Keys the device's web page acts on itself — they move that page's tab between
 // linked keyboards. Nothing outside it can do that, so this card never draws them.
 const PAGE_ONLY = ['next_keyboard', 'prev_host_all', 'next_host_all'];
+
+// ── Pop-out ──────────────────────────────────────────────────────────────────
+// The remote can leave the dashboard for a window of its own: one that stays
+// above the others where the browser can make one (document picture-in-picture),
+// an ordinary small window everywhere else. What goes there is a second card,
+// created by that window's own copy of this module.
+//
+// Its own copy, because code keeps the clock of the window it was loaded into,
+// and while the remote floats the dashboard tab is usually in the background —
+// where an ordinary window's opener has its timers held to once a second.
+// Measured in headless Edge with the dashboard tab hidden: a 180 ms interval
+// belonging to the tab fired in bunches a second apart, one belonging to the
+// window every 184 ms. So hold-to-repeat, long presses and the host poll keep
+// time, and document.hidden and blur describe the window the remote is in
+// rather than the tab it came from.
+const POP_EVENT = 'ble-remote-popout';
+// This tab's pop-outs, by keyboard. A docked card that HA builds afresh — a
+// config edit, a return to its view — finds its window here and stands aside.
+const POPPED = new Map();   // device -> { win, pop }
+// The theme variables the card's own styles read. Copied by name as well as by
+// enumerating the computed style, for a browser whose list leaves them out.
+const THEME_VARS = ['--primary-color', '--accent-color', '--primary-text-color', '--secondary-text-color',
+  '--secondary-background-color', '--card-background-color', '--ha-card-background', '--divider-color',
+  '--error-color', '--primary-background-color'];
+
+const popoutMode = (v) => (v === false || v === 'off' || v === 'false' || v === 'none') ? false
+  : v === 'window' ? 'window' : 'on_top';
+// A mouse or trackpad somewhere: a desktop, where a window of its own makes sense.
+const FINE_POINTER = window.matchMedia ? window.matchMedia('(any-pointer: fine)') : null;
+
+// A pop-out sends through this tab's connection to Home Assistant, so it cannot
+// outlive the tab: a reload or a close takes the window along, rather than leave
+// a remote on screen that can no longer send anything.
+window.addEventListener('pagehide', () => {
+  for (const { win } of POPPED.values()) {
+    try { win.close(); } catch (e) { /* already gone */ }
+  }
+});
+
+// What a popped-out card has in place of a dashboard. The tab's hass, which the
+// card reads on its own timer — Home Assistant replaces the object on every
+// change, so a new one is a change — and the one setting that decides whether
+// the tab stays connected while it is out of sight.
+function dashboardLink(fallback) {
+  const root = () => document.querySelector('home-assistant');
+  return {
+    hass: () => { const ha = root(); return (ha && ha.hass) || fallback(); },
+    // The event Home Assistant's own profile switch fires ("Automatically close
+    // connection"). The choice is stored for this browser, as the switch's is.
+    keepConnected: () => {
+      const ha = root();
+      if (ha) ha.dispatchEvent(new CustomEvent('hass-suspend-when-hidden',
+        { detail: { suspend: false }, bubbles: true, composed: true }));
+    },
+  };
+}
+
+// Absolute, so an @font-face carried into the window still finds its file: a
+// relative url() is relative to the sheet it came from, which the window lacks.
+const absUrls = (css, base) => css.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (m, q, u) => {
+  try { return `url("${new URL(u, base).href}")`; } catch (e) { return m; }
+});
+
+// Where an ordinary pop-out window last sat, per keyboard. A picture-in-picture
+// window is placed by the browser, which remembers it by itself.
+const POS_KEY = 'ble-remote-card:popout-pos:';
+function loadPos(dev) {
+  try {
+    const p = JSON.parse(localStorage.getItem(POS_KEY + dev));
+    return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? p : null;
+  } catch (e) { return null; }
+}
+function savePos(dev, win) {
+  try { localStorage.setItem(POS_KEY + dev, JSON.stringify({ x: win.screenX, y: win.screenY })); } catch (e) { /* none */ }
+}
 
 /**
  * Parse the card's pasted-style box.
@@ -189,20 +269,14 @@ class BleRemoteCard extends HTMLElement {
     if (!this._initialized) {
       this._initialize();
     }
-    // Before _applyHidden: on 'auto' the style comes from a text sensor, so a
-    // state update can change the whole layout, and the hidden list has to be
-    // applied to the buttons that redraw produced. _renderStyle no-ops when
-    // nothing changed, and forces the re-apply itself when something did.
-    this._renderStyle();
-    this._applyHidden();
-    this._applyHoldAndRepeat();
-    this._applyLcd();
     // Track active host changes via HA sensor entity. The firmware publishes to
     // this sensor on every switch_host() path — HA service, the device's own web
     // UI, a physical button — so every card following it stays in step with the
     // others without polling.
     // The sensor is this keyboard's active host, so it is followed only while
     // that is the host the card is on — not while a linked keyboard's is.
+    // First, so the drawing below is for the host this update brought: a panel
+    // naming the host used to show the old one until something else changed.
     if (this._config.host_list.length > 1 && !this._peerName()) {
       const entity = this._config.active_host_entity
         || Object.keys(hass.states).find(eid =>
@@ -218,6 +292,15 @@ class BleRemoteCard extends HTMLElement {
         }
       }
     }
+    // Before _applyHidden: on 'auto' the style comes from a text sensor, so a
+    // state update can change the whole layout, and the hidden list has to be
+    // applied to the buttons that redraw produced. _renderStyle no-ops when
+    // nothing changed, and forces the re-apply itself when something did.
+    this._renderStyle();
+    this._applyHidden();
+    this._applyHoldAndRepeat();
+    this._applyLcd();
+    this._syncPop();
   }
 
   setConfig(config) {
@@ -227,6 +310,8 @@ class BleRemoteCard extends HTMLElement {
     // Visible in the inspector without opening the console, and it survives a
     // reconfigure because setConfig runs on every editor keystroke.
     this.setAttribute('data-version', CARD_VER);
+    // As given, for the copy of this card a pop-out window builds.
+    this._rawConfig = config;
     this._config = {
       device: config.device,
       // Linked keyboards whose hosts this card can drive, each entry
@@ -254,6 +339,9 @@ class BleRemoteCard extends HTMLElement {
       host_list: hostSlotList(config.host_slots || 0),
       host_names: config.host_names || [],
       active_host_entity: config.active_host_entity || null,
+      // Off hides the switcher and nothing else: the card goes on following
+      // the active host, which host_slots: 0 would stop as well.
+      show_host_switcher: config.show_host_switcher !== false,
       show_mac: config.show_mac !== false,
       host_url: config.host_url || null,
       zoom: this._parseZoom(config.zoom),
@@ -277,6 +365,18 @@ class BleRemoteCard extends HTMLElement {
       // about — and they win over the device's value for the same key.
       lcd_entities: (config.lcd_entities && typeof config.lcd_entities === 'object')
         ? config.lcd_entities : {},
+      // The pop-out button: 'on_top' asks for a window that stays above the
+      // others and takes an ordinary one where the browser has none to give,
+      // 'window' always takes an ordinary one, false leaves the button off.
+      popout: popoutMode(config.popout),
+      // The card around the remote in that window: its padding, background
+      // and title. Off by default, as on the device page's pop-out, though a
+      // shown host switcher brings it along (see _popAttrs).
+      popout_border: config.popout_border === true,
+      // The line with the name and host switcher, in that window. Off leaves it
+      // out there whatever the dashboard's card shows — and so leaves the
+      // border to popout_border alone.
+      popout_header: config.popout_header !== false,
     };
     // The switcher starts on the chain's first host. With no hosts of this
     // keyboard's own that is a linked keyboard's, which is what lets a card
@@ -719,17 +819,94 @@ class BleRemoteCard extends HTMLElement {
              as nonsense — pre-line keeps the newline that separates them. */
           white-space: pre-line;
         }
+
+        /* Pop-out. In a window of its own the card has no corners or shadow:
+           there is no dashboard for them to sit on. Nor a pop-out button — said
+           here as well as by the script, so the dashboard's card, measuring
+           itself as the window will draw it, leaves the button out too. */
+        :host([popped]) .card { border-radius: 0; box-shadow: none; }
+        :host([popped]) .pop-btn { display: none !important; }
+        /* Without its border (see _popAttrs) the window holds the remote and
+           nothing else, as the device page's pop-out does: no card behind it,
+           no padding, no header. The window takes the card's colour instead
+           (see _dressWindow), so a remote that draws no body of its own looks
+           as it does on the dashboard, and one that does is left as its own
+           silhouette. With the border, popout_header can still leave out the
+           line holding the name and host switcher. */
+        :host([popped][bare]) .card { padding: 0; background: none; }
+        :host([popped][bare]) .header, :host([popped][noheader]) .header { display: none; }
+        /* The device page's answer to a window that rounds its size: a few pixels
+           of the remote's own background past its edges, as a shadow, so it costs
+           no layout and nothing measuring the remote sees it. */
+        :host([popped][bare]) .rmt-body {
+          box-shadow: var(--rb-shadow, 0 0 #0000), 0 4px 0 var(--rb-bg, transparent), 0 0 0 3px var(--rb-bg, transparent);
+        }
+        :host([popped][bare]) .link-note { margin: 8px; min-width: calc(100% - 16px); }
+        .header .pop-btn {
+          width: 26px; height: 26px; padding: 0; flex: none;
+          border: none; border-radius: 4px; background: none; cursor: pointer;
+          color: var(--secondary-text-color, #888);
+          display: flex; align-items: center; justify-content: center;
+        }
+        .header .pop-btn:hover { color: var(--primary-color, #03a9f4); background: var(--secondary-background-color, #f5f5f5); }
+        .header .pop-btn svg { width: 18px; height: 18px; fill: currentColor; }
+        .pop-msg, .out-note, .link-note {
+          max-width: 460px; margin: 0 auto 12px;
+          font-size: 13px; line-height: 1.4; color: var(--primary-text-color, #333);
+        }
+        .out-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-bottom: 8px; }
+        .out-row:last-child { margin-bottom: 0; }
+        .out-row span { flex: 1 1 200px; }
+        .out-btn {
+          flex: none; padding: 5px 12px; border-radius: 14px; cursor: pointer; font: inherit;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          background: var(--secondary-background-color, #f5f5f5);
+          color: var(--primary-text-color, #333);
+        }
+        .out-btn:active { background: var(--primary-color, #03a9f4); color: #fff; }
+        /* No width of its own (width 0, stretched by min-width), so the window
+           measuring the remote does not widen to set this out on one line. */
+        .link-note {
+          width: 0; min-width: 100%; box-sizing: border-box;
+          padding: 8px 10px; border-radius: 8px; background: var(--secondary-background-color, #f5f5f5);
+        }
+        /* Out: the remote is in its window, and this card says where it went.
+           Down: the window's tab lost Home Assistant, so the keys send nothing. */
+        .card:not(.out) .out-note, .card:not(.down) .link-note { display: none; }
+        .card.out #rmt-body, .card.out #host-switcher { display: none !important; }
+        .card.down #rmt-body { opacity: 0.4; }
+        .pop-btn[hidden], .pop-msg[hidden], .out-row[hidden], .out-btn[hidden] { display: none !important; }
       </style>
       <div class="card">
         <div class="zoom">
         <div class="header">
           <svg viewBox="0 0 24 24"><path d="M18 7V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v3H2v15h20V7h-4zM8 4h8v3H8V4zm10 16H6V9h12v11zm-6-7c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
           <span class="header-name">${this._config.name || 'Media Remote'}</span>
+          <button class="pop-btn" id="pop-btn" title="Pop out into a window of its own" aria-label="Pop out" hidden>
+            <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+          </button>
           <div class="header-right" id="host-switcher" style="display:none">
             <span class="host-addr"></span>
             <button class="host-btn" id="host-prev">&#9664;</button>
             <div class="host-info"><div class="host-name"></div></div>
             <button class="host-btn" id="host-next">&#9654;</button>
+          </div>
+        </div>
+        <div class="pop-msg" id="pop-msg" hidden></div>
+        <div class="out-note">
+          <div class="out-row">
+            <span>In a window of its own.</span>
+            <button class="out-btn" id="pin-back">Pin back</button>
+          </div>
+          <div class="out-row" id="keep-row" hidden>
+            <span>Home Assistant disconnects a dashboard left in the background for 5 minutes, and the remote stops with it.</span>
+            <button class="out-btn" id="keep-conn">Keep connected</button>
+          </div>
+        </div>
+        <div class="link-note">
+          <div class="out-row">
+            <span>Not connected to Home Assistant, so nothing is sent. Bring the dashboard's tab forward to reconnect.</span>
+            <button class="out-btn" id="link-keep" hidden>Keep connected from now on</button>
           </div>
         </div>
 
@@ -767,6 +944,358 @@ class BleRemoteCard extends HTMLElement {
     // the default until the sensor arrives, so the card is never blank.
     this._renderStyle();
     this._setupHostSwitcher(shadow);
+    this._wirePopout(shadow);
+  }
+
+  // ── Pop-out ──────────────────────────────────────────────────────
+  // The docked card opens the window and stands aside while it is open; the
+  // card inside the window is this same class, from that window's own copy of
+  // the module, marked by _popLink. See POPPED at the top of the file.
+
+  _wirePopout(shadow) {
+    const btn = shadow.getElementById('pop-btn');
+    // On the press for a mouse, as the device page does: the click that ends it
+    // then arrives after the window exists, and a click is what an on-top
+    // window needs before it will be resized. Anything else waits for the click.
+    let pressed = false;
+    btn.addEventListener('pointerdown', (e) => {
+      pressed = e.pointerType === 'mouse';
+      if (pressed) this._popOut();
+    });
+    btn.addEventListener('click', () => {
+      if (!pressed) this._popOut();
+      pressed = false;
+    });
+    shadow.getElementById('pin-back').addEventListener('click', () => this._pinBack());
+    shadow.getElementById('keep-conn').addEventListener('click', () => this._keepConnected());
+    shadow.getElementById('link-keep').addEventListener('click', () => this._keepConnected());
+    if (this._popLink) this._armFit();
+    this._syncPop();
+  }
+
+  // Desktop browsers only: the companion apps open no windows, and on a phone a
+  // pop-up is just another tab. Not from the card editor's preview either, nor
+  // from the card that is already the popped-out one.
+  _popAllowed() {
+    if (!this._config.popout || this._popLink || this.preview) return false;
+    const w = window;
+    if (w.externalAppV2 || w.externalApp ||
+        (w.webkit && w.webkit.messageHandlers && w.webkit.messageHandlers.externalBus)) return false;
+    return !!(FINE_POINTER && FINE_POINTER.matches);
+  }
+
+  // How the popped-out remote is dressed, as the attributes its card carries in
+  // the window. Bare is the card without its border — the default, as on the
+  // device page's pop-out. The name and host switcher sit on that card, so while
+  // the switcher shows there the border comes with them. popout_header leaves
+  // that line out of the window (noheader), and popout_border brings the border
+  // back on its own.
+  _popAttrs() {
+    const c = this._config;
+    const switcher = c.popout_header && c.show_host_switcher && this._hostChain().length >= 2;
+    return { bare: !c.popout_border && !switcher, noheader: !c.popout_header };
+  }
+
+  _markPop(on) {
+    const look = this._popAttrs();
+    this.toggleAttribute('popped', on);
+    this.toggleAttribute('bare', on && look.bare);
+    this.toggleAttribute('noheader', on && look.noheader);
+    return look;
+  }
+
+  // The tab's connection to Home Assistant. A dashboard left in the background
+  // is disconnected after five minutes unless the profile says otherwise — and
+  // the background is exactly where a floating remote's dashboard is.
+  _linkUp() {
+    const h = this._hass;
+    return !!h && h.connected !== false && !(h.connection && h.connection.connected === false);
+  }
+
+  // Brings the card's face in line with where the remote is: docked, out in a
+  // window, or out with its tab disconnected. Runs on every hass update, so it
+  // only ever toggles what is already there.
+  _syncPop() {
+    const sr = this.shadowRoot, c = this._config;
+    if (!sr || !c) return;
+    const card = sr.querySelector('.card');
+    if (!card) return;
+    // Only what changed is written: this runs on every state change in HA.
+    const show = (id, on) => { const el = sr.getElementById(id); if (el.hidden === on) el.hidden = !on; };
+    const suspends = !!this._hass && this._hass.suspendWhenHidden !== false;
+    if (this._popLink) {
+      const down = !this._linkUp();
+      card.classList.toggle('down', down);
+      show('link-keep', down && suspends);
+      return;
+    }
+    let open = POPPED.get(c.device);
+    // A window closed without its pagehide reaching us is gone all the same.
+    if (open && open.win.closed) { POPPED.delete(c.device); open = null; }
+    card.classList.toggle('out', !!open);
+    show('pop-btn', !open && this._popAllowed());
+    show('keep-row', suspends);
+  }
+
+  _popMessage(text) {
+    const el = this.shadowRoot && this.shadowRoot.getElementById('pop-msg');
+    if (!el) return;
+    el.textContent = text;
+    el.hidden = false;
+    clearTimeout(this._popMsgT);
+    this._popMsgT = setTimeout(() => { el.hidden = true; }, 10000);
+  }
+
+  // The size the remote wants in a window of its own, rather than the size it
+  // was given: the card laid out at its own width for a moment, the way the
+  // device page measures its pop-out — no wider than a sections-view column,
+  // though, so a style with a long row wraps it as it would on the dashboard
+  // rather than asking for a window across the screen. A scrollbar the card has
+  // right now is added on, or the window would hand the remote that much less
+  // and wrap a row — which is what raised the scrollbar in the first place.
+  _wantSize() {
+    const card = this.shadowRoot && this.shadowRoot.querySelector('.card');
+    if (!card) return null;
+    // Only in the window: a docked card scrolls because the dashboard gave it a
+    // fixed height, which says nothing about the window it is about to get.
+    const bar = this._popLink ? Math.max(0, Math.min(40, card.offsetWidth - card.clientWidth)) : 0;
+    // Measured as the window will draw it, even from the dashboard: the window
+    // is asked for as it opens, and a size taken off the docked card — padding,
+    // title and all — would show as a margin until the first click resized it.
+    // Put back before anything can paint.
+    const docked = !this.hasAttribute('popped');
+    const keep = card.getAttribute('style');
+    let w = 0, h = 0;
+    try {
+      const { bare } = docked ? this._markPop(true) : this._popAttrs();
+      // Height only. The card's own overflow stays, as it is what keeps the
+      // margin of a first or last row inside it: without the border nothing
+      // else does, and the window came out that margin short with a scrollbar.
+      card.style.height = 'auto';
+      card.style.width = 'max-content';
+      // Rounded up: a window a pixel short of the remote's width wraps its
+      // widest row, and the spare pixel is the card's colour, which the window
+      // has too. The cap is a sections column's 468px of content, plus the
+      // border's 32.
+      w = Math.min(Math.ceil(card.getBoundingClientRect().width),
+                   Math.ceil(468 * (this._config.zoom || 1)) + (bare ? 0 : 32));
+      card.style.width = `${w}px`;
+      h = card.getBoundingClientRect().height;
+    } finally {
+      // Whatever happened, the dashboard's card goes back to looking like one.
+      if (keep === null) card.removeAttribute('style'); else card.setAttribute('style', keep);
+      if (docked) this._markPop(false);
+    }
+    if (!w || !h) return null;
+    const scr = window.screen || {};
+    // The 2px on the height is the device page's, for a window that rounds.
+    return {
+      w: Math.min(w + bar, (scr.availWidth || 1600) - 40),
+      h: Math.min(Math.ceil(h) + 2, (scr.availHeight || 900) - 40),
+    };
+  }
+
+  async _popOut() {
+    if (this._popping || !this._popAllowed()) return;
+    const dev = this._config.device;
+    const open = POPPED.get(dev);
+    if (open && !open.win.closed) {
+      try { open.win.focus(); } catch (e) { /* the browser decides */ }
+      return;
+    }
+    this._popping = true;
+    try {
+      await this._openPopout(dev);
+    } finally {
+      this._popping = false;
+    }
+  }
+
+  async _openPopout(dev) {
+    const sr = this.shadowRoot;
+    const size = this._wantSize() || { w: 380, h: 640 };
+    let win = null, pip = false, why = '';
+    // Asked for before anything else happens, while the press still counts as
+    // one: the browser opens either kind of window only in answer to a gesture.
+    if (this._config.popout === 'on_top' && window.documentPictureInPicture) {
+      try {
+        win = await documentPictureInPicture.requestWindow({ width: size.w, height: size.h });
+        pip = true;
+      } catch (e) {
+        why = (e && (e.message || e.name)) || 'refused';
+      }
+    }
+    if (!win) {
+      let feat = `popup=yes,width=${size.w},height=${size.h}`;
+      const at = loadPos(dev);
+      if (at) feat += `,left=${at.x},top=${at.y}`;
+      // A name of its own each time: window.open finds a window by name, and one
+      // this browser already has under it — another tab's pop-out — would be
+      // handed back and wiped.
+      win = window.open('', `ble-remote-${dev}-${Date.now()}`, feat);
+    }
+    if (!win) {
+      this._popMessage(why
+        ? `The browser would not keep a window on top (${why}), and blocked an ordinary one. Allow pop-ups for this site and press again.`
+        : 'The browser blocked the window. Allow pop-ups for this site and press again.');
+      return;
+    }
+    const d = win.document;
+    if (!pip) {
+      // Written out so the window is in standards mode: one opened on nothing
+      // starts in quirks mode, which lays the card out differently.
+      try {
+        d.open();
+        d.write('<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');
+        d.close();
+      } catch (e) { /* quirks mode, then — the card still draws */ }
+    }
+    d.title = sr.querySelector('.header-name').textContent || 'Media Remote';
+    this._dressWindow(d);
+
+    // The card's own module, loaded again by the window — so the card there
+    // runs on that window's clock. See POPPED at the top of the file.
+    const s = d.createElement('script');
+    s.type = 'module';
+    s.src = import.meta.url;
+    d.head.appendChild(s);
+    const ready = await Promise.race([
+      win.customElements.whenDefined('ble-remote-card').then(() => true),
+      new Promise(r => setTimeout(() => r(false), 8000)),
+    ]);
+    if (!ready || win.closed) {
+      try { win.close(); } catch (e) { /* gone */ }
+      if (!ready) this._popMessage('The remote could not be loaded into its window.');
+      return;
+    }
+    const pop = d.createElement('ble-remote-card');
+    pop._popLink = dashboardLink(() => this._hass);
+    // A copy belonging to the window, so nothing in it is an object from here.
+    pop.setConfig(win.JSON.parse(JSON.stringify(this._rawConfig)));
+    d.body.appendChild(pop);
+    pop.hass = pop._popLink.hass();
+
+    POPPED.set(dev, { win, pop });
+    win.addEventListener('pagehide', () => {
+      if (!pip) savePos(dev, win);
+      const cur = POPPED.get(dev);
+      if (cur && cur.win === win) {
+        POPPED.delete(dev);
+        window.dispatchEvent(new CustomEvent(POP_EVENT));
+      }
+    });
+    // The click that ends this press, if it opened on the press: a gesture the
+    // window can be resized in, should it want a size it was not opened at.
+    window.addEventListener('click', () => {
+      try { pop._retryFit(); } catch (e) { /* closed already */ }
+    }, { capture: true, once: true });
+    window.dispatchEvent(new CustomEvent(POP_EVENT));
+  }
+
+  // The window has none of the dashboard around it, so what the card inherits
+  // from there comes along: the theme's variables, its fonts and its colour
+  // scheme. Read off this card rather than the page, so a theme set for one view
+  // is the one the remote keeps.
+  _dressWindow(d) {
+    const cs = getComputedStyle(this);
+    const root = d.documentElement.style;
+    const names = new Set(THEME_VARS);
+    for (let i = 0; i < cs.length; i++) if (cs[i].startsWith('--')) names.add(cs[i]);
+    for (const n of names) {
+      const v = cs.getPropertyValue(n);
+      if (v !== '') root.setProperty(n, v);
+    }
+    root.colorScheme = cs.colorScheme;   // dark scrollbars with a dark theme
+    root.height = '100%';
+    // The card's own background fills the window, so a window a pixel bigger
+    // than the remote shows the card rather than a strip of something else.
+    let bg = getComputedStyle(this.shadowRoot.querySelector('.card')).backgroundColor;
+    if (!bg || bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)')
+      bg = cs.getPropertyValue('--primary-background-color').trim() || '#fff';
+    d.body.style.cssText = `margin:0;height:100%;overflow:hidden;background:${bg};` +
+      `color:${cs.color};font-family:${cs.fontFamily}`;
+    const faces = [];
+    for (const sheet of [...document.styleSheets, ...(document.adoptedStyleSheets || [])]) {
+      let rules;
+      try { rules = sheet.cssRules; } catch (e) { continue; }   // another origin's
+      for (const rule of rules)
+        if (rule instanceof CSSFontFaceRule) faces.push(absUrls(rule.cssText, sheet.href || document.baseURI));
+    }
+    if (faces.length) {
+      const st = d.createElement('style');
+      st.textContent = faces.join('\n');
+      d.head.appendChild(st);
+    }
+  }
+
+  _pinBack() {
+    const dev = this._config.device, open = POPPED.get(dev);
+    POPPED.delete(dev);
+    if (open) { try { open.win.close(); } catch (e) { /* gone */ } }
+    window.dispatchEvent(new CustomEvent(POP_EVENT));
+  }
+
+  _keepConnected() {
+    (this._popLink || dashboardLink(() => this._hass)).keepConnected();
+  }
+
+  // In the window: the dashboard's hass, read on this window's clock. A new
+  // object is a change; the socket's state can change without one, so the face
+  // is brought up to date either way.
+  _pullHass() {
+    let h = null;
+    try { h = this._popLink.hass(); } catch (e) { /* its tab is going, and takes this window along */ }
+    if (h && h !== this._hass) this.hass = h;
+    else this._syncPop();
+  }
+
+  // A window of its own is sized to the remote, and follows it when a host's
+  // style is a different size. Only the remote's own size counts: a window
+  // resized by hand is left the size it was given.
+  _armFit() {
+    const body = this.shadowRoot.getElementById('rmt-body');
+    if (!body || this._fitRO) return;
+    let last = null, t = 0;
+    const check = () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const s = this._wantSize();
+        if (!s || (last && Math.abs(last.w - s.w) <= 3 && Math.abs(last.h - s.h) <= 3)) return;
+        last = s;
+        this._fitWindow(s);
+      }, 250);
+    };
+    this._fitRO = new ResizeObserver(check);
+    this._fitRO.observe(body);
+    // An on-top window refuses a resize that no click asked for, so one it
+    // refused waits for the next click in it — or on the dashboard, see
+    // _openPopout.
+    window.addEventListener('click', () => this._retryFit(), true);
+  }
+
+  _fitWindow(s) {
+    s = s || this._fitWant || this._wantSize();
+    if (!s) return;
+    const dw = s.w - window.innerWidth, dh = s.h - window.innerHeight;
+    if (Math.abs(dw) <= 3 && Math.abs(dh) <= 3) { this._fitWant = null; return; }
+    this._fitWant = s;
+    try {
+      window.resizeBy(dw, dh);
+    } catch (e) {
+      return;   // refused for want of a gesture: the next click tries again
+    }
+    // Asked once, then taken as answered. A window that came back some other
+    // size — held under the screen's height, say — has said what it will, and
+    // the device page measured where asking again leads: a window that twitches
+    // on every click for the rest of the session.
+    this._fitWant = null;
+  }
+
+  // A click is good for a few seconds, and a host switch's new style arrives
+  // about a second after the click that asked for it — so try then, and over
+  // the next few seconds. Each try does nothing unless a size is waiting.
+  _retryFit() {
+    [0, 500, 1000, 2000, 3000].forEach(ms => setTimeout(() => { if (this._fitWant) this._fitWindow(); }, ms));
   }
 
   // ── Host switcher ────────────────────────────────────────────────
@@ -780,6 +1309,13 @@ class BleRemoteCard extends HTMLElement {
     // here and one on a linked keyboard.
     if (this._hostChain().length < 2) return;
     this._hostSlots = [];
+    // Hidden by choice, the card still polls: /hosts is where an 'auto' style
+    // finds the host's style without the sensor, and where a panel gets the
+    // host's address. Only the arrows and the name go.
+    if (!this._config.show_host_switcher) {
+      this._startHostPolling();
+      return;
+    }
 
     shadow.getElementById('host-switcher').style.display = '';
     this._hostInfoEl = shadow.querySelector('.host-info');
@@ -859,6 +1395,9 @@ class BleRemoteCard extends HTMLElement {
   _stepHost(delta, wholeKeyboard) {
     const chain = this._hostChain();
     if (chain.length < 2) return;
+    // Before the switcher moves, not after: it would show a host the keyboard
+    // was never asked for.
+    if (this._popLink && !this._linkUp()) { this._syncPop(); return; }
     let i = this._chainIndex(chain);
     if (wholeKeyboard) {
       const from = chain[i].peer;
@@ -952,6 +1491,19 @@ class BleRemoteCard extends HTMLElement {
     this._onHide = () => { if (document.hidden) this._endHold(); };
     document.addEventListener('visibilitychange', this._onHide);
     window.addEventListener('blur', this._boundEndHold = () => this._endHold());
+    if (this._popLink) {
+      // In a window of its own. Closing it mid-press is a press cut short too,
+      // and a closing document never disconnects its elements.
+      this._markPop(true);
+      window.addEventListener('pagehide', this._boundEndHold);
+      clearInterval(this._hassPoll);
+      this._hassPoll = setInterval(() => this._pullHass(), 300);
+    } else {
+      // Docked: told when a pop-out of this keyboard opens or closes.
+      this._onPopEvent = () => this._syncPop();
+      window.addEventListener(POP_EVENT, this._onPopEvent);
+      this._syncPop();
+    }
   }
 
   disconnectedCallback() {
@@ -959,6 +1511,10 @@ class BleRemoteCard extends HTMLElement {
     this._hostPollInterval = null;
     document.removeEventListener('visibilitychange', this._onHide);
     window.removeEventListener('blur', this._boundEndHold);
+    window.removeEventListener('pagehide', this._boundEndHold);
+    if (this._onPopEvent) window.removeEventListener(POP_EVENT, this._onPopEvent);
+    clearInterval(this._hassPoll);
+    this._hassPoll = null;
     this._endHold();   // the card is going away mid-press
   }
 
@@ -1299,6 +1855,9 @@ class BleRemoteCard extends HTMLElement {
   // Returns the call, so a knob can wait for one run of steps before the next.
   _runAction(action) {
     if (!this._hass) return;
+    // A popped-out remote whose tab has lost Home Assistant sends nothing: the
+    // call could only fail, and say so in a toast on a tab out of sight.
+    if (this._popLink && !this._linkUp()) { this._syncPop(); return; }
     const peer = this._peerName();
     return this._hass.callService('esphome', `${this._config.device}_run_action`,
       { action: peer ? `peer:${peer}:${action}` : action });
@@ -1404,8 +1963,16 @@ function remoteEditorSchema(config) {
     { name: 'host_names', selector: { text: {} } },
     { name: 'peer_hosts', selector: { text: { multiline: true } } },
     { name: 'active_host_entity', selector: { entity: { domain: 'sensor' } } },
+    { name: 'show_host_switcher', selector: { boolean: {} } },
     { name: 'show_mac', selector: { boolean: {} } },
     { name: 'host_url', selector: { text: {} } },
+    { name: 'popout', selector: { select: { mode: 'dropdown', options: [
+      { value: 'on_top', label: 'On top of other windows, where the browser can' },
+      { value: 'window', label: 'An ordinary window' },
+      { value: 'off', label: 'No pop-out button' },
+    ] } } },
+    { name: 'popout_border', selector: { boolean: {} } },
+    { name: 'popout_header', selector: { boolean: {} } },
   ];
 }
 
@@ -1449,8 +2016,12 @@ const REMOTE_EDITOR_LABELS = {
   host_names: 'Host names, comma-separated (optional)',
   peer_hosts: 'Linked keyboards, one per line: bedroom | 2 | Bed TV, Bed PC | Bedroom | style3',
   active_host_entity: 'Active-host sensor (optional)',
+  show_host_switcher: 'Show host switcher',
   show_mac: 'Show host MAC address',
   host_url: 'Device URL (optional, auto-detected)',
+  popout: 'Pop-out button (desktop browsers)',
+  popout_border: 'Pop-out border (the card and its name around the remote; shown anyway with the host switcher)',
+  popout_header: 'Pop-out name and host switcher line',
 };
 
 class BleRemoteCardEditor extends HTMLElement {
@@ -1463,11 +2034,17 @@ class BleRemoteCardEditor extends HTMLElement {
       show_apps: true,
       show_color: false,
       host_slots: 0,
+      show_host_switcher: true,
       show_mac: true,
       zoom: 1,
       remote_style: 'auto',
+      popout: 'on_top',
+      popout_border: false,
+      popout_header: true,
       ...config,
     };
+    // false in YAML is the dropdown's 'off', which _emit() turns back.
+    this._config.popout = popoutMode(this._config.popout) || 'off';
     // host_names is a YAML list but edits as one comma-separated field; show it
     // as text here and turn it back into a list in _emit().
     if (Array.isArray(this._config.host_names)) {
@@ -1525,6 +2102,7 @@ class BleRemoteCardEditor extends HTMLElement {
       if (list.length) out.peer_hosts = list;
       else delete out.peer_hosts;
     }
+    if (out.popout === 'off') out.popout = false;
     this.dispatchEvent(new CustomEvent('config-changed', {
       detail: { config: out },
       bubbles: true,

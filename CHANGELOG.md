@@ -16,6 +16,13 @@ web control page shows the matching version badge.
   on the web page and the Home Assistant card, where it used to follow the dashboard theme, and it no
   longer takes the lit-key colour.
 - **Host Actions can be copied to other hosts**: tick the ones to copy and the hosts to copy them to.
+- **The Home Assistant remote card can pop out** into a window of its own on a desktop browser, on top
+  of other windows where the browser allows. Like the device page's, the window shows just the
+  remote, unless the card's border is turned on or its host switcher shows; the name and switcher
+  line can be left out of the window on its own. It says so when Home Assistant has disconnected
+  the dashboard behind it, and offers to keep it connected.
+- **The remote card's host switcher can be turned off** in its settings. The card still follows
+  the active host, which hiding it by host count did not.
 
 ### Changed
 - **The keyboard holds 8 custom remote styles**, up from 6.
@@ -24,6 +31,8 @@ web control page shows the matching version badge.
 
 ### Fixed
 - **No pale line down the edge of a popped-out remote** on a scaled display.
+- **A remote card's panel naming the active host changes with the host**, instead of showing the
+  previous one until something else in Home Assistant changed.
 - **Restoring a backup now says it replaces remote styles** and each host's remote button
   settings too; it always did, but the question before it left them out.
 

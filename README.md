@@ -2659,6 +2659,10 @@ host_names:                   # custom names for each slot (optional)
   - Phone
   - Laptop
   - Tablet
+show_host_switcher: true      # false hides the switcher, still following the host (default: true)
+popout: on_top                # pop-out button: on_top, window or false (default: on_top)
+popout_border: false          # the card around the popped-out remote (default: false)
+popout_header: true           # the name and host switcher line in the pop-out (default: true)
 ```
 
 Optional configuration:
@@ -2682,8 +2686,12 @@ Optional configuration:
 | `host_slots` | `0` | Which hosts the switcher offers. A number is a count — `4` is the first four — and a string picks them out by the numbers the switcher shows, e.g. `'1-3, 5, 7-10'`, for a keyboard whose other slots don't belong on this card. Needs at least two hosts; `0` hides the switcher. See [Host switcher on the cards](#host-switcher-on-the-cards). |
 | `host_names` | `[]` | Names for the hosts the switcher shows, in the order it shows them (e.g., `["TV", "Phone"]`). With a count that is slot 0, slot 1 and so on; with a list like `'1,5'` the first name is host 1 and the second host 5. Falls back to `switch_host` button names from the ESP32, then "Host N". |
 | `active_host_entity` | Auto | Entity ID of the [active host sensor](#active-host-sensor). Auto-detected by name pattern (`sensor.*_active_host`). Set explicitly if auto-detection fails. |
+| `show_host_switcher` | `true` | Show the host switcher. Off hides the arrows and the host's name, and the card still follows the active host: an `auto` style found through `/hosts`, and an [LCD panel](#lcd-panels)'s host readouts with your `host_names`. `host_slots: 0` hides the switcher too, but drops those as well. |
 | `show_mac` | `true` | Show the active host's MAC address to the left of the switcher. |
 | `host_url` | Auto | Address of the ESP32 (e.g. `http://192.168.1.50`), used to read slot MACs. Auto-detected from the device's HA registry entry. |
+| `popout` | `on_top` | The pop-out button in the card's header, on desktop browsers. `on_top` opens the remote in a window that stays above the others where the browser can make one, and an ordinary window where it can't; `window` always opens an ordinary one; `false` removes the button. See [Popping the card out](#popping-the-card-out). |
+| `popout_border` | `false` | The card around the popped-out remote — its border, name and host switcher. Off, the window holds the remote and nothing else, as the device page's pop-out does; but while the host switcher shows, the border comes with it, since the name and switcher sit on the card. |
+| `popout_header` | `true` | The line with the card's name and host switcher, in the pop-out window. Off leaves it out there while the dashboard's card keeps it — and so leaves the border to `popout_border` alone. |
 
 #### Remote styles on the card
 
@@ -2730,6 +2738,16 @@ A style that uses [imported logos](#logos-on-buttons) exports with them attached
 
 > **The card's styles are a snapshot** taken when the card files were built. Flash newer firmware with a new built-in style and the installed card won't know that id until you update the cards too — which is what the version tags on the card imports are for.
 
+#### Popping the card out
+
+The pop-out button in the card's header moves the remote into a window of its own, sized to the remote, so it stays in reach while you work in another app. The card on the dashboard steps aside while it is out. Close the window, or press **Pin back** on the card, to bring the remote back. The window follows the active host and resizes when a host's style is a different size.
+
+Like the device page's pop-out, the window holds just the remote: a style that draws its own body floats as its own shape, with no card around it. Turn on **Pop-out border** in the card's settings (`popout_border: true`) to keep the card, its name and host switcher around it. The border also comes back by itself while **Show host switcher** is on, since the name and switcher sit on the card. To keep the switcher on the dashboard but not in the window, turn off **Pop-out name and host switcher line** (`popout_header: false`): the window then has neither, and its border is down to **Pop-out border** alone.
+
+- **Which window:** Chrome or Edge 116+ and Firefox 151+ give a window that stays on top of the others — when Home Assistant is on an **https** address. It only resizes during a click, so a size change that arrives later waits for your next press. Anywhere else on a desktop (Home Assistant over plain http, or Safari) it is an ordinary window, which the operating system can pin on top — see [Popping the remote out](#popping-the-remote-out). `popout: window` always takes the ordinary one.
+- **Not on phones or in the companion app.** Neither can open a window of its own, so the button doesn't show there.
+- **The window works through the dashboard's tab.** Closing or reloading that tab closes the window too. And Home Assistant closes the connection of a tab that has spent 5 minutes in the background — which is where it usually is while the remote floats. The window then says it isn't connected, dims its keys and sends nothing until the tab is brought forward. To stop that happening, press **Keep connected** on the card while the remote is out, or turn off **Automatically close connection** in your Home Assistant profile: it is the same setting, kept per browser.
+
 Features:
 - **Power button** — HID power signal for clean OS-level power control.
 - **D-pad navigation** — arrow keys + Enter, ideal for media apps and menus.
@@ -2742,6 +2760,7 @@ Features:
 - **Color buttons** — optional red/green/yellow/blue (F1–F4).
 - **Per-host remapping** — every button is a named action, so any of them can do something different on each paired host.
 - **Host switcher** — optional prev/next buttons in the header to change the active BLE host, with its name and MAC address. Switching here also repaints the card's [per-host hidden buttons](#removing-remote-buttons-per-host). See [Host switcher on the cards](#host-switcher-on-the-cards).
+- **Pop-out** — the remote in a window of its own on a desktop browser, on top of other windows where the browser allows. See [Popping the card out](#popping-the-card-out).
 - **Auto device name** — card title is auto-detected from Home Assistant's device registry.
 
 <img src="docs/remote_ha_card.png" height="560" alt="Remote HA card, full remote"> <img src="docs/remote_style6.png" height="560" alt="Remote in Style 6, with logo keys and a screen">
@@ -2765,6 +2784,8 @@ host_slots: 4
 host_names: [TV, Phone, Laptop, Tablet]   # optional
 show_mac: true                            # optional, default true
 ```
+
+On the remote card, turning off **Show host switcher** in its settings (`show_host_switcher: false`) hides just the switcher: the card goes on following the active host, which `host_slots: 0` stops as well.
 
 **Or name the hosts you want.** A number is a count, so `4` is the first four. A string picks hosts
 out by the numbers the switcher shows, so a keyboard with ten paired machines can put three of them
