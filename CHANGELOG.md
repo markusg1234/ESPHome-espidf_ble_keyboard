@@ -18,9 +18,9 @@ web control page shows the matching version badge.
 - **Host Actions can be copied to other hosts**: tick the ones to copy and the hosts to copy them to.
 - **The Home Assistant remote card can pop out** into a window of its own on a desktop browser, on top
   of other windows where the browser allows. Like the device page's, the window shows just the
-  remote, unless the card's border is turned on or its host switcher shows; the name and switcher
-  line can be left out of the window on its own. It says so when Home Assistant has disconnected
-  the dashboard behind it, and offers to keep it connected.
+  remote, unless the card's border is turned on or its host switcher shows. The name and switcher
+  line can be left out of the window, the switcher then staying on the dashboard's card. It says so
+  when Home Assistant has disconnected the dashboard behind it, and offers to keep it connected.
 - **The remote card's host switcher can be turned off** in its settings. The card still follows
   the active host, which hiding it by host count did not.
 

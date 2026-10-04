@@ -873,7 +873,10 @@ class BleRemoteCard extends HTMLElement {
         /* Out: the remote is in its window, and this card says where it went.
            Down: the window's tab lost Home Assistant, so the keys send nothing. */
         .card:not(.out) .out-note, .card:not(.down) .link-note { display: none; }
-        .card.out #rmt-body, .card.out #host-switcher { display: none !important; }
+        .card.out #rmt-body { display: none !important; }
+        /* The switcher goes too, unless the window has none of its own (out-switch:
+           popout_header off) — then this card is where the host is changed. */
+        .card.out:not(.out-switch) #host-switcher { display: none !important; }
         .card.down #rmt-body { opacity: 0.4; }
         .pop-btn[hidden], .pop-msg[hidden], .out-row[hidden], .out-btn[hidden] { display: none !important; }
       </style>
@@ -1033,6 +1036,9 @@ class BleRemoteCard extends HTMLElement {
     // A window closed without its pagehide reaching us is gone all the same.
     if (open && open.win.closed) { POPPED.delete(c.device); open = null; }
     card.classList.toggle('out', !!open);
+    // A window without the name and switcher line leaves the switcher here,
+    // when this card has one to show. See _goToHost.
+    card.classList.toggle('out-switch', !!open && !c.popout_header);
     show('pop-btn', !open && this._popAllowed());
     show('keep-row', suspends);
   }
@@ -1417,6 +1423,29 @@ class BleRemoteCard extends HTMLElement {
     this._renderStyle();
     this._applyHidden(true);
     this._applyHoldAndRepeat();   // those lists are this keyboard's active host's
+    // Stepped from the dashboard while the remote is out (out-switch, see
+    // _syncPop): the card in the window is another card, with a target of its
+    // own, and has to drive the host chosen here. The device would tell it
+    // about one of this keyboard's own hosts; a linked keyboard's, nothing would.
+    const open = !this._popLink && POPPED.get(this._config.device);
+    if (open && open.pop) {
+      try { open.pop._followHost(c.peer, c.slot); } catch (e) { /* its window is closing */ }
+    }
+  }
+
+  // In the window: the dashboard's card chose this host. The switch went from
+  // there, so this only takes the same target — found in this card's own chain,
+  // so nothing kept here is an object from the other window.
+  _followHost(peer, slot) {
+    const c = this._hostChain().find(x => x.peer === peer && x.slot === slot);
+    if (!c) return;
+    this._target = { peer: c.peer, slot: c.slot, entry: c.entry, name: c.name };
+    this._activeSlot = c.slot;
+    this._updateHostDisplay();
+    this._renderStyle();
+    this._applyHidden(true);
+    this._applyHoldAndRepeat();
+    this._applyLcd(true);
   }
 
   // Every name the switcher can show, so the field can be sized to the longest
