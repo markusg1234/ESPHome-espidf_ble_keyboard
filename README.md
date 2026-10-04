@@ -2182,7 +2182,7 @@ espidf_ble_keyboard:
   web_control: true
   peers:
     - name: bedroom
-      url: http://192.168.1.36
+      url: http://192.168.1.36                # or http://<its esphome: name>.local
       username: !secret bedroom_web_user      # its web_server auth, if it has one
       password: !secret bedroom_web_password
 ```
