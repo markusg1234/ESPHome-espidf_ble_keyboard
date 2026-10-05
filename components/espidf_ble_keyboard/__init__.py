@@ -492,10 +492,12 @@ CONFIG_SCHEMA = cv.All(
         # DNS entry, whatever the setup uses. Anything here is trusted as fully
         # as the device's own address, so list only names you control.
         cv.Optional(CONF_WEB_ALLOWED_HOSTS, default=[]): cv.ensure_list(cv.string_strict),
-        # Let the page be shown inside a frame. Off by default: a framed page is
-        # still on its own origin, so every same-origin check here is satisfied
-        # while the click that triggered it belongs to whoever built the frame.
-        # Turn it on only to embed the page in a dashboard you run yourself.
+        # Let the page be shown inside a frame on another site. Off by default: a
+        # framed page is still on its own origin, so every same-origin check here
+        # is satisfied while the click that triggered it belongs to whoever built
+        # the frame. Only the page's own origin may frame it — which includes Home
+        # Assistant serving it through its own proxy. Turn it on only to embed the
+        # device's address in a dashboard you run yourself.
         cv.Optional(CONF_WEB_ALLOW_FRAMING, default=False): cv.boolean,
         # Other keyboards this one's page can drive, over Wi-Fi. Anyone who can
         # use this page can drive them too: their logins are stored here.

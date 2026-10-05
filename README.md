@@ -314,7 +314,7 @@ binary_sensor:
 * **web_control** (Optional, bool): Enable a built-in web control page with keyboard and mouse UI at `http://<device-ip>/ble_keyboard`. Requires the `web_server` component. Defaults to `false`. The page and its endpoints are **open to anything that can reach the device** unless you give `web_server:` an `auth:` block — see [Securing the web control page](#securing-the-web-control-page).
 * **web_host_check** (Optional, bool): Refuse requests addressed to a host name this device does not answer to. An IP address, any `.local` name, and any name with no dot in it (a short DHCP host name) all pass; add anything else with `web_allowed_hosts`. Defaults to `true`. This is what stops a website re-pointing its own domain at your device and having your browser drive the keyboard from there, so leave it on unless a reverse proxy needs otherwise. See [Securing the web control page](#securing-the-web-control-page).
 * **web_allowed_hosts** (Optional, string or list): Extra host names that count as this device — a reverse proxy's domain, a DNS entry, whatever your setup uses. Names here are trusted as fully as the device's own address, so list only ones you control. Ignored when `web_host_check` is `false`.
-* **web_allow_framing** (Optional, bool): Allow the page to be shown inside a frame — an `iframe` card on a dashboard, for instance. Defaults to `false`, because a framed page is still on its own origin: every same-origin check the device makes is satisfied while the click that triggered it belongs to whoever built the frame. Turn it on only for a dashboard you run yourself.
+* **web_allow_framing** (Optional, bool): Allow other sites to show the page inside a frame — a Webpage card pointing at the device's address, for instance. Defaults to `false`, because a framed page is still on its own origin: every same-origin check the device makes is satisfied while the click that triggered it belongs to whoever built the frame. Turn it on only for a dashboard you run yourself. Not needed when Home Assistant serves the page itself — see [Setting up a keyboard from outside the house](#setting-up-a-keyboard-from-outside-the-house).
 * **peers** (Optional, list): Other keyboards running this component that this one's web page can drive over Wi-Fi — see [Linking a second keyboard](#linking-a-second-keyboard). Up to 4, each with a `name` (1–15 of `a-z`, `0-9`, `_`), a `url` (`http://<IP address>[:port]` or `http://<name>.local`, no path) and, when that keyboard's `web_server:` has a login, its `username` and `password`. Needs `web_control: true`.
 * **api_services** (Optional, bool): Auto-register all documented Home Assistant services (`run_action`, `run_macro`, `send_string`, `send_key`, `send_consumer`, `mouse_move`, `mouse_scroll`, `mouse_click`, `mouse_hold`, `mouse_release`, `mouse_abs`, `set_battery_level`, `switch_host`, `forget_host`) directly from the component — no `api: services:` yaml needed, and the HA cards work out of the box. Requires the `api:` component. Defaults to `false`. **Don't combine with the manual `api: services:` snippets below** — you'd register the same service names twice; delete the manual copies when enabling this. See [Home Assistant services](#home-assistant-services).
 * **ha_action** (Optional, bool): Allow the `ha_action:` prefix to fire Home Assistant actions from the device — how a remote key reaches things BLE can't, such as an IR blaster's `remote.send_command`. Requires the `api:` component (`api: homeassistant_services: true` is enabled automatically) and Home Assistant's own per-device permission. Defaults to `false` — the web page is unauthenticated unless you set that up, so this is a deliberate opt-in. See [Calling Home Assistant Actions](#calling-home-assistant-actions).
@@ -2122,6 +2122,32 @@ text_sensor:
 
 In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble_keyboard`. Click it to open the web control page directly.
 
+### Setting up a keyboard from outside the house
+
+The page is for the local network; the [Home Assistant cards](#media-remote-card-for-home-assistant)
+are how a keyboard is used from anywhere. To set one up remotely — programming a remote on someone
+else's system over Nabu Casa, say — have their Home Assistant serve the page with the
+[hass_ingress](https://github.com/lovelylain/hass_ingress) integration (HACS). It appears as a
+sidebar panel behind their Home Assistant login, and the device stays off the internet. A Webpage
+card can't do this: the device's address doesn't reach outside the house, and an `https` dashboard
+refuses an `http` frame anyway.
+
+```yaml
+# Their configuration.yaml — restart Home Assistant afterwards
+ingress:
+  ble_keyboard:
+    title: BLE Keyboard
+    icon: mdi:keyboard
+    url: http://192.168.1.100/   # the device itself, not /ble_keyboard
+    index: /ble_keyboard
+    require_admin: true          # it types on their computer or TV
+    # headers:                   # only if web_server: has an auth: login
+    #   authorization: !secret ble_keyboard_auth   # "Basic " + base64 of user:password
+```
+
+The keyboard needs v1.15.0 or later, whose page works under a proxy's path. If the page loads but
+buttons do nothing, the device log names the host it refused — add it to `web_allowed_hosts`.
+
 ### Features
 
 - **Full QWERTY keyboard** — letters, numbers, symbols, F-keys, modifiers, arrows
@@ -2341,11 +2367,12 @@ scripts, Home Assistant automations — are allowed, so every example on this pa
 is deliberate: those callers could already reach the device directly, and refusing them would break
 documented usage without protecting anything.
 
-**The page cannot be put in a frame,** which is the other way that check could be walked around: a
-page inside a frame is on its own origin, so its requests look entirely legitimate while the clicks
-that trigger them belong to whoever built the frame. If you deliberately embed the page in a
-dashboard of your own, `web_allow_framing: true` lifts this — knowing that it lifts it for every
-site, not only yours.
+**Other sites cannot put the page in a frame,** which is the other way that check could be walked
+around: a page inside a frame is on its own origin, so its requests look entirely legitimate while
+the clicks that trigger them belong to whoever built the frame. Only the page's own origin may frame
+it, which is what lets Home Assistant [serve it through its own proxy](#setting-up-a-keyboard-from-outside-the-house).
+If you deliberately embed the device's address in a dashboard of your own, `web_allow_framing: true`
+lifts this — knowing that it lifts it for every site, not only yours.
 
 **Requests addressed to a name the device doesn't answer to are refused.** That closes the third
 way: a site can point its own domain at your device's address, after which the browser treats its
@@ -2364,7 +2391,7 @@ would otherwise hand over every macro, override and paired address in one docume
 is what closes the rest.
 
 **Don't forward a port to this device.** If you need it from outside the house, reach it over a VPN
-or through Home Assistant's own remote access.
+or [through Home Assistant](#setting-up-a-keyboard-from-outside-the-house).
 
 ### Identity key (IRK)
 

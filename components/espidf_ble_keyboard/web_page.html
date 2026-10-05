@@ -1203,6 +1203,12 @@ function pollEvery(fn,ms){
 // is passed on to the same endpoint over there. opts.peer overrides which
 // keyboard — null for this one — for a release that must reach wherever its hold
 // went down, even if the tab has moved on since.
+//
+// Every URL on this page is relative — 'api/ble_keyboard/…', never '/api/…'.
+// Opened directly the page is /ble_keyboard, and the two resolve alike. Served
+// through Home Assistant (hass_ingress, to reach it over Nabu Casa) it sits
+// under a path of the proxy's that the device never sees, and only a relative
+// URL stays under it. Keep any new one relative too.
 const PEER_FWD=['string','key','hold_key','release','mouse_move','mouse_click','mouse_hold','mouse_release','mouse_scroll'];
 function apiPost(endpoint,params,opts){
   let target=peerLock();
@@ -1211,7 +1217,7 @@ function apiPost(endpoint,params,opts){
     params=Object.assign({peer:target,ep:endpoint},params||{});
     endpoint='peer_forward';
   }
-  return fetch('/api/ble_keyboard/'+endpoint,
+  return fetch('api/ble_keyboard/'+endpoint,
                Object.assign({method:'POST'},
                              params?{body:new URLSearchParams(params)}:null,
                              opts));
@@ -1241,7 +1247,7 @@ function hostsText(fresh){
   const now=Date.now();
   if(!fresh&&HOSTS_P&&now-HOSTS_AT<800)return HOSTS_P;
   HOSTS_AT=now;
-  HOSTS_P=fetch('/api/ble_keyboard/hosts').then(r=>{
+  HOSTS_P=fetch('api/ble_keyboard/hosts').then(r=>{
     // A 409 is the device short of memory for this reply just now, not a device
     // that has gone away: every caller keeps what it has and asks again later.
     if(!r.ok)throw new Error('HTTP '+r.status);
@@ -1254,7 +1260,7 @@ function hostsText(fresh){
 function hostsJSON(fresh){return hostsText(fresh).then(t=>JSON.parse(t))}
 function apiGetJSON(pathAndQuery,tries){
   tries=tries||0;
-  return fetch('/api/ble_keyboard/'+pathAndQuery).then(r=>{
+  return fetch('api/ble_keyboard/'+pathAndQuery).then(r=>{
     if(r.status===409&&tries<4)return new Promise(ok=>setTimeout(ok,700*(tries+1))).then(()=>apiGetJSON(pathAndQuery,tries+1));
     if(!r.ok)return r.text().then(t=>{throw new Error(t||('HTTP '+r.status))});
     return r.json();
@@ -1603,7 +1609,7 @@ let LOCAL_NAME='';
 function pollStatus(){
   // null on a 409 — short of memory for the reply, not a device that has gone
   // away, so the badge stays as it is until the next tick.
-  fetch('/api/ble_keyboard/status').then(r=>r.ok?r.json():null).then(d=>{
+  fetch('api/ble_keyboard/status').then(r=>r.ok?r.json():null).then(d=>{
     if(!d)return;
     LOCAL_NAME=d.device_name||'';
     markSeen('',d.seen);
@@ -1629,7 +1635,7 @@ pollEvery(pollStatus,3000);
 function pollMemory(){
   const mem=document.getElementById('mem-status');
   if(!mem)return;
-  fetch('/api/ble_keyboard/memory').then(r=>r.ok?r.json():null).then(m=>{
+  fetch('api/ble_keyboard/memory').then(r=>r.ok?r.json():null).then(m=>{
     if(!m||typeof m.free!=='number'){mem.hidden=true;return}
     const kb=n=>Math.round(n/1024)+' KB';
     mem.textContent='RAM '+kb(m.free)+' free · lowest '+kb(m.min)+' · largest block '+kb(m.block)+
@@ -2664,7 +2670,7 @@ function fetchIcon(n){
   // 409 is the device saying it has too little memory free to read this one
   // right now; it answers that instead of rebooting. Asked again after a pause,
   // a few times, while the cached copy stays on the key.
-  const get=tries=>fetch('/api/ble_keyboard/icon?'+new URLSearchParams({name:n})).then(r=>{
+  const get=tries=>fetch('api/ble_keyboard/icon?'+new URLSearchParams({name:n})).then(r=>{
     if(r.status===404)return null;
     if(r.status===409&&tries<4)return new Promise(ok=>setTimeout(ok,700*(tries+1))).then(()=>get(tries+1));
     if(!r.ok)throw new Error('HTTP '+r.status);
@@ -3302,7 +3308,7 @@ function hostBtn(s,active,kb){
   }
   function loadPeers(){
     if(!live)return;
-    fetch('/api/ble_keyboard/peers').then(r=>r.ok?r.json():null).then(d=>{
+    fetch('api/ble_keyboard/peers').then(r=>r.ok?r.json():null).then(d=>{
       // A 409 is the device short of memory right now; keep what is on screen.
       if(!d||!Array.isArray(d.peers))return;
       const next={};order=[];
@@ -4099,7 +4105,7 @@ function insertStep(el,val){
 
   function loadHidden(){
     if(!hidList)return Promise.resolve();
-    return fetch('/api/ble_keyboard/hidden?'+new URLSearchParams({slot:slot}))
+    return fetch('api/ble_keyboard/hidden?'+new URLSearchParams({slot:slot}))
       .then(r=>r.json())
       .then(d=>{const hidden=d.hidden||[];
                 buildCheckGrid(hidList,b=>hidden.indexOf(b.action)<0)})  // ticked = shown
@@ -4140,8 +4146,8 @@ function insertStep(el,val){
   function loadRepeat(){
     if(!rptList)return Promise.resolve();
     return Promise.all([
-        fetch('/api/ble_keyboard/repeat?'+new URLSearchParams({slot:slot})).then(r=>r.json()),
-        fetch('/api/ble_keyboard/hold?'+new URLSearchParams({slot:slot})).then(r=>r.json())])
+        fetch('api/ble_keyboard/repeat?'+new URLSearchParams({slot:slot})).then(r=>r.json()),
+        fetch('api/ble_keyboard/hold?'+new URLSearchParams({slot:slot})).then(r=>r.json())])
       .then(([d,h])=>{
         rptDelayIn.value=d.delay;rptRateIn.value=d.rate;
         const on=d.buttons||[],held=h.buttons||[];
@@ -4199,7 +4205,7 @@ function insertStep(el,val){
 
   function loadHold(){
     if(!hldList)return Promise.resolve();
-    return fetch('/api/ble_keyboard/hold?'+new URLSearchParams({slot:slot}))
+    return fetch('api/ble_keyboard/hold?'+new URLSearchParams({slot:slot}))
       .then(r=>r.json()).then(d=>{
         const on=d.buttons||[],rpt=d.repeat||[];
         buildCheckGrid(hldList,b=>on.indexOf(b.action)>=0,
@@ -6276,7 +6282,7 @@ function insertStep(el,val){
   }
 
   function loadIcons(){
-    return fetch('/api/ble_keyboard/icons').then(r=>r.json()).then(d=>{
+    return fetch('api/ble_keyboard/icons').then(r=>r.json()).then(d=>{
       icoMax=d.max||icoMax;
       icoItems=Array.isArray(d.items)?d.items:[];
       // Whatever this browser cached for an icon the device no longer has goes.
@@ -6376,7 +6382,7 @@ function insertStep(el,val){
     irkShow.textContent='Reading…';
     // slot is null until the first load picks one; let the device fall back to the
     // active host rather than sending it the string "null" to run through atoi.
-    fetch('/api/ble_keyboard/irk?'+new URLSearchParams(slot!=null?{slot:slot}:{})).then(r=>{
+    fetch('api/ble_keyboard/irk?'+new URLSearchParams(slot!=null?{slot:slot}:{})).then(r=>{
       if(!r.ok)return r.text().then(t=>{throw new Error(t)});
       return r.json();
     }).then(d=>{
@@ -6458,7 +6464,7 @@ function insertStep(el,val){
       // built in one string on the heap the Bluetooth stack shares, and sixteen
       // logos would put tens of KB on it. Each comes over on a request of its own,
       // and one that fails fails the backup rather than going missing from it.
-      return fetch('/api/ble_keyboard/icons').then(r=>r.json()).then(l=>{
+      return fetch('api/ble_keyboard/icons').then(r=>r.json()).then(l=>{
         const names=(l.items||[]).map(it=>it.name);
         return Promise.all(names.map(n=>fetchIcon(n).then(rec=>{
           if(!rec)throw new Error('could not read icon "'+n+'"');
@@ -6638,7 +6644,7 @@ function insertStep(el,val){
       // cleared, then the file's are written. A file from before icons existed
       // carries none, and restoring it leaves none — which is what Replace means.
       const icons=d.icons&&typeof d.icons==='object'&&!Array.isArray(d.icons)?d.icons:{};
-      return fetch('/api/ble_keyboard/icons').then(r=>r.json()).then(l=>{
+      return fetch('api/ble_keyboard/icons').then(r=>r.json()).then(l=>{
         let chain=Promise.resolve();
         (l.items||[]).forEach(it=>{
           chain=chain.then(()=>post('icon_delete',{name:it.name})).then(()=>setIcon(it.name,null));
@@ -7115,7 +7121,7 @@ buildKeyboard();
     }).catch(()=>{});
   });
   // One-time fetch to populate the dropdown and pick up the active layout.
-  fetch('/api/ble_keyboard/status').then(r=>r.json()).then(d=>{
+  fetch('api/ble_keyboard/status').then(r=>r.json()).then(d=>{
     if(d.layouts){
       sel.innerHTML='';
       d.layouts.forEach(L=>{
@@ -7233,7 +7239,7 @@ buildKeyboard();
   let accumX=0,accumY=0,moveAC=null,heldBtn=0;
   let baseSens=1.0,accelFactor=0.15,maxSens=4.0,scrollSens=2;
   const tapDeadZone=5;
-  fetch('/api/ble_keyboard/mouse_config').then(r=>r.json()).then(c=>{
+  fetch('api/ble_keyboard/mouse_config').then(r=>r.json()).then(c=>{
     baseSens=c.sensitivity;accelFactor=c.acceleration;maxSens=c.max_speed;scrollSens=c.scroll_sensitivity;
   }).catch(()=>{});
 
@@ -7593,7 +7599,7 @@ buildKeyboard();
   }
   window.applyRepeat=function(force){
     if(peerLock()!==null){const s=peerListsState();if(s&&s.repeat)useRepeat(s.repeat,force);return}
-    fetch('/api/ble_keyboard/repeat'+pageSlotQuery()).then(r=>r.json()).then(d=>useRepeat(d,force)).catch(()=>{});
+    fetch('api/ble_keyboard/repeat'+pageSlotQuery()).then(r=>r.json()).then(d=>useRepeat(d,force)).catch(()=>{});
   };
   window.applyRepeat(true);
 
@@ -7613,7 +7619,7 @@ buildKeyboard();
   }
   window.applyHold=function(force){
     if(peerLock()!==null){const s=peerListsState();if(s&&s.hold)useHold(s.hold,force);return}
-    fetch('/api/ble_keyboard/hold'+pageSlotQuery()).then(r=>r.json()).then(d=>useHold(d,force)).catch(()=>{});
+    fetch('api/ble_keyboard/hold'+pageSlotQuery()).then(r=>r.json()).then(d=>useHold(d,force)).catch(()=>{});
   };
   window.applyHold(true);
 
@@ -7658,7 +7664,7 @@ buildKeyboard();
   let lastHiddenKey=null;
   window.applyHidden=function(force){
     if(peerLock()!==null){const s=peerListsState();if(s&&s.hidden)useHidden(s.hidden,force);return}
-    fetch('/api/ble_keyboard/hidden'+pageSlotQuery()).then(r=>r.json()).then(d=>useHidden(d,force)).catch(()=>{});
+    fetch('api/ble_keyboard/hidden'+pageSlotQuery()).then(r=>r.json()).then(d=>useHidden(d,force)).catch(()=>{});
   };
   function useHidden(d,force){
       const key=d.slot+':'+(d.hidden||[]).join(',');
@@ -8888,8 +8894,9 @@ buildKeyboard();
     if(g.x!=null&&g.y!=null)feat+=',left='+g.x+',top='+g.y;
     // A style or a page this tab is kept on goes with the remote. Rebuilt from the
     // checked values rather than copied from location.search, because the
-    // blocked-pop-up link below goes through innerHTML.
-    const popUrl='/ble_keyboard'+tabLockQuery()+'#remote';
+    // blocked-pop-up link below goes through innerHTML. Relative, like every URL
+    // here: see apiPost.
+    const popUrl='ble_keyboard'+tabLockQuery()+'#remote';
     popRef=window.open(popUrl,'blekb-remote',feat);
     if(!popRef){
       // Blocked. An anchor click is not blocked, so offer one rather than leave a
@@ -9149,7 +9156,7 @@ buildKeyboard();
     }
   }
   function load(){
-    fetch('/api/ble_keyboard/screen').then(r=>r.json()).then(d=>{
+    fetch('api/ble_keyboard/screen').then(r=>r.json()).then(d=>{
       SW=d.w||1920;SH=d.h||1080;OX=d.ox||0;OY=d.oy||0;mons=d.mon||[];
       if(scaleInX&&d.gsx!=null&&document.activeElement!==scaleInX)scaleInX.value=(+d.gsx).toFixed(4);
       if(scaleInY&&d.gsy!=null&&document.activeElement!==scaleInY)scaleInY.value=(+d.gsy).toFixed(4);
@@ -9222,7 +9229,7 @@ buildKeyboard();
   function pollSent(){
     if(!map.offsetParent)return;
     if(locked&&(++sentTick%4))return;
-    fetch('/api/ble_keyboard/goto_last').then(r=>r.json()).then(d=>{if(d&&d.x!=null)placeSent(d.x,d.y)}).catch(()=>{})
+    fetch('api/ble_keyboard/goto_last').then(r=>r.json()).then(d=>{if(d&&d.x!=null)placeSent(d.x,d.y)}).catch(()=>{})
   }
   pollEvery(pollSent,1200);
   if(window.ResizeObserver){new ResizeObserver(()=>{if(map.clientWidth!==lastW)draw()}).observe(map)}

@@ -686,13 +686,17 @@ class BleKbWebHandler : public AsyncWebHandler {
       // uses window.open and document picture-in-picture, and the Home Assistant
       // cards are custom elements.
       //
-      // SAMEORIGIN would not be a softer setting, it would be the same one with
-      // a different failure: a dashboard embedding this page is on its own
-      // origin too, so it is refused either way. Hence an option rather than a
-      // weaker header — someone deliberately framing the page in a dashboard
-      // they run can say so, and accept what that opens.
+      // SAMEORIGIN rather than DENY, for the one framing that is not someone
+      // else's: Home Assistant serving this page through its own proxy
+      // (hass_ingress, to program a keyboard over Nabu Casa) shows it in an
+      // iframe on its own origin — which is now this page's origin too. Opened
+      // directly, the device's origin serves only the device's own pages, so
+      // SAMEORIGIN refuses every other site exactly as DENY did. A dashboard framing the
+      // device's own address is a different origin and is still refused; that
+      // is what the option is for — someone deliberately framing the page in a
+      // dashboard they run can say so, and accept what that opens.
       if (!kb_->web_allow_framing())
-        response->addHeader("X-Frame-Options", "DENY");
+        response->addHeader("X-Frame-Options", "SAMEORIGIN");
       // Force the browser to fetch the page on every load so a firmware flash
       // always brings UI changes (new layouts, fixes, etc.) without needing a
       // manual hard-reload.

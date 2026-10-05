@@ -522,9 +522,10 @@ class EspidfBleKeyboard : public Component
   void add_web_allowed_host(const std::string &host) { web_allowed_hosts_.push_back(host); }
   const std::vector<std::string> &web_allowed_hosts() const { return web_allowed_hosts_; }
 
-  /// Whether the page may be embedded in a frame. Off by default: a framed page
-  /// is still on its own origin, so a click on the framing site reaches this
-  /// keyboard with every same-origin check satisfied.
+  /// Whether another site may embed the page in a frame. Off by default (the
+  /// page is sent with SAMEORIGIN): a framed page is still on its own origin,
+  /// so a click on the framing site reaches this keyboard with every
+  /// same-origin check satisfied.
   void set_web_allow_framing(bool on) { web_allow_framing_ = on; }
   bool web_allow_framing() const { return web_allow_framing_; }
 #endif
