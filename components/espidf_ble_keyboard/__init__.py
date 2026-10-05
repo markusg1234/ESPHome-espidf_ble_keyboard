@@ -8,7 +8,8 @@ import esphome.config_validation as cv
 import esphome.final_validate as fv
 from esphome.components import binary_sensor, button, sensor, text, text_sensor
 from esphome.const import CONF_ID
-from esphome.core import EsphomeError, HexInt
+from esphome.core import CORE, EsphomeError, HexInt
+from esphome.coroutine import coroutine_with_priority
 from esphome import automation
 
 _LOGGER = logging.getLogger(__name__)
@@ -568,6 +569,37 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+# The device's budget for a request line plus every request header, in bytes.
+# ESPHome's web_server sets it to 1024, and a browser alone spends ~800 of that.
+# Through Home Assistant's proxy (hass_ingress, which passes the browser's
+# headers on and adds five of its own) a request came to about 1000 bytes in a
+# local stand-in for it with a Nabu Casa-length host name, so a longer user
+# agent or language list goes over — and the device answers 431 before any
+# handler runs. The buffer is heap, grown only as far as a request needs and
+# freed when it ends, and the server parses one request at a time, so a larger
+# limit costs nothing until a request is that big. ESPHome caps a form POST's
+# body with the same setting; the page's own bodies stay far below it either way.
+HTTPD_MAX_REQ_HDR_LEN = 2048
+
+
+# Priority -1000 is ESPHome's FINAL: after every component's to_code, including
+# web_server_idf's, which is where the 1024 is set — and the last one to set it
+# wins. A value the user put in sdkconfig_options wins over ours, and is set
+# again here for that reason: web_server_idf's 1024 lands after the user's
+# options are applied, so without this their value was silently replaced
+# (measured: "3000" in sdkconfig_options came out as 1024).
+@coroutine_with_priority(-1000.0)
+async def _raise_httpd_header_limit():
+    framework = CORE.config.get("esp32", {}).get("framework", {})
+    user = framework.get("sdkconfig_options", {}).get("CONFIG_HTTPD_MAX_REQ_HDR_LEN")
+    try:
+        value = HTTPD_MAX_REQ_HDR_LEN if user is None else int(str(user), 0)
+    except ValueError:
+        return  # not a number; leave it to ESPHome to report
+    from esphome.components.esp32 import add_idf_sdkconfig_option
+    add_idf_sdkconfig_option("CONFIG_HTTPD_MAX_REQ_HDR_LEN", value)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -667,6 +699,8 @@ async def to_code(config):
 
         cg.add(var.set_web_host_check(config[CONF_WEB_HOST_CHECK]))
         cg.add(var.set_web_allow_framing(config[CONF_WEB_ALLOW_FRAMING]))
+        CORE.add_job(_raise_httpd_header_limit)  # see HTTPD_MAX_REQ_HDR_LEN
+
         # Lowercased here rather than on the device: host names are
         # case-insensitive, and doing it at codegen keeps the comparison in the
         # request path a plain string equality.

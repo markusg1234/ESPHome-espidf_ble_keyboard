@@ -1182,8 +1182,9 @@ function pollEvery(fn,ms){
 // parameters in the request *body* rather than in the query string.
 //
 // The device parses the request line and all of the request headers into a
-// single 1024-byte buffer, so a long query string is not competing with a limit
-// of its own — it is competing with the browser's own headers for that one
+// single buffer (1024 bytes as ESPHome sets it; 2048 since __init__.py raised it
+// for proxies), so a long query string is not competing with a limit of its
+// own — it is competing with the browser's own headers for that one
 // budget, and a browser sends a great many of them (user agent, the sec-ch-ua
 // set, accept, referer, origin, and an Authorization header once the page has a
 // password). Cross it and the server answers "Header fields are too long"
@@ -1192,8 +1193,8 @@ function pollEvery(fn,ms){
 // macro is not the fix: the headroom depends on the browser, so the same macro
 // works on one device and not another.
 //
-// The body is received separately and has a 1024-byte budget entirely of its
-// own, and the device reads parameters from the body before the query string —
+// The body is received separately and has a budget of the same size entirely of
+// its own, and the device reads parameters from the body before the query string —
 // so nothing on the device changes, and curl calls that pass ?args keep working.
 //
 // `opts` is merged last, for the callers that need an AbortSignal.
@@ -5082,8 +5083,8 @@ function insertStep(el,val){
     return '';
   }
 
-  // Uploaded in pieces: the device's web server takes 1024 bytes of request
-  // body, and a style's JSON is several times that once encoded. Same chunking
+  // Uploaded in pieces: the device's web server takes 2048 bytes of request
+  // body, and a style's JSON can run well past that once encoded. Same chunking
   // rule as the paste bar — measure with formLen(), which is what actually goes
   // on the wire. seq 0 starts a fresh upload, so a failed one needs no cleanup.
   function uploadChunks(ep,text){
@@ -7147,7 +7148,7 @@ buildKeyboard();
   // CRLF and bare CR both become LF — the firmware maps BOTH to Enter, so
   // Windows clipboard text would double-Enter without this.
   function norm(t){return t.replace(/\r\n/g,'\n').replace(/\r/g,'\n')}
-  // The whole body must fit the device's 1024-byte buffer. formLen() measures
+  // The whole body must fit the device's 2048-byte buffer. formLen() measures
   // exactly what apiPost puts on the wire; ~420 bytes of encoded keys= value
   // leaves the rest of the budget spare.
   function chunks(t){

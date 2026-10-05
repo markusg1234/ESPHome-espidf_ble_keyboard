@@ -24,8 +24,9 @@ web control page shows the matching version badge.
 - **The remote card's host switcher can be turned off** in its settings. The card still follows
   the active host, which hiding it by host count did not.
 - **The web page can be reached through Home Assistant** from outside the house, to set up a
-  keyboard on another system over Nabu Casa. It works behind a proxy's path now, and Home Assistant
-  can show it without turning framing on. The README has the setup.
+  keyboard on another system over Nabu Casa. It works behind a proxy's path now, accepts the longer
+  requests a proxy sends, and Home Assistant can show it without turning framing on. The README
+  has the setup.
 
 ### Changed
 - **The keyboard holds 8 custom remote styles**, up from 6.
