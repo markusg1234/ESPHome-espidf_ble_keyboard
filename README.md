@@ -2127,13 +2127,17 @@ In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble
 The page is for the local network; the [Home Assistant cards](#media-remote-card-for-home-assistant)
 are how a keyboard is used from anywhere. To set one up remotely — programming a remote on someone
 else's system over Nabu Casa, say — have their Home Assistant serve the page with the
-[hass_ingress](https://github.com/lovelylain/hass_ingress) integration (HACS). It appears as a
-sidebar panel behind their Home Assistant login, and the device stays off the internet. A Webpage
-card can't do this: the device's address doesn't reach outside the house, and an `https` dashboard
-refuses an `http` frame anyway.
+[hass_ingress](https://github.com/lovelylain/hass_ingress) integration. It appears as a sidebar
+panel behind their Home Assistant login, and the device stays off the internet. A Webpage card
+pointed at the device can't do this: its address doesn't reach outside the house, and an `https`
+dashboard refuses an `http` frame anyway.
+
+Download **Ingress** from HACS — the integration, not the similarly named *Ingress webpage card* —
+and restart Home Assistant before adding the YAML below; until then the configuration check says
+`Integration 'ingress' not found`. Then add this and restart again:
 
 ```yaml
-# Their configuration.yaml — restart Home Assistant afterwards
+# Their configuration.yaml
 ingress:
   ble_keyboard:
     title: BLE Keyboard
@@ -2145,8 +2149,35 @@ ingress:
     #   authorization: !secret ble_keyboard_auth   # "Basic " + base64 of user:password
 ```
 
-The keyboard needs v1.15.0 or later, whose page works under a proxy's path. If the page loads but
-buttons do nothing, the device log names the host it refused — add it to `web_allowed_hosts`.
+The keyboard needs v1.15.0 or later, whose page works under a proxy's path. It also has to accept
+the name their Home Assistant is reached by: hass_ingress passes that name on, and the keyboard
+refuses presses and saves addressed to a name it doesn't know. An IP address or a `.local` name
+already passes; add their Nabu Casa address (Settings → Home Assistant Cloud) and any other domain
+they use:
+
+```yaml
+espidf_ble_keyboard:
+  web_allowed_hosts:
+    - abcdefghijklmnopqrstuvwxyz012345.ui.nabu.casa
+```
+
+To show it on a dashboard rather than in the sidebar, point the
+[Ingress webpage card](https://github.com/lovelylain/ha-addon-iframe-card) (HACS) at the panel's
+path, `/api/ingress/<name under ingress:>/ble_keyboard`. Unlike an ordinary Webpage card at that
+path, it also loads in the Home Assistant app:
+
+```yaml
+type: custom:addon-iframe-card
+url: /api/ingress/ble_keyboard/ble_keyboard
+aspect_ratio: 150%
+```
+
+Behind the panel the page runs on Home Assistant's own address, so its scripts get the same access
+as Home Assistant's own page — including the login stored in the browser — and Home Assistant
+fetches it over plain `http`. Whatever answers at the keyboard's address gets that access, so
+reserve the address for the keyboard in their router, keep `require_admin: true` and never set
+hass_ingress's `static_token` (a link that needs no login), and comment the `ingress:` entry out
+when you aren't using it.
 
 ### Features
 
