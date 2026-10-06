@@ -353,6 +353,10 @@ __attribute__((noinline)) static void append_status_json(std::string &json, Espi
   }
   json += "]";
 #endif
+  // Counts saves of Host Actions, on-connect actions and macros, by anyone: a
+  // page reads those lists again when it moves (see edits()).
+  json += ",\"edits\":";
+  json += std::to_string(kb->edits());
   // Values for any ["lcd",…] panel the current remote style drew. On this
   // endpoint rather than its own: the page already polls it every 3 s, and
   // canHandle() pays a URL buffer and a heap string for every request the

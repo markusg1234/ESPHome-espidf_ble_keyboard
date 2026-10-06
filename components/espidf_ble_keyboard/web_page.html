@@ -1611,11 +1611,23 @@ function showOffline(text){
   stxt.textContent=text;
 }
 let LOCAL_NAME='';
+// Host Actions and macros as saved on this keyboard, counted: when another tab,
+// Home Assistant or a linked keyboard copying them here saves some, the count
+// moves and both lists are read again, instead of waiting for a refresh. This
+// page's own saves move it too, which costs one extra read of each.
+let lastEdits=null;
 function pollStatus(){
   // null on a 409 — short of memory for the reply, not a device that has gone
   // away, so the badge stays as it is until the next tick.
   fetch('api/ble_keyboard/status').then(r=>r.ok?r.json():null).then(d=>{
     if(!d)return;
+    if(typeof d.edits==='number'){
+      if(lastEdits!==null&&d.edits!==lastEdits){
+        if(window.reloadMacrosNow)window.reloadMacrosNow();
+        if(window.reloadHostActionsNow)window.reloadHostActionsNow();
+      }
+      lastEdits=d.edits;
+    }
     LOCAL_NAME=d.device_name||'';
     markSeen('',d.seen);
     if(window.syncPresence)window.syncPresence(d.seen);
@@ -3877,6 +3889,7 @@ function insertStep(el,val){
   });
 
   loadButtons();
+  window.reloadMacrosNow=loadButtons;   // when /status says they were saved elsewhere
 })();
 
 // ── Host Actions (per-host action overrides) ──
@@ -4069,6 +4082,9 @@ function insertStep(el,val){
     });
   }
   reflagOverrides=applyMacroFlags;
+  // When /status says Host Actions were saved elsewhere: the shown host's list
+  // again. Its on-connect box is left alone while it has unsaved edits (load()).
+  window.reloadHostActionsNow=()=>{if(slot!==null)load()};
 
   // A <key>@long override gives the remote a long-press key (or takes one away),
   // which the remote learns from its hold list — this one and a popped-out one.

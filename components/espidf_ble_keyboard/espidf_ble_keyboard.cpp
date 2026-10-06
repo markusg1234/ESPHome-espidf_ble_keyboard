@@ -1614,6 +1614,7 @@ void EspidfBleKeyboard::load_overrides_() {
 
 bool EspidfBleKeyboard::save_overrides_(uint8_t slot) {
     if (slot >= MAX_HOST_SLOTS) return false;
+    edits_++;   // the list in memory has changed, whether or not it saves
     nvs_handle_t handle;
     if (nvs_open("espidf_ble_kb", NVS_READWRITE, &handle) != ESP_OK) return false;
 
@@ -2219,6 +2220,7 @@ bool EspidfBleKeyboard::set_on_connect(uint8_t slot, const std::string &action) 
         return false;
     }
     on_connect_[slot] = action;
+    edits_++;
     ESP_LOGI(TAG, "On-connect action for host %u: %s", (unsigned) slot,
              action.empty() ? "(none)" : action.c_str());
     return true;
@@ -2778,6 +2780,7 @@ void EspidfBleKeyboard::load_macros_() {
 }
 
 void EspidfBleKeyboard::save_macros_() {
+    edits_++;   // the list in memory has changed, whether or not it saves
     nvs_handle_t handle;
     if (nvs_open("espidf_ble_kb", NVS_READWRITE, &handle) != ESP_OK) return;
 

@@ -300,6 +300,11 @@ class EspidfBleKeyboard : public Component
   // User-editable macros (NVS-persisted, web-editable)
   static const uint8_t MAX_MACROS = 16;
   const std::vector<ButtonInfo> &get_macros() const { return macros_; }
+  /// Goes up each time Host Actions, an on-connect action or the macros are
+  /// saved, whoever saved them. /status carries it, so an open page reads those
+  /// lists again when another tab, Home Assistant or a linked keyboard changed
+  /// them, instead of showing them as they were until a refresh.
+  uint32_t edits() const { return edits_.load(); }
   bool add_macro(const std::string &name, const std::string &action);
   bool update_macro(uint8_t index, const std::string &name, const std::string &action);
   bool delete_macro(uint8_t index);
@@ -1051,6 +1056,7 @@ class EspidfBleKeyboard : public Component
   bool has_saved_abs_{false};
   std::vector<ButtonInfo> buttons_;
   std::vector<ButtonInfo> macros_;   // user-editable, NVS-persisted
+  std::atomic<uint32_t> edits_{0};   // see edits()
   void load_macros_();
   void save_macros_();
 
