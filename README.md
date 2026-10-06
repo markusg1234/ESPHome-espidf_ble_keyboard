@@ -2329,7 +2329,7 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/screen` | GET | — | Desktop geometry (size, origin, monitors, goto scales) for the Position Finder |
 | `/api/ble_keyboard/goto_scale` | POST | `v` / `vx` / `vy` (scale), `save=1`, `reset=1` | Set `mouse_goto` calibration live (persist per host with `save`) |
 | `/api/ble_keyboard/goto_last` | GET | — | Last `mouse_goto` target (Windows coords) |
-| `/api/ble_keyboard/status` | GET | — | Returns `{"connected":bool,"paired":bool,"device_name":"..."}` |
+| `/api/ble_keyboard/status` | GET | — | Returns `{"connected":bool,"paired":bool,"device_name":"...",…}`. Its `edits` count goes up whenever Host Actions, an on-connect action or the macros are saved, by anyone — the page reads those lists again when it moves |
 | `/api/ble_keyboard/state` | GET | — | `/hosts`, `/status` and the drawn host's `/hidden`, `/repeat` and `/hold` replies in one object, and the macros as `[name, hash]` pairs (FNV-1a of the action, 8 hex digits) — what a [linked keyboard](#linking-a-second-keyboard) reads |
 | `/api/ble_keyboard/peers` | GET | — | Each linked keyboard's last `/state`, with `ok` and its `age` in seconds. Only on a keyboard with `peers:` |
 | `/api/ble_keyboard/peer_forward` | POST | `peer`, `ep`, and that endpoint's own parameters | Pass one keyboard or mouse request (`string`, `key`, `hold_key`, `release`, `mouse_move`, `mouse_click`, `mouse_hold`, `mouse_release`, `mouse_scroll`), or a `macro_set` or `override_set`, on to a linked keyboard |
