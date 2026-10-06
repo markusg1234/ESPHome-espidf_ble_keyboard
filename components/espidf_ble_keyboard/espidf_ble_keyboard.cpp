@@ -3456,11 +3456,13 @@ void EspidfBleKeyboard::presence_heard_(const uint8_t *bda, int8_t rssi, uint32_
         const uint32_t n = presence_seen_[i].fetch_add(1, std::memory_order_relaxed) + 1;
         // Arriving is worth a line; every later scan only at debug, so a phone on
         // the desk adds one line in twelve seconds rather than filling the log.
-        if (presence_last_ms_[i] == 0 || ((presence_gone_logged_ >> i) & 1))
+        // Braced: below DEBUG, ESP_LOGD is nothing and the else would be empty.
+        if (presence_last_ms_[i] == 0 || ((presence_gone_logged_ >> i) & 1)) {
             ESP_LOGI(TAG, "Presence: heard %s (slot %u) by its %s, %d dBm", host_label(i).c_str(), i, how, rssi);
-        else
+        } else {
             ESP_LOGD(TAG, "Presence: heard %s (slot %u) again by its %s, #%u, %d dBm", host_label(i).c_str(), i,
                      how, (unsigned) n, rssi);
+        }
         presence_last_ms_[i] = now;
         presence_gone_logged_ &= (uint16_t) ~(1u << i);
         for (auto &c : presence_counts_)

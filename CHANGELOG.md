@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
+## v1.15.0 — 2026-10-06
 
 ### Added
 - **Remote styles can be built without writing JSON.** The web page draws the style being edited,

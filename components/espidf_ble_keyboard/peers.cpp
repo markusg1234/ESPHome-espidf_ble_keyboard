@@ -720,8 +720,9 @@ bool EspidfBleKeyboard::coalesce_peer_presses_(std::string &job) {
     job += key;
     merged++;
   }
-  if (merged > 1)
+  if (merged > 1) {  // braced: below DEBUG, ESP_LOGD is nothing
     ESP_LOGD(TAG, "Peer press %s sent %u times in one request", first.c_str(), merged);
+  }
   return merged > 1;
 }
 
