@@ -5212,10 +5212,10 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
     if (action.find("if:") == 0) { run_if_(action); return; }
 #ifdef USE_BLE_KB_PEERS
     // A step of a to: run. Whatever it would send to a host is gathered for that
-    // keyboard instead — gather_for_peer_() says which steps; the rest run here.
-    // The three verbs above have already chosen what runs, here, as they would
-    // without it.
-    if (redirecting_() && gather_for_peer_(action)) return;
+    // keyboard instead — gather_for_peer_() says which steps; the rest run here,
+    // as does all of a visit to one of this keyboard's own hosts. The three verbs
+    // above have already chosen what runs, here, as they would without it.
+    if (in_to_run_() && gather_for_peer_(action)) return;
     // Text typed on a linked keyboard runs to the end of the string, '|' and
     // all: splitting it would chop the text and run its tail as an action here.
     // Only this one peer form is taken before the split — `peer:x:a | peer:x:b`

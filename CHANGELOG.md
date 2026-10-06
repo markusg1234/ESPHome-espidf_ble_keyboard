@@ -8,12 +8,18 @@ web control page shows the matching version badge.
 
 ### Added
 - **Macros follow a tab onto a linked keyboard.** Tapped while the tab drives one, a macro runs on
-  this keyboard and its keys go to the linked one's host, in order, its delays and typing kept. An
+  this keyboard and its keys go to the linked one's host, in order, its delays and typing kept. One
+  that switches to a host by number still visits this keyboard's host and hands back after. An
   action does the same from YAML, Home Assistant or a Host Action. Buttons stay on this keyboard.
+- **Macros can be copied to a linked keyboard**, ticked as Host Actions are for other hosts. It asks
+  before replacing a different macro of the same name and says if one did not arrive. Both keyboards
+  need this firmware.
 
 ### Fixed
 - **Text typed on a linked keyboard from a Home Assistant card or a macro keeps its `|`** instead of
   losing it and running what followed as an action.
+- **The Host Actions copy button and the style builder's Undo and Exit no longer stay lit** after a
+  press, nor turn up in the name the combo builder gives a macro.
 
 ## v1.15.0 — 2026-10-06
 

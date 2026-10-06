@@ -252,6 +252,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    step count never reflows the inputs above it. */
 .rec-status{flex-basis:100%;font-size:11px;color:var(--muted);min-height:14px}
 .macros-card:not(.editing) .macro-act,.macros-card:not(.editing) .macro-form{display:none}
+.macros-card:not(.editing) .macro-pick,.macros-card:not(.can-copy) .macro-pick{display:none}
 .ovr-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
 .ovr-row:last-child{border-bottom:none}
 .ovr-row>input[type=checkbox]{margin:0;flex-shrink:0;cursor:pointer}
@@ -861,6 +862,8 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="card macros-card" id="macros-card">
 <h2><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 12h2v2H7v-2zm0-4h2v2H7V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8z"/></svg>Macros<span class="kb-drives" data-why="This keyboard's macros, run here with their keys sent to %s." hidden></span><button class="macro-edit-btn" id="macro-edit-toggle">Edit</button><button class="macro-edit-btn" id="macro-rec" title="Record a macro by performing it: press the remote, keyboard and mouse buttons in order, then press Stop to write the steps into the action box.">Record</button></h2>
 <div class="prog-btns" id="macro-btns"><span class="prog-empty">Loading...</span></div>
+<div class="ov-copy" id="mc-copy" hidden><span>Copy ticked to:</span><span class="ov-copy-hosts" id="mc-copy-kbs"></span><button class="mod-btn" id="mc-copy-go" disabled>Copy</button></div>
+<div class="ov-copy-note" id="mc-copy-note"></div>
 <div class="macro-form" id="macro-form">
 <input id="mn" placeholder="Name" maxlength="31" title="Must be unique and cannot contain '|'.&#10;Host actions reference a macro by name (macro:&lt;name&gt;), so renaming one breaks any override pointing at it.">
 <textarea id="ma" placeholder="Action (use | to chain steps)" maxlength="255" rows="5"></textarea>
@@ -3322,6 +3325,7 @@ function hostBtn(s,active,kb){
       if(RMT_PEER!==null&&!PEERS[RMT_PEER]){window.dropPeerLock();return}
       render();
       syncPresets();
+      if(window.onPeersListed)window.onPeersListed();
       if(RMT_PEER!==null)window.applyPeerTarget(false);
       if(firstAnswer){
         firstAnswer=false;
@@ -3400,6 +3404,8 @@ function hostBtn(s,active,kb){
     started=true;
     pollEvery(loadPeers,5000);
   };
+  // For the Macros card, watching copied macros arrive: a read now, not in 5 s.
+  window.reloadPeersNow=loadPeers;
   // The keyboard says it has no peers any more — reflashed without them. Its
   // /peers is gone, so nothing would ever replace the bars already drawn.
   window.stopPeers=function(){
@@ -3408,6 +3414,7 @@ function hostBtn(s,active,kb){
     PEERS={};order=[];firstAnswer=true;
     render();
     syncPresets();
+    if(window.onPeersListed)window.onPeersListed();
     if(RMT_PEER!==null)window.dropPeerLock();
     else if(window.reloadHostsNow)window.reloadHostsNow();
   };
@@ -3572,12 +3579,132 @@ function insertStep(el,val){
   const editToggle=document.getElementById('macro-edit-toggle');
   let editIdx=-1;
 
+  // ── Copying macros to a linked keyboard ──
+  // The macros ticked here go to the keyboards ticked in the bar, by way of this
+  // one: peer_forward passes each to that keyboard's macro_set, which adds it or
+  // replaces the one with its name. What a keyboard already has comes from its
+  // /state, as names and hashes — enough to say first what a copy would replace,
+  // and afterwards to see each one arrive, since the writes are only queued here.
+  const mcBar=document.getElementById('mc-copy'),mcKbs=document.getElementById('mc-copy-kbs');
+  const mcGo=document.getElementById('mc-copy-go'),mcNote=document.getElementById('mc-copy-note');
+  const MC_MAX=16;   // MAX_MACROS, in espidf_ble_keyboard.h — keep in step
+  let mcItems=[],mcPicked=new Set(),mcTo=new Set(),mcKey='',mcBusy=false;
+  const kbLabel=n=>{const st=PEERS[n]&&PEERS[n].state;return (st&&st.status&&st.status.device_name)||n};
+  function mcMsg(m,err){mcNote.textContent=m||'';mcNote.style.color=err?'#c44':'var(--muted)'}
+  // FNV-1a over the UTF-8 bytes, as eight hex digits: how a keyboard's /state
+  // gives each of its macros (append_macro_digest in web_control.cpp).
+  function fnv(s){
+    let h=0x811c9dc5;
+    for(const b of new TextEncoder().encode(s)){h^=b;h=Math.imul(h,0x01000193)>>>0}
+    return ('0000000'+h.toString(16)).slice(-8);
+  }
+  function syncMacroCopy(){
+    const kbs=Object.keys(PEERS);
+    macrosCard.classList.toggle('can-copy',kbs.length>0);
+    mcBar.hidden=!macrosCard.classList.contains('editing')||!kbs.length||!mcItems.length;
+    const n=mcItems.filter(it=>mcPicked.has(it.name)).length,m=[...mcTo].filter(k=>PEERS[k]).length;
+    mcGo.textContent=n&&m?'Copy '+n+' to '+m+' keyboard'+(m>1?'s':''):'Copy';
+    mcGo.disabled=mcBusy||!n||!m;
+  }
+  // The keyboards' boxes are rebuilt only when the keyboards or their names
+  // change: this runs on every /peers answer, and a box replaced under a finger
+  // loses the tap.
+  function renderMacroCopy(){
+    const kbs=Object.keys(PEERS),key=kbs.map(n=>n+'='+kbLabel(n)).join('|');
+    if(key!==mcKey){
+      mcKey=key;
+      mcTo=new Set([...mcTo].filter(n=>PEERS[n]));
+      mcKbs.textContent='';
+      kbs.forEach(n=>{
+        const l=document.createElement('label'),c=document.createElement('input');
+        c.type='checkbox';c.checked=mcTo.has(n);
+        c.addEventListener('change',()=>{if(c.checked)mcTo.add(n);else mcTo.delete(n);syncMacroCopy()});
+        l.appendChild(c);l.appendChild(document.createTextNode(kbLabel(n)));
+        mcKbs.appendChild(l);
+      });
+    }
+    syncMacroCopy();
+  }
+  window.onPeersListed=renderMacroCopy;
+  // Watches the linked keyboards' state until every copied macro is there with
+  // its own text, or 20 s pass. Resolves to whatever never arrived.
+  function arrived(jobs){
+    const t0=Date.now();
+    const missing=()=>jobs.filter(j=>{
+      const st=PEERS[j.n]&&PEERS[j.n].state,m=st&&Array.isArray(st.macros)&&st.macros.find(x=>x[0]===j.it.name);
+      return !m||m[1]!==fnv(j.it.action);
+    });
+    return new Promise(res=>{
+      const tick=()=>{
+        const left=missing();
+        if(!left.length||Date.now()-t0>20000){res(left);return}
+        if(window.reloadPeersNow)window.reloadPeersNow();
+        setTimeout(tick,1500);
+      };
+      setTimeout(tick,1500);
+    });
+  }
+  mcGo.addEventListener('click',()=>{
+    const items=mcItems.filter(it=>mcPicked.has(it.name));
+    const targets=Object.keys(PEERS).filter(n=>mcTo.has(n));
+    if(!items.length||!targets.length)return;
+    // What each keyboard has: its macros' names, each with its action's hash.
+    const have={},stop=[];
+    targets.forEach(n=>{
+      const p=PEERS[n],st=p.state;
+      if(!p.ok||!st)stop.push(kbLabel(n)+" isn't answering");
+      else if(!Array.isArray(st.macros))stop.push(kbLabel(n)+' needs newer firmware to take macros');
+      else{
+        const h=new Map(st.macros.map(m=>[m[0],m[1]])),room=MC_MAX-h.size;
+        if(items.filter(it=>!h.has(it.name)).length>room)stop.push(kbLabel(n)+' has room for '+room+' more');
+        have[n]=h;
+      }
+    });
+    if(stop.length){mcMsg('Nothing copied — '+stop.join('; ')+'.',true);return}
+    const clash=[],calls=[];
+    targets.forEach(n=>{
+      const h=have[n],names=new Set([...h.keys(),...items.map(it=>it.name)]);
+      items.forEach(it=>{
+        const x=h.get(it.name);
+        if(x&&x!==fnv(it.action))clash.push(kbLabel(n)+': '+it.name);
+        macroRefs(it.action).forEach(r=>{if(!names.has(r))calls.push(kbLabel(n)+': '+it.name+' calls '+r)});
+      });
+    });
+    let ask='';
+    if(clash.length)ask+='These keyboards have a different macro of the same name, which copying replaces:\n\n'+clash.join('\n')+'\n\n';
+    if(calls.length)ask+='These call a macro the keyboard will not have:\n\n'+calls.join('\n')+'\n\n';
+    if(ask&&!confirm(ask+'Copy anyway?')){mcMsg('');return}
+    const done=()=>{
+      mcMsg('Copied '+items.length+' macro'+(items.length>1?'s':'')+' to '+targets.map(kbLabel).join(', ')+'.');
+      // Done, so the ticks go; a copy that stops part-way keeps them.
+      mcPicked.clear();mcTo.clear();mcKey='';
+      containerMacros.querySelectorAll('.macro-pick').forEach(c=>{c.checked=false});
+      renderMacroCopy();
+    };
+    // One at a time through this keyboard, leaving out what is there already.
+    // A full queue here answers 409, and is waited out.
+    const jobs=[];
+    targets.forEach(n=>items.forEach(it=>{if(have[n].get(it.name)!==fnv(it.action))jobs.push({n:n,it:it})}));
+    if(!jobs.length){done();return}
+    mcBusy=true;syncMacroCopy();mcMsg('Copying…');
+    const send=(j,tries)=>apiPost('peer_forward',{peer:j.n,ep:'macro_set',name:j.it.name,action:j.it.action}).then(r=>{
+      if(r.status===409&&tries<10)return new Promise(ok=>setTimeout(ok,500)).then(()=>send(j,tries+1));
+      if(!r.ok)return r.text().then(t=>{throw new Error(t||('HTTP '+r.status))});
+    });
+    let chain=Promise.resolve();
+    jobs.forEach(j=>{chain=chain.then(()=>send(j,0))});
+    chain.then(()=>arrived(jobs)).then(left=>{
+      if(!left.length)done();
+      else mcMsg('Not there after 20 s: '+left.map(j=>kbLabel(j.n)+': '+j.it.name).join(', ')+" — that keyboard's log says why.",true);
+    }).catch(e=>mcMsg('Copying stopped — '+e.message,true)).then(()=>{mcBusy=false;syncMacroCopy()});
+  });
+
   editToggle.addEventListener('click',()=>{
     macrosCard.classList.toggle('editing');
     editToggle.classList.toggle('on');
     const editing=macrosCard.classList.contains('editing');
     editToggle.textContent=editing?'Done':'Edit';
-    if(!editing){recCancel();editIdx=-1;nameIn.value='';actIn.value=''}
+    if(!editing){recCancel();editIdx=-1;nameIn.value='';actIn.value='';mcMsg('')}
     loadButtons();
   });
 
@@ -3593,8 +3720,10 @@ function insertStep(el,val){
     presetSel.value='';
   });
 
-  // Combo builder: modifier toggles + key dropdown
-  const modBtns=document.querySelectorAll('.mod-btn');
+  // Combo builder: modifier toggles + key dropdown. Only the four with a data-mod:
+  // other buttons share the look (Copy, the builder's Undo and Exit), and taking
+  // them in too made each one stick lit and join the next combo's name.
+  const modBtns=document.querySelectorAll('.mod-btn[data-mod]');
   const keySel=document.getElementById('mk');
   modBtns.forEach(b=>b.addEventListener('click',()=>b.classList.toggle('on')));
   keySel.addEventListener('change',()=>{
@@ -3620,6 +3749,7 @@ function insertStep(el,val){
       containerBtns.innerHTML='';
       containerMacros.innerHTML='';
       let hasBtns=false, hasMacros=false;
+      const items=[];
       btns.forEach(b=>{
         if(!b.editable){
           hasBtns=true;
@@ -3630,8 +3760,14 @@ function insertStep(el,val){
           containerBtns.appendChild(el);
         }else{
           hasMacros=true;
+          items.push({name:b.name,action:b.action});
           const wrap=document.createElement('div');
           wrap.className='macro-wrap';
+          const pick=document.createElement('input');
+          pick.type='checkbox';pick.className='macro-pick';pick.checked=mcPicked.has(b.name);
+          pick.title='Tick to copy it to a linked keyboard';
+          pick.addEventListener('change',()=>{if(pick.checked)mcPicked.add(b.name);else mcPicked.delete(b.name);syncMacroCopy()});
+          wrap.appendChild(pick);
           const el=document.createElement('button');
           el.className='prog-btn';
           const editing=macrosCard.classList.contains('editing');
@@ -3676,6 +3812,10 @@ function insertStep(el,val){
       });
       if(!hasBtns) containerBtns.innerHTML='<span class="prog-empty">No buttons</span>';
       if(!hasMacros) containerMacros.innerHTML='<span class="prog-empty">No macros</span>';
+      // A tick only for a macro that is still here.
+      mcItems=items;
+      mcPicked=new Set([...mcPicked].filter(n=>items.some(it=>it.name===n)));
+      renderMacroCopy();
       // Surface the YAML (non-editable) buttons as presets in both dropdowns. The
       // Host Actions preset mirrors mp, so populate mp then re-sync ov-preset.
       const og=document.createElement('optgroup');

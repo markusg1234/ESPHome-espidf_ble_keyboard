@@ -544,17 +544,20 @@ void EspidfBleKeyboard::run_to_peer_(const std::string &action) {
   }
   // A to: inside another: what that one gathered went before this step reached
   // here (gather_for_peer_), so this one starts empty, and the outer one carries
-  // on once it is done. Aimed at the same keyboard, it may still be typing what
-  // the outer one sent.
-  const int8_t outer_peer = out_peer_;
+  // on once it is done — on its visit, if it was on one. Aimed at the same
+  // keyboard, it may still be typing what the outer one sent.
+  const int8_t outer_peer = out_peer_, outer_away = out_away_;
+  const int8_t outer_target = outer_peer >= 0 ? outer_peer : outer_away;
   const bool outer_sent = out_sent_;
-  out_sent_ = outer_peer == index && outer_sent;
+  out_sent_ = outer_target == index && outer_sent;
   out_peer_ = (int8_t) index;
+  out_away_ = -1;
   execute_action(action.substr(sep + 1));
   flush_for_peer_(false);
-  out_sent_ = outer_sent || (outer_peer == out_peer_ && out_sent_);
+  out_sent_ = outer_sent || (outer_target == index && out_sent_);
   out_peer_ = outer_peer;
-  if (out_peer_ < 0) {
+  out_away_ = outer_away;
+  if (out_peer_ < 0 && out_away_ < 0) {
     out_body_.clear();
     out_body_.shrink_to_fit();
   }
@@ -567,19 +570,50 @@ void EspidfBleKeyboard::run_to_peer_(const std::string &action) {
 // keyboard of its own. Whatever was gathered is sent before those, so the order
 // holds.
 bool EspidfBleKeyboard::gather_for_peer_(const std::string &step) {
-  if (step.rfind("peer:", 0) == 0 || step.rfind("to:", 0) == 0) {
+  if (out_peer_ < 0) {
+    // On a visit to one of this keyboard's hosts (below): every step runs here
+    // until switch_host:back or last_host ends it, and the keys after it go to
+    // the linked keyboard again.
+    if (step != "switch_host:back" && step != "last_host")
+      return false;
+    const int8_t home = out_away_;
+    out_away_ = -1;  // so this step runs here like the rest of the visit
+    execute_action(step);
+    out_peer_ = home;
+    return true;
+  }
+  const bool named = step.rfind("peer:", 0) == 0;
+  if (named || step.rfind("to:", 0) == 0) {
     flush_for_peer_(true);
+    // A step for this run's own keyboard: what is gathered for it next waits
+    // behind any text that step types there.
+    const std::string &name = peers_[out_peer_].name;
+    if (named && step.size() > 5 + name.size() && step.compare(5, name.size(), name) == 0 &&
+        step[5 + name.size()] == ':')
+      out_sent_ = true;
     return false;
   }
   if (step.find('|') != std::string::npos || step.rfind("macro:", 0) == 0)
     return false;
-  if (step.rfind("press_button:", 0) == 0 || step.rfind("ha_action:", 0) == 0) {
+  // A host by number is one of this keyboard's: the numbers in its macros are
+  // its own, and the linked keyboard's are peer:<name>:switch_host:N. So
+  // switch_host:N starts a visit — what follows is for that host and runs here,
+  // until switch_host:back hands the rest back. A macro that visits host 5 does
+  // so whichever keyboard the tab drives. forget_host:N is this keyboard's too.
+  int slot = 0;
+  const bool visit = step.rfind("switch_host:", 0) == 0 && sscanf(step.c_str() + 12, "%i", &slot) == 1;
+  if (visit || (step.rfind("forget_host:", 0) == 0 && sscanf(step.c_str() + 12, "%i", &slot) == 1) ||
+      step.rfind("press_button:", 0) == 0 || step.rfind("ha_action:", 0) == 0) {
     flush_for_peer_(true);
+    if (visit) {
+      out_away_ = out_peer_;
+      out_peer_ = -1;
+    }
     return false;
   }
-  // Everything else reaches a host — keys, text, the mouse, holds, host
-  // switches, panels — and so do the delay: and wait:connected between them,
-  // which only keep time if they run over there with the keys.
+  // Everything else reaches a host — keys, text, the mouse, holds, the
+  // relative host switches, panels — and so do the delay: and wait:connected
+  // between them, which only keep time if they run over there with the keys.
   std::string enc;
   form_encode_append(enc, step);
   if (!out_body_.empty() && out_body_.size() + 3 + enc.size() > PEER_MAX_TEXT_BODY)
@@ -611,7 +645,7 @@ bool EspidfBleKeyboard::gather_for_peer_(const std::string &step) {
 // the delays it ends with are waited out here instead of over there, so that
 // step comes when it would have.
 void EspidfBleKeyboard::flush_for_peer_(bool before_local) {
-  if (out_body_.empty())
+  if (out_body_.empty() || out_peer_ < 0)
     return;
   uint32_t wait = 0;
   if (before_local) {
@@ -777,7 +811,9 @@ void EspidfBleKeyboard::run_peer_forward_(const std::string &job) {
   } else {
     body = job.substr(b + 1);
   }
-  peer_post_(peers_[index], "/api/ble_keyboard/" + ep, body, ep.c_str());
+  // A copied macro is read back soon, which is how the page sees it arrived.
+  if (peer_post_(peers_[index], "/api/ble_keyboard/" + ep, body, ep.c_str()) == PEER_OK && ep == "macro_set")
+    peers_[index].next_due_ms = (millis() + 300) | 1;
 }
 
 // Holding a repeating key on a linked keyboard's remote queues the same press

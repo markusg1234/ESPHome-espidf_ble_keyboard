@@ -499,6 +499,38 @@ __attribute__((noinline)) static void append_hold_json(std::string &json, Espidf
   json += "]}";
 }
 
+// Each stored macro as [name, hash of its action]: what a linked keyboard's page
+// compares with its own macros before copying them here, and checks afterwards
+// to see they arrived. The hash rather than the text keeps /state small — it is
+// read every few seconds. FNV-1a, 32 bits, over the action's bytes, as eight hex
+// digits; the page computes the same.
+static uint32_t fnv1a(const std::string &s) {
+  uint32_t h = 2166136261u;
+  for (unsigned char c : s) {
+    h ^= c;
+    h *= 16777619u;
+  }
+  return h;
+}
+static size_t macro_digest_size(EspidfBleKeyboard *kb) {
+  size_t n = 2;
+  for (const auto &m : kb->get_macros())
+    n += json_escaped_size(m.name) + 16;  // ["…","xxxxxxxx"],
+  return n;
+}
+__attribute__((noinline)) static void append_macro_digest(std::string &json, EspidfBleKeyboard *kb) {
+  const auto &macros = kb->get_macros();
+  char tail[16];
+  json += "[";
+  for (size_t i = 0; i < macros.size(); i++) {
+    json += i > 0 ? ",[\"" : "[\"";
+    json_escape_append(json, macros[i].name);
+    snprintf(tail, sizeof(tail), "\",\"%08x\"]", (unsigned) fnv1a(macros[i].action));
+    json += tail;
+  }
+  json += "]";
+}
+
 #ifdef USE_BLE_KB_PEERS
 // {"peers":[{"name","ok","age","state"}]}, sent in pieces so each peer's cached
 // state goes out straight from where it is kept. Building the reply as one
@@ -533,7 +565,8 @@ __attribute__((noinline)) static void send_peers(AsyncWebServerRequest *request,
 // The keyboard and mouse cards of a tab driving a linked keyboard: each request
 // exactly as the page would have made it here, passed on to the same endpoint
 // over there — so a typed '|', a held character or a scroll mean what they
-// always did. Only the endpoints those cards use. Null on success, else why not.
+// always did. Only the endpoints those cards use, and macro_set, which copies a
+// macro there. Null on success, else why not.
 __attribute__((noinline)) static const char *forward_to_peer(AsyncWebServerRequest *request, EspidfBleKeyboard *kb) {
   const int index = kb->peer_index(request->arg("peer"));
   if (index < 0)
@@ -557,7 +590,7 @@ __attribute__((noinline)) static const char *forward_to_peer(AsyncWebServerReque
       {"string", {"keys", nullptr, nullptr}},     {"key", {"modifier", "keycode", nullptr}},
       {"hold_key", {"char", "modifier", "keycode"}}, {"release", {nullptr, nullptr, nullptr}},
       {"mouse_click", {"btn", nullptr, nullptr}}, {"mouse_hold", {"btn", nullptr, nullptr}},
-      {"mouse_release", {nullptr, nullptr, nullptr}},
+      {"mouse_release", {nullptr, nullptr, nullptr}}, {"macro_set", {"name", "action", nullptr}},
   };
   for (const auto &f : FORWARDED) {
     if (ep != f.ep)
@@ -746,10 +779,11 @@ class BleKbWebHandler : public AsyncWebHandler {
     // Everything the page reads to draw this keyboard's remote, in one request:
     // /hosts, /status and the drawn slot's hidden, repeat and hold lists, each
     // exactly as its own endpoint returns it. A linked keyboard reads this every
-    // few seconds while a page is looking at it, instead of five requests.
+    // few seconds while a page is looking at it, instead of five requests. Its
+    // macros ride along as names and hashes, for copying macros here.
     if (path == "state") {
       const uint8_t slot = kb_->style_slot();
-      const size_t want = status_json_size(kb_) + hosts_json_size(kb_) + 1536;
+      const size_t want = status_json_size(kb_) + hosts_json_size(kb_) + 1536 + macro_digest_size(kb_);
       if (heap_short(want, "State", ""))
         return;
       std::string json;
@@ -764,6 +798,8 @@ class BleKbWebHandler : public AsyncWebHandler {
       append_repeat_json(json, kb_, slot);
       json += ",\"hold\":";
       append_hold_json(json, kb_, slot);
+      json += ",\"macros\":";
+      append_macro_digest(json, kb_);
       json += "}";
       send_response(200, "application/json", json);
       return;
@@ -1670,6 +1706,32 @@ class BleKbWebHandler : public AsyncWebHandler {
         send_response(404, "text/plain", "Invalid index");
       } else {
         send_response(200, "text/plain", "OK");
+      }
+
+    } else if (path == "macro_set") {
+      // Add, or replace the one with this name: how a linked keyboard copies its
+      // macros here. By name, so there is no index to have gone stale between
+      // that keyboard reading this one's list and writing to it.
+      std::string name = request->hasArg("name") ? request->arg("name").c_str() : "";
+      std::string action = request->hasArg("action") ? request->arg("action").c_str() : "";
+      if (name.empty() || action.empty()) {
+        send_response(400, "text/plain", "name and action required");
+      } else if (name.size() > 31 || action.size() > 255) {
+        send_response(400, "text/plain", "name max 31, action max 255 chars");
+      } else if (name.find('|') != std::string::npos) {
+        send_response(400, "text/plain", "Name cannot contain '|'");
+      } else {
+        const auto &macros = kb_->get_macros();
+        int at = -1;
+        for (size_t i = 0; i < macros.size() && at < 0; i++) {
+          if (macros[i].name == name)
+            at = (int) i;
+        }
+        if (at >= 0 ? kb_->update_macro((uint8_t) at, name, action) : kb_->add_macro(name, action)) {
+          send_response(200, "text/plain", "OK");
+        } else {
+          send_response(400, "text/plain", "Max macros reached");
+        }
       }
 
     } else if (path == "set_layout") {

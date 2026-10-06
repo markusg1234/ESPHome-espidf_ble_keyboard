@@ -1370,8 +1370,11 @@ class EspidfBleKeyboard : public Component
   void flush_peer_motion_(int index);
   // A to:<name>:<action> run: the action is worked out here, and each step it
   // would send to a host is gathered, in order, into one chain for that peer's
-  // /press. Only the action task runs one, so only it touches these.
-  int8_t out_peer_{-1};      // the peer this run's keys go to; -1 outside a run
+  // /press — except while the run visits one of this keyboard's own hosts
+  // (switch_host:N, until switch_host:back). Only the action task runs one, so
+  // only it touches these.
+  int8_t out_peer_{-1};      // the peer this run's keys go to; -1 outside a run or on a visit
+  int8_t out_away_{-1};      // on a visit: the peer its keys go back to after it
   bool out_sent_{false};     // this run has sent that peer something already
   std::string out_body_;     // the request being gathered, form-encoded
   size_t out_head_{0};       // out_body_'s length before its first step
@@ -1379,6 +1382,8 @@ class EspidfBleKeyboard : public Component
   uint32_t out_tail_ms_{0};  // what those delays add up to
   // The task first: any other task never reads out_peer_ at all.
   bool redirecting_() const { return xTaskGetCurrentTaskHandle() == action_task_ && out_peer_ >= 0; }
+  // In a to: run at all: gathering for its peer, or on a visit here.
+  bool in_to_run_() const { return xTaskGetCurrentTaskHandle() == action_task_ && (out_peer_ >= 0 || out_away_ >= 0); }
   void run_to_peer_(const std::string &action);
   bool gather_for_peer_(const std::string &step);
   void flush_for_peer_(bool before_local);

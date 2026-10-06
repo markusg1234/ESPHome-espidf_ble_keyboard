@@ -621,7 +621,7 @@ espidf_ble_keyboard:
 | `"switch_host:back"` | Return to the host slot that was active before the last switch, however that switch was made. Pressed again, it goes back again. |
 | `"host_action:N:<name>"` | Run host slot N's Host Action for `<name>` without switching to it. If slot N has no action for that name, it runs as an ordinary press on the active host. |
 | `"peer:<name>:<action>"` | Run `<action>` on a [linked keyboard](#linking-a-second-keyboard), exactly as its own page would — `peer:bedroom:volume_up`, `peer:bedroom:switch_host:1`. |
-| `"to:<name>:<action>"` | Run `<action>` on this keyboard, with its keys sent to a [linked keyboard](#linking-a-second-keyboard)'s host — `to:bedroom:macro:Netflix`. `macro:`, `if:`, `alternate:`, `repeat:`, `press_button:` and `ha_action:` are worked out here as the macro reaches them; the rest go over in one request, delays included. One step, like `peer:`: for a sequence, name a macro. |
+| `"to:<name>:<action>"` | Run `<action>` on this keyboard, with its keys sent to a [linked keyboard](#linking-a-second-keyboard)'s host — `to:bedroom:macro:Netflix`. `macro:`, `if:`, `alternate:`, `repeat:`, `press_button:` and `ha_action:` are worked out here as the macro reaches them; the rest go over in one request, delays included. `switch_host:N` is this keyboard's host N: from there the macro runs here until `switch_host:back`. One step, like `peer:`: for a sequence, name a macro. |
 | `"wait:connected"` / `"wait:connected:N"` | Pause a macro until the active host is connected and ready for keys, for at most N ms (default 10000, max 60000). On timeout the macro carries on. |
 | `"forget_host:N"` | Remove BLE bond for host slot N (0–9) and clear the slot. |
 | `"lcd:<text>"` | Put text on an [LCD panel](#lcd-panels)'s `@msg` line. Everything after the colon is the text. |
@@ -2249,12 +2249,13 @@ espidf_ble_keyboard:
 The page then shows a bar of that keyboard's hosts below its own. Tap one and that keyboard switches to it, and the remote, keyboard, paste box and mouse all drive it — the remote in that host's style with its hidden, hold and repeat lists. Macros do too: tapped on that tab, a macro runs on this keyboard and its keys go to the linked one. Tap one of this keyboard's hosts to come back. The choice belongs to the tab (`?peer=bedroom` in the address), so one tab can drive the bedroom while another drives the lounge.
 
 - The Position Finder, Buttons and Host Actions stay on this keyboard, and the linked one's settings stay on its own page.
+- Macros can be copied to it. In the Macros card's edit mode, tick the macros and the keyboard, as Host Actions are copied to other hosts. A different macro of the same name over there is replaced, after asking. Before copying it also says when a macro calls one the other keyboard won't have, or when that keyboard is full (16). Afterwards it says which copies didn't arrive.
 - Everything goes by way of this keyboard, so it is only as quick as the Wi-Fi between them: mouse movement is gathered up and sent a piece at a time rather than streamed.
 - Styles are not copied between keyboards by the link itself, but **Export all** on one page and **Import** on the other copies the lot in one paste — see [Copying styles to another keyboard](#copying-styles-to-another-keyboard). Until a style is there, that host draws the full remote and its bar says which style is missing.
 - Both keyboards need firmware with this feature.
 - Give the address as an IP address or the keyboard's `.local` name.
 - A macro or button reaches it the same way, with [`peer:bedroom:<action>`](#action-reference); the preset lists in Macros and Host Actions offer the common ones. That switches the other keyboard, not the tab.
-- `peer:bedroom:<action>` runs the action on the bedroom keyboard. `to:bedroom:<action>` runs it on this one with its keys sent there, which is what a tab driving the bedroom sends for a macro: `to:bedroom:macro:Netflix` is this keyboard's Netflix macro, typed on the bedroom's host. The macro's references, conditions, buttons and Home Assistant calls are worked out here. Its keys, text, delays and host switches go over as one request and run there in order, with that keyboard's Host Actions.
+- `peer:bedroom:<action>` runs the action on the bedroom keyboard. `to:bedroom:<action>` runs it on this one with its keys sent there, which is what a tab driving the bedroom sends for a macro: `to:bedroom:macro:Netflix` is this keyboard's Netflix macro, typed on the bedroom's host. The macro's references, conditions, buttons and Home Assistant calls are worked out here. Its keys, text and delays go over as one request and run there in order, with that keyboard's Host Actions. A host number is this keyboard's: `switch_host:5` visits this keyboard's host 5, and the macro runs here until `switch_host:back` hands the rest back, so a macro that visits a host works from any tab. The bedroom's own hosts are `peer:bedroom:switch_host:N`.
 - A Home Assistant card can drive a linked keyboard too: list its hosts under `peer_hosts` and they join the card's switcher after this keyboard's own, so the arrows carry on from one keyboard's hosts into the other's and every press follows whichever host is selected. What those hosts are called and which style to draw are the card's own settings — the sensors and the direct read describe the keyboard the card points at, not the linked one:
 
 ```yaml
@@ -2328,9 +2329,9 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/goto_scale` | POST | `v` / `vx` / `vy` (scale), `save=1`, `reset=1` | Set `mouse_goto` calibration live (persist per host with `save`) |
 | `/api/ble_keyboard/goto_last` | GET | — | Last `mouse_goto` target (Windows coords) |
 | `/api/ble_keyboard/status` | GET | — | Returns `{"connected":bool,"paired":bool,"device_name":"..."}` |
-| `/api/ble_keyboard/state` | GET | — | `/hosts`, `/status` and the drawn host's `/hidden`, `/repeat` and `/hold` replies in one object — what a [linked keyboard](#linking-a-second-keyboard) reads |
+| `/api/ble_keyboard/state` | GET | — | `/hosts`, `/status` and the drawn host's `/hidden`, `/repeat` and `/hold` replies in one object, and the macros as `[name, hash]` pairs (FNV-1a of the action, 8 hex digits) — what a [linked keyboard](#linking-a-second-keyboard) reads |
 | `/api/ble_keyboard/peers` | GET | — | Each linked keyboard's last `/state`, with `ok` and its `age` in seconds. Only on a keyboard with `peers:` |
-| `/api/ble_keyboard/peer_forward` | POST | `peer`, `ep`, and that endpoint's own parameters | Pass one keyboard or mouse request (`string`, `key`, `hold_key`, `release`, `mouse_move`, `mouse_click`, `mouse_hold`, `mouse_release`, `mouse_scroll`) on to a linked keyboard |
+| `/api/ble_keyboard/peer_forward` | POST | `peer`, `ep`, and that endpoint's own parameters | Pass one keyboard or mouse request (`string`, `key`, `hold_key`, `release`, `mouse_move`, `mouse_click`, `mouse_hold`, `mouse_release`, `mouse_scroll`), or a `macro_set`, on to a linked keyboard |
 | `/api/ble_keyboard/buttons` | GET | — | Returns JSON array of programmed buttons |
 | `/api/ble_keyboard/press` | POST | `action` (string) | Trigger a programmed button action |
 | `/api/ble_keyboard/hosts` | GET | — | Returns `{"active":N,"style_slot":N,"slots":[{"slot":N,"occupied":bool,"addr":"XX:XX:...","bonded":bool,"tpl":"style1"},...]}`. `tpl` is that host's [remote style](#remote-style-per-host) and is absent when it uses the default. `bonded` is false when the slot has no pairing key. `style_slot` is the slot the remote is drawn for — `active`, except while an action that switched host is still running |
@@ -2339,6 +2340,7 @@ The web control page uses these local HTTP endpoints (useful for custom integrat
 | `/api/ble_keyboard/forget_host` | POST | `slot` (int) | Remove bond for host slot 0–9 |
 | `/api/ble_keyboard/macro_add` | POST | `name`, `action` | Add a new macro (max 16) |
 | `/api/ble_keyboard/macro_update` | POST | `index`, `name`, `action` | Update an existing macro |
+| `/api/ble_keyboard/macro_set` | POST | `name`, `action` | Add a macro, or replace the one with that name — how a linked keyboard copies its macros here |
 | `/api/ble_keyboard/macro_delete` | POST | `index` (int) | Delete a macro by index |
 | `/api/ble_keyboard/overrides` | GET | `slot` (int, default active) | Per-host action overrides: `{"slot":N,"active":M,"items":[{"name":"record","action":"combo:0x0C:0x15","src":"nvs"\|"yaml"}]}` |
 | `/api/ble_keyboard/override_set` | POST | `slot`, `name`, `action` | Set a per-host action override (max 8 per slot); persists to NVS |
@@ -2898,6 +2900,7 @@ The web UI provides:
 - **Add form** with name, action textarea, and a preset dropdown (media, system, clipboard, consumer HID, text, delays). Your YAML-defined `espidf_ble_keyboard` buttons also appear here under a **Buttons** group — pick one to reuse its action. The Host Actions card shares this dropdown and additionally lists your saved macros under a **Macros** group, so an override can reuse a macro's actions.
 - **Combo builder** — toggle Ctrl/Shift/Alt/Win modifier buttons, then pick a key (F1-F12, arrows, letters, numbers, etc.) to insert `combo:mod:key`
 - **Edit/Delete** controls on each macro (pencil and X buttons)
+- **Copy to a linked keyboard** — with [linked keyboards](#linking-a-second-keyboard), a tick box on each macro and a "Copy ticked to:" line listing them
 - **Macro index** shown as `[0]`, `[1]`, etc. next to each macro name — for the legacy `execute_macro(N)` form. Hovering a macro also shows its `macro:<name>` reference, which is what to use in YAML and automations: indices shift when a macro above them is deleted, names don't
 - YAML-defined buttons appear alongside macros but are not editable
 - Selecting a preset or key adds it to the action field as a step of its own, joined with `|` — where the cursor was left in the field, or at the end if you haven't clicked in it — making it easy to build multi-step macros
@@ -3072,6 +3075,7 @@ data:
 | GET | `/api/ble_keyboard/buttons` | — | Returns all buttons and macros as JSON. Macros have `"editable":true` and `"index":N`. |
 | POST | `/api/ble_keyboard/macro_add` | `name`, `action` | Add a new macro (max 16). |
 | POST | `/api/ble_keyboard/macro_update` | `index`, `name`, `action` | Update an existing macro. |
+| POST | `/api/ble_keyboard/macro_set` | `name`, `action` | Add a macro, or replace the one with that name. |
 | POST | `/api/ble_keyboard/macro_delete` | `index` | Delete a macro by index. |
 
 ---
