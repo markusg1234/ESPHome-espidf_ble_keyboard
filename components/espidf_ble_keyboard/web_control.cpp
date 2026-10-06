@@ -564,8 +564,10 @@ __attribute__((noinline)) static void send_peers(AsyncWebServerRequest *request,
 
 // A linked keyboard's Host Actions for one of its hosts, which the page compares
 // with before copying some there and reads again to see them land. Read on the
-// action task and never waited for here: 202 means ask again shortly. Out of
-// line, like send_peers, so its locals stay out of handleRequest's frame.
+// action task and never waited for here: 204 means ask again shortly, 409 that
+// the read failed. Only those: ESPHome's server sends 200, 204, 400, 401, 404,
+// 409 and 422, and any other status goes out as 500. Out of line, like
+// send_peers, so its locals stay out of handleRequest's frame.
 __attribute__((noinline)) static void serve_peer_read(AsyncWebServerRequest *request, EspidfBleKeyboard *kb) {
   kb->note_peer_interest();  // what keeps the action task reading peers
   const int index = kb->peer_index(request->arg("peer"));
@@ -576,8 +578,8 @@ __attribute__((noinline)) static void serve_peer_read(AsyncWebServerRequest *req
   if (index >= 0 && request->arg("ep") == "overrides" && slot >= 0 && slot < 10) {
     const int r = kb->peer_read(index, "/api/ble_keyboard/overrides?slot=" + std::to_string(slot),
                                 request->hasArg("fresh"), reply);
-    code = r > 0 ? 200 : (r == 0 ? 202 : 502);
-    text = r == 0 ? "Reading" : "That keyboard did not answer";
+    code = r > 0 ? 200 : (r == 0 ? 204 : 409);
+    text = r == 0 ? "" : "That keyboard did not answer";
   }
   // The reply is sent from where the cache holds it: send() writes it out
   // before returning, and `reply` keeps it alive until then.
