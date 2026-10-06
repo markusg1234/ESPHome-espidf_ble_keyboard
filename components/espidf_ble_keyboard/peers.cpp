@@ -814,6 +814,14 @@ void EspidfBleKeyboard::run_peer_forward_(const std::string &job) {
   // A copied macro is read back soon, which is how the page sees it arrived.
   if (peer_post_(peers_[index], "/api/ble_keyboard/" + ep, body, ep.c_str()) == PEER_OK && ep == "macro_set")
     peers_[index].next_due_ms = (millis() + 300) | 1;
+  // A Host Action copied there leaves any copy of that host's list read before it
+  // out of date.
+  if (ep == "override_set") {
+    xSemaphoreTake(peer_mutex_, portMAX_DELAY);
+    peers_[index].read_have.clear();
+    peers_[index].read_reply.reset();
+    xSemaphoreGive(peer_mutex_);
+  }
 }
 
 // Holding a repeating key on a linked keyboard's remote queues the same press
@@ -902,6 +910,9 @@ void EspidfBleKeyboard::refresh_peers_() {
         p.state.reset();
         p.fetched_ms = 0;
         p.next_due_ms = 0;
+        p.read_reply.reset();
+        p.read_want.clear();
+        p.read_have.clear();
       }
       xSemaphoreGive(peer_mutex_);
       peer_cache_live_ = false;
@@ -941,6 +952,34 @@ void EspidfBleKeyboard::refresh_peers_() {
   }
   if (starved)
     return;
+  // A read the page is waiting on goes before the routine ones. Only once the
+  // queue is empty, as every read here: a host's Host Actions read after a copy
+  // to it is read after that copy's writes have all gone.
+  for (auto &p : peers_) {
+    xSemaphoreTake(peer_mutex_, portMAX_DELAY);
+    const std::string path = p.read_want;
+    xSemaphoreGive(peer_mutex_);
+    if (path.empty())
+      continue;
+    std::string body;
+    body.reserve(2048);
+    const PeerResult r = peer_request_(p, false, path.c_str(), std::string(), &body);
+    const bool ok = r == PEER_OK && body.size() >= 2 && body.front() == '{' && body.back() == '}';
+    std::shared_ptr<const std::string> reply;
+    if (ok)
+      reply = std::make_shared<const std::string>(std::move(body));
+    xSemaphoreTake(peer_mutex_, portMAX_DELAY);
+    if (p.read_want == path) {  // and not asked for something else meanwhile
+      p.read_want.clear();
+      p.read_have = path;
+      p.read_reply.swap(reply);
+      p.read_failed = !ok;
+      p.read_at = millis() | 1;
+    }
+    xSemaphoreGive(peer_mutex_);
+    peer_cache_live_ = true;
+    return;
+  }
   for (auto &p : peers_) {
     if (p.next_due_ms != 0 && (int32_t) (now - p.next_due_ms) < 0)
       continue;
@@ -984,6 +1023,36 @@ void EspidfBleKeyboard::refresh_peers_() {
     peer_cache_live_ = true;
     return;
   }
+}
+
+// The web task's side of a read for the page: what has arrived, or a note of
+// what to fetch. One per keyboard at a time — asking for another path replaces
+// it, so the page asks for them one after another.
+int EspidfBleKeyboard::peer_read(int index, const std::string &path, bool fresh,
+                                 std::shared_ptr<const std::string> &out) {
+  if (index < 0 || (size_t) index >= peers_.size())
+    return -1;
+  int r = 0;
+  xSemaphoreTake(peer_mutex_, portMAX_DELAY);
+  Peer &p = peers_[index];
+  if (p.read_want == path) {
+    // Already on its way.
+  } else if (!fresh && p.read_have == path && p.read_reply && millis() - p.read_at < PEER_READ_KEEP_MS) {
+    out = p.read_reply;
+    r = 1;
+  } else if (!fresh && p.read_have == path && p.read_failed) {
+    // Said once; asking again reads again.
+    p.read_have.clear();
+    p.read_failed = false;
+    r = -1;
+  } else {
+    p.read_want = path;
+    p.read_have.clear();
+    p.read_reply.reset();
+    p.read_failed = false;
+  }
+  xSemaphoreGive(peer_mutex_);
+  return r;
 }
 
 // Under the lock only long enough to take a reference to each state, so a slow

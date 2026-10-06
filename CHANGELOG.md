@@ -14,6 +14,9 @@ web control page shows the matching version badge.
 - **Macros can be copied to a linked keyboard**, ticked as Host Actions are for other hosts. It asks
   before replacing a different macro of the same name and says if one did not arrive. Both keyboards
   need this firmware.
+- **Host Actions can be copied to a linked keyboard's hosts**: they join the hosts a copy can go to.
+  It asks before replacing, as it does here, and checks they arrived. Only this keyboard needs the
+  new firmware.
 
 ### Fixed
 - **Text typed on a linked keyboard from a Home Assistant card or a macro keeps its `|`** instead of

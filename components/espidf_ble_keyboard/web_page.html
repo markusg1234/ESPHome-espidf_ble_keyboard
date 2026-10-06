@@ -2559,6 +2559,8 @@ let PEERS={};
 // This keyboard's own /hosts, as last read — for the keys that step across keyboards.
 let LOCAL_HOSTS=null;
 function peerState(){const p=RMT_PEER!==null&&PEERS[RMT_PEER];return (p&&p.state)||null}
+// A linked keyboard as its bar names it: its device name, else its peers: name.
+function peerLabel(n){const st=PEERS[n]&&PEERS[n].state;return (st&&st.status&&st.status.device_name)||n}
 // A host just tapped on a linked keyboard, until its cached state shows the
 // switch — a few seconds, since this keyboard reads the other on a timer. Until
 // then the remote stays in the tapped host's style instead of flicking back, and
@@ -3325,7 +3327,7 @@ function hostBtn(s,active,kb){
       if(RMT_PEER!==null&&!PEERS[RMT_PEER]){window.dropPeerLock();return}
       render();
       syncPresets();
-      if(window.onPeersListed)window.onPeersListed();
+      window.dispatchEvent(new Event('peerslisted'));
       if(RMT_PEER!==null)window.applyPeerTarget(false);
       if(firstAnswer){
         firstAnswer=false;
@@ -3414,7 +3416,7 @@ function hostBtn(s,active,kb){
     PEERS={};order=[];firstAnswer=true;
     render();
     syncPresets();
-    if(window.onPeersListed)window.onPeersListed();
+    window.dispatchEvent(new Event('peerslisted'));
     if(RMT_PEER!==null)window.dropPeerLock();
     else if(window.reloadHostsNow)window.reloadHostsNow();
   };
@@ -3589,7 +3591,7 @@ function insertStep(el,val){
   const mcGo=document.getElementById('mc-copy-go'),mcNote=document.getElementById('mc-copy-note');
   const MC_MAX=16;   // MAX_MACROS, in espidf_ble_keyboard.h — keep in step
   let mcItems=[],mcPicked=new Set(),mcTo=new Set(),mcKey='',mcBusy=false;
-  const kbLabel=n=>{const st=PEERS[n]&&PEERS[n].state;return (st&&st.status&&st.status.device_name)||n};
+  const kbLabel=peerLabel;
   function mcMsg(m,err){mcNote.textContent=m||'';mcNote.style.color=err?'#c44':'var(--muted)'}
   // FNV-1a over the UTF-8 bytes, as eight hex digits: how a keyboard's /state
   // gives each of its macros (append_macro_digest in web_control.cpp).
@@ -3625,7 +3627,7 @@ function insertStep(el,val){
     }
     syncMacroCopy();
   }
-  window.onPeersListed=renderMacroCopy;
+  window.addEventListener('peerslisted',renderMacroCopy);
   // Watches the linked keyboards' state until every copied macro is there with
   // its own text, or 20 s pass. Resolves to whatever never arrived.
   function arrived(jobs){
@@ -3959,26 +3961,62 @@ function insertStep(el,val){
     });
   }
 
-  // The hosts a copy can go to — every one but this — and what the button says.
+  // The hosts a copy can go to: every one of this keyboard's but this, then each
+  // linked keyboard's, keyed 'p:<keyboard>:<slot>'.
+  function copyTargets(){
+    const out=allSlots.filter(t=>t!==slot).map(t=>({k:t,label:hostNames[t]||('Host '+(t+1))}));
+    Object.keys(PEERS).forEach(n=>{
+      const st=PEERS[n].state;
+      ((st&&st.hosts&&st.hosts.slots)||[]).forEach(s=>
+        out.push({k:'p:'+n+':'+s.slot,n:n,slot:s.slot,label:peerLabel(n)+': '+(s.name||('Host '+(s.slot+1)))}));
+    });
+    return out;
+  }
+  // The boxes are rebuilt only when the hosts on offer change: the linked
+  // keyboards' come with every /peers answer, and a box replaced under a finger
+  // loses the tap.
+  let copyKey='',copyBusy=false;
   function renderCopy(){
     if(!copyBar)return;
-    const others=allSlots.filter(t=>t!==slot);
-    copyBar.hidden=!shownItems.length||!others.length;
-    copyHosts.textContent='';
-    others.forEach(t=>{
-      const l=document.createElement('label'),c=document.createElement('input');
-      c.type='checkbox';c.checked=copyTo.has(t);
-      c.addEventListener('change',()=>{if(c.checked)copyTo.add(t);else copyTo.delete(t);syncCopy()});
-      l.appendChild(c);l.appendChild(document.createTextNode(hostNames[t]||('Host '+(t+1))));
-      copyHosts.appendChild(l);
-    });
+    const targets=copyTargets();
+    copyBar.hidden=!shownItems.length||!targets.length;
+    const key=targets.map(t=>t.k+'='+t.label).join('|');
+    if(key!==copyKey){
+      copyKey=key;
+      copyTo=new Set([...copyTo].filter(k=>targets.some(t=>t.k===k)));
+      copyHosts.textContent='';
+      targets.forEach(t=>{
+        const l=document.createElement('label'),c=document.createElement('input');
+        c.type='checkbox';c.checked=copyTo.has(t.k);
+        c.addEventListener('change',()=>{if(c.checked)copyTo.add(t.k);else copyTo.delete(t.k);syncCopy()});
+        l.appendChild(c);l.appendChild(document.createTextNode(t.label));
+        copyHosts.appendChild(l);
+      });
+    }
     syncCopy();
   }
+  window.addEventListener('peerslisted',renderCopy);
   function syncCopy(){
     if(!copyGo)return;
     const n=shownItems.filter(it=>picked.has(it.name)).length,m=[...copyTo].filter(t=>t!==slot).length;
     copyGo.textContent=n&&m?'Copy '+n+' to '+m+' host'+(m>1?'s':''):'Copy';
-    copyGo.disabled=!n||!m;
+    copyGo.disabled=copyBusy||!n||!m;
+  }
+  // A linked keyboard's Host Actions for one of its hosts, read by this keyboard
+  // (peer_read): asked for until it is there. `fresh` reads it again rather than
+  // taking the copy this keyboard read a moment ago. One keyboard reads one list
+  // at a time, so callers ask for them one after another.
+  function peerOverrides(n,s,fresh){
+    const base={peer:n,ep:'overrides',slot:s},t0=Date.now();
+    let fails=0;
+    const ask=f=>fetch('api/ble_keyboard/peer_read?'+new URLSearchParams(f?Object.assign({fresh:1},base):base)).then(r=>{
+      if(r.status===200)return r.json().then(d=>d.items||[]);
+      const again=ms=>new Promise(ok=>setTimeout(ok,ms)).then(()=>ask(false));
+      if(r.status===202&&Date.now()-t0<15000)return again(600);
+      if(r.status===502&&++fails<3)return again(1000);
+      throw new Error(peerLabel(n)+' did not send its Host Actions');
+    });
+    return ask(!!fresh);
   }
   function copyMsg(m,err){if(copyNote){copyNote.textContent=m||'';copyNote.style.color=err?'#c44':'var(--muted)'}}
 
@@ -4121,45 +4159,75 @@ function insertStep(el,val){
   });
 
   // Copy: each ticked Host Action to each ticked host, one write at a time (each
-  // is a flash write on the device). Asks first only if that would replace
-  // something different a host already has under the same name.
+  // is a flash write on its keyboard). Asks first only if that would replace
+  // something different a host already has under the same name. A linked
+  // keyboard's host is read and written through this keyboard (peer_read,
+  // peer_forward) and read again afterwards to see the copies land, since a write
+  // to it is only queued here.
   if(copyGo)copyGo.addEventListener('click',()=>{
     const items=shownItems.filter(it=>picked.has(it.name));
-    const targets=[...copyTo].filter(t=>t!==slot).sort((a,b)=>a-b);
+    const targets=copyTargets().filter(t=>copyTo.has(t.k));
     if(!items.length||!targets.length)return;
-    const name=t=>hostNames[t]||('Host '+(t+1));
-    copyGo.disabled=true;copyMsg('Copying…');
+    copyBusy=true;syncCopy();copyMsg('Copying…');
     let done=0;
-    Promise.all(targets.map(t=>apiGetJSON('overrides?'+new URLSearchParams({slot:t})).then(d=>({t:t,items:d.items||[]}))))
-      .then(found=>{
+    // What each host has, read one after another: a linked keyboard reads one
+    // list at a time.
+    const found=[];
+    let read=Promise.resolve();
+    targets.forEach(t=>{
+      read=read.then(()=>t.n?peerOverrides(t.n,t.slot,false)
+        :apiGetJSON('overrides?'+new URLSearchParams({slot:t.k})).then(d=>d.items||[])).then(have=>{found.push({t:t,items:have})});
+    });
+    read.then(()=>{
         const clash=[];
         found.forEach(f=>items.forEach(it=>{
           const o=f.items.find(x=>x.name===it.name);
-          if(o&&o.action!==it.action)clash.push(name(f.t)+': '+it.name+' — '+o.action);
+          if(o&&o.action!==it.action)clash.push(f.t.label+': '+it.name+' — '+o.action);
         }));
         if(clash.length&&!confirm('Copying replaces what these hosts already have:\n\n'+clash.join('\n')+'\n\nCopy anyway?')){
           copyMsg('');return;
         }
+        const write=(t,it,tries)=>(t.n
+          ?apiPost('peer_forward',{peer:t.n,ep:'override_set',slot:t.slot,name:it.name,action:it.action})
+          :apiPost('override_set',{slot:t.k,name:it.name,action:it.action})).then(r=>{
+          // A 409 from peer_forward is this keyboard's queue full for a moment.
+          if(t.n&&r.status===409&&tries<10)return new Promise(ok=>setTimeout(ok,500)).then(()=>write(t,it,tries+1));
+          if(!r.ok)return r.text().then(x=>{throw new Error(t.label+', '+it.name+': '+x)});
+          done++;
+        });
         let chain=Promise.resolve();
-        targets.forEach(t=>items.forEach(it=>{
-          chain=chain.then(()=>apiPost('override_set',{slot:t,name:it.name,action:it.action})).then(r=>{
-            if(!r.ok)return r.text().then(x=>{throw new Error(name(t)+', '+it.name+': '+x)});
-            done++;
-          });
-        }));
-        return chain.then(()=>{
-          copyMsg('Copied '+items.length+' Host Action'+(items.length>1?'s':'')+' to '+targets.map(name).join(', ')+'.');
+        targets.forEach(t=>items.forEach(it=>{chain=chain.then(()=>write(t,it,0))}));
+        return chain.then(()=>landed(targets.filter(t=>t.n),items)).then(left=>{
+          if(left.length){copyMsg('Not there after 20 s: '+left.join(', ')+" — that keyboard's log says why.",true);return}
+          copyMsg('Copied '+items.length+' Host Action'+(items.length>1?'s':'')+' to '+targets.map(t=>t.label).join(', ')+'.');
           items.forEach(it=>longChanged(it.name));
           // Done, so the ticks go — the line above says what went where. A copy
           // that stops part-way keeps them, so trying again is one press.
-          picked.clear();copyTo.clear();
+          picked.clear();copyTo.clear();copyKey='';
           list.querySelectorAll('.ovr-row>input[type=checkbox]').forEach(c=>{c.checked=false});
           renderCopy();
         });
       })
       .catch(e=>copyMsg((done?'Copied '+done+', then stopped — ':'Nothing copied — ')+e.message,true))
-      .then(syncCopy);
+      .then(()=>{copyBusy=false;syncCopy()});
   });
+  // Reads each linked keyboard's host again until every copied Host Action is
+  // there as written, or 20 s pass. Resolves to what never arrived.
+  function landed(targets,items){
+    if(!targets.length)return Promise.resolve([]);
+    const t0=Date.now();
+    const round=()=>{
+      const left=[];
+      let chain=Promise.resolve();
+      targets.forEach(t=>{
+        chain=chain.then(()=>peerOverrides(t.n,t.slot,true)).then(got=>{
+          items.forEach(it=>{if(!got.some(x=>x.name===it.name&&x.action===it.action))left.push(t.label+': '+it.name)});
+        },()=>{items.forEach(it=>left.push(t.label+': '+it.name))});
+      });
+      return chain.then(()=>!left.length||Date.now()-t0>20000?left:new Promise(ok=>setTimeout(ok,1500)).then(round));
+    };
+    return round();
+  }
 
   saveBtn.addEventListener('click',()=>{
     const n=nameIn.value.trim(),a=actIn.value.trim();

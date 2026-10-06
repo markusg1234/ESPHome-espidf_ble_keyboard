@@ -562,11 +562,39 @@ __attribute__((noinline)) static void send_peers(AsyncWebServerRequest *request,
   httpd_resp_send_chunk(req, nullptr, 0);
 }
 
+// A linked keyboard's Host Actions for one of its hosts, which the page compares
+// with before copying some there and reads again to see them land. Read on the
+// action task and never waited for here: 202 means ask again shortly. Out of
+// line, like send_peers, so its locals stay out of handleRequest's frame.
+__attribute__((noinline)) static void serve_peer_read(AsyncWebServerRequest *request, EspidfBleKeyboard *kb) {
+  kb->note_peer_interest();  // what keeps the action task reading peers
+  const int index = kb->peer_index(request->arg("peer"));
+  const int slot = parse_byte_arg(request, "slot", -1);
+  std::shared_ptr<const std::string> reply;
+  int code = 400;
+  const char *text = "Needs a peer, ep=overrides and a slot";
+  if (index >= 0 && request->arg("ep") == "overrides" && slot >= 0 && slot < 10) {
+    const int r = kb->peer_read(index, "/api/ble_keyboard/overrides?slot=" + std::to_string(slot),
+                                request->hasArg("fresh"), reply);
+    code = r > 0 ? 200 : (r == 0 ? 202 : 502);
+    text = r == 0 ? "Reading" : "That keyboard did not answer";
+  }
+  // The reply is sent from where the cache holds it: send() writes it out
+  // before returning, and `reply` keeps it alive until then.
+  AsyncWebServerResponse *response =
+      code == 200 ? request->beginResponse(200, "application/json", reinterpret_cast<const uint8_t *>(reply->data()),
+                                           reply->size())
+                  : request->beginResponse(code, "text/plain", reinterpret_cast<const uint8_t *>(text), strlen(text));
+  response->addHeader("Connection", "close");
+  request->send(response);
+}
+
 // The keyboard and mouse cards of a tab driving a linked keyboard: each request
 // exactly as the page would have made it here, passed on to the same endpoint
 // over there — so a typed '|', a held character or a scroll mean what they
-// always did. Only the endpoints those cards use, and macro_set, which copies a
-// macro there. Null on success, else why not.
+// always did. Only the endpoints those cards use, and macro_set and
+// override_set, which copy a macro or a Host Action there. Null on success, else
+// why not.
 __attribute__((noinline)) static const char *forward_to_peer(AsyncWebServerRequest *request, EspidfBleKeyboard *kb) {
   const int index = kb->peer_index(request->arg("peer"));
   if (index < 0)
@@ -591,6 +619,7 @@ __attribute__((noinline)) static const char *forward_to_peer(AsyncWebServerReque
       {"hold_key", {"char", "modifier", "keycode"}}, {"release", {nullptr, nullptr, nullptr}},
       {"mouse_click", {"btn", nullptr, nullptr}}, {"mouse_hold", {"btn", nullptr, nullptr}},
       {"mouse_release", {nullptr, nullptr, nullptr}}, {"macro_set", {"name", "action", nullptr}},
+      {"override_set", {"slot", "name", "action"}},
   };
   for (const auto &f : FORWARDED) {
     if (ep != f.ep)
@@ -758,9 +787,10 @@ class BleKbWebHandler : public AsyncWebHandler {
     // reads of a linked keyboard hold off until it settles — see
     // refresh_peers_(). The page itself is marked in its own branch above.
     // `state` is another keyboard's own poll of this one: counting it would let
-    // two keyboards that list each other keep pausing each other.
+    // two keyboards that list each other keep pausing each other. `peer_read` is
+    // the page waiting on a read, which counting would hold off.
     if (path != "status" && path != "hosts" && path != "peers" && path != "memory" && path != "state" &&
-        path != "goto_last")
+        path != "goto_last" && path != "peer_read")
       kb_->note_web_busy();
 #endif
 
@@ -811,6 +841,10 @@ class BleKbWebHandler : public AsyncWebHandler {
     if (path == "peers") {
       kb_->note_peer_interest();
       send_peers(request, kb_);
+      return;
+    }
+    if (path == "peer_read") {
+      serve_peer_read(request, kb_);
       return;
     }
 #endif

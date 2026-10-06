@@ -564,6 +564,11 @@ class EspidfBleKeyboard : public Component
   /// Mouse movement and scrolling for a peer. Summed here and sent as one
   /// request whenever the last one has gone, so a drag never builds a backlog.
   void peer_add_motion(int index, int dx, int dy, int scroll);
+  /// A peer's GET reply at `path`, for the page, fetched on the action task and
+  /// never waited for here: 1 with `out` once it has arrived, 0 while it is
+  /// being read (ask again), -1 when it could not be. `fresh` reads it again
+  /// rather than giving a copy read moments ago.
+  int peer_read(int index, const std::string &path, bool fresh, std::shared_ptr<const std::string> &out);
 #endif
 
   void set_paired_binary_sensor(binary_sensor::BinarySensor *sensor) {
@@ -1325,6 +1330,12 @@ class EspidfBleKeyboard : public Component
     uint32_t down_until_ms{0};  // after it can't be reached, presses are dropped until this
     bool ok{false};             // whether it is answering; what greys its bar
     uint8_t read_fails{0};      // /state reads failed in a row
+    // A read the page asked for through peer_read (one host's Host Actions): its
+    // path while it waits, then which path the reply answers, and the reply.
+    std::string read_want, read_have;
+    std::shared_ptr<const std::string> read_reply;
+    uint32_t read_at{0};
+    bool read_failed{false};
   };
   std::vector<Peer> peers_;
   SemaphoreHandle_t peer_mutex_{nullptr};
@@ -1342,6 +1353,7 @@ class EspidfBleKeyboard : public Component
   static const uint32_t PEER_POLL_MS = 4000;
   static const uint32_t PEER_RETRY_MS = 15000;
   static const uint32_t PEER_INTEREST_MS = 15000;
+  static const uint32_t PEER_READ_KEEP_MS = 15000;  // a peer_read reply is given again for this long
   static const uint32_t PEER_SLOW_MS = 700;
   static const size_t PEER_MAX_REPLY = 6144;
   static const size_t PEER_MAX_CHAIN = 240;
