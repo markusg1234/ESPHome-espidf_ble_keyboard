@@ -4,6 +4,17 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
+## Unreleased
+
+### Added
+- **Macros follow a tab onto a linked keyboard.** Tapped while the tab drives one, a macro runs on
+  this keyboard and its keys go to the linked one's host, in order, its delays and typing kept. An
+  action does the same from YAML, Home Assistant or a Host Action. Buttons stay on this keyboard.
+
+### Fixed
+- **Text typed on a linked keyboard from a Home Assistant card or a macro keeps its `|`** instead of
+  losing it and running what followed as an action.
+
 ## v1.15.0 — 2026-10-06
 
 ### Added

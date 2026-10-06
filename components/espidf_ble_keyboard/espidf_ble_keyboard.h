@@ -1362,12 +1362,28 @@ class EspidfBleKeyboard : public Component
   // "motion", and the form-encoded body for the rest.
   static const char PEER_JOB = '\x1F';
   static const size_t MAX_PEERS = 4;          // keep in sync with MAX_PEERS in __init__.py
-  static const size_t PEER_MAX_TEXT_BODY = 800;  // typed text merged into one request, encoded
+  static const size_t PEER_MAX_TEXT_BODY = 800;  // typed text or to: steps merged into one request, encoded
   std::atomic<int32_t> peer_dx_[MAX_PEERS]{}, peer_dy_[MAX_PEERS]{}, peer_scroll_[MAX_PEERS]{};
   std::atomic<bool> peer_motion_queued_[MAX_PEERS]{};
   PeerResult peer_post_(Peer &p, const std::string &path, const std::string &body, const char *what);
   void run_peer_forward_(const std::string &job);
   void flush_peer_motion_(int index);
+  // A to:<name>:<action> run: the action is worked out here, and each step it
+  // would send to a host is gathered, in order, into one chain for that peer's
+  // /press. Only the action task runs one, so only it touches these.
+  int8_t out_peer_{-1};      // the peer this run's keys go to; -1 outside a run
+  bool out_sent_{false};     // this run has sent that peer something already
+  std::string out_body_;     // the request being gathered, form-encoded
+  size_t out_head_{0};       // out_body_'s length before its first step
+  size_t out_tail_{0};       // ... and before the delays it ends with
+  uint32_t out_tail_ms_{0};  // what those delays add up to
+  // The task first: any other task never reads out_peer_ at all.
+  bool redirecting_() const { return xTaskGetCurrentTaskHandle() == action_task_ && out_peer_ >= 0; }
+  void run_to_peer_(const std::string &action);
+  bool gather_for_peer_(const std::string &step);
+  void flush_for_peer_(bool before_local);
+#else
+  bool redirecting_() const { return false; }
 #endif
 
   // RSSI state (interval/timing/callbacks stay protected — only touched by member functions)

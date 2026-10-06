@@ -370,7 +370,7 @@
     <div class="feature">
       <div class="feature-icon">🔗</div>
       <h3>Linked Keyboards</h3>
-      <p>List a second ESP32 running this component under <code>peers:</code> and its hosts join this one's web page in a bar of their own. Tap one and the remote, keyboard, paste box and mouse drive it over Wi-Fi — for hosts one keyboard's Bluetooth can't reach. Macros reach it with <code>peer:&lt;name&gt;:&lt;action&gt;</code>, and a Home Assistant card can step through both keyboards' hosts.</p>
+      <p>List a second ESP32 running this component under <code>peers:</code> and its hosts join this one's web page in a bar of their own. Tap one and the remote, keyboard, paste box, mouse and this keyboard's macros drive it over Wi-Fi — for hosts one keyboard's Bluetooth can't reach. Actions reach it with <code>peer:&lt;name&gt;:&lt;action&gt;</code> and <code>to:&lt;name&gt;:&lt;action&gt;</code>, and a Home Assistant card can step through both keyboards' hosts.</p>
     </div>
     <div class="feature">
       <div class="feature-icon">🌍</div>
@@ -516,6 +516,7 @@
       <tr><td><code>"prev_host"</code> / <code>"next_host"</code> / <code>"last_host"</code></td><td class="desc">The same three as remote keys a style can place, remappable per host.</td></tr>
       <tr><td><code>"next_keyboard"</code> / <code>"prev_host_all"</code> / <code>"next_host_all"</code></td><td class="desc">Web page remote only: move the tab to the next linked keyboard, or through every host of every linked keyboard.</td></tr>
       <tr><td><code>"peer:&lt;name&gt;:&lt;action&gt;"</code></td><td class="desc">Run an action on a linked keyboard listed under <code>peers:</code> — <code>"peer:bedroom:switch_host:1"</code>.</td></tr>
+      <tr><td><code>"to:&lt;name&gt;:&lt;action&gt;"</code></td><td class="desc">Run an action on this keyboard with its keys sent to a linked keyboard's host — <code>"to:bedroom:macro:Netflix"</code>, this keyboard's macro typed over there.</td></tr>
       <tr><td><code>"back@long"</code></td><td class="desc">What a long press on a remote key sends. A Host Action with this name is that key's second action on that host; without one it does nothing.</td></tr>
       <tr><td><code>"host_action:6:spare1"</code></td><td class="desc">Run slot 6's Host Action for <code>spare1</code> without switching host. A name that slot has no action for runs as an ordinary press on the active host.</td></tr>
       <tr><td><code>"wait:connected"</code></td><td class="desc">Hold a macro until the active host is connected and ready for keys, rather than guessing a delay. Up to 10 s, or <code>"wait:connected:N"</code> ms (max 60000); carries on if the host never connects.</td></tr>

@@ -756,7 +756,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.15.0</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.16.0-dev</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -780,12 +780,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="host-bar" id="host-bar" style="display:none"></div>
 <div id="peer-bars"></div>
 <div class="card" id="keyboard">
-<div class="kb-header"><span class="kb-title">Keyboard<span class="kb-drives" hidden></span></span><div class="kb-paste"><textarea id="kb-paste-text" rows="1" maxlength="5000" placeholder="Paste text to type&hellip;" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea><button class="kb-paste-btn" id="kb-paste-clip" title="Read clipboard &amp; type it" style="display:none">&#128203;</button><label class="kb-paste-auto" title="Type pasted text immediately"><input type="checkbox" id="kb-paste-autock">auto</label><button class="kb-paste-btn" id="kb-paste-send">Send</button></div><select id="layoutSel" class="layout-sel"></select></div>
+<div class="kb-header"><span class="kb-title">Keyboard<span class="kb-drives" data-why="Typing and pointing go to %s, the keyboard the remote is driving." hidden></span></span><div class="kb-paste"><textarea id="kb-paste-text" rows="1" maxlength="5000" placeholder="Paste text to type&hellip;" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea><button class="kb-paste-btn" id="kb-paste-clip" title="Read clipboard &amp; type it" style="display:none">&#128203;</button><label class="kb-paste-auto" title="Type pasted text immediately"><input type="checkbox" id="kb-paste-autock">auto</label><button class="kb-paste-btn" id="kb-paste-send">Send</button></div><select id="layoutSel" class="layout-sel"></select></div>
 <div id="kb-rows"></div>
 </div>
 
 <div class="card" id="mouse-card">
-<h2><svg viewBox="0 0 24 24"><path d="M12 2C8.14 2 5 5.14 5 9v6c0 3.86 3.14 7 7 7s7-3.14 7-7V9c0-3.86-3.14-7-7-7zm0 2c2.76 0 5 2.24 5 5v2h-4V5h-2v6H7V9c0-2.76 2.24-5 5-5z"/></svg>Mouse<span class="kb-drives" hidden></span></h2>
+<h2><svg viewBox="0 0 24 24"><path d="M12 2C8.14 2 5 5.14 5 9v6c0 3.86 3.14 7 7 7s7-3.14 7-7V9c0-3.86-3.14-7-7-7zm0 2c2.76 0 5 2.24 5 5v2h-4V5h-2v6H7V9c0-2.76 2.24-5 5-5z"/></svg>Mouse<span class="kb-drives" data-why="Typing and pointing go to %s, the keyboard the remote is driving." hidden></span></h2>
 <div class="touchpad" id="touchpad"><span class="touchpad-hint">Drag to move</span></div>
 <div class="mbtn-row">
 <button class="mbtn" id="ml">Left</button>
@@ -800,7 +800,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </div>
 
 <div class="card" id="finder-card">
-<h2><svg viewBox="0 0 24 24"><path d="M11 2h2v6h-2zM2 11h6v2H2zm14 0h6v2h-6zm-5 5h2v6h-2zM7 7l3 3-1.4 1.4L5.6 8.4zm10 0l1.4 1.4-3 3L14 11zm0 10l-3-3 1.4-1.4 3 3zM7 17l-1.4-1.4 3-3L10 14z"/></svg>Position Finder<span class="kb-drives" data-local hidden></span><button class="macro-edit-btn" id="finder-edit-toggle">Edit</button></h2>
+<h2><svg viewBox="0 0 24 24"><path d="M11 2h2v6h-2zM2 11h6v2H2zm14 0h6v2h-6zm-5 5h2v6h-2zM7 7l3 3-1.4 1.4L5.6 8.4zm10 0l1.4 1.4-3 3L14 11zm0 10l-3-3 1.4-1.4 3 3zM7 17l-1.4-1.4 3-3L10 14z"/></svg>Position Finder<span class="kb-drives" data-local data-why="Stays on this keyboard: its calibration belongs to this keyboard's own screens." hidden></span><button class="macro-edit-btn" id="finder-edit-toggle">Edit</button></h2>
 <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Locked by default so a stray tap can't move the cursor &mdash; click <strong>Edit</strong> to aim &amp; calibrate. Then press &amp; drag the map to move the cursor; copy the <code>mouse_goto</code> value into a button/macro.</div>
 <div id="finder-map" style="position:relative;width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none"></div>
 <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
@@ -854,12 +854,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </div>
 
 <div class="card" id="btns-card">
-<h2><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 12h2v2H7v-2zm0-4h2v2H7V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8z"/></svg>Buttons</h2>
+<h2><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 12h2v2H7v-2zm0-4h2v2H7V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8z"/></svg>Buttons<span class="kb-drives" data-local data-why="Stays on this keyboard: these are its own buttons." hidden></span></h2>
 <div class="prog-btns" id="prog-btns"><span class="prog-empty">Loading...</span></div>
 </div>
 
 <div class="card macros-card" id="macros-card">
-<h2><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 12h2v2H7v-2zm0-4h2v2H7V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8z"/></svg>Macros<button class="macro-edit-btn" id="macro-edit-toggle">Edit</button><button class="macro-edit-btn" id="macro-rec" title="Record a macro by performing it: press the remote, keyboard and mouse buttons in order, then press Stop to write the steps into the action box.">Record</button></h2>
+<h2><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 12h2v2H7v-2zm0-4h2v2H7V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8zm4 4h2v2h-2v-2zm0-4h2v2h-2V8z"/></svg>Macros<span class="kb-drives" data-why="This keyboard's macros, run here with their keys sent to %s." hidden></span><button class="macro-edit-btn" id="macro-edit-toggle">Edit</button><button class="macro-edit-btn" id="macro-rec" title="Record a macro by performing it: press the remote, keyboard and mouse buttons in order, then press Stop to write the steps into the action box.">Record</button></h2>
 <div class="prog-btns" id="macro-btns"><span class="prog-empty">Loading...</span></div>
 <div class="macro-form" id="macro-form">
 <input id="mn" placeholder="Name" maxlength="31" title="Must be unique and cannot contain '|'.&#10;Host actions reference a macro by name (macro:&lt;name&gt;), so renaming one breaks any override pointing at it.">
@@ -1377,7 +1377,8 @@ function recPaint(){
 
 function recordStep(endpoint,params){
   // Keys and mouse sent to a linked keyboard are recorded as going there, so the
-  // macro replays where it was recorded. A remote press arrives already wrapped.
+  // macro replays where it was recorded. A remote press or a macro tap arrives
+  // already wrapped.
   const pfx=endpoint!=='press'&&peerLock()!==null?'peer:'+peerLock()+':':'';
   const raw=recStepFor(endpoint,params||{});
   if(!raw)return;
@@ -3240,7 +3241,9 @@ function hostBtn(s,active,kb){
 // drawn from the copy of its /state that this keyboard keeps while a page asks.
 // Tapping one of its hosts moves this tab's remote onto it (?peer= in the
 // address), and every key then goes out as peer:<name>:<key> for this keyboard
-// to pass on. Only the remote moves: keyboard, mouse and Host Actions stay here.
+// to pass on. Keyboard and mouse follow it (apiPost), and so do macros, which run
+// here with their keys sent there (to:); Host Actions, Buttons and the Position
+// Finder stay here.
 (function(){
   const wrap=document.getElementById('peer-bars');
   let order=[],started=false,firstAnswer=true;
@@ -3378,10 +3381,11 @@ function hostBtn(s,active,kb){
       const og=document.createElement('optgroup');
       og.label='Linked keyboards';og.className='peer-preset';
       order.forEach(n=>{
-        [['switch_host:','switch to host (edit slot)'],['next_host','next host'],['prev_host','prev host'],
-         ['','any action (edit)']].forEach(([act,label])=>{
+        [['peer:','switch_host:','switch to host (edit slot)'],['peer:','next_host','next host'],
+         ['peer:','prev_host','prev host'],['peer:','','any action (edit)'],
+         ['to:','macro:','macro from here (edit name)']].forEach(([verb,act,label])=>{
           const o=document.createElement('option');
-          o.value='peer:'+n+':'+act;
+          o.value=verb+n+':'+act;
           o.textContent=n+': '+label;
           og.appendChild(o);
         });
@@ -3424,21 +3428,18 @@ function hostBtn(s,active,kb){
     if(window.applyRepeat)window.applyRepeat(false);
     if(window.applyHold)window.applyHold(false);
   };
-  // Which keyboard each card drives while the tab is on a linked one: keyboard
-  // and mouse go there with the remote; the Position Finder, calibrated for this
-  // keyboard's own screens, stays here (data-local).
+  // Which keyboard each card drives while the tab is on a linked one: keyboard,
+  // mouse and macros go there with the remote; the Position Finder, calibrated
+  // for this keyboard's own screens, and this keyboard's Buttons stay here
+  // (data-local). Each note's tooltip is its data-why, %s the keyboard's name.
   function drivesNote(){
     const p=RMT_PEER!==null&&PEERS[RMT_PEER],st=p&&p.state;
     const peerName=(st&&st.status&&st.status.device_name)||RMT_PEER;
     document.querySelectorAll('.kb-drives').forEach(el=>{
       el.hidden=RMT_PEER===null;
-      if(el.hasAttribute('data-local')){
-        el.textContent='→ '+(LOCAL_NAME||'this keyboard');
-        el.title='Stays on this keyboard: its calibration belongs to this keyboard\'s own screens.';
-      }else{
-        el.textContent='→ '+peerName;
-        el.title='Typing and pointing go to '+peerName+', the keyboard the remote is driving.';
-      }
+      const name=el.hasAttribute('data-local')?(LOCAL_NAME||'this keyboard'):peerName;
+      el.textContent='→ '+name;
+      el.title=(el.dataset.why||'').replace('%s',name);
     });
   }
   // The tab moved onto, off, or between keyboards.
@@ -3488,11 +3489,11 @@ let knownMacroNames=null;
 let reflagOverrides=null;
 
 // Pull every macro reference out of an action string, mirroring the firmware's
-// own parse order (repeat: and alternate: are read before the '|' split, and a
-// step is only a reference if it *starts* with macro:). Matching the parser
-// rather than pattern-matching the text is what keeps this honest: it finds
-// nested refs like 'repeat:3:macro:X' and ignores literal text that merely
-// contains 'macro:', such as 'string:run macro:later'.
+// own parse order (repeat: and alternate: are read before the '|' split, a to:
+// step runs its action here, and a step is only a reference if it *starts* with
+// macro:). Matching the parser rather than pattern-matching the text is what
+// keeps this honest: it finds nested refs like 'repeat:3:macro:X' and ignores
+// literal text that merely contains 'macro:', such as 'string:run macro:later'.
 function macroRefs(action,out){
   out=out||[];
   const a=String(action||'').trim();
@@ -3508,6 +3509,11 @@ function macroRefs(action,out){
   }
   if(a.indexOf('|')!==-1){
     a.split('|').forEach(s=>macroRefs(s,out));
+    return out;
+  }
+  if(a.indexOf('to:')===0){
+    const sep=a.indexOf(':',3);
+    if(sep!==-1)macroRefs(a.substring(sep+1),out);
     return out;
   }
   if(a.indexOf('macro:')===0){
@@ -3634,7 +3640,9 @@ function insertStep(el,val){
           // into a button, an override or an automation, since it survives a
           // delete that renumbers the indices.
           el.title=editing?'Macro #'+b.index+' — macro:'+b.name+'\n'+b.action:b.name;
-          onTap(el,()=>api('press',{action:b.action}));
+          // On a tab driving a linked keyboard the macro runs here and its keys go
+          // there. By name: wrapped round the text, only its first step would be.
+          onTap(el,()=>api('press',{action:peerLock()!==null?'to:'+peerLock()+':macro:'+b.name:b.action}));
           const eb=document.createElement('button');
           eb.className='macro-act';
           eb.textContent='\u270E';

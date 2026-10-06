@@ -5006,8 +5006,9 @@ __attribute__((noinline)) void EspidfBleKeyboard::run_steps_(const std::string &
             execute_action(step);
         }
         start = end + 1;
-        if (start < action.size()) {
-            // Text a step queued is typed before the next step runs.
+        // Text a step queued is typed before the next step runs. Not in a to: run:
+        // its steps are only gathered here, and the keyboard they go to spaces them.
+        if (start < action.size() && !redirecting_()) {
             wait_typed_();
             if (step.find("delay:") != 0) vTaskDelay(pdMS_TO_TICKS(50));
         }
@@ -5150,9 +5151,11 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
     // that was actually pressed.
     // Container verbs are excluded: recording one verbatim would put a whole
     // conditional or a repeat count on a panel instead of the key that was hit.
-    // A press sent to a linked keyboard is that keyboard's to show, not this one's.
+    // A press sent to a linked keyboard is that keyboard's to show, not this one's,
+    // and so are the keys of a to: step.
     if (action_depth_ == 1 && action.find("lcd:") != 0 && action.find("if:") != 0 &&
-        action.find("alternate:") != 0 && action.find("repeat:") != 0 && action.find("peer:") != 0) {
+        action.find("alternate:") != 0 && action.find("repeat:") != 0 && action.find("peer:") != 0 &&
+        action.find("to:") != 0) {
         // A key pressed on a tab showing another host's page arrives wrapped in
         // host_action:N:, and the panel wants the key — the style labels it — not
         // the wrapper.
@@ -5208,6 +5211,11 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
     // branch into pieces and run its tail unconditionally.
     if (action.find("if:") == 0) { run_if_(action); return; }
 #ifdef USE_BLE_KB_PEERS
+    // A step of a to: run. Whatever it would send to a host is gathered for that
+    // keyboard instead — gather_for_peer_() says which steps; the rest run here.
+    // The three verbs above have already chosen what runs, here, as they would
+    // without it.
+    if (redirecting_() && gather_for_peer_(action)) return;
     // Text typed on a linked keyboard runs to the end of the string, '|' and
     // all: splitting it would chop the text and run its tail as an action here.
     // Only this one peer form is taken before the split — `peer:x:a | peer:x:b`
@@ -5360,6 +5368,17 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
     if (action.rfind("peer:", 0) == 0) {
 #ifdef USE_BLE_KB_PEERS
         run_peer_action_(action);
+#else
+        ESP_LOGW(TAG, "%s needs a peers: list in this keyboard's YAML", action.c_str());
+#endif
+        return;
+    }
+    // Run an action here with its keys going to a linked keyboard's host: this
+    // keyboard's macro, that keyboard's keys. Consumed without peers: too, as peer:
+    // is, so it is never typed.
+    if (action.rfind("to:", 0) == 0) {
+#ifdef USE_BLE_KB_PEERS
+        run_to_peer_(action);
 #else
         ESP_LOGW(TAG, "%s needs a peers: list in this keyboard's YAML", action.c_str());
 #endif

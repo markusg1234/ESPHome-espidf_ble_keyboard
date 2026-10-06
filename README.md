@@ -5,7 +5,7 @@ This is a custom [ESPHome](https://esphome.io) component that turns an ESP32 int
 ## Features
 
 * **Universal Remote:** A web remote and Home Assistant card, drawn in built-in or your own styles with logos and a small status screen. Any key on any host can fire a Home Assistant action, such as sending an IR command, alongside keys that go over Bluetooth — power over IR and navigation over Bluetooth on the same page, say. A host slot can also have Bluetooth turned off to act purely as a remote page. Styles travel: **Export all** on one keyboard's page and **Import** on another copies every style you have made, logos included, in one paste. See [A slot that never advertises](#a-slot-that-never-advertises) and [Copying styles to another keyboard](#copying-styles-to-another-keyboard).
-* **Linked Keyboards:** A second ESP32 running this component, listed under `peers:`, puts its hosts on this one's web page as a bar of their own — tap one and the remote, keyboard, paste box and mouse drive it over Wi-Fi, for hosts one keyboard's Bluetooth can't reach. Macros reach it with `peer:<name>:<action>`, and a Home Assistant card can step through both keyboards' hosts. See [Linking a second keyboard](#linking-a-second-keyboard).
+* **Linked Keyboards:** A second ESP32 running this component, listed under `peers:`, puts its hosts on this one's web page as a bar of their own — tap one and the remote, keyboard, paste box, mouse and this keyboard's macros drive it over Wi-Fi, for hosts one keyboard's Bluetooth can't reach. Actions reach it with `peer:<name>:<action>` and `to:<name>:<action>`, and a Home Assistant card can step through both keyboards' hosts. See [Linking a second keyboard](#linking-a-second-keyboard).
 * **Standard HID Keyboard:** Recognized as a native keyboard by Windows, Android, and iOS. Full HOGP-compliant BLE HID with Device Information and Battery services. Use `passkey_mode: legacy` for Windows (Just Works for Android), `passkey_mode: secure_connections` for iOS.
 * **Secure Pairing:** Supports a configurable 6-digit static passkey (PIN) for secure bonding on Windows and iOS. Android uses Just Works pairing (no PIN) due to HID compatibility limitations.
 * **Efficient Memory Usage:** Direct API implementation ensures stability even with complex ESPHome configurations.
@@ -621,6 +621,7 @@ espidf_ble_keyboard:
 | `"switch_host:back"` | Return to the host slot that was active before the last switch, however that switch was made. Pressed again, it goes back again. |
 | `"host_action:N:<name>"` | Run host slot N's Host Action for `<name>` without switching to it. If slot N has no action for that name, it runs as an ordinary press on the active host. |
 | `"peer:<name>:<action>"` | Run `<action>` on a [linked keyboard](#linking-a-second-keyboard), exactly as its own page would — `peer:bedroom:volume_up`, `peer:bedroom:switch_host:1`. |
+| `"to:<name>:<action>"` | Run `<action>` on this keyboard, with its keys sent to a [linked keyboard](#linking-a-second-keyboard)'s host — `to:bedroom:macro:Netflix`. `macro:`, `if:`, `alternate:`, `repeat:`, `press_button:` and `ha_action:` are worked out here as the macro reaches them; the rest go over in one request, delays included. One step, like `peer:`: for a sequence, name a macro. |
 | `"wait:connected"` / `"wait:connected:N"` | Pause a macro until the active host is connected and ready for keys, for at most N ms (default 10000, max 60000). On timeout the macro carries on. |
 | `"forget_host:N"` | Remove BLE bond for host slot N (0–9) and clear the slot. |
 | `"lcd:<text>"` | Put text on an [LCD panel](#lcd-panels)'s `@msg` line. Everything after the colon is the text. |
@@ -1563,6 +1564,7 @@ The panel is a deliberate 16 characters wide, so it sits inside the 280px body a
 | `"prev_host"` / `"next_host"` / `"last_host"` | The same three as remote keys a style can place, remappable per host like any other. |
 | `"host_action:N:<name>"` | Run slot N's [Host Action](#host-actions-per-host-overrides) for `<name>` whichever host is active — `host_action:6:spare1`. A name slot N has no action for runs as an ordinary press. What a tab [showing a host's page](#remote-style-per-host) sends for every key. |
 | `"peer:<name>:<action>"` | Run an action on a [linked keyboard](#linking-a-second-keyboard). What a tab driving that keyboard sends for every key. |
+| `"to:<name>:<action>"` | Run an action on this keyboard with its keys sent to a [linked keyboard](#linking-a-second-keyboard) — `to:bedroom:macro:Netflix`. What a tab driving that keyboard sends for a macro. |
 | `"wait:connected"` | Hold a macro until the active host is ready for keys, up to 10 s (`wait:connected:N` for N ms). |
 | `"forget_host:N"` | Remove the bond for host slot N (0–9). Clears the stored address and removes the BLE bond from the ESP32. If the forgotten host is currently connected, it is disconnected. |
 | `"press_button:<object_id>"` | Press another ESPHome button — e.g. `press_button:samsung_43_m70f_wol`. See [Pressing other ESPHome buttons](#pressing-other-esphome-buttons). |
@@ -2244,14 +2246,15 @@ espidf_ble_keyboard:
       password: !secret bedroom_web_password
 ```
 
-The page then shows a bar of that keyboard's hosts below its own. Tap one and that keyboard switches to it, and the remote, keyboard, paste box and mouse all drive it — the remote in that host's style with its hidden, hold and repeat lists. Tap one of this keyboard's hosts to come back. The choice belongs to the tab (`?peer=bedroom` in the address), so one tab can drive the bedroom while another drives the lounge.
+The page then shows a bar of that keyboard's hosts below its own. Tap one and that keyboard switches to it, and the remote, keyboard, paste box and mouse all drive it — the remote in that host's style with its hidden, hold and repeat lists. Macros do too: tapped on that tab, a macro runs on this keyboard and its keys go to the linked one. Tap one of this keyboard's hosts to come back. The choice belongs to the tab (`?peer=bedroom` in the address), so one tab can drive the bedroom while another drives the lounge.
 
-- The Position Finder and Host Actions stay on this keyboard, and the linked one's settings stay on its own page.
+- The Position Finder, Buttons and Host Actions stay on this keyboard, and the linked one's settings stay on its own page.
 - Everything goes by way of this keyboard, so it is only as quick as the Wi-Fi between them: mouse movement is gathered up and sent a piece at a time rather than streamed.
 - Styles are not copied between keyboards by the link itself, but **Export all** on one page and **Import** on the other copies the lot in one paste — see [Copying styles to another keyboard](#copying-styles-to-another-keyboard). Until a style is there, that host draws the full remote and its bar says which style is missing.
 - Both keyboards need firmware with this feature.
 - Give the address as an IP address or the keyboard's `.local` name.
 - A macro or button reaches it the same way, with [`peer:bedroom:<action>`](#action-reference); the preset lists in Macros and Host Actions offer the common ones. That switches the other keyboard, not the tab.
+- `peer:bedroom:<action>` runs the action on the bedroom keyboard. `to:bedroom:<action>` runs it on this one with its keys sent there, which is what a tab driving the bedroom sends for a macro: `to:bedroom:macro:Netflix` is this keyboard's Netflix macro, typed on the bedroom's host. The macro's references, conditions, buttons and Home Assistant calls are worked out here. Its keys, text, delays and host switches go over as one request and run there in order, with that keyboard's Host Actions.
 - A Home Assistant card can drive a linked keyboard too: list its hosts under `peer_hosts` and they join the card's switcher after this keyboard's own, so the arrows carry on from one keyboard's hosts into the other's and every press follows whichever host is selected. What those hosts are called and which style to draw are the card's own settings — the sensors and the direct read describe the keyboard the card points at, not the linked one:
 
 ```yaml
@@ -2936,7 +2939,9 @@ Notes and limits:
   blocked and you opened the remote in an ordinary tab instead, that tab has no link back and won't
   record.
 - Pressing an existing macro's button records its actions inline rather than as a `macro:<name>`
-  reference, so the new macro stands on its own.
+  reference, so the new macro stands on its own. On a tab driving a
+  [linked keyboard](#linking-a-second-keyboard) it records `to:<keyboard>:macro:<name>`, a reference:
+  only a single step can be sent there.
 
 ### Multi-Step Macros
 

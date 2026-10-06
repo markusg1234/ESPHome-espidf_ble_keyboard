@@ -315,6 +315,10 @@ button:
   #   action: "peer:bedroom:volume_up"
   # - platform: espidf_ble_keyboard
   #   keyboard_id: my_keyboard
+  #   name: "Bedroom Netflix"
+  #   action: "to:bedroom:macro:Netflix"
+  # - platform: espidf_ble_keyboard
+  #   keyboard_id: my_keyboard
   #   name: "TV Power"
   #   action: "ha_action:remote.send_command;entity_id=remote.living_room_ir;command=power"
 

@@ -1,4 +1,4 @@
-// Linked keyboards: the peer: verb, and the cache of each peer's /state that
+// Linked keyboards: the peer: and to: verbs, and the cache of each peer's /state that
 // lets this keyboard's page show another keyboard's hosts. Compiled only when
 // the config lists peers: — a keyboard without peers carries none of this.
 //
@@ -496,13 +496,140 @@ void EspidfBleKeyboard::run_peer_action_(const std::string &action) {
     queue_action(action);
     return;
   }
-  std::string body = "action=";
-  body.reserve(7 + (action.size() - sep) * 3);
-  form_encode_append(body, action.substr(sep + 1));
+  // Text goes to its /string, which types it as it is. Its /press would run it
+  // through its own execute_action, which splits at a '|' and runs whatever
+  // follows as an action over there.
+  const bool text = action.compare(sep + 1, 7, "string:") == 0;
+  const size_t from = text ? sep + 8 : sep + 1;
+  std::string body = text ? "keys=" : "action=";
+  body.reserve(body.size() + (action.size() - from) * 3);
+  form_encode_append(body, action.substr(from));
+  const PeerResult r =
+      peer_post_(*p, text ? "/api/ble_keyboard/string" : "/api/ble_keyboard/press", body, action.c_str() + sep + 1);
   // A press can switch its host or re-skin its remote, so read it again soon
   // instead of on the usual timer — only happens while a page is looking.
-  if (peer_post_(*p, "/api/ble_keyboard/press", body, action.c_str() + sep + 1) == PEER_OK)
+  // Text does neither.
+  if (r == PEER_OK && !text)
     p->next_due_ms = (millis() + 300) | 1;
+}
+
+// to:<name>:<action> — run <action> on this keyboard, with everything it would
+// send to a host sent to that keyboard's host instead: this keyboard's macro,
+// conditions and buttons, that keyboard's keys and Host Actions. What a tab
+// driving a linked keyboard sends for a macro. What runs here and what goes
+// over is gather_for_peer_()'s call. What goes over travels as one chain, so it
+// runs over there in order, delays and all, each step waiting for the text an
+// earlier one typed — sent a step at a time, an Enter would land mid-text.
+void EspidfBleKeyboard::run_to_peer_(const std::string &action) {
+  const size_t sep = action.find(':', 3);
+  if (sep == std::string::npos || sep == 3 || sep + 1 >= action.size()) {
+    ESP_LOGW(TAG, "to: needs a name and an action, e.g. to:bedroom:macro:Netflix — got %s", action.c_str());
+    return;
+  }
+  const int index = peer_index(action.substr(3, sep - 3));
+  if (index < 0) {
+    ESP_LOGW(TAG, "No peer called '%s' — peers: in this keyboard's YAML names them",
+             action.substr(3, sep - 3).c_str());
+    return;
+  }
+  // On the action task only: the loop must never wait on the network, and a
+  // chain the loop runs meanwhile must not have its keys gathered into this one.
+  if (xTaskGetCurrentTaskHandle() != action_task_) {
+    if (action_task_ != nullptr) {
+      queue_action(action);
+    } else {
+      ESP_LOGW(TAG, "%s needs the action task, which could not be started", action.c_str());
+    }
+    return;
+  }
+  // A to: inside another: what that one gathered went before this step reached
+  // here (gather_for_peer_), so this one starts empty, and the outer one carries
+  // on once it is done. Aimed at the same keyboard, it may still be typing what
+  // the outer one sent.
+  const int8_t outer_peer = out_peer_;
+  const bool outer_sent = out_sent_;
+  out_sent_ = outer_peer == index && outer_sent;
+  out_peer_ = (int8_t) index;
+  execute_action(action.substr(sep + 1));
+  flush_for_peer_(false);
+  out_sent_ = outer_sent || (outer_peer == out_peer_ && out_sent_);
+  out_peer_ = outer_peer;
+  if (out_peer_ < 0) {
+    out_body_.clear();
+    out_body_.shrink_to_fit();
+  }
+}
+
+// A step of a to: run, before execute_action acts on it. True when it was taken
+// for the peer. False leaves it to execute_action: a chain to split, or a macro
+// to look up — their steps come back here — or something this keyboard does
+// itself: press one of its buttons, call Home Assistant, or a step that names a
+// keyboard of its own. Whatever was gathered is sent before those, so the order
+// holds.
+bool EspidfBleKeyboard::gather_for_peer_(const std::string &step) {
+  if (step.rfind("peer:", 0) == 0 || step.rfind("to:", 0) == 0) {
+    flush_for_peer_(true);
+    return false;
+  }
+  if (step.find('|') != std::string::npos || step.rfind("macro:", 0) == 0)
+    return false;
+  if (step.rfind("press_button:", 0) == 0 || step.rfind("ha_action:", 0) == 0) {
+    flush_for_peer_(true);
+    return false;
+  }
+  // Everything else reaches a host — keys, text, the mouse, holds, host
+  // switches, panels — and so do the delay: and wait:connected between them,
+  // which only keep time if they run over there with the keys.
+  std::string enc;
+  form_encode_append(enc, step);
+  if (!out_body_.empty() && out_body_.size() + 3 + enc.size() > PEER_MAX_TEXT_BODY)
+    flush_for_peer_(false);
+  if (out_body_.empty()) {
+    // After the first request of a run, a step that does nothing comes first.
+    // Between a chain's steps that keyboard waits for text an earlier one queued,
+    // so this keeps the next keys out of text the last request is still typing.
+    out_body_ = out_sent_ ? "action=delay%3A0%7C" : "action=";
+    out_head_ = out_tail_ = out_body_.size();
+    out_tail_ms_ = 0;
+  } else {
+    out_body_ += "%7C";  // '|'
+  }
+  out_body_ += enc;
+  if (step.rfind("delay:", 0) == 0) {
+    // Added up for flush_for_peer_(), counting only what execute_action waits.
+    int ms = 0;
+    if (sscanf(step.c_str(), "delay:%i", &ms) == 1 && ms > 0 && ms <= 10000)
+      out_tail_ms_ += (uint32_t) ms;
+  } else {
+    out_tail_ = out_body_.size();
+    out_tail_ms_ = 0;
+  }
+  return true;
+}
+
+// Sends what a to: run has gathered. Before a step this keyboard does itself,
+// the delays it ends with are waited out here instead of over there, so that
+// step comes when it would have.
+void EspidfBleKeyboard::flush_for_peer_(bool before_local) {
+  if (out_body_.empty())
+    return;
+  uint32_t wait = 0;
+  if (before_local) {
+    wait = out_tail_ms_;
+    out_body_.resize(out_tail_);
+  }
+  if (out_body_.size() > out_head_) {
+    Peer &p = peers_[out_peer_];
+    // Its host or its remote's style may have changed; see run_peer_action_.
+    if (peer_post_(p, "/api/ble_keyboard/press", out_body_, "the keys of a to: step") == PEER_OK)
+      p.next_due_ms = (millis() + 300) | 1;
+    out_sent_ = true;
+  }
+  out_body_.clear();
+  out_head_ = out_tail_ = 0;
+  out_tail_ms_ = 0;
+  if (wait > 0)
+    sleep_ms_(wait);
 }
 
 // Sends one request to a peer and keeps its standing up to date — shared by the
