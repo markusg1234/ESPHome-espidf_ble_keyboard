@@ -757,7 +757,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.16.0-dev</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.16.0-dev-b</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -4012,9 +4012,16 @@ function insertStep(el,val){
     const ask=f=>fetch('api/ble_keyboard/peer_read?'+new URLSearchParams(f?Object.assign({fresh:1},base):base)).then(r=>{
       if(r.status===200)return r.json().then(d=>d.items||[]);
       const again=ms=>new Promise(ok=>setTimeout(ok,ms)).then(()=>ask(false));
-      if(r.status===202&&Date.now()-t0<15000)return again(600);
+      // 202 is this keyboard not having got to the read yet (it waits for
+      // memory, and for a quiet moment); anything else is the read failing.
+      if(r.status===202){
+        if(Date.now()-t0<20000)return again(600);
+        throw new Error("this keyboard couldn't get to read "+peerLabel(n)+"'s Host Actions in 20 s; its log says why");
+      }
       if(r.status===502&&++fails<3)return again(1000);
-      throw new Error(peerLabel(n)+' did not send its Host Actions');
+      return r.text().then(t=>{
+        throw new Error(peerLabel(n)+"'s Host Actions couldn't be read ("+(t||('HTTP '+r.status))+"); this keyboard's log says why");
+      });
     });
     return ask(!!fresh);
   }

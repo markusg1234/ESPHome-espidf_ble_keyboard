@@ -1336,6 +1336,7 @@ class EspidfBleKeyboard : public Component
     std::shared_ptr<const std::string> read_reply;
     uint32_t read_at{0};
     bool read_failed{false};
+    bool read_held{false};  // the wait for memory has been logged for this one
   };
   std::vector<Peer> peers_;
   SemaphoreHandle_t peer_mutex_{nullptr};

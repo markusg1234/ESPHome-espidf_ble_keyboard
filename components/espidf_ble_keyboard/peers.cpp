@@ -950,8 +950,24 @@ void EspidfBleKeyboard::refresh_peers_() {
     else
       ESP_LOGI(TAG, "Peer reads resumed");
   }
-  if (starved)
+  if (starved) {
+    // A read the page is waiting on says why it isn't coming, once; otherwise
+    // the page only times out.
+    for (auto &p : peers_) {
+      std::string held;
+      xSemaphoreTake(peer_mutex_, portMAX_DELAY);
+      if (!p.read_want.empty() && !p.read_held) {
+        p.read_held = true;
+        held = p.read_want;
+      }
+      xSemaphoreGive(peer_mutex_);
+      if (!held.empty()) {
+        ESP_LOGW(TAG, "Peer %s: the page's read of %s waits for memory (largest free block %u B, heap %u B free)",
+                 p.name.c_str(), held.c_str(), (unsigned) block, (unsigned) free_now);
+      }
+    }
     return;
+  }
   // A read the page is waiting on goes before the routine ones. Only once the
   // queue is empty, as every read here: a host's Host Actions read after a copy
   // to it is read after that copy's writes have all gone.
@@ -965,6 +981,15 @@ void EspidfBleKeyboard::refresh_peers_() {
     body.reserve(2048);
     const PeerResult r = peer_request_(p, false, path.c_str(), std::string(), &body);
     const bool ok = r == PEER_OK && body.size() >= 2 && body.front() == '{' && body.back() == '}';
+    // peer_request_ has logged what went wrong with the request itself; this
+    // says it was the page's read that failed, and catches a reply that is not
+    // one JSON object.
+    if (!ok) {
+      ESP_LOGW(TAG, "Peer %s: the page's read of %s failed%s", p.name.c_str(), path.c_str(),
+               r == PEER_OK ? " — the reply was not one JSON object" : "");
+    } else {
+      ESP_LOGD(TAG, "Peer %s: read %s for the page, %u B", p.name.c_str(), path.c_str(), (unsigned) body.size());
+    }
     std::shared_ptr<const std::string> reply;
     if (ok)
       reply = std::make_shared<const std::string>(std::move(body));
@@ -1050,6 +1075,7 @@ int EspidfBleKeyboard::peer_read(int index, const std::string &path, bool fresh,
     p.read_have.clear();
     p.read_reply.reset();
     p.read_failed = false;
+    p.read_held = false;
   }
   xSemaphoreGive(peer_mutex_);
   return r;
