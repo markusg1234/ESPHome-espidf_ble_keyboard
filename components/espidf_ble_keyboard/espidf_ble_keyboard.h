@@ -42,6 +42,10 @@ namespace espidf_ble_keyboard {
 // Maximum number of host slots for multi-host switching
 static const uint8_t MAX_HOST_SLOTS = 10;
 
+// The Bluetooth appearance a slot advertises unless its hosts: entry names
+// another (HID keyboard). Keep in sync with APPEARANCES in __init__.py.
+static const uint16_t APPEARANCE_KEYBOARD = 0x03C1;
+
 /// Render a BLE address as AA:BB:CC:DD:EE:FF. `out` must hold 18 bytes.
 void format_bd_addr(const esp_bd_addr_t addr, char out[18]);
 
@@ -693,6 +697,7 @@ class EspidfBleKeyboard : public Component
     bool has_passkey{false};
     uint32_t passkey{0};
     bool secure_connections{false};  // true = secure_connections, false = legacy
+    uint16_t appearance{APPEARANCE_KEYBOARD};  // advertised only; GATT stays a keyboard
   };
 
   struct HostSlot {
@@ -802,6 +807,10 @@ class EspidfBleKeyboard : public Component
     if (slot < MAX_HOST_SLOTS) slot_layout_id_[slot] = id;
   }
   const std::string &get_host_slot_layout(uint8_t slot) const { return slot_layout_id_[slot]; }
+
+  void set_host_slot_appearance(uint8_t slot, uint16_t appearance) {
+    if (slot < MAX_HOST_SLOTS) host_slot_configs_[slot].appearance = appearance;
+  }
 
   // Custom text entities
 #ifdef USE_TEXT

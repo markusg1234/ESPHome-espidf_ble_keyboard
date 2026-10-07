@@ -6,7 +6,7 @@ This is a custom [ESPHome](https://esphome.io) component that turns an ESP32 int
 
 * **Universal Remote:** A web remote and Home Assistant card, drawn in built-in or your own styles with logos and a small status screen. Any key on any host can fire a Home Assistant action, such as sending an IR command, alongside keys that go over Bluetooth — power over IR and navigation over Bluetooth on the same page, say. A host slot can also have Bluetooth turned off to act purely as a remote page. Styles travel: **Export all** on one keyboard's page and **Import** on another copies every style you have made, logos included, in one paste. See [A slot that never advertises](#a-slot-that-never-advertises) and [Copying styles to another keyboard](#copying-styles-to-another-keyboard).
 * **Linked Keyboards:** A second ESP32 running this component, listed under `peers:`, puts its hosts on this one's web page as a bar of their own — tap one and the remote, keyboard, paste box, mouse and this keyboard's macros drive it over Wi-Fi, for hosts one keyboard's Bluetooth can't reach. Actions reach it with `peer:<name>:<action>` and `to:<name>:<action>`, and a Home Assistant card can step through both keyboards' hosts. See [Linking a second keyboard](#linking-a-second-keyboard).
-* **Standard HID Keyboard:** Recognized as a native keyboard by Windows, Android, and iOS. Full HOGP-compliant BLE HID with Device Information and Battery services. Use `passkey_mode: legacy` for Windows (Just Works for Android), `passkey_mode: secure_connections` for iOS.
+* **Standard HID Keyboard:** Recognized as a native keyboard by Windows, Android, and iOS — and by a Galaxy Watch, through a slot that shows up as an audio device (see [Pairing with a Galaxy Watch](#pairing-with-a-galaxy-watch)). Full HOGP-compliant BLE HID with Device Information and Battery services. Use `passkey_mode: legacy` for Windows (Just Works for Android), `passkey_mode: secure_connections` for iOS.
 * **Secure Pairing:** Supports a configurable 6-digit static passkey (PIN) for secure bonding on Windows and iOS. Android uses Just Works pairing (no PIN) due to HID compatibility limitations.
 * **Efficient Memory Usage:** Direct API implementation ensures stability even with complex ESPHome configurations.
 * **Key Combos:** Send any modifier + key combination using hex keycodes (e.g. Win+R, Ctrl+C).
@@ -338,6 +338,7 @@ binary_sensor:
   * **slot** (Required, int): Host slot number (0–9).
   * **passkey** (Optional, int): 6-digit PIN for this slot (000000–999999). If omitted, the slot uses the global `passkey` setting (or Just Works if no global passkey).
   * **passkey_mode** (Optional, string): `legacy` (default) or `secure_connections`. Overrides the global `passkey_mode` for this slot.
+  * **appearance** (Optional): What the slot shows up as to a host scanning for it: `keyboard` (default), `audio`, or any Bluetooth appearance number. `audio` lets a watch whose Bluetooth menu lists only audio devices find the slot; paired, it is still a keyboard, mouse and media keys. Only the slot's advertising changes. See [Pairing with a Galaxy Watch](#pairing-with-a-galaxy-watch).
 
 ### `button` (Platform: `espidf_ble_keyboard`)
 
@@ -2519,8 +2520,8 @@ seconds while it stays in range. The box is a display choice only, remembered by
 the keyboard listens, and its presence sensors update, whether it is ticked or not.
 
 What gets heard depends on the host. An iPhone advertises all the time and shows up within
-seconds; an Android phone only while something on it is advertising; PCs and monitors rarely or
-never.
+seconds; an Android phone only while something on it is advertising; a Galaxy Watch only while it
+isn't connected to its phone; PCs and monitors rarely or never.
 
 For Home Assistant and automations, give a slot a [presence sensor](#presence-sensor) — ON while
 its host has been heard recently — and, if you want them, a
@@ -3396,10 +3397,35 @@ Notes:
 
 ---
 
+## Pairing with a Galaxy Watch
+
+A Galaxy Watch's Bluetooth menu lists only audio devices, so it never shows a keyboard. Give a free
+slot `appearance: audio` and that slot shows up there:
+
+```yaml
+espidf_ble_keyboard:
+  hosts:
+    - slot: 3
+      appearance: audio
+```
+
+1. Switch the keyboard to that slot.
+2. In the watch's Bluetooth settings, scan for audio devices and pick your device name (default: **ESP32 BLE KB**).
+
+Once paired, the watch takes it as a keyboard, mouse and media keys, volume included. Only that
+slot's advertising changes: every other slot still shows up as a keyboard, so a TV or monitor that
+lists only keyboards still finds those.
+
+The watch hands over its [identity key](#identity-key-irk) when it pairs, like any host, but it is
+only [heard nearby](#paired-hosts-nearby) while it isn't connected to its phone. Connected, it
+doesn't advertise.
+
+---
+
 ## Known Working Pairing Notes
 
 The current implementation has been validated on Windows, Android, and iOS.
-Tested on Windows 11, Android 16, and iOS.
+Tested on Windows 11, Android 16, iOS, and a Galaxy Watch Ultra 2 (through an `audio` slot).
 For first-time pairing, Android may require more than one attempt while it refreshes BLE cache and bond state.
 
 Recommended pairing modes:

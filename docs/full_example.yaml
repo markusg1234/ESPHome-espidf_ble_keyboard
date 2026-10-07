@@ -95,8 +95,9 @@ espidf_ble_keyboard:
         spare12: "ha_action:light.turn_on;entity_id=light.living_room;brightness_pct={value}"   # a pot's "set" fills {value}
     - slot: 3                    # laptop
       layout: us
-    - slot: 4                    # tablet
+    - slot: 4                    # Galaxy Watch
       layout: us
+      appearance: audio              # keyboard or audio; the watch lists only audio
 
   web_control: true
   web_host_check: true           # turn off only for a reverse proxy
@@ -183,7 +184,7 @@ button:
       slot: 3
   - platform: espidf_ble_keyboard
     keyboard_id: my_keyboard
-    name: "Tablet"
+    name: "Watch"
     action:
       type: switch_host
       slot: 4
@@ -199,7 +200,7 @@ button:
       slot: back
   - platform: espidf_ble_keyboard
     keyboard_id: my_keyboard
-    name: "Forget Tablet"
+    name: "Forget Watch"
     action:
       type: forget_host
       slot: 4

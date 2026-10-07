@@ -146,6 +146,10 @@ static uint8_t raw_adv_data[] = {
     0x03, 0x03, 0x12, 0x18,     // Complete List of 16-bit UUIDs: HID (0x1812)
     0x03, 0x19, 0xC1, 0x03      // Appearance: HID Keyboard (0x03C1)
 };
+// Where the appearance's low byte sits in raw_adv_data — rewritten for each
+// slot as its advertising starts, because a slot can be set to look like
+// something else.
+static const size_t ADV_APPEARANCE_AT = 9;
 
 
 static esp_ble_adv_params_t adv_params = {
@@ -424,8 +428,15 @@ static void do_start_advertising() {
         if (locked) xSemaphoreGive(s_scan_lock);
 #endif
         adv_params.own_addr_type = BLE_ADDR_TYPE_RANDOM;
-        ESP_LOGD(TAG, "ADV: Using slot %u addr %02X:%02X:%02X:%02X:%02X:%02X", slot,
-                 laddr[0], laddr[1], laddr[2], laddr[3], laddr[4], laddr[5]);
+        // A keyboard, unless this slot's hosts: entry says otherwise. A watch
+        // whose Bluetooth menu lists only audio devices finds an "audio" slot
+        // and pairs with it. Once connected it is the same keyboard: nothing
+        // past this advert changes.
+        const uint16_t look = s_instance->get_host_slot_config(slot).appearance;
+        raw_adv_data[ADV_APPEARANCE_AT] = look & 0xFF;
+        raw_adv_data[ADV_APPEARANCE_AT + 1] = look >> 8;
+        ESP_LOGD(TAG, "ADV: Using slot %u addr %02X:%02X:%02X:%02X:%02X:%02X, appearance 0x%04X", slot,
+                 laddr[0], laddr[1], laddr[2], laddr[3], laddr[4], laddr[5], look);
     }
 
     // If directed advertising is requested, target the specific bonded host
@@ -3134,6 +3145,11 @@ void EspidfBleKeyboard::setup() {
     load_repeat_();
     load_hold_();
     load_broadcast_();
+    for (uint8_t s = 0; s < MAX_HOST_SLOTS; s++) {
+        if (host_slot_configs_[s].appearance != APPEARANCE_KEYBOARD)
+            ESP_LOGI(TAG, "Host slot %u advertises as appearance 0x%04X, not a keyboard", s,
+                     host_slot_configs_[s].appearance);
+    }
 #ifdef USE_BLE_KB_PRESENCE
     load_presence_by_();
 #endif

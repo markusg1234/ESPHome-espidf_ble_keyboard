@@ -19,6 +19,9 @@ web control page shows the matching version badge.
   new firmware.
 - **An open page shows Host Actions and macros saved elsewhere** — another tab, Home Assistant or a
   linked keyboard copying them over — within a few seconds, without a refresh.
+- **A Galaxy Watch can pair.** A host slot can show up as an audio device instead of a keyboard, so
+  a watch whose Bluetooth menu lists only audio devices finds it. Paired, the watch uses it as a
+  keyboard, mouse and media keys, and its identity key can be read like any host's.
 
 ### Fixed
 - **Text typed on a linked keyboard from a Home Assistant card or a macro keeps its `|`** instead of

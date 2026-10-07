@@ -80,6 +80,15 @@ MAX_PEERS = 4
 MAX_OVERRIDES_PER_HOST = 48
 PASSKEY_MODE_LEGACY = "legacy"
 PASSKEY_MODE_SECURE_CONNECTIONS = "secure_connections"
+CONF_APPEARANCE = "appearance"
+# What a host slot calls itself in its advertising — Bluetooth appearance
+# values. Keep "keyboard" in sync with APPEARANCE_KEYBOARD in the header.
+# "audio" is the earbud code (0x0941): Android files it as an audio device,
+# which is all a Galaxy Watch's Bluetooth menu will list.
+APPEARANCES = {
+    "keyboard": 0x03C1,
+    "audio": 0x0941,
+}
 
 # To add a layout: register it in keyboard_layouts.cpp, add its id JS rows in
 # web_control.cpp, then append the id here.
@@ -265,6 +274,19 @@ def _validate_override_names(value):
     return value
 
 
+def _appearance(value):
+    """A name from APPEARANCES, or any 16-bit appearance number."""
+    if isinstance(value, str) and value.strip().lower() in APPEARANCES:
+        return HexInt(APPEARANCES[value.strip().lower()])
+    try:
+        return cv.hex_uint16_t(value)
+    except cv.Invalid as err:
+        raise cv.Invalid(
+            f"Expected one of {', '.join(APPEARANCES)}, or a Bluetooth appearance "
+            "number from 0 to 0xFFFF"
+        ) from err
+
+
 HOST_SCHEMA = cv.Schema({
     cv.Required(CONF_SLOT): cv.int_range(min=0, max=9),
     cv.Optional(CONF_PASSKEY): cv.int_range(min=0, max=999999),
@@ -274,6 +296,10 @@ HOST_SCHEMA = cv.Schema({
         lower=True,
     ),
     cv.Optional(CONF_LAYOUT): cv.one_of(*SUPPORTED_LAYOUTS, lower=True),
+    # What this slot advertises itself as. Only the advertisement changes: a
+    # watch whose Bluetooth menu lists nothing but audio devices finds an
+    # "audio" slot, and once paired uses it as a keyboard, mouse and remote.
+    cv.Optional(CONF_APPEARANCE): _appearance,
     # Remap named actions for this host, e.g. record: "combo:0x0C:0x15" so a
     # Windows slot drives Game Bar while a TV slot keeps HID Record.
     cv.Optional(CONF_ACTIONS): cv.All(
@@ -651,6 +677,8 @@ async def to_code(config):
                 cg.add(var.set_host_slot_passkey(host[CONF_SLOT], host[CONF_PASSKEY], sc))
             if CONF_LAYOUT in host:
                 cg.add(var.set_host_slot_layout(host[CONF_SLOT], host[CONF_LAYOUT]))
+            if CONF_APPEARANCE in host:
+                cg.add(var.set_host_slot_appearance(host[CONF_SLOT], host[CONF_APPEARANCE]))
             for name, act in host.get(CONF_ACTIONS, {}).items():
                 cg.add(var.set_host_slot_override(host[CONF_SLOT], name, act))
 
