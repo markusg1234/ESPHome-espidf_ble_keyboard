@@ -3416,9 +3416,12 @@ Once paired, the watch takes it as a keyboard, mouse and media keys, volume incl
 slot's advertising changes: every other slot still shows up as a keyboard, so a TV or monitor that
 lists only keyboards still finds those.
 
-The watch hands over its [identity key](#identity-key-irk) when it pairs, like any host, but it is
-only [heard nearby](#paired-hosts-nearby) while it isn't connected to its phone. Connected, it
-doesn't advertise.
+> [!NOTE]
+> While the watch is connected to its phone, it doesn't advertise, so the keyboard can't
+> [hear it nearby](#paired-hosts-nearby) — not even while it is connected to the keyboard as well.
+> Its green dot and presence sensor only see it once the phone is out of reach or its Bluetooth is
+> off. Its [identity key](#identity-key-irk) can be read either way: the watch hands it over when
+> it pairs, like any host.
 
 ---
 
