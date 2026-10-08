@@ -24,6 +24,9 @@ web control page shows the matching version badge.
   keyboard, mouse and media keys, and its identity key can be read like any host's.
 
 ### Fixed
+- **A macro that visits a host and comes back stays put when run on that host** instead of leaving
+  for the host before it, and keeps the host connected instead of reconnecting it. A button or Host
+  Action that switches to the host already connected leaves it connected too.
 - **Text typed on a linked keyboard from a Home Assistant card or a macro keeps its `|`** instead of
   losing it and running what followed as an action.
 - **The Host Actions copy button and the style builder's Undo and Exit no longer stay lit** after a

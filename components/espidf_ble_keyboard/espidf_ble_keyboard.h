@@ -679,7 +679,8 @@ class EspidfBleKeyboard : public Component
 
   // Multi-host switching
   /// `from_action` marks a switch made by an action string, whose style change
-  /// waits for the whole action to finish — see switch_host() and style_slot().
+  /// waits for the whole action to finish — see switch_host() and style_slot() —
+  /// and which keeps the link when that host is already the one connected.
   void switch_host(uint8_t slot, bool from_action = false);
   void forget_host(uint8_t slot);
   uint8_t active_host_slot() const { return active_slot_; }
@@ -1175,6 +1176,8 @@ class EspidfBleKeyboard : public Component
   // before the last switch; link_slot_ and link_secure_ are written from the
   // Bluetooth task and read by whichever task runs the macro.
   int8_t previous_slot_{-1};
+  // Set when an action switches to the slot already active, so its back stays.
+  bool back_stays_{false};
   std::atomic<int8_t> link_slot_{-1};
   std::atomic<bool> link_secure_{false};
   bool wait_host_ready_(uint32_t timeout_ms);

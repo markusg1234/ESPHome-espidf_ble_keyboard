@@ -2909,8 +2909,10 @@ void EspidfBleKeyboard::publish_remote_lists_() {
 
 // The end of an action string that switched host: the remote catches up with
 // wherever the action left the keyboard. A visit that came home has nothing to
-// publish, which is the whole point of holding it.
+// publish, which is the whole point of holding it. A visit to the slot it was
+// already on is over too: the next back goes to the earlier slot again.
 void EspidfBleKeyboard::release_style_hold_() {
+    back_stays_ = false;
     const int8_t held = style_hold_.exchange(-1);
     if (held >= 0 && (uint8_t) held != active_slot_) request_publish_(PUB_LISTS);
 }
@@ -2923,12 +2925,21 @@ void EspidfBleKeyboard::switch_host(uint8_t slot, bool from_action) {
         return;
     }
 
+    // An action switching to the host it is already connected to — a macro that
+    // visits host 5, run on host 5 — keeps that link. Dropping it would only make
+    // wait:connected sit through a reconnect, and a reconnect is a chance for the
+    // host to lose its bond (see ESP_GATTS_CONNECT_EVT). Everything else a switch
+    // applies is this slot's already. The web page's host bar and Home
+    // Assistant's service still reconnect a host tapped while it is active.
+    const bool same_slot = (slot == active_slot_);
+    const bool keep_link = from_action && same_slot && is_connected_ && link_slot_.load() == (int8_t) slot;
+
     // Let go of anything held before the link to the old host drops, or it is
     // left holding the key until it notices the disconnect.
-    release_held();
+    if (!keep_link) release_held();
     // Text still waiting to be typed was meant for the host being left. Kept, it
     // would go to whichever host connects next.
-    if (slot != active_slot_) drop_typing_("switched host");
+    if (!same_slot) drop_typing_("switched host");
 
     // A switch made inside an action string leaves the remote drawn for the slot
     // it was showing until that whole action has run (release_style_hold_), so a
@@ -2943,9 +2954,20 @@ void EspidfBleKeyboard::switch_host(uint8_t slot, bool from_action) {
 
     // Remembered whichever way the switch was asked for — a verb, a button, the
     // web page or Home Assistant — so switch_host:back always means "where it
-    // was before this".
-    const bool same_slot = (slot == active_slot_);
-    if (!same_slot) previous_slot_ = (int8_t) active_slot_;
+    // was before this". A switch to the slot already active keeps the earlier
+    // one, so a host bar tapped twice still toggles. Inside an action it is a
+    // visit that is already there, and that action's back stays put rather than
+    // leaving for the earlier slot (back_stays_, cleared when the action ends).
+    if (!same_slot) {
+        previous_slot_ = (int8_t) active_slot_;
+        back_stays_ = false;
+    } else if (from_action) {
+        back_stays_ = true;
+    }
+    if (keep_link) {
+        ESP_LOGI(TAG, "Host slot %u is already connected; keeping its link", (unsigned) slot);
+        return;
+    }
     active_slot_ = slot;
     save_host_slots_();
     // Published by loop(): this runs on the web task and the action task too.
@@ -4441,8 +4463,8 @@ bool EspidfBleKeyboard::execute_remote_action_(const std::string &action) {
 // Cycles exactly as the Lovelace cards do: plain wrap-around over every
 // configured slot, empty ones included (landing on an empty slot advertises for
 // new pairing, same as switch_host:N). The >1 test guards the modulo and stops a
-// one-slot config from "switching" to the slot it is already on — switch_host()
-// tears the link down unconditionally, so that would drop the host for nothing.
+// one-slot config from "switching" to the slot it is already on — with no host
+// connected, switch_host() would restart its advertising for nothing.
 void EspidfBleKeyboard::cycle_host_(int delta) {
     if (host_slots_ > 1)
         switch_host((uint8_t) ((active_slot_ + host_slots_ + delta) % host_slots_), true);
@@ -4451,6 +4473,12 @@ void EspidfBleKeyboard::cycle_host_(int delta) {
 // Where the keyboard was before the last switch. Pressed again it goes back
 // again, so two hosts can be toggled.
 void EspidfBleKeyboard::return_to_last_host_() {
+    if (back_stays_) {
+        back_stays_ = false;
+        ESP_LOGD(TAG, "Back: host slot %u was already active when this action switched to it",
+                 (unsigned) active_slot_);
+        return;
+    }
     if (previous_slot_ >= 0 && previous_slot_ < host_slots_ && previous_slot_ != (int8_t) active_slot_)
         switch_host((uint8_t) previous_slot_, true);
     else

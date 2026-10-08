@@ -617,7 +617,7 @@ espidf_ble_keyboard:
 | `"mouse_abs_save"` | Remember the current absolute position (the one this device last set). |
 | `"mouse_abs_restore"` | Jump back to the last `mouse_abs_save` position. |
 | `"mouse_goto:<x>:<y>"` | Move to a **Windows virtual-desktop pixel** across **all monitors** (homes the absolute pointer to the desktop origin, then steps relatively). X/Y are Windows coordinates (primary monitor top-left = 0,0; screens left of it are negative). Use this when the absolute pointer is confined to the primary monitor. Needs "Enhance pointer precision" **off** and a fixed pointer-speed slider position (the per-axis calibration is tied to it) for pixel accuracy. |
-| `"switch_host:N"` | Switch to host slot N (0–9). Reconnects to stored host or advertises for new pairing. |
+| `"switch_host:N"` | Switch to host slot N (0–9). Reconnects to stored host or advertises for new pairing. Already connected to that host, it keeps the link. |
 | `"switch_host:next"` / `"switch_host:prev"` | Step to the next or previous host slot, wrapping around at the ends. Cycles through every configured slot, so an unpaired one is reached too (and advertises for pairing). Does nothing when only one slot is configured. |
 | `"switch_host:back"` | Return to the host slot that was active before the last switch, however that switch was made. Pressed again, it goes back again. |
 | `"host_action:N:<name>"` | Run host slot N's Host Action for `<name>` without switching to it. If slot N has no action for that name, it runs as an ordinary press on the active host. |
@@ -981,7 +981,7 @@ From Home Assistant, the `switch_host` service takes a slot number only; reach t
 switch_host:3 | wait:connected | play_pause | switch_host:back
 ```
 
-Keys sent before a host is ready are lost, so put `wait:connected` after every switch that is followed by keys. If the host never connects, the wait gives up after 10 seconds (`wait:connected:20000` for longer) and the rest of the macro still runs, so the `switch_host:back` at the end brings the keyboard home either way. A slot with Bluetooth turned off never connects, so the wait returns straight away there.
+Keys sent before a host is ready are lost, so put `wait:connected` after every switch that is followed by keys. If the host never connects, the wait gives up after 10 seconds (`wait:connected:20000` for longer) and the rest of the macro still runs, so the `switch_host:back` at the end brings the keyboard home either way. Run while host 3 is already active, the macro stays on it: a connected host 3 keeps its link, so `wait:connected` goes straight on, and `switch_host:back` does not leave. A slot with Bluetooth turned off never connects, so the wait returns straight away there.
 
 **The remote keeps its style throughout.** A host switch made inside an action — a macro, a per-host override, a remote key — re-skins the remote only once that action has finished, so one that comes back leaves the [style](#remote-style-per-host) and the hidden, hold and repeat lists exactly as they were, and one that stays on the new host re-skins when it ends. The host bar still marks the host keys are going to while it runs. Switching by hand, from the host bar or Home Assistant's `switch_host` service, re-skins straight away.
 
@@ -1559,7 +1559,7 @@ The panel is a deliberate 16 characters wide, so it sits inside the 280px body a
 
 | Action | Description |
 |---|---|
-| `"switch_host:N"` | Switch to host slot N (0–9). If the slot has a stored host, uses directed advertising to reconnect. If empty, starts normal advertising for new pairing. |
+| `"switch_host:N"` | Switch to host slot N (0–9). If the slot has a stored host, uses directed advertising to reconnect. If empty, starts normal advertising for new pairing. Already connected to that host, it keeps the link. |
 | `"switch_host:next"` / `"switch_host:prev"` | Step one slot forward or back, wrapping at the ends — the same cycling the host switcher arrows on the cards do, but on the device, so a single remote key or macro can rotate through hosts. Empty slots are included in the rotation. |
 | `"switch_host:back"` | Return to the slot active before the last switch. See [Visiting another host and coming back](#multi-host-switching). |
 | `"prev_host"` / `"next_host"` / `"last_host"` | The same three as remote keys a style can place, remappable per host like any other. |
