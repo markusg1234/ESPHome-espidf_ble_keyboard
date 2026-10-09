@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
+## v1.16.0 — 2026-10-09
 
 ### Added
 - **Macros follow a tab onto a linked keyboard.** Tapped while the tab drives one, a macro runs on

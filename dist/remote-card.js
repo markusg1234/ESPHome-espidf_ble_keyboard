@@ -101,7 +101,7 @@
 import {
   RMT_BUILTIN, RMT_BTNS, RMT_VARS, RMT_CSS, RMT_VER, RMT_LCD_LABELLED, lcdLabel,
   sectionHtml, validateTpl, themeValueBad, useIcons, knobWire, knobLevel,
-} from './remote-styles.js?v=1.15.0';
+} from './remote-styles.js?v=1.16.0';
 
 // Which build of this file the browser actually loaded, read from the ?v= its
 // importer wrote rather than from a constant that has to be remembered at
