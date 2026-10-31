@@ -17,7 +17,9 @@ web control page shows the matching version badge.
 - **Forget a host from the Home Assistant cards.** A button beside the host switcher drops the
   pairing for the host it is showing, as the web page's does. It is off until switched on in the
   card's settings, and takes two taps — the first only arms it, and it gives up after three
-  seconds — so a brush against a dashboard cannot unpair anything.
+  seconds — so a brush against a dashboard cannot unpair anything. On a keyboard that publishes no
+  forget_host action to Home Assistant the button is greyed out and its tooltip says what is
+  missing, rather than failing on the second tap.
 
 ### Changed
 - **A remote style can be up to 4000 characters**, up from 1500, so there is room for its
