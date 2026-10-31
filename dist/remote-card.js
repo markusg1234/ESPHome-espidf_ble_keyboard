@@ -329,6 +329,8 @@ class BleRemoteCard extends HTMLElement {
     // The keyboard and the pad under the remote go through this same connection.
     if (this._kbdEl) this._kbdEl.hass = hass;
     if (this._padEl) this._padEl.hass = hass;
+    // The registry of actions can arrive after the card does.
+    this._syncForget();
   }
 
   setConfig(config) {
@@ -745,7 +747,16 @@ class BleRemoteCard extends HTMLElement {
         /* Fixed at the width of its armed label, as on the device page, so the
            swap to Confirm? cannot slide the arrows out from under a finger. */
         .host-forget { width: 62px; margin-left: 6px; font-size: 11px; font-weight: 600; color: #c44; }
-        .host-forget.armed, .host-forget:active { background: #c44; border-color: #c44; color: #fff; }
+        .host-forget.armed, .host-forget:not(.off):active { background: #c44; border-color: #c44; color: #fff; }
+        /* The device publishes no forget_host action: the button says so in its
+           tooltip rather than arming, so it must not look or press as if it
+           could. */
+        .host-forget.off, .host-forget.off:active {
+          opacity: .45; cursor: default;
+          background: var(--secondary-background-color, #f5f5f5);
+          border-color: var(--divider-color, #e0e0e0);
+          color: var(--secondary-text-color, #888);
+        }
         /* Both of these are variable width — a host name can be anything, and
            the address swaps between a 17-character MAC and "Empty" — so without
            a reserved width the prev/next arrows slid sideways on every step and
@@ -1495,7 +1506,9 @@ class BleRemoteCard extends HTMLElement {
     if (this._config.show_forget_host) {
       this._forgetEl = shadow.getElementById('host-forget');
       this._forgetEl.style.display = '';
+      this._forgetTitle = this._forgetEl.title;
       this._forgetEl.addEventListener('click', () => {
+        if (this._forgetOff) return;   // nothing to call; the tooltip says why
         if (!this._forgetArm) {
           this._forgetArm = this._shownHost();
           this._forgetEl.textContent = 'Confirm?';
@@ -1669,6 +1682,44 @@ class BleRemoteCard extends HTMLElement {
     return t && t.peer ? { peer: t.peer, slot: t.slot } : { peer: null, slot: this._activeSlot || 0 };
   }
 
+  // The action name as the call sends it: Home Assistant registers an ESPHome
+  // device's actions under its name with the dashes underscored.
+  _svc(name) {
+    return `${this._config.device.replace(/-/g, '_')}_${name}`;
+  }
+
+  // Why Forget cannot do anything, or null when it can. The device publishes
+  // forget_host only with api_services: true, or a hand-written service of that
+  // name, and a config grown from the per-card yaml snippets often has
+  // switch_host without it — in which case the call comes back as an unknown
+  // action in a toast, after the host has already been confirmed away.
+  _forgetUnavailable() {
+    // No registry at all (an early hass, or a harness): assume the call works
+    // rather than grey out a button that would have.
+    const reg = this._hass && this._hass.services;
+    if (!reg) return null;
+    // A linked keyboard's host is forgotten by that keyboard, through this
+    // one's run_action, so that is the action which has to exist.
+    const name = this._shownHost().peer ? 'run_action' : 'forget_host';
+    if (reg.esphome && reg.esphome[this._svc(name)]) return null;
+    return `This device publishes no ${name} action.\n`
+      + `Set api_services: true on the component and flash it, or add a ${name} service to`
+      + ` its api: section. A device Home Assistant has not connected to has no actions either.`;
+  }
+
+  _syncForget() {
+    if (!this._forgetEl) return;
+    const why = this._forgetUnavailable();
+    if (why === this._forgetOff) return;
+    this._forgetOff = why;
+    if (why) this._disarmForget();
+    this._forgetEl.classList.toggle('off', !!why);
+    this._forgetEl.setAttribute('aria-disabled', why ? 'true' : 'false');
+    // Not the disabled attribute: a disabled button takes no pointer events, so
+    // the tooltip that explains all this would never show.
+    this._forgetEl.title = why || this._forgetTitle;
+  }
+
   _disarmForget() {
     clearTimeout(this._forgetTimer);
     this._forgetArm = null;
@@ -1685,8 +1736,7 @@ class BleRemoteCard extends HTMLElement {
     if (h.peer) {
       this._runAction(`forget_host:${h.slot}`);
     } else {
-      const slug = this._config.device.replace(/-/g, '_');
-      this._hass.callService('esphome', `${slug}_forget_host`, { slot: h.slot });
+      this._hass.callService('esphome', this._svc('forget_host'), { slot: h.slot });
     }
     // That slot is empty now; read it back rather than wait out the 30s poll.
     setTimeout(() => this._pollHosts(), 1000);
@@ -1786,6 +1836,7 @@ class BleRemoteCard extends HTMLElement {
     // An armed Forget belonged to the host it was armed on, never the new one.
     const armed = this._forgetArm, now = this._shownHost();
     if (armed && (armed.peer !== now.peer || armed.slot !== now.slot)) this._disarmForget();
+    this._syncForget();
     const t = this._target;
     if (t && t.peer) {
       const label = (t.entry && (t.entry.label || t.entry.peer)) || t.peer;
@@ -2330,7 +2381,7 @@ class BleRemoteCard extends HTMLElement {
     // call could only fail, and say so in a toast on a tab out of sight.
     if (this._popLink && !this._linkUp()) { this._syncPop(); return; }
     const peer = this._peerName();
-    return this._hass.callService('esphome', `${this._config.device}_run_action`,
+    return this._hass.callService('esphome', this._svc('run_action'),
       { action: peer ? `peer:${peer}:${action}` : action });
   }
 

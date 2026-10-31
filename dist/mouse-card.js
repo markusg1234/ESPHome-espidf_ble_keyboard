@@ -113,6 +113,8 @@ class BleMouseCard extends HTMLElement {
         }
       }
     }
+    // The registry of actions can arrive after the card does.
+    this._syncForget();
   }
 
   setConfig(config) {
@@ -293,10 +295,21 @@ class BleMouseCard extends HTMLElement {
           color: #c44;
         }
         .host-forget.armed,
-        .host-forget:active {
+        .host-forget:not(.off):active {
           background: #c44;
           border-color: #c44;
           color: #fff;
+        }
+        /* The device publishes no forget_host action: the button says so in its
+           tooltip rather than arming, so it must not look or press as if it
+           could. */
+        .host-forget.off,
+        .host-forget.off:active {
+          opacity: .45;
+          background: var(--secondary-background-color, #f0f0f0);
+          border-color: var(--divider-color, #e0e0e0);
+          color: var(--secondary-text-color, #888);
+          cursor: default;
         }
         .host-info {
           text-align: center;
@@ -478,7 +491,6 @@ class BleMouseCard extends HTMLElement {
 
   _callService(service, data) {
     if (!this._hass) return;
-    const slug = this._config.device.replace(/-/g, '_');
     // A linked keyboard takes the same things as action strings, passed on by
     // the keyboard this card points at. Movement and scrolling that arrive
     // together are added up there, so a drag cannot outrun the link.
@@ -492,11 +504,11 @@ class BleMouseCard extends HTMLElement {
         service === 'switch_host' ? `switch_host:${data.slot}` :
         service === 'forget_host' ? `forget_host:${data.slot}` : null;
       if (action === null) return;   // nothing else is sent to a linked keyboard
-      this._hass.callService('esphome', `${slug}_run_action`,
+      this._hass.callService('esphome', this._svc('run_action'),
         { action: `peer:${this._peerName()}:${action}` });
       return;
     }
-    this._hass.callService('esphome', `${slug}_${service}`, data);
+    this._hass.callService('esphome', this._svc(service), data);
   }
 
   // ── Host switcher ────────────────────────────────────────────────
@@ -541,7 +553,9 @@ class BleMouseCard extends HTMLElement {
     if (this._config.show_forget_host) {
       this._forgetEl = shadow.getElementById('host-forget');
       this._forgetEl.style.display = '';
+      this._forgetTitle = this._forgetEl.title;
       this._forgetEl.addEventListener('click', () => {
+        if (this._forgetOff) return;   // nothing to call; the tooltip says why
         if (!this._forgetArm) {
           this._forgetArm = this._shownHost();
           this._forgetEl.textContent = 'Confirm?';
@@ -686,6 +700,44 @@ class BleMouseCard extends HTMLElement {
     return t && t.peer ? { peer: t.peer, slot: t.slot } : { peer: null, slot: this._activeSlot || 0 };
   }
 
+  // The action name as the call sends it: Home Assistant registers an ESPHome
+  // device's actions under its name with the dashes underscored.
+  _svc(name) {
+    return `${this._config.device.replace(/-/g, '_')}_${name}`;
+  }
+
+  // Why Forget cannot do anything, or null when it can. The device publishes
+  // forget_host only with api_services: true, or a hand-written service of that
+  // name, and a config grown from the per-card yaml snippets often has
+  // switch_host without it — in which case the call comes back as an unknown
+  // action in a toast, after the host has already been confirmed away.
+  _forgetUnavailable() {
+    // No registry at all (an early hass, or a harness): assume the call works
+    // rather than grey out a button that would have.
+    const reg = this._hass && this._hass.services;
+    if (!reg) return null;
+    // A linked keyboard's host is forgotten by that keyboard, through this
+    // one's run_action, so that is the action which has to exist.
+    const name = this._shownHost().peer ? 'run_action' : 'forget_host';
+    if (reg.esphome && reg.esphome[this._svc(name)]) return null;
+    return `This device publishes no ${name} action.\n`
+      + `Set api_services: true on the component and flash it, or add a ${name} service to`
+      + ` its api: section. A device Home Assistant has not connected to has no actions either.`;
+  }
+
+  _syncForget() {
+    if (!this._forgetEl) return;
+    const why = this._forgetUnavailable();
+    if (why === this._forgetOff) return;
+    this._forgetOff = why;
+    if (why) this._disarmForget();
+    this._forgetEl.classList.toggle('off', !!why);
+    this._forgetEl.setAttribute('aria-disabled', why ? 'true' : 'false');
+    // Not the disabled attribute: a disabled button takes no pointer events, so
+    // the tooltip that explains all this would never show.
+    this._forgetEl.title = why || this._forgetTitle;
+  }
+
   _disarmForget() {
     clearTimeout(this._forgetTimer);
     this._forgetArm = null;
@@ -767,6 +819,7 @@ class BleMouseCard extends HTMLElement {
     // An armed Forget belonged to the host it was armed on, never the new one.
     const armed = this._forgetArm, now = this._shownHost();
     if (armed && (armed.peer !== now.peer || armed.slot !== now.slot)) this._disarmForget();
+    this._syncForget();
     const peerLabel = this._peerHostLabel();
     if (peerLabel !== null) {
       this._hostNameEl.textContent = peerLabel;
