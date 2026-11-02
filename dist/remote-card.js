@@ -110,7 +110,7 @@ import {
   RMT_BUILTIN, RMT_BTNS, RMT_VARS, RMT_CSS, RMT_VER, RMT_LCD_LABELLED, lcdLabel,
   sectionHtml, validateTpl, themeValueBad, useIcons, knobWire, knobLevel, typeWire, keysSquareWidth,
   groupsHtml, groupWire, groupOf,
-} from './remote-styles.js?v=1.19.0-dev';
+} from './remote-styles.js?v=1.19.0';
 
 // Which build of this file the browser actually loaded, read from the ?v= its
 // importer wrote rather than from a constant that has to be remembered at
@@ -145,9 +145,9 @@ const KBD_LAYOUTS = ['us', 'uk', 'de', 'be'];
 // running; any other URL would load a second copy, whose define throws. A pop-out
 // window has only this card's module, and loads its own.
 let kbdLoad = null;
-const loadKeyboardCard = () => kbdLoad || (kbdLoad = import('./keyboard-card.js?v=1.19.0-dev').catch(() => {}));
+const loadKeyboardCard = () => kbdLoad || (kbdLoad = import('./keyboard-card.js?v=1.19.0').catch(() => {}));
 let padLoad = null;
-const loadMouseCard = () => padLoad || (padLoad = import('./mouse-card.js?v=1.19.0-dev').catch(() => {}));
+const loadMouseCard = () => padLoad || (padLoad = import('./mouse-card.js?v=1.19.0').catch(() => {}));
 
 // ── Pop-out ──────────────────────────────────────────────────────────────────
 // The remote can leave the dashboard for a window of its own: one that stays

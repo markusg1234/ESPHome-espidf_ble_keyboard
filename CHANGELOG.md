@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
+## v1.19.0 — 2026-11-02
 
 ### Added
 - **Groups of keys on the remote.** A key opens a group of keys as a small panel where it sits, or
@@ -16,10 +16,8 @@ web control page shows the matching version badge.
   than its YAML names, how much of the chip is going unused.
 - **Forget a host from the Home Assistant cards.** A button beside the host switcher drops the
   pairing for the host it is showing, as the web page's does. It is off until switched on in the
-  card's settings, and takes two taps — the first only arms it, and it gives up after three
-  seconds — so a brush against a dashboard cannot unpair anything. On a keyboard that publishes no
-  forget_host action to Home Assistant the button is greyed out and its tooltip says what is
-  missing, rather than failing on the second tap.
+  card's settings and takes two taps, so a brush against a dashboard cannot unpair anything. Where
+  the keyboard has not given Home Assistant that action, the button is greyed out and says why.
 
 ### Changed
 - **A remote style can be up to 4000 characters**, up from 1500, so there is room for its
