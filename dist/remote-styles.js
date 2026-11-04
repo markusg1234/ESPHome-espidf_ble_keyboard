@@ -262,7 +262,7 @@ const RMT_BUILTIN=[
  ['apps',['spare5','Spotify','icon:spotify lg squircle'],['spare6','Plex','icon:plex lg squircle'],
          ['spare7','Kodi','icon:kodi lg squircle'],['spare8','TV','icon:tv lg squircle']]]}];
 
-const RMT_KINDS=['row','dpad','ring','pot','slider','strip','rocker','media','apps','grid','lcd','side','-'];
+const RMT_KINDS=['row','dpad','ring','cross','pot','slider','strip','rocker','media','apps','grid','lcd','side','-'];
 
 const RMT_OPTS=['light','sm','md','lg','xl','wide','sq','squircle','fill'];
 
@@ -270,7 +270,9 @@ const RMT_KEY_H=[24,160];
 
 const RMT_ICON_H=[8,160];
 
-const RMT_RING=[120,320],RMT_RING_C=[40,200],RMT_RING_ROOM=40;
+const RMT_RING=[120,320],RMT_RING_C=[40,200],RMT_RING_ROOM=40,RMT_RING_R=[0,160];
+
+const RMT_CROSS=[72,320],RMT_CROSS_C=[16,200],RMT_CROSS_ROOM=10;
 
 const RMT_KNOB=[32,320],RMT_KNOB_C=[16,280],RMT_KNOB_ROOM=8,RMT_KNOB_STEP=[10,90],RMT_KNOB_SWEEP=[90,360];
 
@@ -798,6 +800,19 @@ function knobWire(root,send){
   });
 }
 
+function rockerFit(root){
+  for(const l of root.querySelectorAll('.rmt-rocker-line')){
+    l.classList.remove('drop');
+    const box=l.closest('.rmt-pop,.rmt-body');
+    if(!box||!l.getClientRects().length)continue;
+    const b=box.getBoundingClientRect();
+    for(const k of l.querySelectorAll(':scope>.rmt-rocker-side.l .rmt-btn,:scope>.rmt-rocker-side.r .rmt-btn')){
+      const r=k.getBoundingClientRect();
+      if(r.width&&k.style.visibility!=='hidden'&&(r.left<b.left-0.5||r.right>b.right+0.5)){l.classList.add('drop');break}
+    }
+  }
+}
+
 function groupWire(root,body,fit){
   let open=null,from=null;
   // Focus lives in the shadow root on the card, where document only sees the card.
@@ -888,10 +903,12 @@ function groupWire(root,body,fit){
       body.style.minWidth=cs.width;
       body.classList.add('rmt-popping','rmt-popfull');
       p.hidden=false;
+      rockerFit(p);
     }else{
       body.classList.add('rmt-popping');
       if(p.hasAttribute('data-stay'))body.classList.add('rmt-poppin');
       p.hidden=false;
+      rockerFit(p);
       place(p,el);
     }
     open=p;from=el||null;
@@ -1256,17 +1273,37 @@ function sectionHtml(s){
     }else if(k==='ring'){
       // Same five actions as a dpad, drawn as the nav ring instead. Wrappers do
       // the positioning so each button keeps its own press transform.
-      // An optional {"size","center"} first. Whole numbers inside their bounds
-      // only, tested here as well as at import: they reach an inline style.
+      // An optional {"size","center","radius"} first. Whole numbers inside their
+      // bounds only, tested here as well as at import: they reach an inline style.
+      const cfg=(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1]:null;
+      const keys=s.slice(cfg?2:1);
+      const d=keys.length?keys:['up','left','ok','right','down'];
+      const sz=cfg?cfg.size|0:0,cz=cfg?cfg.center|0:0,rz=cfg?cfg.radius:undefined;
+      let st='';
+      if(sz>=RMT_RING[0]&&sz<=RMT_RING[1])st='width:'+sz+'px;height:'+sz+'px';
+      if(cz>=RMT_RING_C[0]&&cz<=RMT_RING_C[1])st+=(st?';':'')+'--rb-ring-c:'+cz+'px';
+      // 0 is a square ring, so this one is tested for being a number, not for being set.
+      if(typeof rz==='number'&&rz===Math.floor(rz)&&rz>=RMT_RING_R[0]&&rz<=RMT_RING_R[1])
+        st+=(st?';':'')+'--rb-ring-r:'+rz+'px';
+      const at=(p,i)=>'<span class="'+p+'">'+btnHtml(d[i])+'</span>';
+      inner='<div class="rmt-ring"'+(st?' style="'+st+'"':'')+'>'+at('n',0)+at('w',1)+at('c',2)+at('e',3)+at('s',4)+'</div>';
+    }else if(k==='cross'){
+      // The same five again, as a cross: a plus-shaped plate drawn once behind
+      // the keys, each arm a third of the size. An optional {"size","center"}
+      // first, held to its bounds here too since both reach an inline style.
       const cfg=(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1]:null;
       const keys=s.slice(cfg?2:1);
       const d=keys.length?keys:['up','left','ok','right','down'];
       const sz=cfg?cfg.size|0:0,cz=cfg?cfg.center|0:0;
       let st='';
-      if(sz>=RMT_RING[0]&&sz<=RMT_RING[1])st='width:'+sz+'px;height:'+sz+'px';
-      if(cz>=RMT_RING_C[0]&&cz<=RMT_RING_C[1])st+=(st?';':'')+'--rb-ring-c:'+cz+'px';
+      if(sz>=RMT_CROSS[0]&&sz<=RMT_CROSS[1])st='--rb-cross:'+sz+'px';
+      if(cz>=RMT_CROSS_C[0]&&cz<=RMT_CROSS_C[1])st+=(st?';':'')+'--rb-cross-c:'+cz+'px';
       const at=(p,i)=>'<span class="'+p+'">'+btnHtml(d[i])+'</span>';
-      inner='<div class="rmt-ring"'+(st?' style="'+st+'"':'')+'>'+at('n',0)+at('w',1)+at('c',2)+at('e',3)+at('s',4)+'</div>';
+      inner='<div class="rmt-cross"'+(st?' style="'+st+'"':'')+'>'+
+            '<svg class="rmt-cross-pl" viewBox="0 0 3 3" aria-hidden="true"><path vector-effect="non-scaling-stroke" '+
+            'd="M1.3 0h.4a.3.3 0 0 1 .3.3V1h.7a.3.3 0 0 1 .3.3v.4a.3.3 0 0 1-.3.3H2v.7a.3.3 0 0 1-.3.3h-.4a.3.3 0 0 1-.3-.3V2'+
+            'H.3a.3.3 0 0 1-.3-.3v-.4a.3.3 0 0 1 .3-.3H1V.3a.3.3 0 0 1 .3-.3z"/></svg>'+
+            at('n',0)+at('w',1)+at('c',2)+at('e',3)+at('s',4)+'</div>';
     }else if(k==='pot'){
       // A dial to turn. Its ring is what knobWire() turns, a press of the first
       // action per step clockwise and of the second per step back; the third is
@@ -1433,19 +1470,43 @@ function sectionHtml(s){
       const cfg=(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1]:null;
       const px=v=>{const n=cfg?cfg[v]|0:0;return n>=RMT_KEY_H[0]&&n<=RMT_KEY_H[1]?n:0};
       const w=px('width'),h=px('h');
-      inner='<div class="rmt-rocker'+(w?' rk-w':'')+(h?' rk-h':'')+'"'+
-            (w||h?' style="'+(w?'--rb-rk-w:'+w+'px;':'')+(h?'--rb-rk-h:'+h+'px':'')+'"':'')+'>'+
-            s.slice(cfg?2:1).map(g=>{
-        // Three entries = a two-way rocker with its label between the halves.
-        // Two = a lone key at the same height, which is how mute sits between
-        // a volume and a channel rocker.
-        if(g.length>=3)
-          return '<div class="rmt-rocker-col">'+btnHtml(g[1])+
-                 (g[0]?'<span class="rmt-rocker-label">'+esc(g[0])+'</span>':'')+
-                 btnHtml(g[2])+'</div>';
-        return '<div class="rmt-rocker-col rmt-rocker-solo">'+btnHtml(g[1])+
-               (g[0]?'<span class="rmt-rocker-label">'+esc(g[0])+'</span>':'')+'</div>';
-      }).join('')+'</div>';
+      // "horizontal" lays each bar across, − VOL +.
+      const across=!!(cfg&&cfg.horizontal===true);
+      // Across, a channel key with no face of its own points the way its bar runs.
+      const face=it=>{
+        const a=Array.isArray(it)?it[0]:it;
+        if(!across||(a!=='channel_up'&&a!=='channel_down'))return null;
+        if(Array.isArray(it)&&(it[1]||/(^|\s)icon:/.test(String(it[2]||''))))return null;
+        return icon(a==='channel_up'?'right':'left');
+      };
+      // Three entries = a two-way rocker with its label between the halves.
+      // Two = a lone key at the same height, which is how mute sits between
+      // a volume and a channel rocker.
+      const lab=g=>g[0]?'<span class="rmt-rocker-label">'+esc(g[0])+'</span>':'';
+      const col=g=>g.length>=3?'<div class="rmt-rocker-col">'+btnHtml(g[1],face(g[1]))+lab(g)+btnHtml(g[2],face(g[2]))+'</div>'
+                              :'<div class="rmt-rocker-col rmt-rocker-solo">'+btnHtml(g[1])+lab(g)+'</div>';
+      const groups=s.slice(cfg?2:1);
+      let out='';
+      if(!across)out=groups.map(col).join('');
+      else{
+        // A bar to a line. A lone key joins the line of the bar before it, or of
+        // the first bar if none comes before it, so the keys keep their order.
+        let l='',bar='',r='';
+        const line=()=>{
+          if(bar)out+='<div class="rmt-rocker-line"><div class="rmt-rocker-side l">'+l+'</div>'+bar+
+                       '<div class="rmt-rocker-side r">'+r+'</div></div>';
+          else if(l)out+='<div class="rmt-rocker-line"><div class="rmt-rocker-side c">'+l+'</div></div>';
+          l=bar=r='';
+        };
+        for(const g of groups){
+          if(g.length>=3){if(bar)line();bar=col(g)}
+          else if(bar)r+=col(g);
+          else l+=col(g);
+        }
+        line();
+      }
+      inner='<div class="rmt-rocker'+(across?' across':'')+(w?' rk-w':'')+(h?' rk-h':'')+'"'+
+            (w||h?' style="'+(w?'--rb-rk-w:'+w+'px;':'')+(h?'--rb-rk-h:'+h+'px':'')+'"':'')+'>'+out+'</div>';
     }else if(k==='strip'){
       inner='<div class="rmt-strip">'+s.slice(1).map((g,i)=>
         (i?'<div style="width:40px"></div>':'')+
@@ -1683,12 +1744,17 @@ function validateTpl(t){
       if(s[0]==='strip'||s[0]==='rocker'){
         let groups=s.slice(1);
         // A rocker may open with {"width","h"} — its columns' width and the
-        // height of each half — the way a grid opens with its layout.
+        // height of each half — the way a grid opens with its layout, and with
+        // "horizontal" to lay its bars across.
         if(s[0]==='rocker'&&groups.length&&groups[0]&&typeof groups[0]==='object'&&!Array.isArray(groups[0])){
           const cfg=groups[0];
           groups=groups.slice(1);
           for(const k in cfg){
-            if(k!=='width'&&k!=='h')return 'A rocker takes width and h — "'+k+'" is neither';
+            if(k==='horizontal'){
+              if(typeof cfg[k]!=='boolean')return 'rocker "horizontal" is true or false';
+              continue;
+            }
+            if(k!=='width'&&k!=='h')return 'A rocker takes width, h and horizontal — "'+k+'" is none of them';
             const n=cfg[k];
             if(typeof n!=='number'||n!==Math.floor(n)||n<RMT_KEY_H[0]||n>RMT_KEY_H[1])
               return 'rocker "'+k+'" is '+RMT_KEY_H[0]+'-'+RMT_KEY_H[1]+' pixels, a whole number — e.g. {"width":60,"h":48}';
@@ -1702,27 +1768,49 @@ function validateTpl(t){
             return 'A rocker group is ["Label","up","down"], or ["Label","action"] for a single key';
           items=items.concat(g.slice(1));
         }
-      }else if(s[0]==='dpad'||s[0]==='ring'){
+      }else if(s[0]==='dpad'||s[0]==='ring'||s[0]==='cross'){
         let keys=s.slice(1);
-        // A ring may open with {"size","center"}, the way a grid opens with its
-        // layout. A dpad keeps its fixed cluster.
+        // A ring or a cross may open with {"size","center"}, the way a grid opens
+        // with its layout. A dpad keeps its fixed cluster.
         if(s[0]==='ring'&&keys.length&&keys[0]&&typeof keys[0]==='object'&&!Array.isArray(keys[0])){
           const cfg=keys[0];
           keys=keys.slice(1);
           for(const k in cfg){
-            if(k!=='size'&&k!=='center')return 'A ring takes size and center — "'+k+'" is neither';
+            if(k!=='size'&&k!=='center'&&k!=='radius')return 'A ring takes size, center and radius — "'+k+'" is none of them';
             const n=cfg[k];
             if(typeof n!=='number'||!isFinite(n)||n!==Math.floor(n))
               return 'ring "'+k+'" must be a whole number of pixels, e.g. {"size":200,"center":96}';
           }
           if(cfg.size!==undefined&&(cfg.size<RMT_RING[0]||cfg.size>RMT_RING[1]))
             return 'ring "size" is '+RMT_RING[0]+'-'+RMT_RING[1]+' pixels — "'+cfg.size+'" is outside that';
+          if(cfg.radius!==undefined&&(cfg.radius<RMT_RING_R[0]||cfg.radius>RMT_RING_R[1]))
+            return 'ring "radius" is '+RMT_RING_R[0]+'-'+RMT_RING_R[1]+' pixels, its corners — "'+cfg.radius+'" is outside that';
           if(cfg.center!==undefined&&(cfg.center<RMT_RING_C[0]||cfg.center>RMT_RING_C[1]))
             return 'ring "center" is '+RMT_RING_C[0]+'-'+RMT_RING_C[1]+' pixels — "'+cfg.center+'" is outside that';
           const size=cfg.size!==undefined?cfg.size:168,center=cfg.center!==undefined?cfg.center:84;
           if(center>size-2*RMT_RING_ROOM)
             return 'ring "center" '+center+' leaves the arrows no room in a '+size+'px ring — at most '+
                    (size-2*RMT_RING_ROOM)+', or a larger "size"';
+        }
+        if(s[0]==='cross'&&keys.length&&keys[0]&&typeof keys[0]==='object'&&!Array.isArray(keys[0])){
+          const cfg=keys[0];
+          keys=keys.slice(1);
+          for(const k in cfg){
+            if(k!=='size'&&k!=='center')return 'A cross takes size and center — "'+k+'" is neither';
+            const n=cfg[k];
+            if(typeof n!=='number'||!isFinite(n)||n!==Math.floor(n))
+              return 'cross "'+k+'" must be a whole number of pixels, e.g. {"size":150,"center":44}';
+          }
+          if(cfg.size!==undefined&&(cfg.size<RMT_CROSS[0]||cfg.size>RMT_CROSS[1]))
+            return 'cross "size" is '+RMT_CROSS[0]+'-'+RMT_CROSS[1]+' pixels — "'+cfg.size+'" is outside that';
+          if(cfg.center!==undefined&&(cfg.center<RMT_CROSS_C[0]||cfg.center>RMT_CROSS_C[1]))
+            return 'cross "center" is '+RMT_CROSS_C[0]+'-'+RMT_CROSS_C[1]+' pixels — "'+cfg.center+'" is outside that';
+          // Each arrow sits in the middle of its arm's end, a third of the size out
+          // from the centre: the centre key may cover the arms up to just short of it.
+          const size=cfg.size!==undefined?cfg.size:150,most=2*(Math.floor(size/3)-RMT_CROSS_ROOM);
+          if(cfg.center!==undefined&&cfg.center>most)
+            return 'cross "center" '+cfg.center+' leaves the arrows no room in a '+size+'px cross — at most '+
+                   most+', or a larger "size"';
         }
         if(keys.length&&keys.length!==5)
           return 'A '+s[0]+' section lists exactly 5 actions (up, left, centre, right, down) or none';
@@ -2096,7 +2184,7 @@ export const RMT_CSS = `
 .rmt-grid{display:grid;gap:8px}
 .rmt-grid .rmt-btn{border-radius:var(--rb-btn-radius,10px)}
 .rmt-btn.app{width:auto;height:38px;border-radius:19px;padding:0 14px;font-size:11px}
-.rmt-ring{position:relative;width:168px;height:168px;margin:10px auto;border-radius:50%;
+.rmt-ring{position:relative;width:168px;height:168px;margin:10px auto;border-radius:var(--rb-ring-r,50%);
   background:var(--rb-ring-bg,var(--rb-btn-bg,var(--bg)));border:1px solid var(--rb-btn-border,var(--border))}
 .rmt-ring>span{position:absolute;display:flex}
 .rmt-ring>span.n{top:6px;left:50%;transform:translateX(-50%)}
@@ -2107,6 +2195,27 @@ export const RMT_CSS = `
 .rmt-ring .rmt-btn{background:none;border-color:transparent;color:var(--rb-ring-fg,var(--rb-btn-fg,var(--fg)))}
 .rmt-ring .rmt-btn:active,.rmt-ring .rmt-btn.p{background:rgba(255,255,255,.18);border-color:transparent}
 .rmt-ring .center{width:var(--rb-ring-c,84px);height:var(--rb-ring-c,84px)}
+.rmt-cross{position:relative;width:var(--rb-cross,150px);height:var(--rb-cross,150px);margin:10px auto;
+  --rb-cr-t:calc(var(--rb-cross,150px) / 3);--rb-cr-r:calc(var(--rb-cross,150px) / 10)}
+.rmt-cross-pl{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;pointer-events:none;
+  fill:var(--rb-ring-bg,var(--rb-btn-bg,var(--bg)));stroke:var(--rb-btn-border,var(--border));stroke-width:1px}
+.rmt-cross>span{position:absolute;display:flex;align-items:center;justify-content:center;width:var(--rb-cr-t);height:var(--rb-cr-t)}
+.rmt-cross>span.n{top:0;left:var(--rb-cr-t)}
+.rmt-cross>span.w{top:var(--rb-cr-t);left:0}
+.rmt-cross>span.c{top:var(--rb-cr-t);left:var(--rb-cr-t)}
+.rmt-cross>span.e{top:var(--rb-cr-t);right:0}
+.rmt-cross>span.s{bottom:0;left:var(--rb-cr-t)}
+.rmt-cross .rmt-btn{background:none;border-color:transparent;color:var(--rb-ring-fg,var(--rb-btn-fg,var(--fg)))}
+.rmt-cross>span:not(.c)>.rmt-btn{width:100%;height:100%}
+.rmt-cross>span.n>.rmt-btn{border-radius:var(--rb-cr-r) var(--rb-cr-r) 0 0}
+.rmt-cross>span.s>.rmt-btn{border-radius:0 0 var(--rb-cr-r) var(--rb-cr-r)}
+.rmt-cross>span.w>.rmt-btn{border-radius:var(--rb-cr-r) 0 0 var(--rb-cr-r)}
+.rmt-cross>span.e>.rmt-btn{border-radius:0 var(--rb-cr-r) var(--rb-cr-r) 0}
+.rmt-cross .rmt-btn:active,.rmt-cross .rmt-btn.p{background:rgba(255,255,255,.18);border-color:transparent}
+.rmt-cross .center{width:var(--rb-cross-c,calc(var(--rb-cr-t) - 6px));height:var(--rb-cross-c,calc(var(--rb-cr-t) - 6px));
+  border-radius:50%;background:var(--rb-ok-bg,var(--active));color:var(--rb-ok-fg,#fff);border-color:var(--rb-ok-bg,var(--active));
+  font-size:11px;font-weight:700}
+.rmt-cross .center:active,.rmt-cross .center.p{background:var(--accent)}
 .rmt-knob{display:flex;flex-direction:column;align-items:center;gap:4px;margin:6px 0}
 .rmt-knob-dial{position:relative;width:var(--rb-knob,150px);height:var(--rb-knob,150px)}
 .rmt-knob-ring{position:absolute;inset:0;border-radius:50%;cursor:grab;touch-action:none;outline:none;
@@ -2205,6 +2314,17 @@ export const RMT_CSS = `
 .rmt-rocker.rk-w .rmt-rocker-col:not(.rmt-rocker-solo){width:var(--rb-rk-w)}
 .rmt-rocker.rk-w .rmt-rocker-col:not(.rmt-rocker-solo) .rmt-btn{width:100%}
 .rmt-rocker.rk-h .rmt-rocker-col .rmt-btn{height:var(--rb-rk-h)}
+.rmt-rocker.across{flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:8px}
+.rmt-rocker-line{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;column-gap:8px}
+.rmt-rocker-side{display:flex;align-items:center;gap:8px}
+.rmt-rocker-side.l{justify-content:flex-end}
+.rmt-rocker-side.c{grid-column:2;justify-content:center}
+.rmt-rocker.across .rmt-rocker-col:not(.rmt-rocker-solo){flex-direction:row-reverse;padding:0 4px}
+.rmt-rocker.across.rk-w .rmt-rocker-col:not(.rmt-rocker-solo){width:auto}
+.rmt-rocker.across.rk-w .rmt-rocker-col:not(.rmt-rocker-solo) .rmt-btn{width:var(--rb-rk-w)}
+.rmt-rocker-line.drop{grid-template-columns:auto;justify-content:center;row-gap:8px}
+.rmt-rocker-line.drop>.rmt-rocker-side{justify-content:center}
+.rmt-rocker-line.drop>.rmt-rocker-side:empty{display:none}
 .rmt-lcd{background:var(--rb-lcd-bg,#11161c);border:1px solid var(--rb-lcd-border,rgba(0,0,0,.55));
   border-radius:var(--rb-lcd-radius,8px);padding:8px 10px;box-shadow:inset 0 1px 3px rgba(0,0,0,.55);
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
@@ -2263,4 +2383,4 @@ export const RMT_CSS = `
 .rmt-head .macro-edit-btn{margin-left:0}
 `;
 
-export { RI, RMT_BTNS, RMT_VARS, RMT_BUILTIN, RMT_KINDS, RMT_OPTS, RMT_KEY_H, RMT_LCD_OPTS, RMT_LCD_COLOURS, RMT_LCD_KEYS, RMT_LCD_LABELLED, lcdLabel, RMT_HEX, RMT_CLIP, RMT_FETCH, icon, esc, RMT_ICON_NAME, RMT_ICON_LEN, RMT_ICON_MAX, RMT_ICONS, iconBad, useIcons, iconNames, themeValueBad, btnHtml, sectionHtml, validateTpl, knobWire, knobLevel, typeWire, keysSquareWidth, RMT_GROUP_NAME, groupOf, tplGroups, groupsHtml, groupWire };
+export { RI, RMT_BTNS, RMT_VARS, RMT_BUILTIN, RMT_KINDS, RMT_OPTS, RMT_KEY_H, RMT_LCD_OPTS, RMT_LCD_COLOURS, RMT_LCD_KEYS, RMT_LCD_LABELLED, lcdLabel, RMT_HEX, RMT_CLIP, RMT_FETCH, icon, esc, RMT_ICON_NAME, RMT_ICON_LEN, RMT_ICON_MAX, RMT_ICONS, iconBad, useIcons, iconNames, themeValueBad, btnHtml, sectionHtml, validateTpl, knobWire, knobLevel, typeWire, keysSquareWidth, RMT_GROUP_NAME, groupOf, tplGroups, groupsHtml, groupWire, rockerFit };

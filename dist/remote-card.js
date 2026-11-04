@@ -109,8 +109,8 @@
 import {
   RMT_BUILTIN, RMT_BTNS, RMT_VARS, RMT_CSS, RMT_VER, RMT_LCD_LABELLED, lcdLabel,
   sectionHtml, validateTpl, themeValueBad, useIcons, knobWire, knobLevel, typeWire, keysSquareWidth,
-  groupsHtml, groupWire, groupOf,
-} from './remote-styles.js?v=1.19.0';
+  groupsHtml, groupWire, groupOf, rockerFit,
+} from './remote-styles.js?v=1.20.0-dev';
 
 // Which build of this file the browser actually loaded, read from the ?v= its
 // importer wrote rather than from a constant that has to be remembered at
@@ -145,9 +145,9 @@ const KBD_LAYOUTS = ['us', 'uk', 'de', 'be'];
 // running; any other URL would load a second copy, whose define throws. A pop-out
 // window has only this card's module, and loads its own.
 let kbdLoad = null;
-const loadKeyboardCard = () => kbdLoad || (kbdLoad = import('./keyboard-card.js?v=1.19.0').catch(() => {}));
+const loadKeyboardCard = () => kbdLoad || (kbdLoad = import('./keyboard-card.js?v=1.20.0-dev').catch(() => {}));
 let padLoad = null;
-const loadMouseCard = () => padLoad || (padLoad = import('./mouse-card.js?v=1.19.0').catch(() => {}));
+const loadMouseCard = () => padLoad || (padLoad = import('./mouse-card.js?v=1.20.0-dev').catch(() => {}));
 
 // ── Pop-out ──────────────────────────────────────────────────────────────────
 // The remote can leave the dashboard for a window of its own: one that stays
@@ -608,10 +608,11 @@ class BleRemoteCard extends HTMLElement {
     // Before anything collapses: a group key goes with the last key in its group,
     // and can leave its own row empty.
     if (this._grp) this._grp.hideEmpty(empty);
-    this.shadowRoot.querySelectorAll('.rmt-strip-group, .rmt-rocker-col')
+    this.shadowRoot.querySelectorAll('.rmt-strip-group, .rmt-rocker-col, .rmt-rocker-line')
       .forEach(g => { g.style.display = empty(g) ? 'none' : ''; });
     this.shadowRoot.querySelectorAll('.rmt-section')
       .forEach(s => { s.style.display = empty(s) ? 'none' : ''; });
+    rockerFit(this.shadowRoot);
     // Every redraw comes through here, forced, so this is where an open keyboard
     // finds out whether the key that shuts it is still drawn.
     this._kbdCheck();
@@ -1899,7 +1900,17 @@ class BleRemoteCard extends HTMLElement {
     // The style's groups, opened over the remote by its group keys, with the
     // device page's own code. A window around the remote grows for a tall one.
     this._grp = groupWire(card, shadow.getElementById('rmt-body'), () => this._fitKbd());
-    const shut = () => { const el = sentEl; sentEl = null; if (el) this._grp.done(el); };
+    // A remote drawn narrower can leave a lone key no room beside its rocker, as on
+    // the device page: refitted a frame after its width changes, since moving the
+    // key changes the height this observes too.
+    const rb = shadow.getElementById('rmt-body');
+    let rkW = 0;
+    if (this._rkRO) this._rkRO.disconnect();
+    this._rkRO = new ResizeObserver(() => {
+      if (rb.clientWidth !== rkW) { rkW = rb.clientWidth; requestAnimationFrame(() => rockerFit(shadow)); }
+    });
+    this._rkRO.observe(rb);
+    const shut =() => { const el = sentEl; sentEl = null; if (el) this._grp.done(el); };
     const stopRepeat = () => {
       if (interval) { clearInterval(interval); interval = null; }
       if (timer) { clearTimeout(timer); timer = null; }

@@ -447,7 +447,9 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    rather than being positioned themselves: .rmt-btn:active already owns
    `transform` for its press animation, and a positioning transform on the same
    element would cancel it. */
-.rmt-ring{position:relative;width:168px;height:168px;margin:10px auto;border-radius:50%;
+/* Round unless its settings give the corners a radius (--rb-ring-r), which
+   squares it off; the arrows stay at the middle of each side either way. */
+.rmt-ring{position:relative;width:168px;height:168px;margin:10px auto;border-radius:var(--rb-ring-r,50%);
   background:var(--rb-ring-bg,var(--rb-btn-bg,var(--bg)));border:1px solid var(--rb-btn-border,var(--border))}
 /* Centred by translating the wrapper, not by a margin of half a fixed key size,
    so an arrow or a centre of any size sits true — the wrapper is not the button,
@@ -465,6 +467,33 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-ring .rmt-btn{background:none;border-color:transparent;color:var(--rb-ring-fg,var(--rb-btn-fg,var(--fg)))}
 .rmt-ring .rmt-btn:active,.rmt-ring .rmt-btn.p{background:rgba(255,255,255,.18);border-color:transparent}
 .rmt-ring .center{width:var(--rb-ring-c,84px);height:var(--rb-ring-c,84px)}
+/* ── Cross d-pad ─────────────────────────────────────────────────
+   The same five keys as one plus-shaped piece, each arm a third of the size. The
+   plate is an SVG behind the keys, so its edge runs unbroken round the plus; the
+   arms are see-through keys over it, placed by wrappers as the ring's are, and
+   rounded only on their outer corners so a press lights the arm's own shape. It
+   takes the ring's colours, and its centre the OK key's, as the d-pad's does. */
+.rmt-cross{position:relative;width:var(--rb-cross,150px);height:var(--rb-cross,150px);margin:10px auto;
+  --rb-cr-t:calc(var(--rb-cross,150px) / 3);--rb-cr-r:calc(var(--rb-cross,150px) / 10)}
+.rmt-cross-pl{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;pointer-events:none;
+  fill:var(--rb-ring-bg,var(--rb-btn-bg,var(--bg)));stroke:var(--rb-btn-border,var(--border));stroke-width:1px}
+.rmt-cross>span{position:absolute;display:flex;align-items:center;justify-content:center;width:var(--rb-cr-t);height:var(--rb-cr-t)}
+.rmt-cross>span.n{top:0;left:var(--rb-cr-t)}
+.rmt-cross>span.w{top:var(--rb-cr-t);left:0}
+.rmt-cross>span.c{top:var(--rb-cr-t);left:var(--rb-cr-t)}
+.rmt-cross>span.e{top:var(--rb-cr-t);right:0}
+.rmt-cross>span.s{bottom:0;left:var(--rb-cr-t)}
+.rmt-cross .rmt-btn{background:none;border-color:transparent;color:var(--rb-ring-fg,var(--rb-btn-fg,var(--fg)))}
+.rmt-cross>span:not(.c)>.rmt-btn{width:100%;height:100%}
+.rmt-cross>span.n>.rmt-btn{border-radius:var(--rb-cr-r) var(--rb-cr-r) 0 0}
+.rmt-cross>span.s>.rmt-btn{border-radius:0 0 var(--rb-cr-r) var(--rb-cr-r)}
+.rmt-cross>span.w>.rmt-btn{border-radius:var(--rb-cr-r) 0 0 var(--rb-cr-r)}
+.rmt-cross>span.e>.rmt-btn{border-radius:0 var(--rb-cr-r) var(--rb-cr-r) 0}
+.rmt-cross .rmt-btn:active,.rmt-cross .rmt-btn.p{background:rgba(255,255,255,.18);border-color:transparent}
+.rmt-cross .center{width:var(--rb-cross-c,calc(var(--rb-cr-t) - 6px));height:var(--rb-cross-c,calc(var(--rb-cr-t) - 6px));
+  border-radius:50%;background:var(--rb-ok-bg,var(--active));color:var(--rb-ok-fg,#fff);border-color:var(--rb-ok-bg,var(--active));
+  font-size:11px;font-weight:700}
+.rmt-cross .center:active,.rmt-cross .center.p{background:var(--accent)}
 /* ── Knob ────────────────────────────────────────────────────────
    A dial turned rather than pressed, with an ordinary key in the middle. Sized
    by --rb-knob and --rb-knob-c, which the renderer sets from checked whole
@@ -608,6 +637,24 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-rocker.rk-w .rmt-rocker-col:not(.rmt-rocker-solo){width:var(--rb-rk-w)}
 .rmt-rocker.rk-w .rmt-rocker-col:not(.rmt-rocker-solo) .rmt-btn{width:100%}
 .rmt-rocker.rk-h .rmt-rocker-col .rmt-btn{height:var(--rb-rk-h)}
+/* Laid across ("horizontal"): each bar reads − VOL +, the same keys on their
+   side, so its first key is the right-hand one. A bar to a line, on the centre
+   line as the rest of the remote is; a single key sits beside the bar it follows,
+   or left of the first bar if it comes before it. The sides share what the bar
+   leaves, so what sits beside a bar never moves it off the line. */
+.rmt-rocker.across{flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:8px}
+.rmt-rocker-line{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;column-gap:8px}
+.rmt-rocker-side{display:flex;align-items:center;gap:8px}
+.rmt-rocker-side.l{justify-content:flex-end}
+.rmt-rocker-side.c{grid-column:2;justify-content:center}
+.rmt-rocker.across .rmt-rocker-col:not(.rmt-rocker-solo){flex-direction:row-reverse;padding:0 4px}
+.rmt-rocker.across.rk-w .rmt-rocker-col:not(.rmt-rocker-solo){width:auto}
+.rmt-rocker.across.rk-w .rmt-rocker-col:not(.rmt-rocker-solo) .rmt-btn{width:var(--rb-rk-w)}
+/* No room beside it (rockerFit): the keys before the rocker go over it, those
+   after under it, centred. */
+.rmt-rocker-line.drop{grid-template-columns:auto;justify-content:center;row-gap:8px}
+.rmt-rocker-line.drop>.rmt-rocker-side{justify-content:center}
+.rmt-rocker-line.drop>.rmt-rocker-side:empty{display:none}
 /* ── LCD panel ───────────────────────────────────────────────────
    A small screen inside the remote: label/value lines fed by the keyboard's own
    state or by an ESPHome entity named in `sources`. Its colours default to
@@ -824,7 +871,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.19.0</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.20.0-dev</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -1199,10 +1246,11 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <dl>
 <dt><code>["row",…]</code></dt><dd>A row of round buttons. <code>"|"</code> spaces it out.</dd>
 <dt><code>["dpad"]</code></dt><dd>The arrow cluster.</dd>
-<dt><code>["ring"]</code></dt><dd>The same five keys as a round nav ring. <code>["ring",{"size":200,"center":96}]</code> sizes the ring and its centre button.</dd>
+<dt><code>["ring"]</code></dt><dd>The same five keys as a round nav ring. <code>["ring",{"size":200,"center":96}]</code> sizes the ring and its centre button, and <code>"radius":28</code> squares it off, its corners 0&ndash;160 pixels.</dd>
+<dt><code>["cross"]</code></dt><dd>The same five keys as a cross, its arms one piece. <code>["cross",{"size":150,"center":44}]</code> sizes the cross and its centre button.</dd>
 <dt><code>["pot"]</code></dt><dd>A dial you turn: drag round it, tap either side for one step, or click it and use the wheel or arrow keys. Each step clockwise presses the first action, anticlockwise the second, and the middle is a key for the third &mdash; with none listed, <code>"volume_up","volume_down","mute"</code>. Settings first: <code>{"size":150,"center":75,"step":30,"show":"temp","label":"Heat","marks":false}</code> &mdash; <code>size</code> 32&ndash;320 pixels, <code>center</code> the middle key's, <code>step</code> 10&ndash;90 degrees a step, <code>show</code> a value for the middle as an lcd line names one, <code>label</code> a caption over it (<code>"label_at":"bottom"</code> puts it under), <code>marks</code> <code>false</code> to hide the &minus; and +. <code>{"level":"tv_volume","inc":1}</code> points it at a reading instead &mdash; <code>min</code> and <code>max</code> (0 and 100) at the two ends of a 270&deg; <code>sweep</code>, so 100 is fully clockwise, and <code>inc</code> how much a step moves it. <code>"fill":"#e53935"</code> colours its level (green unless the theme&rsquo;s <code>level</code> says otherwise), and <code>"analogue":true</code> makes its position the level, as on a pot: press or drag to a level and the keyboard sends the presses to get there. <code>{"set":"spare12"}</code> sends the value once instead &mdash; <code>spare12=40</code>, filling <code>{value}</code> in that spare&rsquo;s Host Action, e.g. <code>ha_action:light.turn_on;entity_id=light.lamp;brightness_pct={value}</code>.</dd>
 <dt><code>["strip",…]</code></dt><dd>Labelled columns side by side: <code>["strip",["Vol","volume_up","volume_down"],…]</code></dd>
-<dt><code>["rocker",…]</code></dt><dd>The same groups as one-piece rocker keys. <code>["","mute"]</code> is a single key of the same height. A rocker is as wide as its keys; <code>["rocker",{"width":60,"h":48},…]</code> sets each column's width and each half's height instead, 24&ndash;160 pixels.</dd>
+<dt><code>["rocker",…]</code></dt><dd>The same groups as one-piece rocker keys. <code>["","mute"]</code> is a single key of the same height. A rocker is as wide as its keys; <code>["rocker",{"width":60,"h":48},…]</code> sets each column's width and each half's height instead, 24&ndash;160 pixels. <code>"horizontal":true</code> lays the rockers across, &minus;&nbsp;VOL&nbsp;+, one to a line; a single key sits beside the rocker before it.</dd>
 <dt><code>["media",…]</code></dt><dd>A row of small transport buttons.</dd>
 <dt><code>["apps",…]</code></dt><dd>A row of wide pills.</dd>
 <dt><code>["grid",…]</code></dt><dd>Equal rectangles in columns, the layout said once: <code>["grid",{"cols":2,"h":56,"opts":"sq"},["spare1","Copy"],["spare2","Paste"]]</code>. The settings are optional &mdash; <code>cols</code> 1&ndash;8 (2 if left out), <code>h</code> 24&ndash;160 pixels, and <code>opts</code> every key takes. A key's own options add to those, and <code>"|"</code> leaves a cell empty.</dd>
@@ -1944,7 +1992,7 @@ touchpad:{t:'Touchpad',i:'pad_show',g:10}};
 const RMT_PAGE_KEYS=['next_keyboard','prev_host_all','next_host_all','keyboard','typing','touchpad'];
 // Of those, the three that open the panel under the remote.
 const RMT_KB_KEYS=['keyboard','typing','touchpad'];
-const RMT_KINDS=['row','dpad','ring','pot','slider','strip','rocker','media','apps','grid','lcd','side','-'];
+const RMT_KINDS=['row','dpad','ring','cross','pot','slider','strip','rocker','media','apps','grid','lcd','side','-'];
 // A theme may only set these, and each maps to a custom property the .rmt-*
 // rules already read. An imported template therefore cannot inject CSS: keys
 // outside this table are dropped, values only ever land in a --rb-* property.
@@ -1997,10 +2045,16 @@ const RMT_KEY_H=[24,160];
 // some logos are drawn with room around them and read small at the size keys
 // give icons. Never taller than the key it sits on, whatever this allows.
 const RMT_ICON_H=[8,160];
-// A ring's optional {"size","center"}: the circle's diameter and its centre
-// button's, in pixels. The centre also has to leave the arrows room, which is
-// checked against the size at import (RMT_RING_ROOM each side between the two).
-const RMT_RING=[120,320],RMT_RING_C=[40,200],RMT_RING_ROOM=40;
+// A ring's optional {"size","center","radius"}: the circle's diameter and its
+// centre button's, in pixels. The centre also has to leave the arrows room, which
+// is checked against the size at import (RMT_RING_ROOM each side between the two).
+// "radius" rounds its corners instead of the whole ring — a square ring at 0, and
+// round again by half its size, as anything larger draws.
+const RMT_RING=[120,320],RMT_RING_C=[40,200],RMT_RING_ROOM=40,RMT_RING_R=[0,160];
+// A cross's optional {"size","center"}: how wide the cross is, each arm a third
+// of it, and its centre button's diameter. The centre may reach into the arms,
+// but no further than RMT_CROSS_ROOM short of the middle of each arrow's cell.
+const RMT_CROSS=[72,320],RMT_CROSS_C=[16,200],RMT_CROSS_ROOM=10;
 // A knob's optional {"size","center","step"}: its diameter and its middle key's,
 // in pixels, and how many degrees one step turns. As small as a small key, and
 // the middle has to leave a ring to turn by, RMT_KNOB_ROOM each side, checked
@@ -2569,6 +2623,22 @@ function knobWire(root,send){
     if(e.target.closest&&e.target.closest('.rmt-knob-ring,.rmt-slider-track,.rmt-slider-mk'))e.preventDefault();
   });
 }
+// A lone key beside a rocker laid across goes under it instead where beside it
+// would reach past the remote's edge — or a group panel's — so the rocker keeps
+// the centre line either way. Only layout knows, so it is measured: after every
+// draw and hidden change, when a group opens, and when the remote changes width.
+function rockerFit(root){
+  for(const l of root.querySelectorAll('.rmt-rocker-line')){
+    l.classList.remove('drop');
+    const box=l.closest('.rmt-pop,.rmt-body');
+    if(!box||!l.getClientRects().length)continue;
+    const b=box.getBoundingClientRect();
+    for(const k of l.querySelectorAll(':scope>.rmt-rocker-side.l .rmt-btn,:scope>.rmt-rocker-side.r .rmt-btn')){
+      const r=k.getBoundingClientRect();
+      if(r.width&&k.style.visibility!=='hidden'&&(r.left<b.left-0.5||r.right>b.right+0.5)){l.classList.add('drop');break}
+    }
+  }
+}
 // A style's groups, which groupsHtml draws hidden in the remote's body. A group
 // key opens its group as a panel over itself, the rest of the remote dimmed —
 // or, with "full", in place of the remote's own sections, in the same body and
@@ -2671,10 +2741,12 @@ function groupWire(root,body,fit){
       body.style.minWidth=cs.width;
       body.classList.add('rmt-popping','rmt-popfull');
       p.hidden=false;
+      rockerFit(p);
     }else{
       body.classList.add('rmt-popping');
       if(p.hasAttribute('data-stay'))body.classList.add('rmt-poppin');
       p.hidden=false;
+      rockerFit(p);
       place(p,el);
     }
     open=p;from=el||null;
@@ -5631,12 +5703,17 @@ function insertStep(el,val){
       if(s[0]==='strip'||s[0]==='rocker'){
         let groups=s.slice(1);
         // A rocker may open with {"width","h"} — its columns' width and the
-        // height of each half — the way a grid opens with its layout.
+        // height of each half — the way a grid opens with its layout, and with
+        // "horizontal" to lay its bars across.
         if(s[0]==='rocker'&&groups.length&&groups[0]&&typeof groups[0]==='object'&&!Array.isArray(groups[0])){
           const cfg=groups[0];
           groups=groups.slice(1);
           for(const k in cfg){
-            if(k!=='width'&&k!=='h')return 'A rocker takes width and h — "'+k+'" is neither';
+            if(k==='horizontal'){
+              if(typeof cfg[k]!=='boolean')return 'rocker "horizontal" is true or false';
+              continue;
+            }
+            if(k!=='width'&&k!=='h')return 'A rocker takes width, h and horizontal — "'+k+'" is none of them';
             const n=cfg[k];
             if(typeof n!=='number'||n!==Math.floor(n)||n<RMT_KEY_H[0]||n>RMT_KEY_H[1])
               return 'rocker "'+k+'" is '+RMT_KEY_H[0]+'-'+RMT_KEY_H[1]+' pixels, a whole number — e.g. {"width":60,"h":48}';
@@ -5650,27 +5727,49 @@ function insertStep(el,val){
             return 'A rocker group is ["Label","up","down"], or ["Label","action"] for a single key';
           items=items.concat(g.slice(1));
         }
-      }else if(s[0]==='dpad'||s[0]==='ring'){
+      }else if(s[0]==='dpad'||s[0]==='ring'||s[0]==='cross'){
         let keys=s.slice(1);
-        // A ring may open with {"size","center"}, the way a grid opens with its
-        // layout. A dpad keeps its fixed cluster.
+        // A ring or a cross may open with {"size","center"}, the way a grid opens
+        // with its layout. A dpad keeps its fixed cluster.
         if(s[0]==='ring'&&keys.length&&keys[0]&&typeof keys[0]==='object'&&!Array.isArray(keys[0])){
           const cfg=keys[0];
           keys=keys.slice(1);
           for(const k in cfg){
-            if(k!=='size'&&k!=='center')return 'A ring takes size and center — "'+k+'" is neither';
+            if(k!=='size'&&k!=='center'&&k!=='radius')return 'A ring takes size, center and radius — "'+k+'" is none of them';
             const n=cfg[k];
             if(typeof n!=='number'||!isFinite(n)||n!==Math.floor(n))
               return 'ring "'+k+'" must be a whole number of pixels, e.g. {"size":200,"center":96}';
           }
           if(cfg.size!==undefined&&(cfg.size<RMT_RING[0]||cfg.size>RMT_RING[1]))
             return 'ring "size" is '+RMT_RING[0]+'-'+RMT_RING[1]+' pixels — "'+cfg.size+'" is outside that';
+          if(cfg.radius!==undefined&&(cfg.radius<RMT_RING_R[0]||cfg.radius>RMT_RING_R[1]))
+            return 'ring "radius" is '+RMT_RING_R[0]+'-'+RMT_RING_R[1]+' pixels, its corners — "'+cfg.radius+'" is outside that';
           if(cfg.center!==undefined&&(cfg.center<RMT_RING_C[0]||cfg.center>RMT_RING_C[1]))
             return 'ring "center" is '+RMT_RING_C[0]+'-'+RMT_RING_C[1]+' pixels — "'+cfg.center+'" is outside that';
           const size=cfg.size!==undefined?cfg.size:168,center=cfg.center!==undefined?cfg.center:84;
           if(center>size-2*RMT_RING_ROOM)
             return 'ring "center" '+center+' leaves the arrows no room in a '+size+'px ring — at most '+
                    (size-2*RMT_RING_ROOM)+', or a larger "size"';
+        }
+        if(s[0]==='cross'&&keys.length&&keys[0]&&typeof keys[0]==='object'&&!Array.isArray(keys[0])){
+          const cfg=keys[0];
+          keys=keys.slice(1);
+          for(const k in cfg){
+            if(k!=='size'&&k!=='center')return 'A cross takes size and center — "'+k+'" is neither';
+            const n=cfg[k];
+            if(typeof n!=='number'||!isFinite(n)||n!==Math.floor(n))
+              return 'cross "'+k+'" must be a whole number of pixels, e.g. {"size":150,"center":44}';
+          }
+          if(cfg.size!==undefined&&(cfg.size<RMT_CROSS[0]||cfg.size>RMT_CROSS[1]))
+            return 'cross "size" is '+RMT_CROSS[0]+'-'+RMT_CROSS[1]+' pixels — "'+cfg.size+'" is outside that';
+          if(cfg.center!==undefined&&(cfg.center<RMT_CROSS_C[0]||cfg.center>RMT_CROSS_C[1]))
+            return 'cross "center" is '+RMT_CROSS_C[0]+'-'+RMT_CROSS_C[1]+' pixels — "'+cfg.center+'" is outside that';
+          // Each arrow sits in the middle of its arm's end, a third of the size out
+          // from the centre: the centre key may cover the arms up to just short of it.
+          const size=cfg.size!==undefined?cfg.size:150,most=2*(Math.floor(size/3)-RMT_CROSS_ROOM);
+          if(cfg.center!==undefined&&cfg.center>most)
+            return 'cross "center" '+cfg.center+' leaves the arrows no room in a '+size+'px cross — at most '+
+                   most+', or a larger "size"';
         }
         if(keys.length&&keys.length!==5)
           return 'A '+s[0]+' section lists exactly 5 actions (up, left, centre, right, down) or none';
@@ -6262,6 +6361,7 @@ function insertStep(el,val){
     row:['Row of keys',()=>['row','back','home']],
     dpad:['Arrow pad (dpad)',()=>['dpad']],
     ring:['Nav ring',()=>['ring']],
+    cross:['Cross d-pad',()=>['cross']],
     rocker:['Rockers',()=>['rocker',['Vol','volume_up','volume_down'],['','mute'],['Ch','channel_up','channel_down']]],
     strip:['Key columns (strip)',()=>['strip',['Vol','volume_up','volume_down'],['Ch','channel_up','channel_down']]],
     media:['Media keys',()=>['media','rewind','play_pause','fast_forward']],
@@ -6274,15 +6374,19 @@ function insertStep(el,val){
                                      ['strip',['Ch','channel_up','channel_down']]]],
     '-':['Divider',()=>['-']]};
   // Kinds that hold the same things, so one can become another in place.
-  const SB_FAM=[['row','media','apps','grid'],['strip','rocker'],['pot','slider'],['dpad','ring']];
+  const SB_FAM=[['row','media','apps','grid'],['strip','rocker'],['pot','slider'],['dpad','ring','cross']];
   // The keys a section draws when it lists none.
   const SB_DEF={dpad:['up','left','ok','right','down'],ring:['up','left','ok','right','down'],
+                cross:['up','left','ok','right','down'],
                 pot:['volume_up','volume_down','mute'],slider:['volume_up','volume_down']};
   // Each kind's settings: [key, label, type, bounds, shown when unset, unit].
   // They only draw the fields — whether a value is allowed is validateTpl's to say.
   const SB_SET={
-    ring:[['size','Size','int',RMT_RING,168,'px'],['center','Centre key','int',RMT_RING_C,84,'px']],
-    rocker:[['width','Width','int',RMT_KEY_H,'auto','px'],['h','Half height','int',RMT_KEY_H,'auto','px']],
+    ring:[['size','Size','int',RMT_RING,168,'px'],['center','Centre key','int',RMT_RING_C,84,'px'],
+          ['radius','Corners','int',RMT_RING_R,'round','px']],
+    cross:[['size','Size','int',RMT_CROSS,150,'px'],['center','Centre key','int',RMT_CROSS_C,'auto','px']],
+    rocker:[['width','Width','int',RMT_KEY_H,'auto','px'],['h','Half height','int',RMT_KEY_H,'auto','px'],
+            ['horizontal','Across','bool',null,false]],
     grid:[['cols','Columns','int',[1,8],2],['h','Key height','int',RMT_KEY_H,'auto','px'],['opts','Every key','opts']],
     side:[['gap','Gap','int',RMT_SIDE_GAP,12,'px']],
     lcd:[['cols','Characters across','int',[4,40],'fill'],['rows','Lines','int',[1,8],'auto'],
@@ -6301,7 +6405,7 @@ function insertStep(el,val){
          ['thumb_shape','Thumb','pick',[['','round'],['line','fader cap']]],['fill','Level colour','hex']]};
   // The keys each kind's settings may hold, so a change of kind keeps what still
   // applies. A slider takes a pot's too, as validateTpl lets it.
-  const SB_TAKES={ring:['size','center'],rocker:['width','h'],grid:['cols','h','opts'],side:['gap'],
+  const SB_TAKES={ring:['size','center','radius'],cross:['size','center'],rocker:['width','h','horizontal'],grid:['cols','h','opts'],side:['gap'],
     lcd:['cols','rows','fg','bg','label','border'],
     pot:['size','center','step','show','label','label_at','marks','level','set','min','max','sweep','inc',
          'analogue','analog','fill']};
@@ -6381,7 +6485,7 @@ function insertStep(el,val){
     const k=s[0],o=sbO(s),out=[],known=it=>sbKnown(Array.isArray(it)?it[0]:it);
     if(k==='row'||k==='media'||k==='apps'||k==='grid'){
       for(let j=o;j<s.length;j++)if(s[j]!=='|'&&known(s[j]))out.push({item:[j]});
-    }else if(k==='dpad'||k==='ring'){
+    }else if(k==='dpad'||k==='ring'||k==='cross'){
       if(s.length>o){for(let j=o;j<o+5&&j<s.length;j++)if(known(s[j]))out.push({item:[j]})}
       else for(let n=0;n<5;n++)out.push({slot:n});
     }else if(k==='strip'||k==='rocker'){
@@ -6410,7 +6514,7 @@ function insertStep(el,val){
     if(!Array.isArray(top))return false;
     if(q.sec.length>1&&(top[0]!=='side'||sbParts(top).indexOf(q.sec[1])<0))return false;
     const s=sbSec(t,q.sec),c=sbCfg(s);
-    if(q.slot!=null)return s.length===sbO(s)&&['dpad','ring','pot'].indexOf(s[0])>=0&&!(c&&c.set);
+    if(q.slot!=null)return s.length===sbO(s)&&['dpad','ring','cross','pot'].indexOf(s[0])>=0&&!(c&&c.set);
     if(!q.item)return true;
     const v=sbGet(s,q.item);
     return v==='|'||sbKnown(Array.isArray(v)?v[0]:v);
@@ -6727,6 +6831,7 @@ function insertStep(el,val){
       '<div class="sb-ghead" title="Select the group: its name, how it opens, Delete">Group “'+n+'”'+
       (g.full===true?' · whole remote':'')+(g.stay===true?' · stays open':'')+'</div><div class="sb-glist">'+
       draw(g.sections)+'</div></div>').join('');
+    rockerFit(sbCanvas);
     wantIcons(t);
     const q=sbSel,L=sbList(t);
     const block=sbGrp?sbCanvas.querySelector('.sb-group[data-g="'+sbGrp+'"]'):null;
@@ -6921,7 +7026,7 @@ function insertStep(el,val){
         k==='row'?'A gap that pushes the keys either side of it apart':'A cell left empty','add-gap',
         ()=>sbDo(x=>{const S=sbSec(x,p);S.push('|');return {sec:p,item:[S.length-1]}})));
       sbInsp.appendChild(row);
-    }else if(k==='dpad'||k==='ring'){
+    }else if(k==='dpad'||k==='ring'||k==='cross'){
       const listed=s.length>o,row=sbEl('div',{class:'sb-chips'});
       ['Up','Left','Centre','Right','Down'].forEach((nm,x)=>row.appendChild(sbBtn(
         nm+': '+sbKeyName(listed?s[o+x]:SB_DEF[k][x]),'Select it','it'+x,
@@ -7099,7 +7204,7 @@ function insertStep(el,val){
     // it, while an arrow pad's five and a pot's middle have places of their own.
     const grp=!virt&&q.item.length>1,list=virt?null:grp?s[q.item[0]]:s;
     const lo=grp?1:sbO(s),idx=virt?-1:q.item[q.item.length-1];
-    const fixed=virt||k==='dpad'||k==='ring'||k==='pot';
+    const fixed=virt||k==='dpad'||k==='ring'||k==='cross'||k==='pot';
     const holder=x=>grp?sbSec(x,p)[q.item[0]]:sbSec(x,p);
     const at=j=>({sec:p,item:grp?[q.item[0],j]:[j]});
     if(it==='|'){
@@ -7219,7 +7324,7 @@ function insertStep(el,val){
   // opening above it, or the window changing width and the rows above rewrapping.
   const sbThemeBox=sbTheme&&sbTheme.parentElement;
   if(sbThemeBox)sbThemeBox.addEventListener('toggle',()=>{if(sbSel)sbPlace()});
-  window.addEventListener('resize',()=>{if(sbSel&&sbMain&&!sbMain.hidden)sbPlace()});
+  window.addEventListener('resize',()=>{rockerFit(sbCanvas);if(sbSel&&sbMain&&!sbMain.hidden)sbPlace()});
   // Esc puts the fields away — except in a list, where it closes the list.
   if(sb)sb.addEventListener('keydown',e=>{
     if(e.key!=='Escape'||!sbSel||e.target.tagName==='SELECT')return;
@@ -8593,6 +8698,13 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
   // The style's groups, opened by its group keys over the remote. A window sized
   // around the remote follows a group taller than it, as it does the keyboard.
   const grp=groupWire(card,body,kbdFit);
+  // A remote drawn narrower can leave a lone key no room beside its rocker. Next
+  // frame, as moving the key changes the remote's height, which this observes too.
+  let rkW=0;
+  const rkRO=window.ResizeObserver?new ResizeObserver(()=>{
+    if(body.clientWidth!==rkW){rkW=body.clientWidth;requestAnimationFrame(()=>rockerFit(card))}
+  }):null;
+  if(rkRO)rkRO.observe(body);
 
   // ── Keyboard panel ──
   // What the keyboard, typing and touchpad keys open under the remote: the
@@ -8933,9 +9045,10 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
       // empty, and a group's keys are hidden by visibility alone, as these are.
       grp.hideEmpty(empty);
       // A rocker or its lone key is a group too, as on the card: an empty pill
-      // would be a shape with nothing in it.
-      card.querySelectorAll('.rmt-strip-group,.rmt-rocker-col').forEach(g=>{g.style.display=empty(g)?'none':''});
+      // would be a shape with nothing in it. So is a rocker laid across's line.
+      card.querySelectorAll('.rmt-strip-group,.rmt-rocker-col,.rmt-rocker-line').forEach(g=>{g.style.display=empty(g)?'none':''});
       card.querySelectorAll('.rmt-section').forEach(s=>{s.style.display=empty(s)?'none':''});
+      rockerFit(card);
       // A divider only earns its place between two visible sections.
       const kids=[...body.children];
       kids.forEach((el,i)=>{
@@ -9095,17 +9208,37 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
     }else if(k==='ring'){
       // Same five actions as a dpad, drawn as the nav ring instead. Wrappers do
       // the positioning so each button keeps its own press transform.
-      // An optional {"size","center"} first. Whole numbers inside their bounds
-      // only, tested here as well as at import: they reach an inline style.
+      // An optional {"size","center","radius"} first. Whole numbers inside their
+      // bounds only, tested here as well as at import: they reach an inline style.
+      const cfg=(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1]:null;
+      const keys=s.slice(cfg?2:1);
+      const d=keys.length?keys:['up','left','ok','right','down'];
+      const sz=cfg?cfg.size|0:0,cz=cfg?cfg.center|0:0,rz=cfg?cfg.radius:undefined;
+      let st='';
+      if(sz>=RMT_RING[0]&&sz<=RMT_RING[1])st='width:'+sz+'px;height:'+sz+'px';
+      if(cz>=RMT_RING_C[0]&&cz<=RMT_RING_C[1])st+=(st?';':'')+'--rb-ring-c:'+cz+'px';
+      // 0 is a square ring, so this one is tested for being a number, not for being set.
+      if(typeof rz==='number'&&rz===Math.floor(rz)&&rz>=RMT_RING_R[0]&&rz<=RMT_RING_R[1])
+        st+=(st?';':'')+'--rb-ring-r:'+rz+'px';
+      const at=(p,i)=>'<span class="'+p+'">'+btnHtml(d[i])+'</span>';
+      inner='<div class="rmt-ring"'+(st?' style="'+st+'"':'')+'>'+at('n',0)+at('w',1)+at('c',2)+at('e',3)+at('s',4)+'</div>';
+    }else if(k==='cross'){
+      // The same five again, as a cross: a plus-shaped plate drawn once behind
+      // the keys, each arm a third of the size. An optional {"size","center"}
+      // first, held to its bounds here too since both reach an inline style.
       const cfg=(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1]:null;
       const keys=s.slice(cfg?2:1);
       const d=keys.length?keys:['up','left','ok','right','down'];
       const sz=cfg?cfg.size|0:0,cz=cfg?cfg.center|0:0;
       let st='';
-      if(sz>=RMT_RING[0]&&sz<=RMT_RING[1])st='width:'+sz+'px;height:'+sz+'px';
-      if(cz>=RMT_RING_C[0]&&cz<=RMT_RING_C[1])st+=(st?';':'')+'--rb-ring-c:'+cz+'px';
+      if(sz>=RMT_CROSS[0]&&sz<=RMT_CROSS[1])st='--rb-cross:'+sz+'px';
+      if(cz>=RMT_CROSS_C[0]&&cz<=RMT_CROSS_C[1])st+=(st?';':'')+'--rb-cross-c:'+cz+'px';
       const at=(p,i)=>'<span class="'+p+'">'+btnHtml(d[i])+'</span>';
-      inner='<div class="rmt-ring"'+(st?' style="'+st+'"':'')+'>'+at('n',0)+at('w',1)+at('c',2)+at('e',3)+at('s',4)+'</div>';
+      inner='<div class="rmt-cross"'+(st?' style="'+st+'"':'')+'>'+
+            '<svg class="rmt-cross-pl" viewBox="0 0 3 3" aria-hidden="true"><path vector-effect="non-scaling-stroke" '+
+            'd="M1.3 0h.4a.3.3 0 0 1 .3.3V1h.7a.3.3 0 0 1 .3.3v.4a.3.3 0 0 1-.3.3H2v.7a.3.3 0 0 1-.3.3h-.4a.3.3 0 0 1-.3-.3V2'+
+            'H.3a.3.3 0 0 1-.3-.3v-.4a.3.3 0 0 1 .3-.3H1V.3a.3.3 0 0 1 .3-.3z"/></svg>'+
+            at('n',0)+at('w',1)+at('c',2)+at('e',3)+at('s',4)+'</div>';
     }else if(k==='pot'){
       // A dial to turn. Its ring is what knobWire() turns, a press of the first
       // action per step clockwise and of the second per step back; the third is
@@ -9272,19 +9405,43 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
       const cfg=(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1]:null;
       const px=v=>{const n=cfg?cfg[v]|0:0;return n>=RMT_KEY_H[0]&&n<=RMT_KEY_H[1]?n:0};
       const w=px('width'),h=px('h');
-      inner='<div class="rmt-rocker'+(w?' rk-w':'')+(h?' rk-h':'')+'"'+
-            (w||h?' style="'+(w?'--rb-rk-w:'+w+'px;':'')+(h?'--rb-rk-h:'+h+'px':'')+'"':'')+'>'+
-            s.slice(cfg?2:1).map(g=>{
-        // Three entries = a two-way rocker with its label between the halves.
-        // Two = a lone key at the same height, which is how mute sits between
-        // a volume and a channel rocker.
-        if(g.length>=3)
-          return '<div class="rmt-rocker-col">'+btnHtml(g[1])+
-                 (g[0]?'<span class="rmt-rocker-label">'+esc(g[0])+'</span>':'')+
-                 btnHtml(g[2])+'</div>';
-        return '<div class="rmt-rocker-col rmt-rocker-solo">'+btnHtml(g[1])+
-               (g[0]?'<span class="rmt-rocker-label">'+esc(g[0])+'</span>':'')+'</div>';
-      }).join('')+'</div>';
+      // "horizontal" lays each bar across, − VOL +.
+      const across=!!(cfg&&cfg.horizontal===true);
+      // Across, a channel key with no face of its own points the way its bar runs.
+      const face=it=>{
+        const a=Array.isArray(it)?it[0]:it;
+        if(!across||(a!=='channel_up'&&a!=='channel_down'))return null;
+        if(Array.isArray(it)&&(it[1]||/(^|\s)icon:/.test(String(it[2]||''))))return null;
+        return icon(a==='channel_up'?'right':'left');
+      };
+      // Three entries = a two-way rocker with its label between the halves.
+      // Two = a lone key at the same height, which is how mute sits between
+      // a volume and a channel rocker.
+      const lab=g=>g[0]?'<span class="rmt-rocker-label">'+esc(g[0])+'</span>':'';
+      const col=g=>g.length>=3?'<div class="rmt-rocker-col">'+btnHtml(g[1],face(g[1]))+lab(g)+btnHtml(g[2],face(g[2]))+'</div>'
+                              :'<div class="rmt-rocker-col rmt-rocker-solo">'+btnHtml(g[1])+lab(g)+'</div>';
+      const groups=s.slice(cfg?2:1);
+      let out='';
+      if(!across)out=groups.map(col).join('');
+      else{
+        // A bar to a line. A lone key joins the line of the bar before it, or of
+        // the first bar if none comes before it, so the keys keep their order.
+        let l='',bar='',r='';
+        const line=()=>{
+          if(bar)out+='<div class="rmt-rocker-line"><div class="rmt-rocker-side l">'+l+'</div>'+bar+
+                       '<div class="rmt-rocker-side r">'+r+'</div></div>';
+          else if(l)out+='<div class="rmt-rocker-line"><div class="rmt-rocker-side c">'+l+'</div></div>';
+          l=bar=r='';
+        };
+        for(const g of groups){
+          if(g.length>=3){if(bar)line();bar=col(g)}
+          else if(bar)r+=col(g);
+          else l+=col(g);
+        }
+        line();
+      }
+      inner='<div class="rmt-rocker'+(across?' across':'')+(w?' rk-w':'')+(h?' rk-h':'')+'"'+
+            (w||h?' style="'+(w?'--rb-rk-w:'+w+'px;':'')+(h?'--rb-rk-h:'+h+'px':'')+'"':'')+'>'+out+'</div>';
     }else if(k==='strip'){
       inner='<div class="rmt-strip">'+s.slice(1).map((g,i)=>
         (i?'<div style="width:40px"></div>':'')+

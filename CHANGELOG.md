@@ -4,6 +4,14 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
+## Unreleased
+
+### Added
+- **A cross d-pad, a square nav ring and horizontal rockers for remote styles.** The cross draws
+  the five navigation keys as one plus-shaped piece, as many remotes have them, and the ring can
+  have square corners. Rockers can be laid across, − VOL +, one to a line, with a single key beside
+  one. On the web page, the Home Assistant remote card and in the style builder.
+
 ## v1.19.0 — 2026-11-02
 
 ### Added

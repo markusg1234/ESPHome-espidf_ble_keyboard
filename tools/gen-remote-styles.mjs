@@ -61,6 +61,7 @@ const PARTS = [
   ['const RMT_KEY_H=', () => oneLine('const RMT_KEY_H=')],
   ['const RMT_ICON_H=', () => oneLine('const RMT_ICON_H=')],
   ['const RMT_RING=', () => oneLine('const RMT_RING=')],
+  ['const RMT_CROSS=', () => oneLine('const RMT_CROSS=')],
   ['const RMT_KNOB=', () => oneLine('const RMT_KNOB=')],
   ['const RMT_SLIDER=', () => oneLine('const RMT_SLIDER=')],
   ['const RMT_SIDE_GAP=', () => oneLine('const RMT_SIDE_GAP=')],
@@ -96,7 +97,9 @@ const PARTS = [
   ['function knobSettle(', () => balanced('function knobSettle(')],
   ['function knobLevel(', () => balanced('function knobLevel(')],
   ['function knobWire(', () => balanced('function knobWire(')],
-  // A group's opening, shutting and sizing, which the card wires its remote with.
+  // A group's opening, shutting and sizing, which the card wires its remote with,
+  // and what keeps a lone key beside a rocker laid across inside the remote.
+  ['function rockerFit(', () => balanced('function rockerFit(')],
   ['function groupWire(', () => balanced('function groupWire(')],
   // The typing key's box, so it sends exactly the same on both surfaces.
   ['function typeWire(', () => balanced('function typeWire(')],
@@ -121,7 +124,7 @@ const EXPORTS = ['RI', 'RMT_BTNS', 'RMT_VARS', 'RMT_BUILTIN', 'RMT_KINDS', 'RMT_
   'RMT_LCD_OPTS', 'RMT_LCD_COLOURS', 'RMT_LCD_KEYS', 'RMT_LCD_LABELLED', 'lcdLabel', 'RMT_HEX', 'RMT_CLIP', 'RMT_FETCH', 'icon', 'esc',
   'RMT_ICON_NAME', 'RMT_ICON_LEN', 'RMT_ICON_MAX', 'RMT_ICONS', 'iconBad', 'useIcons', 'iconNames',
   'themeValueBad', 'btnHtml', 'sectionHtml', 'validateTpl', 'knobWire', 'knobLevel', 'typeWire', 'keysSquareWidth',
-  'RMT_GROUP_NAME', 'groupOf', 'tplGroups', 'groupsHtml', 'groupWire'];
+  'RMT_GROUP_NAME', 'groupOf', 'tplGroups', 'groupsHtml', 'groupWire', 'rockerFit'];
 const defined = new Set([...js.matchAll(/(?:^|\n)\s*(?:const|function)\s+([A-Za-z_$][\w$]*)/g)]
   .map(m => m[1]));
 for (const name of EXPORTS) {
@@ -154,7 +157,8 @@ const css = rules.filter(r => {
   const sel = r.split('{')[0];
   return /(^|[,\s])\.rmt-/.test(sel) || (/^@supports\b/.test(sel.trim()) && /\.rmt-/.test(r));
 }).join('\n');
-for (const need of ['.rmt-btn{', '.rmt-ring{', '.rmt-knob-ring{', '.rmt-rocker-col{', '.rmt-body{', '.rmt-lcd{']) {
+for (const need of ['.rmt-btn{', '.rmt-ring{', '.rmt-cross{', '.rmt-knob-ring{', '.rmt-rocker-col{', '.rmt-rocker-line{',
+                    '.rmt-body{', '.rmt-lcd{']) {
   if (!css.includes(need)) throw new Error(`CSS is missing ${need}`);
 }
 // The cards build their styles inside a JS template literal, so a stray
@@ -219,6 +223,23 @@ if (!ringProbe[0].includes('<div class="rmt-ring" style="width:200px;height:200p
     !ringProbe[0].includes('data-action="ok"') || ringProbe[1].includes('style=') ||
     !ringProbe[1].includes('data-action="up"') || !ringProbe[2].includes('<div class="rmt-ring">')) {
   throw new Error(`ring renders incorrectly:\n${ringProbe.join('\n')}`);
+}
+// A ring's corners: a radius in range reaches the style, 0 (a square ring)
+// included, and one out of range or not a whole number is dropped or refused.
+const radiusProbe = new Function(`${js}
+return [sectionHtml(['ring',{size:200,radius:28}]), sectionHtml(['ring',{radius:0}]),
+        sectionHtml(['ring',{radius:999}]), sectionHtml(['ring',{radius:'28px'}]),
+        validateTpl({id:'r',name:'R',sections:[['ring',{radius:28}]]}),
+        validateTpl({id:'r',name:'R',sections:[['ring',{radius:161}]]}),
+        validateTpl({id:'r',name:'R',sections:[['ring',{radius:'28px'}]]}),
+        validateTpl({id:'r',name:'R',sections:[['ring',{corners:4}]]})];`)();
+if (!radiusProbe[0].includes('<div class="rmt-ring" style="width:200px;height:200px;--rb-ring-r:28px">') ||
+    !radiusProbe[1].includes('<div class="rmt-ring" style="--rb-ring-r:0px">') ||
+    !radiusProbe[2].includes('<div class="rmt-ring">') || !radiusProbe[3].includes('<div class="rmt-ring">') ||
+    radiusProbe[4] !== '' || !/ring "radius" is 0-160 pixels/.test(radiusProbe[5]) ||
+    !/ring "radius" must be a whole number/.test(radiusProbe[6]) || !/A ring takes size, center and radius/.test(radiusProbe[7]) ||
+    !css.includes('border-radius:var(--rb-ring-r,50%)')) {
+  throw new Error(`ring radius renders or validates incorrectly:\n${radiusProbe.join('\n')}`);
 }
 // A grid: the column count reaches an inline style, the shared options reach
 // every key, a key's own come after them, and "|" is an empty cell.
@@ -295,6 +316,52 @@ if (!rockerProbe[0].includes('<div class="rmt-rocker rk-w rk-h" style="--rb-rk-w
     !rockerProbe[2].includes('<div class="rmt-rocker"><div') || !rockerProbe[2].includes('data-action="volume_down"') ||
     !rockerProbe[3].includes('<div class="rmt-rocker rk-h" style="--rb-rk-h:30px">')) {
   throw new Error(`rocker renders incorrectly:\n${rockerProbe.join('\n')}`);
+}
+// A rocker laid across: a bar to a line, a lone key beside the bar before it (or
+// left of the first), the keys still in the order listed, channel arrows turned
+// to run with the bar unless the key has a face of its own, and "horizontal"
+// accepted only as true or false.
+const acrossProbe = new Function(`${js}
+return [sectionHtml(['rocker',{horizontal:true},['','mute'],['Vol','volume_up','volume_down'],['','home'],['Ch','channel_up','channel_down']]),
+        sectionHtml(['rocker',{horizontal:true},['','mute']]),
+        sectionHtml(['rocker',{horizontal:true},['Ch',['channel_up','Up'],['channel_down','','icon:down']]]),
+        sectionHtml(['rocker',['Ch','channel_up','channel_down']]),
+        validateTpl({id:'r',name:'R',sections:[['rocker',{horizontal:'yes'},['Vol','volume_up','volume_down']]]}),
+        validateTpl({id:'r',name:'R',sections:[['rocker',{horizontal:true,width:50},['Vol','volume_up','volume_down']]]})];`)();
+const lines = acrossProbe[0].split('class="rmt-rocker-line"').length - 1;
+const order = [...acrossProbe[0].matchAll(/data-action="([a-z_]+)"/g)].map(m => m[1]).join();
+if (!acrossProbe[0].startsWith('<div class="rmt-section"><div class="rmt-rocker across">') || lines !== 2 ||
+    order !== 'mute,volume_up,volume_down,home,channel_up,channel_down' ||
+    !/<div class="rmt-rocker-side l"><div class="rmt-rocker-col rmt-rocker-solo"><button[^>]*data-action="mute"/.test(acrossProbe[0]) ||
+    !/<div class="rmt-rocker-side r"><div class="rmt-rocker-col rmt-rocker-solo"><button[^>]*data-action="home"/.test(acrossProbe[0]) ||
+    !/data-action="channel_up"[^>]*><svg viewBox="0 0 24 24"><path d="M8\.59 16\.59/.test(acrossProbe[0]) ||
+    !acrossProbe[1].includes('<div class="rmt-rocker-side c"><div class="rmt-rocker-col rmt-rocker-solo">') ||
+    !acrossProbe[2].includes('>Up</button>') || !/data-action="channel_down"[^>]*><svg viewBox="0 0 24 24"><path d="M7\.41 8\.59/.test(acrossProbe[2]) ||
+    !/data-action="channel_up"[^>]*><svg viewBox="0 0 24 24"><path d="M7\.41 15\.41/.test(acrossProbe[3]) ||
+    acrossProbe[3].includes('rmt-rocker-line') || !/horizontal" is true or false/.test(acrossProbe[4]) || acrossProbe[5] !== '') {
+  throw new Error(`rocker across renders or validates incorrectly:\n${acrossProbe.join('\n')}`);
+}
+// A cross: its size and centre reach the style in range and are dropped outside
+// it, the plate is drawn behind five keys in the d-pad's order, and the centre
+// may not crowd out the arrows.
+const crossProbe = new Function(`${js}
+return [sectionHtml(['cross']), sectionHtml(['cross',{size:120,center:40},'up','left','play_pause','right','down']),
+        sectionHtml(['cross',{size:9999,center:'40px'}]),
+        validateTpl({id:'c',name:'C',sections:[['cross',{size:150,center:80}]]}),
+        validateTpl({id:'c',name:'C',sections:[['cross',{size:150,center:81}]]}),
+        validateTpl({id:'c',name:'C',sections:[['cross',{size:50}]]}),
+        validateTpl({id:'c',name:'C',sections:[['cross',{radius:4}]]}),
+        validateTpl({id:'c',name:'C',sections:[['cross','up','down']]})];`)();
+const crossOrder = [...crossProbe[0].matchAll(/data-action="([a-z_]+)"/g)].map(m => m[1]).join();
+if (!crossProbe[0].includes('<div class="rmt-cross"><svg class="rmt-cross-pl" viewBox="0 0 3 3"') ||
+    crossOrder !== 'up,left,ok,right,down' || !crossProbe[0].includes('<span class="c"><button class="rmt-btn center"') ||
+    !crossProbe[1].includes('<div class="rmt-cross" style="--rb-cross:120px;--rb-cross-c:40px">') ||
+    !crossProbe[1].includes('<span class="c"><button class="rmt-btn media" data-action="play_pause"') ||
+    !crossProbe[2].includes('<div class="rmt-cross"><svg') || !crossProbe[2].includes('data-action="up"') ||
+    crossProbe[3] !== '' || !/leaves the arrows no room in a 150px cross — at most 80/.test(crossProbe[4]) ||
+    !/cross "size" is 72-320/.test(crossProbe[5]) || !/A cross takes size and center/.test(crossProbe[6]) ||
+    !/A cross section lists exactly 5 actions/.test(crossProbe[7])) {
+  throw new Error(`cross renders or validates incorrectly:\n${crossProbe.join('\n')}`);
 }
 // A side section: its parts drawn in a row, one level deep only (a side inside a
 // side and a divider draw nothing), and the walkers that read a style through
