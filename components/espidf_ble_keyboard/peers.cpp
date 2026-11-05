@@ -168,6 +168,8 @@ void EspidfBleKeyboard::add_peer(const std::string &name, const std::string &url
                                  const std::string &pass) {
   if (peer_mutex_ == nullptr)
     peer_mutex_ = xSemaphoreCreateMutex();
+  if (peer_mdns_mutex_ == nullptr)
+    peer_mdns_mutex_ = xSemaphoreCreateMutex();
   Peer p;
   p.name = name;
   p.user = user;
@@ -202,44 +204,60 @@ void EspidfBleKeyboard::note_page_load() {
 // a connection to it fails. A read waiting on the lookup stops for a press like
 // it does on a connection, and the lookup carries on: the next request takes its
 // answer rather than asking again and waiting the whole time over.
+//
+// The lookup is waited on in short slices whatever the caller, each holding
+// peer_mdns_mutex_, so on_shutdown() never waits long to close it off. One still
+// running at this request's limit is kept for the next to collect: dropped then,
+// it was never freed.
 EspidfBleKeyboard::PeerResult EspidfBleKeyboard::peer_resolve_(Peer &p, bool yield) {
   if (p.ip != 0)
     return PEER_OK;
 #ifdef USE_MDNS
-  if (p.lookup == nullptr) {
-    const std::string label = p.host.substr(0, p.host.find('.'));
-    p.lookup = mdns_query_async_new(label.c_str(), nullptr, nullptr, MDNS_TYPE_A, PEER_MDNS_TIMEOUT_MS, 1, nullptr);
-  }
-  // The lookup ends itself at its timeout; the margin is for one that never says so.
+  // The lookup ends itself at its timeout; the margin is for mDNS saying so late.
   const uint32_t start = millis(), limit = PEER_MDNS_TIMEOUT_MS + 500;
-  mdns_result_t *found = nullptr;
   bool done = false;
-  while (p.lookup != nullptr && !done) {
+  while (!done) {
     if (yield && action_waiting_())
       return PEER_YIELDED;
     const uint32_t spent = millis() - start;
     if (spent >= limit)
       break;
     uint32_t slice = limit - spent;
-    if (yield && slice > PEER_YIELD_CHECK_MS)
+    if (slice > PEER_YIELD_CHECK_MS)
       slice = PEER_YIELD_CHECK_MS;
-    done = mdns_query_async_get_results(p.lookup, slice, &found, nullptr);
-  }
-  if (done) {
-    // The first IPv4 address, as mdns_query_a would take it.
-    for (const mdns_result_t *r = found; r != nullptr && p.ip == 0; r = r->next) {
-      for (const mdns_ip_addr_t *a = r->addr; a != nullptr; a = a->next) {
-        if (a->addr.type == ESP_IPADDR_TYPE_V4 && a->addr.u_addr.ip4.addr != 0) {
-          p.ip = a->addr.u_addr.ip4.addr;
-          break;
+    xSemaphoreTake(peer_mdns_mutex_, portMAX_DELAY);
+    if (peer_mdns_closed_.load()) {
+      xSemaphoreGive(peer_mdns_mutex_);
+      p.lookup = nullptr;  // mDNS frees it as it shuts down
+      return PEER_UNREACHABLE;
+    }
+    if (p.lookup == nullptr) {
+      const std::string label = p.host.substr(0, p.host.find('.'));
+      p.lookup = mdns_query_async_new(label.c_str(), nullptr, nullptr, MDNS_TYPE_A, PEER_MDNS_TIMEOUT_MS, 1, nullptr);
+    }
+    const bool started = p.lookup != nullptr;
+    mdns_result_t *found = nullptr;
+    if (started)
+      done = mdns_query_async_get_results(p.lookup, slice, &found, nullptr);
+    if (done) {
+      // The first IPv4 address, as mdns_query_a would take it.
+      for (const mdns_result_t *r = found; r != nullptr && p.ip == 0; r = r->next) {
+        for (const mdns_ip_addr_t *a = r->addr; a != nullptr; a = a->next) {
+          if (a->addr.type == ESP_IPADDR_TYPE_V4 && a->addr.u_addr.ip4.addr != 0) {
+            p.ip = a->addr.u_addr.ip4.addr;
+            break;
+          }
         }
       }
+      if (found != nullptr)
+        mdns_query_results_free(found);
+      mdns_query_async_delete(p.lookup);  // frees the lookup, not its results
+      p.lookup = nullptr;                 // the next request asks afresh
     }
-    if (found != nullptr)
-      mdns_query_results_free(found);
-    mdns_query_async_delete(p.lookup);  // frees the lookup, not its results
+    xSemaphoreGive(peer_mdns_mutex_);
+    if (!started)
+      break;  // mDNS isn't running, or had no memory for it
   }
-  p.lookup = nullptr;  // finished, or never will: the next request asks afresh
   if (p.ip != 0) {
     const auto *b = reinterpret_cast<const uint8_t *>(&p.ip);  // network order
     ESP_LOGI(TAG, "Peer %s is at %u.%u.%u.%u", p.name.c_str(), b[0], b[1], b[2], b[3]);
@@ -251,6 +269,22 @@ EspidfBleKeyboard::PeerResult EspidfBleKeyboard::peer_resolve_(Peer &p, bool yie
            p.name.c_str(), p.host.c_str());
 #endif
   return PEER_UNREACHABLE;
+}
+
+// ESPHome frees mDNS as the keyboard restarts (after an update, from a restart
+// button, or on a Wi-Fi or API reboot timeout), and any lookup still running
+// with it: the action task waiting on one aborted the restart (2026-11-05). This
+// runs first — components shut down in reverse order of setup, and this one
+// sets up after mDNS — and from then on nothing here calls into a lookup.
+void EspidfBleKeyboard::on_shutdown() {
+  if (peer_mdns_mutex_ == nullptr)
+    return;
+  // The lock is held for one 25 ms slice at most. Not having it by now means
+  // the action task is stuck inside mDNS itself; closing is all that is left.
+  const bool locked = xSemaphoreTake(peer_mdns_mutex_, pdMS_TO_TICKS(500)) == pdTRUE;
+  peer_mdns_closed_.store(true);
+  if (locked)
+    xSemaphoreGive(peer_mdns_mutex_);
 }
 
 // The Authorization header for the next request, from the challenge the peer

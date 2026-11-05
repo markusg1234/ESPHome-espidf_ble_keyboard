@@ -12,6 +12,17 @@ web control page shows the matching version badge.
   have square corners. Rockers can be laid across, − VOL +, one to a line, with a single key beside
   one. On the web page, the Home Assistant remote card and in the style builder.
 
+### Changed
+- **Monitor power advice for displays that stay connected in standby.** The README now covers a
+  display that keeps Bluetooth on while it sleeps, as a Samsung monitor does since a recent firmware
+  update: which state to branch on, and that any key but Power wakes it.
+
+### Fixed
+- **A restart could crash while a linked keyboard wasn't answering.** Restarting — after an update,
+  say — while still looking for a linked keyboard on the network crashed the keyboard on its way
+  down, and the next boot reported it. The search is now closed off first. A search that ran out of
+  time also took a little memory with it each time; it no longer does.
+
 ## v1.19.0 — 2026-11-02
 
 ### Added

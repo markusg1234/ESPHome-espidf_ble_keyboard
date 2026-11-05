@@ -163,6 +163,9 @@ class EspidfBleKeyboard : public Component
   void setup() override;
   void loop() override;
   float get_setup_priority() const override { return -200.0f; }
+#ifdef USE_BLE_KB_PEERS
+  void on_shutdown() override;
+#endif
   void send_string(const std::string &str);
   /// Keystrokes queued and not yet typed, counting the one that is down.
   size_t typing_left();
@@ -1479,6 +1482,11 @@ class EspidfBleKeyboard : public Component
   };
   std::vector<Peer> peers_;
   SemaphoreHandle_t peer_mutex_{nullptr};
+  // ESPHome frees mDNS as the keyboard restarts, and a lookup still running
+  // goes with it. Every call into a lookup is made holding this, and
+  // on_shutdown() takes it to close them off before that happens.
+  SemaphoreHandle_t peer_mdns_mutex_{nullptr};
+  std::atomic<bool> peer_mdns_closed_{false};
   std::atomic<uint32_t> peer_interest_ms_{0};
   std::atomic<uint32_t> web_busy_ms_{0};
   std::atomic<uint32_t> page_load_ms_{0};

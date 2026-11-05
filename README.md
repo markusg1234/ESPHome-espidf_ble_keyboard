@@ -1620,7 +1620,7 @@ The panel is a deliberate 16 characters wide, so it sits inside the 280px body a
 
 ## Pressing Other ESPHome Buttons
 
-Some things a keyboard simply can't do over BLE. The clearest case is power: a monitor or PC can be told to sleep with a HID consumer code, but nothing can wake it over Bluetooth once it's off — that needs Wake-on-LAN.
+Some things a keyboard simply can't do over BLE. The clearest case is power: a monitor or PC can be told to sleep with a HID consumer code, but once it has switched its Bluetooth off, nothing can wake it over Bluetooth — that needs Wake-on-LAN. Some displays keep Bluetooth on in standby instead and can be woken with a key — see [displays that stay connected](#displays-that-stay-connected-in-standby).
 
 So every non-internal `button:` in your config is listed on the web control page automatically, next to the component's own buttons. **No configuration is needed** — define the button as usual and it appears:
 
@@ -1640,7 +1640,7 @@ curl -X POST http://<device-ip>/api/ble_keyboard/press -d 'action=press_button:s
 
 Actions are keyed by **object id** (the slugified name), not by position, so adding or reordering buttons never repoints a saved macro or override.
 
-**Powering a monitor both ways.** The two directions need different transports, so map them to separate buttons — off over BLE, on over the network:
+**Powering a monitor both ways.** When the display switches Bluetooth off in standby, the two directions need different transports, so map them to separate buttons — off over BLE, on over the network:
 
 ```yaml
 espidf_ble_keyboard:
@@ -1724,7 +1724,16 @@ Same `||` grammar as `alternate:`, so switching an existing button over is a one
 
 **Until the source has a state, the button does nothing** — no guess at boot before Home Assistant has connected, which matters when the off-branch sends Wake-on-LAN. A single branch means "do this when on, nothing when off". Give the key `lit:monitor` and it lights up while the monitor is on, so the remote shows the state as well as following it.
 
-If the monitor is one of the keyboard's hosts and drops Bluetooth in standby, the keyboard can tell for itself: a [paired sensor with `slot:`](#paired-sensor-default) set to the monitor's slot is on only while it is connected. Some Samsung monitors report standby to Home Assistant while lit, which sends the Wake-on-LAN branch to a monitor that is already on — the slot sensor doesn't have that problem. It reads off while another host is active, so the press then falls to the wake branch.
+If the monitor is one of the keyboard's hosts and drops Bluetooth in standby, the keyboard can tell for itself: a [paired sensor with `slot:`](#paired-sensor-default) set to the monitor's slot is on only while it is connected. It reads off while another host is active, so the press then falls to the wake branch.
+
+<a id="displays-that-stay-connected-in-standby"></a>
+**Which signal follows the panel can change with the display's firmware**, so check before trusting one. On a Samsung Smart Monitor M7, older firmware reported standby to Home Assistant while the panel was lit, and the slot sensor was the one to use. A November 2026 update reversed that: the monitor now keeps its Bluetooth link in standby, so the slot sensor reads on either way, while Home Assistant's media player for it follows the panel. It also wakes on any key from the keyboard except Power, which it ignores in standby. So branch on the Home Assistant source, wake it with a key, and keep Wake-on-LAN behind that for when the link is down:
+
+```
+if:monitor: consumer:0x30 | delay:1000 | ok || home | press_button:samsung_43_m70f_wol
+```
+
+A media player works as the source when its integration reports plain `on` and `off`, as Samsung's does. Any other state, such as `playing`, leaves the source at its last value.
 
 **Real state — a template button.** For a toggle that can't drift, let a template button hold the decision. It appears on the web page automatically, so it works exactly like any other button:
 
