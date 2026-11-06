@@ -35,7 +35,7 @@ reserves it as a URL path separator, warns today and refuses outright from 2027.
 
 *Maintainer only — a pull request never needs any of this.*
 
-Once a change is ready, cut a release so HACS users receive it — see [Installing the cards via HACS](README.md#installing-the-cards-via-hacs). Five things move together in the same batch:
+Once a change is ready, cut a release so Marketplace and HACS users receive it — see [Installing the cards](README.md#installing-the-cards). Five things move together in the same batch:
 
 1. Every versioned import in [`dist/`](dist/) → the new tag. That means the three in the entry point [`dist/ESPHome-espidf_ble_keyboard.js`](dist/ESPHome-espidf_ble_keyboard.js) *and* the ones cards make of each other, such as `remote-card.js` importing `remote-styles.js` and `keyboard-card.js` — `grep -rn "?v=" dist/` finds them all.
 2. The `webver` badge in `web_page.html` → the new tag.
@@ -43,6 +43,6 @@ Once a change is ready, cut a release so HACS users receive it — see [Installi
 4. Any `main`-only markers cleared from [`README.md`](README.md) — `grep -n "^> \*\*Unreleased" README.md`.
 5. Nothing chatty left at `DEBUG` that every user would see. ESPHome's logger defaults to `DEBUG`, so a line logged per request prints for everyone, several a second while a page is open — `grep -rn "ESP_LOGD" components/espidf_ble_keyboard/` and check each one is per-event, not per-poll. (The web-task stack probe was the last of these; it is down to its `ESP_LOGW` and needs nothing at release.)
 
-Step 1 is what actually gets the new cards into users' browsers. HACS re-registers the entry point under a fresh `?hacstag=` on every update, so that file always arrives new — but the imports inside it resolve to URLs HACS never varies, and a browser holding a cached card would go on serving it. Versioning the imports makes each release a URL no cache has seen.
+Step 1 is what actually gets the new cards into users' browsers. The Marketplace re-registers the entry point under a fresh `?v=` on every update (HACS: `?hacstag=`), so that file always arrives new — but the imports inside it resolve to URLs it never varies, and a browser holding a cached card would go on serving it. Versioning the imports makes each release a URL no cache has seen.
 
-To test a release before publishing it, tag a **pre-release** (e.g. `v1.5.0-beta.1`); HACS offers it once **Show beta versions** is ticked in the repository's download dialog.
+To test a release before publishing it, publish a GitHub **pre-release** (e.g. `v1.5.0-beta.1`) — a tag alone isn't offered. The Marketplace offers it once the repository's **Pre-release** switch is on: an entity on its device under *Settings → Devices & services → Marketplace*, disabled by default. HACS has the same switch.

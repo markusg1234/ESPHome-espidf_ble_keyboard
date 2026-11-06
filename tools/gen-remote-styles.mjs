@@ -6,7 +6,7 @@
 // because that is what the device serves. The Lovelace card needs the
 // same code, and a hand-kept second copy would drift the first time a button or
 // a style changed. So it is lifted at build time and committed — users never run
-// this; HACS ships the generated file beside the cards.
+// this; the Marketplace (or HACS) ships the generated file beside the cards.
 //
 // The output is a snapshot of the firmware's *built-in* styles. User-authored
 // ones live in device NVS and are never in here; the card takes those as pasted

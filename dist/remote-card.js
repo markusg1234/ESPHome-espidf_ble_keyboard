@@ -62,7 +62,7 @@
  * the remote, and its `typing` key a box that a phone's or PC's own keyboard
  * types into, each letter sent as it is typed. Both go into a pop-out window
  * with the remote, which grows to hold them. The keys need keyboard-card.js
- * beside this file, as the HACS install has it.
+ * beside this file, as a Marketplace or HACS install has it.
  *
  * Per-host hiding: if the device exposes the optional `hidden_buttons` text
  * sensor, this card hides whatever the active host hides on the web remote, and
@@ -2075,7 +2075,7 @@ class BleRemoteCard extends HTMLElement {
     const make = () => {
       if (this._kbdEl || !host.isConnected) return;
       if (!customElements.get('ble-keyboard-card')) {
-        host.textContent = 'The keyboard needs keyboard-card.js beside remote-card.js, as HACS installs them.';
+        host.textContent = 'The keyboard needs keyboard-card.js beside remote-card.js, as the Marketplace and HACS install them.';
         return;
       }
       const kb = document.createElement('ble-keyboard-card');
@@ -2145,7 +2145,7 @@ class BleRemoteCard extends HTMLElement {
     const make = () => {
       if (this._padEl || !host.isConnected) return;
       if (!customElements.get('ble-mouse-card')) {
-        host.textContent = 'The touchpad needs mouse-card.js beside remote-card.js, as HACS installs them.';
+        host.textContent = 'The touchpad needs mouse-card.js beside remote-card.js, as the Marketplace and HACS install them.';
         return;
       }
       const pad = document.createElement('ble-mouse-card');

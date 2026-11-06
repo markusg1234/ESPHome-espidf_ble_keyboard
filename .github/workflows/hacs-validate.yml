@@ -1,12 +1,14 @@
-# Validates that this repository stays installable through HACS.
+# Validates that this repository stays installable through Home Assistant's
+# Marketplace (HACS before 2026.11), which still uses this action.
 #
 # Not required for a custom-repository install, but it catches a malformed
 # hacs.json, a missing repository description/topics, or the dist/ entry point
 # drifting out of sync with the repo name — all of which otherwise only show up
-# when a user tries to download the cards.
+# when a user tries to install the cards.
 #
-# `category: plugin` is the HACS category for dashboard cards. The ESPHome
-# component in components/ is not covered: HACS has no category for it.
+# `category: plugin` is the dashboard-card category (the Marketplace shows it as
+# Dashboard). The ESPHome component in components/ is not covered: there is no
+# category for it.
 name: HACS validation
 
 on:
@@ -15,7 +17,7 @@ on:
   pull_request:
   workflow_dispatch:
   schedule:
-    # HACS's own requirements change over time; a monthly run surfaces that
+    # The Marketplace's requirements change over time; a monthly run surfaces that
     # without waiting for the next push.
     - cron: "0 3 1 * *"
 

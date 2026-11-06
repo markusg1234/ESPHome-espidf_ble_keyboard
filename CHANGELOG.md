@@ -16,6 +16,9 @@ web control page shows the matching version badge.
 - **Monitor power advice for displays that stay connected in standby.** The README now covers a
   display that keeps Bluetooth on while it sleeps, as a Samsung monitor does since a recent firmware
   update: which state to branch on, and that any key but Power wakes it.
+- **Install steps for Home Assistant's Marketplace.** From Home Assistant 2026.11 the cards install
+  from the Marketplace, which replaced HACS, and the README now walks through it. HACS on older
+  versions keeps a line of its own, and a HACS install carries over on upgrade.
 
 ### Fixed
 - **A restart could crash while a linked keyboard wasn't answering.** Restarting — after an update,

@@ -6,7 +6,7 @@ This is a custom [ESPHome](https://esphome.io) component that turns an ESP32 int
 
 ## Features
 
-* **Standalone Web Page:** The ESP32 is its own web server: open `http://<device-ip>/ble_keyboard` in any browser on your network for a remote, keyboard and mouse, with no Home Assistant needed. Or use the same controls as Home Assistant dashboard cards. See [Web control](#web-control-standalone--no-home-assistant) and [Installing the cards via HACS](#installing-the-cards-via-hacs).
+* **Standalone Web Page:** The ESP32 is its own web server: open `http://<device-ip>/ble_keyboard` in any browser on your network for a remote, keyboard and mouse, with no Home Assistant needed. Or use the same controls as Home Assistant dashboard cards. See [Web control](#web-control-standalone--no-home-assistant) and [Installing the cards](#installing-the-cards).
 * **Universal Remote:** A web remote and Home Assistant card, drawn in built-in or your own styles with logos and a small status screen. Any key on any host can fire a Home Assistant action, such as sending an IR command, alongside keys that go over Bluetooth — power over IR and navigation over Bluetooth on the same page, say. A host slot can also have Bluetooth turned off to act purely as a remote page. Styles travel: **Export all** on one keyboard's page and **Import** on another copies every style you have made, logos included, in one paste. See [A slot that never advertises](#a-slot-that-never-advertises) and [Copying styles to another keyboard](#copying-styles-to-another-keyboard).
 * **Linked Keyboards:** A second ESP32 running this component, listed under `peers:`, puts its hosts on this one's web page as a bar of their own — tap one and the remote, keyboard, paste box, mouse and this keyboard's macros drive it over Wi-Fi, for hosts one keyboard's Bluetooth can't reach. Actions reach it with `peer:<name>:<action>` and `to:<name>:<action>`, and a Home Assistant card can step through both keyboards' hosts. See [Linking a second keyboard](#linking-a-second-keyboard).
 * **Standard HID Keyboard:** Recognized as a native keyboard by Windows, Android, and iOS — and by a Galaxy Watch, through a slot that shows up as an audio device (see [Pairing with a Galaxy Watch](#pairing-with-a-galaxy-watch)). Full HOGP-compliant BLE HID with Device Information and Battery services. Use `passkey_mode: legacy` for Windows (Just Works for Android), `passkey_mode: secure_connections` for iOS.
@@ -1874,22 +1874,22 @@ alternate: lcd:Sleep 30 | after:sleep:30m:remote_power || lcd:Sleep 60 | after:s
 
 ---
 
-## Installing the Cards via HACS
+## Installing the Cards
 
-The three Lovelace cards (mouse, keyboard, media remote) can be installed and kept up to date with [HACS](https://hacs.xyz). This repository isn't in the HACS default store, so add it as a **custom repository**:
+The three Lovelace cards (mouse, keyboard, media remote) install and update from Home Assistant's **Marketplace**, which replaced HACS in Home Assistant 2026.11. This repository isn't in its catalog, so add it by its link:
 
-1. In Home Assistant, open **HACS**.
-2. Three-dot menu (top right) → **Custom repositories**.
-3. Repository: `https://github.com/markusg1234/ESPHome-espidf_ble_keyboard`
-   Type/Category: **Dashboard**
-4. **Add**, then find **ESPHome BLE Keyboard Cards** in HACS and click **Download**.
-5. Reload your browser. All three cards now appear in the dashboard's **Add card** picker.
+1. **Settings → Marketplace** → **Add from link** (top right).
+2. GitHub link: `https://github.com/markusg1234/ESPHome-espidf_ble_keyboard`, then **Add**. If it asks for a type, pick **Dashboard** and **Add** again. If GitHub isn't connected yet, it asks you to connect it.
+3. Open **ESPHome BLE Keyboard Cards** → **Install**, then **Install** in the dialog.
+4. Reload your browser. All three cards now appear in the dashboard's **Add card** picker.
 
-HACS registers the dashboard resource for you — there's no need to add anything under *Settings → Dashboards → Resources*. When a new version is released, HACS offers the update in the usual way.
+The dashboard resource is registered for you — there's no need to add anything under *Settings → Dashboards → Resources*. New versions appear under **Settings → Updates**.
+
+On Home Assistant 2026.10 or older, add the same link in [HACS](https://hacs.xyz) instead: three-dot menu → **Custom repositories**, type **Dashboard**, then **Download**. A HACS install moves to the Marketplace by itself when Home Assistant is upgraded.
 
 In a **sections** dashboard, all three cards support the resize handles and the card editor's **Layout** tab. Each keeps its natural height by default and offers a sensible width and height range; each keeps its proportions at whatever size you pick and scrolls if the card is smaller than the controls need — use the `zoom` option to change how big those controls are. HA's height slider stops at 8 rows, which is shorter than the media remote needs with every section on, so set `grid_options: {rows: N}` in the card's YAML if you want it taller than that. Masonry dashboards are unaffected.
 
-> **HACS installs the cards only — not the firmware.** There is no HACS category for ESPHome external components, so the `espidf_ble_keyboard` component is still added to your device YAML with `external_components:` (see [Usage Example](#usage-example)) and updated by re-flashing the device. A HACS update for this repository updates the dashboard cards and nothing else.
+> **The Marketplace installs the cards only — not the firmware.** Neither it nor HACS has a type for ESPHome external components, so the `espidf_ble_keyboard` component is still added to your device YAML with `external_components:` (see [Usage Example](#usage-example)) and updated by re-flashing the device. An update there for this repository updates the dashboard cards and nothing else.
 
 ---
 
@@ -1946,7 +1946,7 @@ api:
 
 ### 2. Install the card
 
-Install the cards with HACS — see [Installing the cards via HACS](#installing-the-cards-via-hacs). One download installs all three and keeps them updated.
+Install the cards from the Marketplace — see [Installing the cards](#installing-the-cards). One install brings all three and keeps them updated.
 
 ### 3. Add to a dashboard
 
@@ -2237,9 +2237,9 @@ panel behind their Home Assistant login, and the device stays off the internet. 
 pointed at the device can't do this: its address doesn't reach outside the house, and an `https`
 dashboard refuses an `http` frame anyway.
 
-Download **Ingress** from HACS — the integration, not the similarly named *Ingress webpage card* —
-and restart Home Assistant before adding the YAML below; until then the configuration check says
-`Integration 'ingress' not found`. Then add this and restart again:
+Install **Ingress** from the Marketplace (HACS before 2026.11) — the integration, not the similarly
+named *Ingress webpage card* — and restart Home Assistant before adding the YAML below; until then
+the configuration check says `Integration 'ingress' not found`. Then add this and restart again:
 
 ```yaml
 # Their configuration.yaml
@@ -2267,7 +2267,7 @@ espidf_ble_keyboard:
 ```
 
 To show it on a dashboard rather than in the sidebar, point the
-[Ingress webpage card](https://github.com/lovelylain/ha-addon-iframe-card) (HACS) at the panel's
+[Ingress webpage card](https://github.com/lovelylain/ha-addon-iframe-card) (Marketplace) at the panel's
 path, `/api/ingress/<name under ingress:>/ble_keyboard`. Unlike an ordinary Webpage card at that
 path, it also loads in the Home Assistant app:
 
@@ -2714,7 +2714,7 @@ api:
 
 ### 2. Install the card
 
-Install the cards with HACS — see [Installing the cards via HACS](#installing-the-cards-via-hacs). One download installs all three and keeps them updated.
+Install the cards from the Marketplace — see [Installing the cards](#installing-the-cards). One install brings all three and keeps them updated.
 
 ### 3. Add to a dashboard
 
@@ -2822,7 +2822,7 @@ api:
 
 ### 2. Install the card
 
-Install the cards with HACS — see [Installing the cards via HACS](#installing-the-cards-via-hacs). One download installs all three and keeps them updated.
+Install the cards from the Marketplace — see [Installing the cards](#installing-the-cards). One install brings all three and keeps them updated.
 
 ### 3. Add to a dashboard
 
