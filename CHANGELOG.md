@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
+## v1.20.0 — 2026-11-12
 
 ### Added
 - **A cross d-pad, a square nav ring and horizontal rockers for remote styles.** The cross draws
