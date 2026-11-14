@@ -5,6 +5,8 @@
  * and scroll controls for the ESPHome BLE Keyboard component.
  * Tap a button to click; long-press (400ms) to hold it for dragging
  * (needs the mouse_hold / mouse_release services), tap again to release.
+ * On the pad, two fingers dragged scroll and tapped right-click, three tapped
+ * middle-click, and a tap followed at once by a drag holds the left button.
  *
  * Installation:
  *   1. Copy this file to your HA config/www/ folder.
@@ -30,6 +32,8 @@
  *   # mouse_max_speed: 4.5         # max sensitivity cap (default 4.5)
  *   # scroll_sensitivity: 2        # scroll multiplier (default 2)
  *   # tap_to_click: true           # tap touchpad = left click (default true)
+ *   # gestures: true               # two fingers scroll and right-click, tap then drag (default true)
+ *   # natural_scroll: true         # two fingers move the page with them; false = as a wheel turns (default true)
  *   # host_slots: 4                # show host switcher (needs >1; default 0 = hidden)
  *   #                             # or pick the hosts: '1-3, 5, 7-10'
  *   # host_names:                   # custom names for each host slot (optional)
@@ -88,6 +92,96 @@ function hostSlotList(spec) {
   return [...picked].sort((a, b) => a - b);
 }
 
+// The pad's gestures. Copied here from the device's own web page by
+// tools/gen-remote-styles.mjs, so this card and that page read fingers with the
+// same code, and this file still stands alone for anyone installing it by hand.
+// Change it in web_page.html and regenerate: whatever sits between the two marker
+// lines is overwritten.
+// >>> padWire (generated)
+function padWire(pad,out,opt){
+  opt=opt||{};
+  // A finger is still until it has gone SLOP px. With several down each is
+  // allowed SLOP2, since they rarely land or lift dead straight.
+  const SLOP=5,SLOP2=10,TAPDRAG=300,TAP=opt.tapMs||250;
+  const ask=k=>(typeof opt[k]==='function'?opt[k]():opt[k])!==false;
+  const P=new Map();   // the pointers down: id -> where each is, and where it landed
+  // n: the most fingers down at once this gesture. moved: no longer a tap. froz:
+  // one of several has lifted, and the rest do nothing more. kill: cancelled, so
+  // no tap either. cand: landed soon after a tap, and a drag if it moves. drag:
+  // the left button is down for it. scr: two fingers are scrolling.
+  let n=0,t0=0,lt=0,multi=false,moved=false,froz=false,kill=false,cand=false,drag=false,scr=false,cy=0,sy=0,tapAt=0;
+  const midY=()=>{let s=0;P.forEach(p=>{s+=p.y});return s/P.size};
+  function end(){
+    pad.classList.remove('active');
+    const dur=Date.now()-t0;
+    if(out.up)out.up();
+    if(drag){drag=false;out.release();return}
+    if(kill||moved||scr||!ask('tap'))return;
+    if(n===1){
+      if(dur>=TAP)return;
+      out.click(1);
+      if(multi)tapAt=Date.now();
+    }else if(n<4&&dur<TAP+150)out.click(n===2?2:4);
+  }
+  pad.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    // Another finger joins only a touch gesture that is still whole.
+    if(P.size&&(!multi||froz||drag||e.pointerType!=='touch'))return;
+    e.preventDefault();
+    try{pad.setPointerCapture(e.pointerId)}catch(_){}
+    if(!P.size){
+      const now=Date.now();
+      multi=e.pointerType==='touch'&&ask('gestures');
+      cand=multi&&tapAt>0&&now-tapAt<TAPDRAG&&ask('tap');
+      t0=lt=now;n=0;tapAt=0;
+      moved=froz=kill=drag=scr=false;
+      pad.classList.add('active');
+      if(out.down)out.down();
+    }
+    P.set(e.pointerId,{x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY});
+    if(P.size>n)n=P.size;
+    if(P.size===2)cy=sy=midY();
+  });
+  pad.addEventListener('pointermove',e=>{
+    const p=P.get(e.pointerId);
+    if(!p)return;
+    const x=e.clientX,y=e.clientY,far=Math.abs(x-p.sx)+Math.abs(y-p.sy);
+    if(n===1){
+      if(!moved){
+        if(far<SLOP)return;
+        moved=true;
+        if(cand){drag=true;out.hold(1)}
+      }
+      const now=Date.now(),dt=Math.max(now-lt,1);
+      lt=now;
+      out.move(x-p.x,y-p.y,dt);
+      p.x=x;p.y=y;
+      return;
+    }
+    p.x=x;p.y=y;
+    if(far>=SLOP2)moved=true;
+    if(n!==2||froz)return;
+    // Two fingers: their midpoint's travel down the pad is the scroll, from where
+    // it has gone too far to be a tap.
+    const c=midY();
+    if(scr)out.scroll(c-cy);
+    else if(Math.abs(c-sy)<SLOP2)return;
+    else scr=true;
+    cy=c;
+  });
+  const lift=(e,cancelled)=>{
+    if(!P.delete(e.pointerId))return;
+    if(cancelled)kill=true;
+    if(P.size)froz=true;else end();
+  };
+  pad.addEventListener('pointerup',e=>lift(e,false));
+  // A cancelled gesture, or a capture taken away, must not click. A pointer that
+  // lifted in the ordinary way has left P by the time its capture goes.
+  pad.addEventListener('pointercancel',e=>lift(e,true));
+  pad.addEventListener('lostpointercapture',e=>lift(e,true));
+}
+// <<< padWire
+
 class BleMouseCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
@@ -131,6 +225,11 @@ class BleMouseCard extends HTMLElement {
       mouse_max_speed: config.mouse_max_speed || 4.5,
       scroll_sensitivity: config.scroll_sensitivity || 2,
       tap_to_click: config.tap_to_click !== false,
+      // More than one finger on the pad: two scroll and right-click, a tap then a
+      // drag holds the left button. Off, the pad takes one finger at a time.
+      gestures: config.gestures !== false,
+      // Which way two fingers scroll: with them, as a phone does, or as a wheel.
+      natural_scroll: config.natural_scroll !== false,
       host_slots: config.host_slots || 0,
       // The slots the switcher offers, 0-based, from the count or list above.
       host_list: hostSlotList(config.host_slots || 0),
@@ -446,7 +545,7 @@ class BleMouseCard extends HTMLElement {
           </div>
         </div>
         <div class="touchpad" id="touchpad">
-          <span class="touchpad-hint">Drag to move cursor</span>
+          <span class="touchpad-hint">${this._config.gestures ? 'Drag to move &middot; two fingers scroll' : 'Drag to move cursor'}</span>
         </div>
         <div class="buttons-row">
           <button class="mouse-btn" id="btn-left">Left</button>
@@ -847,118 +946,68 @@ class BleMouseCard extends HTMLElement {
     }
   }
 
-  // ── Touchpad: drag-to-move + tap-to-click ────────────────────────
+  // ── Touchpad: drag to move, tap to click, and the gestures padWire reads ──
 
   _setupTouchpad() {
     const pad = this.shadowRoot.getElementById('touchpad');
-    let tracking = false;
-    let lastX = 0;
-    let lastY = 0;
-    let lastTime = 0;
-    let startTime = 0;
-    let moved = false;
-    let startSX = 0;
-    let startSY = 0;
 
-    // Accumulator for sub-pixel movements
+    // Accumulators for sub-pixel movement and part-notches of scroll
     let accumX = 0;
     let accumY = 0;
+    let wheelAccum = 0;
 
     const baseSens = this._config.sensitivity;
     const accelFactor = this._config.mouse_acceleration;
     const maxSens = this._config.mouse_max_speed;
-    const tapDeadZone = 5;
     const scrollSensitivity = this._config.scroll_sensitivity;
 
-    const onStart = (x, y) => {
-      tracking = true;
-      lastX = startSX = x;
-      lastY = startSY = y;
-      lastTime = startTime = Date.now();
-      moved = false;
-      accumX = 0;
-      accumY = 0;
-      pad.classList.add('active');
+    // Whole notches go; what is left over waits for more travel.
+    const scrollBy = (amount) => {
+      wheelAccum += amount;
+      const intScroll = Math.trunc(wheelAccum);
+      if (intScroll === 0) return;
+      this._callService('mouse_scroll', { amount: Math.max(-127, Math.min(127, intScroll)) });
+      wheelAccum -= intScroll;
     };
 
-    const onMove = (x, y) => {
-      if (!tracking) return;
-
-      // Ignore tiny jitter so taps still register
-      if (!moved) {
-        const td = Math.abs(x - startSX) + Math.abs(y - startSY);
-        if (td < tapDeadZone) return;
-      }
-
-      const now = Date.now();
-      const dt = Math.max(now - lastTime, 1);
-      const rawDx = x - lastX;
-      const rawDy = y - lastY;
-      const dist = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
-      const speed = dist / dt;
-      const sens = Math.min(baseSens + speed * accelFactor, maxSens);
-
-      accumX += rawDx * sens;
-      accumY += rawDy * sens;
-
-      const dx = Math.trunc(accumX);
-      const dy = Math.trunc(accumY);
-
-      if (dx !== 0 || dy !== 0) {
-        const clampedX = Math.max(-127, Math.min(127, dx));
-        const clampedY = Math.max(-127, Math.min(127, dy));
-        this._callService('mouse_move', { x: clampedX, y: clampedY });
+    // The fingers are padWire's to read; what they mean is sent from here. A tap
+    // of any number of fingers obeys tap_to_click, and none clicks while a button
+    // is held down for a drag, so a stray tap can't drop it.
+    padWire(pad, {
+      down: () => { accumX = 0; accumY = 0; },
+      move: (rawDx, rawDy, dt) => {
+        const speed = Math.sqrt(rawDx * rawDx + rawDy * rawDy) / dt;
+        const sens = Math.min(baseSens + speed * accelFactor, maxSens);
+        accumX += rawDx * sens;
+        accumY += rawDy * sens;
+        const dx = Math.trunc(accumX);
+        const dy = Math.trunc(accumY);
+        if (dx === 0 && dy === 0) return;
+        this._callService('mouse_move', {
+          x: Math.max(-127, Math.min(127, dx)),
+          y: Math.max(-127, Math.min(127, dy)),
+        });
         accumX -= dx;
         accumY -= dy;
-        moved = true;
-      }
-
-      lastX = x;
-      lastY = y;
-      lastTime = now;
-    };
-
-    const onEnd = () => {
-      if (!tracking) return;
-      tracking = false;
-      pad.classList.remove('active');
-
-      // Tap-to-click: short tap with no drag beyond dead zone. Suppressed
-      // while a button is held so a stray tap can't drop the drag.
-      if (this._config.tap_to_click && !moved && !this._heldBtn && (Date.now() - startTime) < 300) {
-        this._callService('mouse_click', { btn:1 });
-      }
-    };
-
-    // Pointer events for drag tracking
-    pad.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      pad.setPointerCapture(e.pointerId);
-      onStart(e.clientX, e.clientY);
+      },
+      // Fingers going down the pad: with natural_scroll the page comes down with
+      // them, which is the wheel turned up.
+      scroll: (dy) => scrollBy((this._config.natural_scroll ? dy : -dy) * scrollSensitivity * 0.02),
+      click: (btn) => this._callService('mouse_click', { btn }),
+      hold: (btn) => { this._callService('mouse_hold', { btn }); this._setHeld(btn); },
+      release: () => { this._callService('mouse_release', {}); this._setHeld(0); },
+    }, {
+      tapMs: 300,
+      tap: () => this._config.tap_to_click && !this._heldBtn,
+      gestures: () => this._config.gestures,
     });
-    pad.addEventListener('pointermove', (e) => {
-      onMove(e.clientX, e.clientY);
-    });
-    pad.addEventListener('pointerup', (e) => {
-      pad.releasePointerCapture(e.pointerId);
-      onEnd();
-    });
-    pad.addEventListener('pointercancel', (e) => {
-      pad.releasePointerCapture(e.pointerId);
-      onEnd();
-    });
+    // A long press, or two fingers tapped on a touch screen, asks for a menu.
+    pad.addEventListener('contextmenu', (e) => e.preventDefault());
 
     // Mouse wheel / trackpad scroll on desktop
-    let wheelAccum = 0;
     pad.addEventListener('wheel', (e) => {
       e.preventDefault();
-      wheelAccum += -e.deltaY * scrollSensitivity * 0.02;
-      const intScroll = Math.trunc(wheelAccum);
-      if (intScroll !== 0) {
-        const clamped = Math.max(-127, Math.min(127, intScroll));
-        this._callService('mouse_scroll', { amount: clamped });
-        wheelAccum -= intScroll;
-      }
+      scrollBy(-e.deltaY * scrollSensitivity * 0.02);
     }, { passive: false });
   }
 
@@ -978,6 +1027,8 @@ class BleMouseCard extends HTMLElement {
         this.shadowRoot.getElementById(id).classList.toggle('held', b === button);
       }
     };
+    // The pad's tap-then-drag holds Left too, and shows it the same way.
+    this._setHeld = setHeld;
     for (const [id, button] of Object.entries(btnMap)) {
       const el = this.shadowRoot.getElementById(id);
       let holdTimer = null;
@@ -1124,6 +1175,8 @@ const MOUSE_EDITOR_SCHEMA = [
   { name: 'mouse_max_speed', selector: { number: { min: 0.5, max: 20, step: 0.5, mode: 'box' } } },
   { name: 'scroll_sensitivity', selector: { number: { min: 0.1, max: 10, step: 0.1, mode: 'box' } } },
   { name: 'tap_to_click', selector: { boolean: {} } },
+  { name: 'gestures', selector: { boolean: {} } },
+  { name: 'natural_scroll', selector: { boolean: {} } },
   { name: 'host_slots', selector: { text: {} } },
   { name: 'host_names', selector: { text: {} } },
   { name: 'peer_hosts', selector: { text: { multiline: true } } },
@@ -1142,6 +1195,8 @@ const MOUSE_EDITOR_LABELS = {
   mouse_max_speed: 'Max speed multiplier',
   scroll_sensitivity: 'Scroll sensitivity',
   tap_to_click: 'Tap touchpad to click',
+  gestures: 'Touchpad gestures: two fingers scroll and right-click, tap then drag',
+  natural_scroll: 'Two-finger scroll follows the fingers (off: as a wheel turns)',
   host_slots: 'Host switcher: how many hosts, or which — 1-3,5,7-10 (0 = hide)',
   host_names: 'Host names, comma-separated (optional)',
   peer_hosts: 'Linked keyboards, one per line: bedroom | 2 | Bed TV, Bed PC | Bedroom',
@@ -1159,6 +1214,8 @@ class BleMouseCardEditor extends HTMLElement {
       mouse_max_speed: 4.5,
       scroll_sensitivity: 2,
       tap_to_click: true,
+      gestures: true,
+      natural_scroll: true,
       host_slots: 0,
       show_mac: true,
       show_forget_host: false,

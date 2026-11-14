@@ -4,6 +4,14 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
+## Unreleased
+
+### Added
+- **Touchpad gestures.** On a touch screen, two fingers dragged on the mouse pad scroll and two
+  tapped right-click, three tapped middle-click, and a tap followed at once by a drag holds the left
+  button for it. On the web page, the pad under the remote and the Home Assistant mouse and remote
+  cards. The scroll direction can be turned round, and the mouse card can switch the gestures off.
+
 ## v1.20.0 — 2026-11-12
 
 ### Added

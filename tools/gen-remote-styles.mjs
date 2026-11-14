@@ -14,11 +14,17 @@
 //
 // Re-run this after touching RMT_BUILTIN, RMT_BTNS, the icons, the renderer or
 // the .rmt-* CSS, and commit the result.
+//
+// It also copies the page's pad gestures (padWire) into dist/mouse-card.js,
+// between that file's two marker lines. The mouse card imports nothing, so that
+// it can be installed by hand as one file, and a copy kept by hand would drift
+// just the same. Re-run after touching padWire too.
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const here = new URL('./', import.meta.url);
 const PAGE = new URL('../components/espidf_ble_keyboard/web_page.html', here);
 const OUT = new URL('../dist/remote-styles.js', here);
+const MOUSE = new URL('../dist/mouse-card.js', here);
 
 // Normalised to LF the moment it is read. The working copy is CRLF on Windows
 // (core.autocrlf), and everything lifted below is pasted into the output — so
@@ -419,6 +425,83 @@ if (!groupProbe[0].startsWith('<div class="rmt-pop" data-group="apps" role="dial
 }
 const builtins = new Function(`${js}\nreturn RMT_BUILTIN.map(t=>t.id);`)();
 
+// ── the mouse card's pad gestures ─────────────────────────────────
+// Run before it is written anywhere, on a pad that is only a list of handlers
+// and a clock that is only a number: one finger, then each gesture, then what
+// must not happen — a mouse taking a second pointer, a cancelled tap clicking,
+// and a pad told to keep to one finger.
+const padJs = balanced('function padWire(');
+const padProbe = new Function(`${padJs}
+const realNow = Date.now; let now = 1000; Date.now = () => now;
+try {
+  const run = (opt, steps) => {
+    const h = {}, log = [], cls = new Set();
+    const pad = { addEventListener: (t, f) => { h[t] = f; }, setPointerCapture() {},
+      classList: { add: c => cls.add(c), remove: c => cls.delete(c) } };
+    padWire(pad, { move: (x, y) => log.push('m' + x + ',' + y), scroll: d => log.push('s' + d),
+      click: b => log.push('c' + b), hold: b => log.push('h' + b), release: () => log.push('r'),
+      down: () => log.push('['), up: () => log.push(']') }, opt);
+    for (const s of steps) {
+      if (typeof s === 'number') { now += s; continue; }
+      const [t, id, x, y, type] = s;
+      h[{ d: 'pointerdown', m: 'pointermove', u: 'pointerup', x: 'pointercancel', l: 'lostpointercapture' }[t]](
+        { pointerId: id, clientX: x, clientY: y, pointerType: type || 'touch', button: 0, preventDefault() {} });
+    }
+    now += 5000;
+    return log.join(' ') + (cls.size ? ' ACTIVE' : '');
+  };
+  const two = [['d', 1, 50, 50], ['d', 2, 90, 50]];
+  return [
+    run({}, [['d', 1, 50, 50], 80, ['u', 1, 50, 50], ['l', 1, 50, 50]]),
+    run({}, [['d', 1, 50, 50], 80, ['m', 1, 53, 50], ['m', 1, 60, 54], ['u', 1, 60, 54]]),
+    run({}, [['d', 1, 50, 50], 80, ['u', 1, 50, 50], 100, ['d', 1, 50, 50], 50, ['m', 1, 70, 50], 50, ['u', 1, 70, 50]]),
+    run({}, [['d', 1, 50, 50], 80, ['u', 1, 50, 50], 100, ['d', 1, 50, 50], 50, ['u', 1, 50, 50]]),
+    run({}, [['d', 1, 50, 50], 80, ['u', 1, 50, 50], 400, ['d', 1, 50, 50], 50, ['m', 1, 70, 50], 50, ['u', 1, 70, 50]]),
+    run({}, [...two, 90, ['u', 1, 50, 50], ['u', 2, 90, 50]]),
+    run({}, [...two, 30, ['m', 1, 50, 70], ['m', 2, 90, 70], ['m', 1, 50, 90], ['m', 2, 90, 90], 30, ['u', 1, 50, 90], ['m', 2, 120, 140], ['u', 2, 120, 140]]),
+    run({}, [...two, 30, ['m', 1, 20, 50], ['m', 2, 60, 50], 30, ['u', 1, 20, 50], ['u', 2, 60, 50]]),
+    run({}, [...two, ['d', 3, 130, 50], 90, ['u', 2, 90, 50], ['u', 1, 50, 50], ['u', 3, 130, 50]]),
+    run({}, [...two, ['d', 3, 130, 50], ['d', 4, 170, 50], 90, ['u', 1, 50, 50], ['u', 2, 90, 50], ['u', 3, 130, 50], ['u', 4, 170, 50]]),
+    run({}, [['d', 1, 50, 50, 'mouse'], ['d', 2, 90, 50, 'mouse'], 80, ['m', 2, 90, 90, 'mouse'], ['u', 1, 50, 50, 'mouse'],
+      100, ['d', 1, 50, 50, 'mouse'], 50, ['m', 1, 70, 50, 'mouse'], ['u', 1, 70, 50, 'mouse']]),
+    run({}, [['d', 1, 50, 50], 80, ['x', 1, 50, 50]]),
+    run({ gestures: false }, [...two, 30, ['m', 2, 90, 90], ['m', 1, 50, 70], 30, ['u', 1, 50, 70], ['u', 2, 90, 90]]),
+    run({ tap: () => false }, [['d', 1, 50, 50], 80, ['u', 1, 50, 50], ...two, 90, ['u', 1, 50, 50], ['u', 2, 90, 50]]),
+    run({}, [['d', 1, 50, 50], 300, ['u', 1, 50, 50]]),
+    run({ tapMs: 400 }, [['d', 1, 50, 50], 300, ['u', 1, 50, 50]]),
+  ];
+} finally { Date.now = realNow; }`)();
+const PAD_WANT = [
+  '[ ] c1',                       // a tap clicks
+  '[ m10,4 ]',                    // a drag moves from where it left the dead zone, and does not click
+  '[ ] c1 [ h1 m20,0 ] r',        // a tap, then back at once and moved: the left button held for it
+  '[ ] c1 [ ] c1',                // ...back at once and lifted: a second click
+  '[ ] c1 [ m20,0 ]',             // ...back too late: just a move
+  '[ ] c2',                       // two fingers tapped
+  '[ s10 s10 s10 ]',              // two dragged scroll, and the one left after a lift does nothing
+  '[ ]',                          // two dragged across: no scroll, and no click
+  '[ ] c4',                       // three tapped
+  '[ ]',                          // four: nothing
+  '[ ] c1 [ m20,0 ]',             // a mouse is one pointer, and never a tap-then-drag
+  '[ ]',                          // a cancelled tap does not click
+  '[ m0,20 ]',                    // told to keep to one finger, the second is ignored
+  '[ ] [ ]',                      // taps switched off: none of them clicks
+  '[ ]',                          // held too long to be a tap
+  '[ ] c1',                       // ...unless the pad allows longer
+];
+if (padProbe.join('\n') !== PAD_WANT.join('\n')) {
+  throw new Error('padWire reads fingers incorrectly (got / wanted):\n' +
+    padProbe.map((g, i) => `${g === PAD_WANT[i] ? '  ' : '≠ '}${g}   /   ${PAD_WANT[i]}`).join('\n'));
+}
+const PAD_OPEN = '// >>> padWire (generated)', PAD_CLOSE = '// <<< padWire';
+const mouseRaw = readFileSync(MOUSE, 'utf8');
+// That file keeps whatever line endings its checkout gave it.
+const mouseCrlf = mouseRaw.includes('\r\n');
+const mouseWas = mouseRaw.replace(/\r\n/g, '\n');
+const padAt = mouseWas.indexOf(PAD_OPEN), padEnd = mouseWas.indexOf(PAD_CLOSE);
+if (padAt < 0 || padEnd < padAt) throw new Error('dist/mouse-card.js has lost its padWire marker lines');
+const mouseNow = mouseWas.slice(0, padAt + PAD_OPEN.length) + '\n' + padJs + '\n' + mouseWas.slice(padEnd);
+
 const out = `// GENERATED FILE — do not edit by hand.
 //
 // Lifted from components/espidf_ble_keyboard/web_page.html so the Home
@@ -458,3 +541,9 @@ console.log(`wrote dist/remote-styles.js — ${(out.length / 1024).toFixed(1)} K
 console.log(`  built-ins: ${builtins.join(', ')}`);
 console.log(`  catalogue: ${new Function(`${js}\nreturn Object.keys(RMT_BTNS).length;`)()} actions`);
 console.log(`  css rules: ${css.split('}').length - 1}`);
+if (mouseNow === mouseWas) {
+  console.log('dist/mouse-card.js — padWire already as the page has it');
+} else {
+  writeFileSync(MOUSE, mouseCrlf ? mouseNow.replace(/\n/g, '\r\n') : mouseNow);
+  console.log(`wrote dist/mouse-card.js — padWire, ${(padJs.length / 1024).toFixed(1)} KB`);
+}

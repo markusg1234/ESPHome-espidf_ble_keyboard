@@ -1969,6 +1969,8 @@ mouse_acceleration: 0.2       # speed-based acceleration factor (default: 0.15)
 mouse_max_speed: 6.0          # max sensitivity cap (default: 4.5)
 scroll_sensitivity: 3         # faster scroll (default: 2)
 tap_to_click: false           # disable tap-to-click (default: true)
+gestures: false               # one finger only on the pad (default: true)
+natural_scroll: false         # two fingers scroll as a wheel turns (default: true)
 show_forget_host: true        # Forget button beside the switcher (default: false)
 host_slots: 4                 # show host switcher (default: 0 = hidden)
 host_names:                   # custom names for each slot (optional)
@@ -1989,7 +1991,9 @@ Optional configuration:
 | `mouse_acceleration` | `0.15` | Speed-based acceleration factor. Higher = more acceleration on fast swipes. |
 | `mouse_max_speed` | `4.5` | Maximum sensitivity cap. Limits how fast the cursor can move. |
 | `scroll_sensitivity` | `2` | Scroll speed multiplier. |
-| `tap_to_click` | `true` | Tap the touchpad for a left click (5px dead zone prevents accidental clicks). |
+| `tap_to_click` | `true` | Tap the touchpad for a left click (5px dead zone prevents accidental clicks). Off, the two- and three-finger taps and tap-then-drag are off too. |
+| `gestures` | `true` | On a touch screen: two fingers dragged scroll, two tapped right-click, three tapped middle-click, and a tap followed within 0.3 s by a drag holds the left button until the finger lifts. `false` keeps the pad to one finger. |
+| `natural_scroll` | `true` | Two fingers move what is on the host's screen the way they go, as on a phone. `false` scrolls as a mouse wheel turns. |
 | `host_slots` | `0` | Which hosts the switcher offers. A number is a count — `4` is the first four — and a string picks them out by the numbers the switcher shows, e.g. `'1-3, 5, 7-10'`, for a keyboard whose other slots don't belong on this card. Needs at least two hosts; `0` hides the switcher. See [Host switcher on the cards](#host-switcher-on-the-cards). |
 | `host_names` | `[]` | Names for the hosts the switcher shows, in the order it shows them (e.g., `["TV", "Phone"]`). With a count that is slot 0, slot 1 and so on; with a list like `'1,5'` the first name is host 1 and the second host 5. Falls back to `switch_host` button names from the ESP32, then "Host N". |
 | `active_host_entity` | Auto | Entity ID of the [active host sensor](#active-host-sensor). Auto-detected by name pattern (`sensor.*_active_host`). Set explicitly if auto-detection fails. |
@@ -1999,6 +2003,7 @@ Optional configuration:
 
 Features:
 - **Touchpad** — 16:9 aspect ratio, drag to move cursor, tap for left click, mouse wheel/trackpad scroll.
+- **Gestures** — on a touch screen, two fingers scroll and right-click, three middle-click, and a tap then a drag holds the left button.
 - **Mouse acceleration** — slow movements are precise, fast swipes cover more ground.
 - **Buttons** — Left, Middle, Right click; long-press to hold for dragging (needs the `mouse_hold`/`mouse_release` services), tap the held button to release.
 - **Scroll** — Scroll Up / Scroll Down buttons (hold to repeat).
@@ -2289,6 +2294,7 @@ when you aren't using it.
 - **Full QWERTY keyboard** — letters, numbers, symbols, F-keys, modifiers, arrows
 - **Paste bar** — paste or type text in the keyboard header field and press Send to type the whole thing at once, line breaks included. A long paste is fed to the keyboard as it types, and stops — box cleared, the button reading *Stopped* — if the keyboard switches to another host meanwhile. Tick **auto** to type text the moment it is pasted. When the page is reached over HTTPS a clipboard button appears that reads and sends the clipboard in one tap (browsers don't allow clipboard reading over plain HTTP — pasting into the field works everywhere)
 - **Mouse touchpad** — 16:9 aspect ratio, drag to move cursor, tap for left click (5px dead zone prevents accidental clicks)
+- **Touchpad gestures** — on a touch screen, drag two fingers to scroll and tap two to right-click, tap three to middle-click, and tap then drag at once to hold the left button for the drag. The Mouse card's **natural scrolling** tick box sets which way two fingers scroll, per browser
 - **Mouse acceleration** — slow movements are precise, fast swipes cover more ground (up to 4x)
 - **Mouse buttons** — Left, Middle, Right click; long-press a button to hold it for dragging (drag the touchpad or run `mouse_goto` while held), tap the held button to release
 - **Scroll controls** — buttons + mouse wheel on the touchpad
@@ -2349,7 +2355,7 @@ The [Home Assistant remote card](#media-remote-card-for-home-assistant) has both
 
 ### A touchpad on the remote
 
-A style's **`touchpad`** key opens the Mouse card's pad under the remote: drag to move, tap to click, the three buttons (long-press one to hold it for a drag) and the scroll keys. Press it again to close it; the keyboard keys and typing box can be open with it. It goes with the remote when it pops out, the window widening to at least 320px for it, and moves the pointer wherever the remote's keys go.
+A style's **`touchpad`** key opens the Mouse card's pad under the remote: drag to move, tap to click, the three buttons (long-press one to hold it for a drag) and the scroll keys, with the Mouse card's two-finger gestures on a touch screen. Press it again to close it; the keyboard keys and typing box can be open with it. It goes with the remote when it pops out, the window widening to at least 320px for it, and moves the pointer wherever the remote's keys go.
 
 The Home Assistant remote card has it too, drawn by the [mouse card](#mouse-control-card-for-home-assistant), so it needs that card's services — `api_services: true` registers them.
 

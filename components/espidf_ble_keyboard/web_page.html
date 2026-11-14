@@ -117,6 +117,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .mbtn:active,.mbtn.p{background:var(--active);color:#fff;border-color:var(--active)}
 .mbtn.held{background:var(--accent);color:#fff;border-color:var(--accent)}
 .scroll-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.pad-note{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 10px;margin-top:6px;font-size:11px;color:var(--muted);text-align:center}
 .sbtn{padding:8px 0;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:16px;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .1s}
 .sbtn:active{background:var(--active);color:#fff;border-color:var(--active)}
 .prog-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
@@ -871,7 +872,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- Carries the release tag, and `-dev` while main is ahead of the last one. Drop
      the suffix when tagging; append a letter (v1.7.0-dev-b) to tell two dev builds
      apart when chasing a "my edit didn't reach the device" problem. -->
-<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.20.0</span>
+<span id="webver" style="font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.3px">v1.21.0-dev</span>
 </div>
 <div class="toolbar-right">
 <div class="section-toggles" id="toggle-bar">
@@ -901,7 +902,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 
 <div class="card" id="mouse-card">
 <h2><svg viewBox="0 0 24 24"><path d="M12 2C8.14 2 5 5.14 5 9v6c0 3.86 3.14 7 7 7s7-3.14 7-7V9c0-3.86-3.14-7-7-7zm0 2c2.76 0 5 2.24 5 5v2h-4V5h-2v6H7V9c0-2.76 2.24-5 5-5z"/></svg>Mouse<span class="kb-drives" data-why="Typing and pointing go to %s, the keyboard the remote is driving." hidden></span></h2>
-<div class="touchpad" id="touchpad"><span class="touchpad-hint">Drag to move</span></div>
+<div class="touchpad" id="touchpad"><span class="touchpad-hint">Drag to move &middot; two fingers scroll</span></div>
 <div class="mbtn-row">
 <button class="mbtn" id="ml" data-btn="1">Left</button>
 <button class="mbtn" id="mm" data-btn="4">Middle</button>
@@ -912,6 +913,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <button class="sbtn" id="su" data-scroll="3">&#9650; Up</button>
 <button class="sbtn" id="sd" data-scroll="-3">&#9660; Down</button>
 </div>
+<div class="pad-note">Two fingers on the pad: drag to scroll, tap to right-click &middot; tap, then drag, to hold Left<label class="kb-paste-auto" title="Which way two fingers scroll, in this browser.&#10;&#10;Ticked: what is on the host's screen moves the way your fingers do, as on a phone.&#10;Unticked: the other way, as a mouse wheel turns."><input type="checkbox" id="pad-natural" checked>natural scrolling</label></div>
 </div>
 
 <div class="card" id="finder-card">
@@ -969,7 +971,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- What the remote's typing, keyboard and touchpad keys open. Inside the card, so
      it goes wherever the remote goes, popped out included. The box comes first: on a
      phone its own keyboard covers the bottom of the screen. -->
-<div id="rmt-kbd" class="rkb" hidden><div class="rkb-typerow"><input class="rkb-type" type="text" size="1" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="enter" placeholder="Type or paste" aria-label="Type to the host"><label class="kb-paste-auto" title="Ticked, it goes as you type. Untick to write first and send it whole with Send &mdash; or with Enter or Tab, which follow it."><input type="checkbox" class="rkb-auto" checked>auto</label><button type="button" class="kb-paste-btn rkb-send" hidden>Send</button></div><div class="rkb-keys"></div><div class="rkb-pad"><div class="touchpad"><span class="touchpad-hint">Drag to move</span></div><div class="mbtn-row" title="Long-press a button to hold it (drag); tap it again to let go"><button class="mbtn" data-btn="1">Left</button><button class="mbtn" data-btn="4">Middle</button><button class="mbtn" data-btn="2">Right</button></div><div class="scroll-row"><button class="sbtn" data-scroll="3">&#9650; Up</button><button class="sbtn" data-scroll="-3">&#9660; Down</button></div></div></div>
+<div id="rmt-kbd" class="rkb" hidden><div class="rkb-typerow"><input class="rkb-type" type="text" size="1" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="enter" placeholder="Type or paste" aria-label="Type to the host"><label class="kb-paste-auto" title="Ticked, it goes as you type. Untick to write first and send it whole with Send &mdash; or with Enter or Tab, which follow it."><input type="checkbox" class="rkb-auto" checked>auto</label><button type="button" class="kb-paste-btn rkb-send" hidden>Send</button></div><div class="rkb-keys"></div><div class="rkb-pad"><div class="touchpad"><span class="touchpad-hint">Drag to move &middot; two fingers scroll</span></div><div class="mbtn-row" title="Long-press a button to hold it (drag); tap it again to let go"><button class="mbtn" data-btn="1">Left</button><button class="mbtn" data-btn="4">Middle</button><button class="mbtn" data-btn="2">Right</button></div><div class="scroll-row"><button class="sbtn" data-scroll="3">&#9650; Up</button><button class="sbtn" data-scroll="-3">&#9660; Down</button></div></div></div>
 </div>
 
 <div class="card" id="btns-card">
@@ -7614,7 +7616,7 @@ function insertStep(el,val){
   // right now, and where it sat) are this browser's business on this screen, and
   // restoring them onto another one would say a window is open that isn't.
   const UI_KEYS=['blekb_theme','blekb_zoom','blekb_sections','blekb_order','blekb_finder_unlocked',
-                 'blekb_paste_auto','blekb_rmt_ontop','blekb_rmt_type_auto'];
+                 'blekb_paste_auto','blekb_rmt_ontop','blekb_rmt_type_auto','blekb_pad_natural'];
   const bkSave=document.getElementById('bk-save');
   const bkLoad=document.getElementById('bk-load');
   const bkFile=document.getElementById('bk-file');
@@ -8448,6 +8450,117 @@ apiPost('release').catch(()=>{});
 // root keeps its own gesture; the sensitivity is read once for all of them.
 const MOUSE_CFG={sens:1.0,accel:0.15,max:4.0,scroll:2};
 const MOUSE_ROOTS=[];
+
+// A pad's gestures, read the same wherever one is drawn: this page's Mouse card,
+// the pad under the remote, and the Home Assistant mouse card, into which
+// tools/gen-remote-styles.mjs copies this function whole. One finger moves the
+// pointer and a tap clicks, as it always has. With two fingers down a drag
+// scrolls and a tap is the right button; three tapped are the middle one; and a
+// finger put back within TAPDRAG ms of a tap, then moved, holds the left button
+// down until it lifts. The tap before it has already clicked: a tap never waits
+// to find out whether a drag follows.
+//
+// out is told what happened, not how to send it: down() and up() as a gesture
+// starts and ends, move(dx,dy,dt) for the pointer, in pad pixels over dt ms,
+// scroll(dy) for two fingers' travel down the pad, click(btn), hold(btn) and
+// release() — btn as the mouse report has it, 1 left, 2 right, 4 middle. opt.tap
+// and opt.gestures are values, or functions asked each time so a setting can
+// change under a wired pad: tap false and no tap clicks; gestures false and the
+// pad takes one finger, as it used to. A mouse or a pen is one pointer either way.
+//
+// Pointer events on the pad itself, every pointer captured, so the moves keep
+// coming wherever a finger goes, and a pad in a picture-in-picture window is
+// heard at all — this page's window never hears that one. The pad needs
+// touch-action:none. pan-y with direction-claiming was tried, but the browser can
+// start a vertical pan inside the claim slack, and after that touchmoves are
+// non-cancelable and the page scrolls mid-drag.
+function padWire(pad,out,opt){
+  opt=opt||{};
+  // A finger is still until it has gone SLOP px. With several down each is
+  // allowed SLOP2, since they rarely land or lift dead straight.
+  const SLOP=5,SLOP2=10,TAPDRAG=300,TAP=opt.tapMs||250;
+  const ask=k=>(typeof opt[k]==='function'?opt[k]():opt[k])!==false;
+  const P=new Map();   // the pointers down: id -> where each is, and where it landed
+  // n: the most fingers down at once this gesture. moved: no longer a tap. froz:
+  // one of several has lifted, and the rest do nothing more. kill: cancelled, so
+  // no tap either. cand: landed soon after a tap, and a drag if it moves. drag:
+  // the left button is down for it. scr: two fingers are scrolling.
+  let n=0,t0=0,lt=0,multi=false,moved=false,froz=false,kill=false,cand=false,drag=false,scr=false,cy=0,sy=0,tapAt=0;
+  const midY=()=>{let s=0;P.forEach(p=>{s+=p.y});return s/P.size};
+  function end(){
+    pad.classList.remove('active');
+    const dur=Date.now()-t0;
+    if(out.up)out.up();
+    if(drag){drag=false;out.release();return}
+    if(kill||moved||scr||!ask('tap'))return;
+    if(n===1){
+      if(dur>=TAP)return;
+      out.click(1);
+      if(multi)tapAt=Date.now();
+    }else if(n<4&&dur<TAP+150)out.click(n===2?2:4);
+  }
+  pad.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    // Another finger joins only a touch gesture that is still whole.
+    if(P.size&&(!multi||froz||drag||e.pointerType!=='touch'))return;
+    e.preventDefault();
+    try{pad.setPointerCapture(e.pointerId)}catch(_){}
+    if(!P.size){
+      const now=Date.now();
+      multi=e.pointerType==='touch'&&ask('gestures');
+      cand=multi&&tapAt>0&&now-tapAt<TAPDRAG&&ask('tap');
+      t0=lt=now;n=0;tapAt=0;
+      moved=froz=kill=drag=scr=false;
+      pad.classList.add('active');
+      if(out.down)out.down();
+    }
+    P.set(e.pointerId,{x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY});
+    if(P.size>n)n=P.size;
+    if(P.size===2)cy=sy=midY();
+  });
+  pad.addEventListener('pointermove',e=>{
+    const p=P.get(e.pointerId);
+    if(!p)return;
+    const x=e.clientX,y=e.clientY,far=Math.abs(x-p.sx)+Math.abs(y-p.sy);
+    if(n===1){
+      if(!moved){
+        if(far<SLOP)return;
+        moved=true;
+        if(cand){drag=true;out.hold(1)}
+      }
+      const now=Date.now(),dt=Math.max(now-lt,1);
+      lt=now;
+      out.move(x-p.x,y-p.y,dt);
+      p.x=x;p.y=y;
+      return;
+    }
+    p.x=x;p.y=y;
+    if(far>=SLOP2)moved=true;
+    if(n!==2||froz)return;
+    // Two fingers: their midpoint's travel down the pad is the scroll, from where
+    // it has gone too far to be a tap.
+    const c=midY();
+    if(scr)out.scroll(c-cy);
+    else if(Math.abs(c-sy)<SLOP2)return;
+    else scr=true;
+    cy=c;
+  });
+  const lift=(e,cancelled)=>{
+    if(!P.delete(e.pointerId))return;
+    if(cancelled)kill=true;
+    if(P.size)froz=true;else end();
+  };
+  pad.addEventListener('pointerup',e=>lift(e,false));
+  // A cancelled gesture, or a capture taken away, must not click. A pointer that
+  // lifted in the ordinary way has left P by the time its capture goes.
+  pad.addEventListener('pointercancel',e=>lift(e,true));
+  pad.addEventListener('lostpointercapture',e=>lift(e,true));
+}
+// Which way two fingers scroll, on every pad this browser draws: ticked in the
+// Mouse card, and read as each scroll goes, so the pad in a pop-up window, which
+// has no Mouse card, follows the page's tick. Natural unless unticked.
+function padNatural(){return localStorage.getItem('blekb_pad_natural')!=='0'}
+
 function addMouseRoot(root){
   if(MOUSE_ROOTS.indexOf(root)>=0)return;
   if(!MOUSE_ROOTS.length){
@@ -8459,11 +8572,8 @@ function addMouseRoot(root){
   }
   MOUSE_ROOTS.push(root);
   const pad=root.querySelector('.touchpad');
-  let tracking=false,pid=null,lastX=0,lastY=0,lastTime=0,startTime=0,moved=false,startSX=0,startSY=0;
   let accumX=0,accumY=0,moveAC=null,heldBtn=0;
-  const tapDeadZone=5;
 
-  function onStart(x,y){tracking=true;lastX=startSX=x;lastY=startSY=y;lastTime=startTime=Date.now();moved=false;accumX=0;accumY=0;moveAC=new AbortController();pad.classList.add('active')}
   // Single request in flight; deltas keep merging into accumX/accumY while it
   // runs, so a direction reversal cancels in the accumulator instead of
   // queueing stale moves (a queued backlog was why reversals only registered
@@ -8474,59 +8584,50 @@ function addMouseRoot(root){
     const dx=Math.trunc(accumX),dy=Math.trunc(accumY);
     if(dx===0&&dy===0)return;
     const cx=Math.max(-127,Math.min(127,dx)),cy=Math.max(-127,Math.min(127,dy));
-    accumX-=dx;accumY-=dy;moved=true;sendBusy=true;
+    accumX-=dx;accumY-=dy;sendBusy=true;
     apiPost('mouse_move',{x:cx,y:cy},{signal:moveAC.signal})
       .catch(()=>{}).finally(()=>{sendBusy=false;flushMove()});
   }
-  function onMove(x,y){
-    if(!tracking)return;
-    if(!moved){const td=Math.abs(x-startSX)+Math.abs(y-startSY);if(td<tapDeadZone)return}
-    const now=Date.now(),dt=Math.max(now-lastTime,1);
-    const rawDx=x-lastX,rawDy=y-lastY;
-    const dist=Math.sqrt(rawDx*rawDx+rawDy*rawDy);
-    const speed=dist/dt;
-    const sens=Math.min(MOUSE_CFG.sens+speed*MOUSE_CFG.accel,MOUSE_CFG.max);
-    accumX+=rawDx*sens;accumY+=rawDy*sens;
-    lastX=x;lastY=y;lastTime=now;
-    flushMove();
-  }
-  function onEnd(){
-    if(!tracking)return;tracking=false;pad.classList.remove('active');
-    if(moveAC){moveAC.abort();moveAC=null}
-    accumX=0;accumY=0;
-    if(!moved&&!heldBtn&&Date.now()-startTime<250)api('mouse_click',{btn:1});
-  }
-
-  // The pad owns every pointer that starts on it (touch-action:none). pan-y +
-  // direction-claiming was tried before, but the browser can start a vertical
-  // pan inside the claim slack — after that, touchmoves are non-cancelable and
-  // preventDefault can't stop the page scrolling mid-drag. Captured, so the moves
-  // keep coming here wherever the finger or the mouse goes; one at a time, so a
-  // second finger is ignored rather than tugging the first.
-  pad.addEventListener('pointerdown',e=>{
-    if(tracking||(e.pointerType==='mouse'&&e.button!==0))return;
-    e.preventDefault();
-    pid=e.pointerId;
-    try{pad.setPointerCapture(pid)}catch(_){}
-    onStart(e.clientX,e.clientY);
-  });
-  pad.addEventListener('pointermove',e=>{if(e.pointerId===pid)onMove(e.clientX,e.clientY)});
-  pad.addEventListener('pointerup',e=>{if(e.pointerId===pid){pid=null;onEnd()}});
-  // A cancelled gesture, or a capture taken away, must not click (moved=true).
-  const cancel=e=>{if(e.pointerId===pid){pid=null;moved=true;onEnd()}};
-  pad.addEventListener('pointercancel',cancel);
-  pad.addEventListener('lostpointercapture',cancel);
-  pad.addEventListener('contextmenu',e=>e.preventDefault());  // no long-press menu mid-drag
-
+  // The wheel over the pad and two fingers down it scroll through here: one
+  // request in flight as well, and through api(), so a macro being recorded
+  // writes the scroll down as it does the scroll buttons'.
   let wheelAccum=0,wheelBusy=false;
   function flushWheel(){
     if(wheelBusy)return;
     const s=Math.trunc(wheelAccum);
     if(s===0)return;
     wheelAccum-=s;wheelBusy=true;
-    apiPost('mouse_scroll',{amount:Math.max(-127,Math.min(127,s))})
-      .catch(()=>{}).finally(()=>{wheelBusy=false;flushWheel()});
+    api('mouse_scroll',{amount:Math.max(-127,Math.min(127,s))}).finally(()=>{wheelBusy=false;flushWheel()});
   }
+
+  // The fingers are padWire's to read; what they mean is sent from here. A tap
+  // does not click while a button is held down for a drag, or it would let go.
+  padWire(pad,{
+    down(){accumX=0;accumY=0;moveAC=new AbortController()},
+    up(){if(moveAC){moveAC.abort();moveAC=null}accumX=0;accumY=0},
+    move(dx,dy,dt){
+      const sens=Math.min(MOUSE_CFG.sens+Math.sqrt(dx*dx+dy*dy)/dt*MOUSE_CFG.accel,MOUSE_CFG.max);
+      accumX+=dx*sens;accumY+=dy*sens;
+      flushMove();
+    },
+    scroll(dy){wheelAccum+=(padNatural()?dy:-dy)*MOUSE_CFG.scroll*0.02;flushWheel()},
+    click(b){api('mouse_click',{btn:b})},
+    // The button goes down before the pointer moves. The move that follows it
+    // carries the pad's dead zone, and arriving first it would start the drag
+    // that far from where the press was meant — so moves wait for the press to
+    // be answered, though not for ever.
+    hold(b){
+      let gone=false;
+      const go=()=>{if(gone)return;gone=true;sendBusy=false;flushMove()};
+      sendBusy=true;
+      api('mouse_hold',{btn:b}).finally(go);
+      setTimeout(go,1500);
+      setHeld(b);
+    },
+    release(){api('mouse_release');setHeld(0)},
+  },{tap:()=>!heldBtn});
+  pad.addEventListener('contextmenu',e=>e.preventDefault());  // no long-press menu mid-drag
+
   pad.addEventListener('wheel',e=>{
     e.preventDefault();
     wheelAccum+=-e.deltaY*MOUSE_CFG.scroll*0.02;
@@ -8586,6 +8687,12 @@ function addMouseRoot(root){
 }
 // The Mouse card itself never goes into a popped-out window; the remote's pad can.
 if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
+(function(){
+  const ck=document.getElementById('pad-natural');
+  if(!ck)return;
+  ck.checked=padNatural();
+  ck.addEventListener('change',()=>localStorage.setItem('blekb_pad_natural',ck.checked?'1':'0'));
+})();
 
 // ── Remote Controls ──
 (function(){
