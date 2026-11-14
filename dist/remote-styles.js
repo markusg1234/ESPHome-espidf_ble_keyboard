@@ -298,7 +298,7 @@ const RMT_LCD_COLOURS=['fg','bg','label','border'];
 const RMT_LCD_LABELLED=['@last','@station'];
 
 const RMT_LCD_KEYS=['@host','@slot','@mac','@state','@rssi','@battery','@layout',
-'@last','@station','@msg','@timer'];
+'@last','@station','@keys','@msg','@timer'];
 
 const RMT_HEX=/^#[0-9a-f]{3,8}$/i;
 

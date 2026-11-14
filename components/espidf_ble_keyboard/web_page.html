@@ -127,6 +127,9 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .skb-grid.on button:not(.un){cursor:pointer}
 .skb-grid.on button:not(.un):active{background:var(--active);color:#fff}
 .skb-chip{border-color:var(--active);color:var(--active)}
+#skb-body textarea{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;resize:vertical}
+#skb-body .rpt-times select{padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg);font-size:12px}
+#skb-name,#skb-app{width:110px}
 .sbtn{padding:8px 0;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:16px;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .1s}
 .sbtn:active{background:var(--active);color:#fff;border-color:var(--active)}
 .prog-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
@@ -1239,7 +1242,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <button id="skb-last" class="cancel" hidden></button>
 </div>
 <textarea id="skb-open" maxlength="255" rows="2" placeholder="How to reach search from where the app opens, e.g. left | delay:500 | up | ok | delay:1500" title="Open search: the action App search runs before text is spelled. It has to end with the app's keyboard on screen and its highlight on the key chosen under Starts on. Empty: App search only starts the spelling."></textarea>
-<textarea id="skb-rows" maxlength="400" rows="7" spellcheck="false" autocapitalize="off" style="font-family:monospace" placeholder="abcdef&#10;ghijkl&#10;mnopqr&#10;stuvwx&#10;yz1234&#10;567890&#10;_==&lt;==" title="The app's keys, a line a row, as they are on the screen."></textarea>
+<textarea id="skb-rows" maxlength="400" rows="7" spellcheck="false" autocapitalize="off" style="font-family:monospace;font-size:13px" placeholder="abcdef&#10;ghijkl&#10;mnopqr&#10;stuvwx&#10;yz1234&#10;567890&#10;_==&lt;==" title="The app's keys, a line a row, as they are on the screen."></textarea>
 <div style="font-size:11px;color:var(--muted);margin:4px 0">One line a row, one character a key. <code>_</code> Space &middot; <code>&lt;</code> Backspace &middot; <code>=</code> more of the key before it &middot; <code>#</code> a key never pressed &middot; <code>.</code> no key &middot; <code>\</code> before one of these to mean itself.</div>
 <div id="skb-grid" class="skb-grid"></div>
 <div class="rpt-times">
@@ -2136,7 +2139,7 @@ const RMT_LCD_OPTS=['sm','lg','xl','left','center','centre','right'];
 // already reads, so a panel-level colour needs no CSS of its own.
 const RMT_LCD_COLOURS=['fg','bg','label','border'];
 const RMT_LCD_KEYS=['@host','@slot','@mac','@state','@rssi','@battery','@layout',
-'@last','@station','@msg','@timer'];
+'@last','@station','@keys','@msg','@timer'];
 // @last and @station arrive as the action that was pressed — "spare1" — which
 // says nothing to a viewer. The style is the only place that knows the key was
 // labelled "Netflix", so the renderers translate these two through it. @msg is

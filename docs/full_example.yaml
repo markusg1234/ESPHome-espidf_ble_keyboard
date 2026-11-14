@@ -1,7 +1,7 @@
 # espidf_ble_keyboard with every feature switched on, for five hosts. Delete what you don't need.
 # Commented-out blocks need hardware or a second device: linked keyboards, battery, GPIO keys,
-# Wake-on-LAN and an IR blaster. Macros, remote styles, on-connect actions, Bluetooth-off slots and
-# the IRK settings are set on the web page, not here — see the README.
+# Wake-on-LAN and an IR blaster. Macros, remote styles, on-connect actions, screen keyboards,
+# Bluetooth-off slots and the IRK settings are set on the web page, not here — see the README.
 
 substitutions:
   device_name: bluetooth-keyboard

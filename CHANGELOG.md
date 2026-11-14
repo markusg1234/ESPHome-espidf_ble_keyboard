@@ -11,6 +11,14 @@ web control page shows the matching version badge.
   tapped right-click, three tapped middle-click, and a tap followed at once by a drag holds the left
   button for it. On the web page, the pad under the remote and the Home Assistant mouse and remote
   cards. The scroll direction can be turned round, and the mouse card can switch the gestures off.
+- **Typing on an app's own keyboard.** For a TV app that ignores typed letters and wants its
+  on-screen keys walked with the arrows: describe the keys once in Host Actions, and text is spelled
+  on them. A new App search key opens the search of the app last opened and starts it, per host and
+  per app. The keyboard cannot see the screen, so each has its own press speed.
+
+### Changed
+- **The station a panel shows is remembered for each host**, where one was kept for the whole
+  keyboard.
 
 ## v1.20.0 — 2026-11-12
 

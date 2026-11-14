@@ -239,6 +239,8 @@ action:
 | `prev_host` / `next_host` / `last_host` | The same three as remote keys a style can place, remappable per host. |
 | `next_keyboard` / `prev_host_all` / `next_host_all` | Web page remote only: move the tab to the next linked keyboard, or through every host of every linked keyboard. |
 | `keyboard` / `typing` / `touchpad` | Remote keys, on the web page and the Home Assistant remote card: open the on-screen keyboard under the remote, a box your phone's or PC's own keyboard types into, or a mouse pad. |
+| `screen_search` / `screen_search:<name>` | A remote key: opens the search screen of the app the host was last sent to and has text spelled on that app's own on-screen keys from then on. Needs a screen keyboard for the app (Host Actions); without one it is `search`. |
+| `screen_keys:<name>` / `screen_keys:off` | Start spelling on a screen keyboard where the app already is, or stop. |
 | `group:<name>` | A remote key, on the web page and the Home Assistant remote card: opens one of the style's groups of keys over the remote. |
 | `peer:<name>:<action>` | Run an action on a linked keyboard listed under `peers:` — `peer:bedroom:switch_host:1`. |
 | `caps_lock:on` / `caps_lock:off` / `caps_lock:toggle` | Set the host's Caps Lock: on and off tap it only when the host reports it the other way, then wait for the host to confirm. |

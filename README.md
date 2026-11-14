@@ -605,6 +605,8 @@ espidf_ble_keyboard:
 | `"next_keyboard"` / `"prev_host_all"` / `"next_host_all"` | Web page remote only: move the tab to the next [linked keyboard](#linking-a-second-keyboard), or step through every host of every linked keyboard. Anywhere else they do nothing. |
 | `"keyboard"` / `"typing"` / `"touchpad"` | Remote keys, on the web page and the Home Assistant remote card: open the on-screen keyboard under the remote, a box your phone's or PC's own keyboard types into, or a mouse pad. See [Typing from the remote](#typing-from-the-remote) and [A touchpad on the remote](#a-touchpad-on-the-remote). Anywhere else they do nothing. |
 | `"group:<name>"` | A remote key, on the web page and the Home Assistant remote card: opens that [group of keys](#groups-of-keys) over the remote. Anywhere else it does nothing. |
+| `"screen_search"` / `"screen_search:<name>"` | A remote key: opens the search screen of the app the host was last sent to and has text spelled on that app's own keys from then on — see [Typing on an app's own keyboard](#typing-on-an-apps-own-keyboard). On a host with no screen keyboard for the app it is `search`. With a name, that screen keyboard's search. |
+| `"screen_keys:<name>"` / `"screen_keys:off"` | Start spelling on a [screen keyboard](#typing-on-an-apps-own-keyboard) without going anywhere, for a macro that has already reached the app's keys; or stop, and type as a keyboard again. |
 | `"spare1"` … `"spare32"` | Send **nothing** on their own. They exist as names to hang a [per-host override](#host-actions-per-host-overrides) on, for remote keys with no standard HID usage worth guessing — an app launcher, a set-top box's Input, a vendor's own menu. Pressing an unmapped one logs a hint and does nothing. |
 | `"left_click"` | Mouse left click. |
 | `"right_click"` | Mouse right click. |
@@ -1420,7 +1422,8 @@ A title line centres by default, since it has no value to sit opposite; give it 
 | `@battery` | The percentage the host sees. See [Battery level](#battery-level). |
 | `@layout` | The active keyboard layout id. |
 | `@last` | The last button pressed, named as the current style labels it — a spare labelled `Netflix` shows "Netflix", not `spare1`. Changes on every press. |
-| `@station` | The same, but only the spares update it, so a volume tap doesn't wipe which station you chose. |
+| `@station` | The same, but only the spares update it, so a volume tap doesn't wipe which station you chose. Remembered for each host. |
+| `@keys` | The [screen keyboard](#typing-on-an-apps-own-keyboard) text is being spelled on, while there is one. |
 | `@msg` | Whatever an `lcd:` action last wrote. |
 | `@timer` | The time left on the soonest [timer](#running-an-action-later) — `29 min`, then seconds in the last minute. |
 
@@ -2308,6 +2311,7 @@ when you aren't using it.
 - **Section toggles** — show/hide Keyboard, Mouse, Remote, and Buttons sections individually (state saved in browser)
 - **Pop out the remote** — **Pop out** in the Remote heading moves the remote into a window of its own, so it stays in reach while you scroll the page or work in another app; **Pin back** returns it to where it was. See [Popping the remote out](#popping-the-remote-out)
 - **A keyboard on the remote** — a style's `keyboard` and `typing` keys open the on-screen keys or a box your phone's or PC's own keyboard types into, under the remote and in its pop-out, and its `touchpad` key a mouse pad. See [Typing from the remote](#typing-from-the-remote)
+- **Typing on an app's own keyboard** — for a TV app that ignores typed letters, describe its on-screen keys once and text is spelled on them with the arrows. See [Typing on an app's own keyboard](#typing-on-an-apps-own-keyboard)
 - **Remote shapes stand on their own once popped out** — a style that draws its own remote body (Style 1, 2, 4, 5 and most imported ones) loses the card from behind it in the popped-out window, so what floats there is the remote's shape, shadow and taper rather than a slab inside a slab. In the page it keeps its card, like the sections around it. Styles that draw no body of their own keep theirs everywhere
 - **Zoom controls** — resize keyboard and mouse with +/- buttons in 5% steps (50%–200%), zoom level saved in browser
 - **Light/dark theme** — toggle between dark and light mode, preference saved in browser
@@ -2358,6 +2362,30 @@ The [Home Assistant remote card](#media-remote-card-for-home-assistant) has both
 A style's **`touchpad`** key opens the Mouse card's pad under the remote: drag to move, tap to click, the three buttons (long-press one to hold it for a drag) and the scroll keys, with the Mouse card's two-finger gestures on a touch screen. Press it again to close it; the keyboard keys and typing box can be open with it. It goes with the remote when it pops out, the window widening to at least 320px for it, and moves the pointer wherever the remote's keys go.
 
 The Home Assistant remote card has it too, drawn by the [mouse card](#mouse-control-card-for-home-assistant), so it needs that card's services — `api_services: true` registers them.
+
+### Typing on an app's own keyboard
+
+Some TV apps take a Bluetooth keyboard's letters in their search box and some don't: the ones that draw their own grid of letters want a remote's arrows and nothing else. For those the keyboard can spell: you type, and it presses the arrows from the highlighted key to each letter, then OK.
+
+A **screen keyboard** describes one app's keys. Make them under **Host Actions → Screen Keyboards**, up to six a host:
+
+| Box | What goes in it |
+|---|---|
+| **Name** | What actions call it, e.g. `netflix`. |
+| **App key** | The spare key that opens the app. The keyboard remembers the last one pressed on each host, and that is how it knows which app is open. Empty: for any app without one of its own. |
+| **Open search** | The action that gets from the app to its search screen, e.g. `left \| delay:500 \| up \| ok \| delay:1500`. It has to finish with the app's keys on screen. |
+| **Keys** | The keys as they are on screen, a line a row, a character a key. `_` is Space, `<` Backspace, `=` more of the key before it (a wide key), `#` a key that is never pressed, `.` no key there. A backslash before one of those means the character itself. Blanks are ignored. |
+| **Starts on** | The key highlighted when the search screen opens. |
+| **Press gap** | The time between presses, 50–2000 ms. |
+| **Up or down from a wide key** | Where the highlight lands when it leaves a wide key such as Space: under its left end, its middle, or the column it was come from. Apps differ. |
+
+The panel draws the keys as you type them. **Open search** and **Use now** try the one shown on the active host, and while it is in use a press on a key in the drawing presses it on the TV, which is the quick way to check a grid.
+
+Then put the **`screen_search`** key (App search) on the remote. It runs Open search for the app last opened and starts the spelling. From then on text for that host is spelled instead of typed, whether it comes from the remote's typing box, the paste bar, a macro's `string:` or Home Assistant, and Backspace presses the app's own. A typing box shows the screen keyboard's name while this is on; a press on the name stops it. It also stops on Back, Home, Exit, Power, another app key, a host switch, an arrow that would leave the keys, and after ten minutes unused. On a host with no screen keyboard for the app, `screen_search` is the ordinary `search`.
+
+A macro can do the lot: `spare3 | delay:8000 | screen_search | string:the office` opens the app, waits for it, opens its search and spells.
+
+> **The keyboard cannot see the screen.** It works out where the highlight is from the start key and the arrows sent since, its own and any pressed by hand on this remote. If the app drops a press, every letter after it is wrong: raise the press gap until none are lost, and press App search again to start over. An app update that moves its keys needs the Keys box changing to match.
 
 ### Linking a second keyboard
 
@@ -2412,6 +2440,7 @@ Macros, host actions and `mouse_goto` calibration only exist in the device's NVS
 - Macros
 - Saved per-host action overrides (the `SAVED` rows — YAML-defined ones are deliberately excluded, since writing them back as saved overrides would shadow later YAML edits)
 - Per-host typing settings and keyboard layouts
+- Per-host screen keyboards
 - Per-host `mouse_goto` calibration
 - Per-host hidden remote buttons
 - Per-host hold-to-repeat settings (a host left on the defaults is simply absent, and restores as "reset to defaults")
