@@ -248,6 +248,53 @@ class EspidfBleKeyboard : public Component
   uint32_t key_delay_ms() const { return key_delay_ms_; }
   void set_unicode_input(uint8_t method) { unicode_input_ = method; }
 
+  // Screen keyboards: an app's own letter grid, for a host whose apps ignore a
+  // keyboard's letters and take only a remote's arrows. Each belongs to a host,
+  // lives in storage alone and is read when it is asked for; the one in use is
+  // the only one held in RAM. See screen_keys.cpp.
+  static const uint8_t MAX_SCREEN_KEYS = 6;       // per host
+  static const size_t MAX_SCREEN_ROWS_LEN = 400;  // the Keys box, as typed
+  static const uint8_t MAX_SCREEN_CELLS = 200;    // rows x columns
+  struct ScreenKeysCfg {
+    std::string name;    // a-z 0-9 _, 1-15
+    std::string app;     // the spare that opens its app ("spare3", "spare3@long"), or none
+    std::string open;    // the action that reaches its search screen
+    std::string rows;    // the grid: a line a row, a character a key
+    std::string start;   // the key highlighted when search opens, as written in rows
+    uint16_t gap{250};   // ms between presses
+    uint8_t wide{0};     // Up/Down from a wide key: 0 its first column, 1 its middle, 2 the column it was entered from
+  };
+  /// The grid of one in use: see screen_keys.cpp. One block, the cells and the
+  /// path-finder's working room after it.
+  struct ScreenGrid {
+    char name[16];
+    uint8_t rows, cols, wide, r, c;   // r,c: where the highlight is taken to be
+    uint16_t gap;
+    uint16_t *cell;                   // rows x cols
+    uint8_t *work;                    // 4 x rows x cols
+  };
+  /// The host's screen keyboard in place `index` (0 to MAX_SCREEN_KEYS-1). False
+  /// when there is none there. Each is a blob of its own, sk<slot>_<index>.
+  bool get_screen_keys(uint8_t slot, uint8_t index, ScreenKeysCfg &out) const;
+  /// How much of storage the host's take, for sizing a reply that lists them.
+  size_t screen_keys_size(uint8_t slot) const;
+  /// Saves one, replacing `was` (its name before an edit) or one of its own
+  /// name. nullptr when saved, else what is wrong with it.
+  const char *set_screen_keys(uint8_t slot, const std::string &was, const ScreenKeysCfg &cfg);
+  bool delete_screen_keys(uint8_t slot, const std::string &name);
+  /// The one typed text is being spelled on for the active host, or "".
+  std::string screen_keys_armed() const;
+  /// The spare last pressed for a host — the app it is on, as far as this keyboard knows.
+  const char *station(uint8_t slot) const { return slot < MAX_HOST_SLOTS ? station_[slot] : ""; }
+  /// A key from a typing box while one is in use: Backspace presses the grid's,
+  /// Enter is dropped (it would press the highlighted letter again). True when taken.
+  bool screen_keys_take_key(uint8_t modifiers, uint8_t keycode);
+  /// Text waits its turn to be spelled, and only so much of it: true when `more`
+  /// characters would not fit behind what is already waiting. A caller that can
+  /// send again later should.
+  bool screen_keys_busy(size_t more);
+  static const size_t MAX_SPELL_BACKLOG = 256;
+
   // Typing per host: its pace, and how it gets characters its layout lacks.
   // YAML gives defaults — the top level, then the slot's hosts: entry — and Host
   // Actions saves a host's own in NVS, which wins. 0 and UNICODE_UNSET are "not
@@ -1087,7 +1134,10 @@ class EspidfBleKeyboard : public Component
   void on_api_run_macro_(int32_t index) { queue_macro_index_(index); }
   void on_api_run_macro_name_(std::string name) { queue_action("macro:" + name); }
   void on_api_send_string_(std::string keys) { send_string(keys); }
-  void on_api_send_key_(int32_t modifier, int32_t keycode) { send_key_combo((uint8_t) modifier, (uint8_t) keycode); }
+  void on_api_send_key_(int32_t modifier, int32_t keycode) {
+    if (!screen_keys_take_key((uint8_t) modifier, (uint8_t) keycode))
+      send_key_combo((uint8_t) modifier, (uint8_t) keycode);
+  }
   void on_api_send_consumer_(int32_t code) { send_consumer((uint16_t) code); }
   void on_api_mouse_move_(int32_t x, int32_t y) { send_mouse_move((int8_t) x, (int8_t) y); }
   void on_api_mouse_scroll_(int32_t amount) { send_mouse_scroll((int8_t) amount); }
@@ -1231,10 +1281,40 @@ class EspidfBleKeyboard : public Component
   std::vector<Source> sources_;
   // What a panel can say about what was just pressed. Held in RAM only: a
   // station key gets pressed many times an hour and none of this is worth a
-  // flash write. last_action_ is every outermost press, last_spare_ only the
+  // flash write. last_action_ is every outermost press, station_ only the
   // spares — so a volume tap cannot wipe the station you are on — and lcd_msg_
-  // is whatever an `lcd:` action put there.
-  std::string last_action_, last_spare_, lcd_msg_;
+  // is whatever an `lcd:` action put there. The station is kept for each host:
+  // it is also how screen_search knows which app's search to open.
+  std::string last_action_, lcd_msg_;
+  char station_[MAX_HOST_SLOTS][14]{};   // "spare32@long" and its NUL
+
+  // The screen keyboard in use: its grid, and where the highlight is taken to
+  // be. Made when one is armed and freed when it is let go; skb_slot_ is all
+  // that the tasks deciding where text goes have to read.
+  ScreenGrid *skb_{nullptr};
+  SemaphoreHandle_t skb_mutex_{nullptr};
+  std::atomic<int8_t> skb_slot_{-1};   // the host it is armed for; -1 for none
+  uint32_t skb_used_ms_{0};
+  std::atomic<bool> skb_spelling_{false};   // a spell is pressing keys
+  // Text to spell is spelled on the action task: a word is seconds of presses,
+  // and no caller's task can wait that long. It waits in skb_text_ (under
+  // skb_mutex_) and one "\x1D" job on the action queue spells whatever has
+  // gathered there, so a word typed a letter at a time is one job, not ten.
+  static const char SPELL_JOB = '\x1D';
+  std::string skb_text_;
+  std::atomic<bool> skb_job_{false};
+  void skb_queue_(const std::string &text);
+  void skb_spell_queued_();
+  bool skb_live_();                       // armed for the active host, and not gone stale
+  void skb_arm_(uint8_t slot, ScreenGrid *grid);   // takes the grid
+  void skb_disarm_(const char *why);
+  void skb_note_press_(const std::string &pressed);   // a key pressed by hand while armed
+  void skb_spell_(const std::string &text);
+  void skb_press_(const char *name);
+  bool skb_backspace_();                  // the grid's own Backspace, if it has one
+  void run_screen_keys_(const std::string &arg);     // screen_keys:<name>|off
+  void run_screen_search_(const std::string &name, bool open = true);  // screen_search[:<name>]
+  int find_screen_keys_(uint8_t slot, const std::string &name, int *spare) const;
   std::string last_lcd_json_;
   // Which keys the sensor string had no room for last time — the ones worth
   // reporting, not @host/@slot/@mac — so the warning is one line per change

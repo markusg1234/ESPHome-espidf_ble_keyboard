@@ -118,6 +118,15 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .mbtn.held{background:var(--accent);color:#fff;border-color:var(--accent)}
 .scroll-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
 .pad-note{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 10px;margin-top:6px;font-size:11px;color:var(--muted);text-align:center}
+/* A screen keyboard as Host Actions draws it from its Keys box, and the mark a
+   typing box carries while text is being spelled on one. */
+.skb-grid{display:grid;gap:3px;margin:6px 0;max-width:100%;overflow-x:auto;justify-content:start}
+.skb-grid button{height:26px;min-width:0;padding:0;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--fg);font:12px monospace;cursor:default}
+.skb-grid button.st{border-color:var(--active);box-shadow:inset 0 0 0 1px var(--active)}
+.skb-grid button.un{opacity:.4}
+.skb-grid.on button:not(.un){cursor:pointer}
+.skb-grid.on button:not(.un):active{background:var(--active);color:#fff}
+.skb-chip{border-color:var(--active);color:var(--active)}
 .sbtn{padding:8px 0;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:16px;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .1s}
 .sbtn:active{background:var(--active);color:#fff;border-color:var(--active)}
 .prog-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
@@ -896,7 +905,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="host-bar" id="host-bar" style="display:none"></div>
 <div id="peer-bars"></div>
 <div class="card" id="keyboard">
-<div class="kb-header"><span class="kb-title">Keyboard<span class="kb-drives" data-why="Typing and pointing go to %s, the keyboard the remote is driving." hidden></span></span><div class="kb-paste"><textarea id="kb-paste-text" rows="1" maxlength="5000" placeholder="Type or paste" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea><button class="kb-paste-btn" id="kb-paste-clip" title="Read clipboard &amp; type it" style="display:none">&#128203;</button><label class="kb-paste-auto" title="Type pasted text immediately"><input type="checkbox" id="kb-paste-autock">auto</label><button class="kb-paste-btn" id="kb-paste-send">Send</button></div><select id="layoutSel" class="layout-sel" title="The active host's keyboard layout, saved for that host. It has to match the layout the host itself is set to."></select></div>
+<div class="kb-header"><span class="kb-title">Keyboard<span class="kb-drives" data-why="Typing and pointing go to %s, the keyboard the remote is driving." hidden></span></span><div class="kb-paste"><textarea id="kb-paste-text" rows="1" maxlength="5000" placeholder="Type or paste" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea><button class="kb-paste-btn" id="kb-paste-clip" title="Read clipboard &amp; type it" style="display:none">&#128203;</button><label class="kb-paste-auto" title="Type pasted text immediately"><input type="checkbox" id="kb-paste-autock">auto</label><button class="kb-paste-btn" id="kb-paste-send">Send</button><button type="button" class="kb-paste-btn skb-chip" hidden title="Text for this host is being spelled on this screen keyboard, with the arrows and OK. Click to stop: text is typed as keys again."></button></div><select id="layoutSel" class="layout-sel" title="The active host's keyboard layout, saved for that host. It has to match the layout the host itself is set to."></select></div>
 <div id="kb-rows"></div>
 </div>
 
@@ -971,7 +980,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <!-- What the remote's typing, keyboard and touchpad keys open. Inside the card, so
      it goes wherever the remote goes, popped out included. The box comes first: on a
      phone its own keyboard covers the bottom of the screen. -->
-<div id="rmt-kbd" class="rkb" hidden><div class="rkb-typerow"><input class="rkb-type" type="text" size="1" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="enter" placeholder="Type or paste" aria-label="Type to the host"><label class="kb-paste-auto" title="Ticked, it goes as you type. Untick to write first and send it whole with Send &mdash; or with Enter or Tab, which follow it."><input type="checkbox" class="rkb-auto" checked>auto</label><button type="button" class="kb-paste-btn rkb-send" hidden>Send</button></div><div class="rkb-keys"></div><div class="rkb-pad"><div class="touchpad"><span class="touchpad-hint">Drag to move &middot; two fingers scroll</span></div><div class="mbtn-row" title="Long-press a button to hold it (drag); tap it again to let go"><button class="mbtn" data-btn="1">Left</button><button class="mbtn" data-btn="4">Middle</button><button class="mbtn" data-btn="2">Right</button></div><div class="scroll-row"><button class="sbtn" data-scroll="3">&#9650; Up</button><button class="sbtn" data-scroll="-3">&#9660; Down</button></div></div></div>
+<div id="rmt-kbd" class="rkb" hidden><div class="rkb-typerow"><input class="rkb-type" type="text" size="1" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="enter" placeholder="Type or paste" aria-label="Type to the host"><label class="kb-paste-auto" title="Ticked, it goes as you type. Untick to write first and send it whole with Send &mdash; or with Enter or Tab, which follow it."><input type="checkbox" class="rkb-auto" checked>auto</label><button type="button" class="kb-paste-btn rkb-send" hidden>Send</button><button type="button" class="kb-paste-btn skb-chip" hidden title="Text for this host is being spelled on this screen keyboard, with the arrows and OK. Tap to stop: text is typed as keys again."></button></div><div class="rkb-keys"></div><div class="rkb-pad"><div class="touchpad"><span class="touchpad-hint">Drag to move &middot; two fingers scroll</span></div><div class="mbtn-row" title="Long-press a button to hold it (drag); tap it again to let go"><button class="mbtn" data-btn="1">Left</button><button class="mbtn" data-btn="4">Middle</button><button class="mbtn" data-btn="2">Right</button></div><div class="scroll-row"><button class="sbtn" data-scroll="3">&#9650; Up</button><button class="sbtn" data-scroll="-3">&#9660; Down</button></div></div></div>
 </div>
 
 <div class="card" id="btns-card">
@@ -1217,6 +1226,29 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </div>
 <div class="macro-form"><button id="typ-save">Save typing</button><button id="typ-reset" class="cancel">Reset</button></div>
 <div id="typ-note" style="font-size:11px;color:var(--muted)" hidden>This slot doesn&rsquo;t advertise, so nothing is typed on it.</div>
+</div>
+</div>
+<div class="hid-panel" id="skb-panel">
+<button class="hid-toggle" id="skb-toggle">Screen Keyboards &#9662;</button>
+<div class="hid-body" id="skb-body">
+<div style="font-size:12px;color:var(--muted);margin:6px 0;line-height:1.5">For an app that draws its own search keyboard and ignores typed letters. Describe its keys here and text is spelled on them with the arrows and OK. The remote&rsquo;s <strong>App search</strong> key opens the search screen of the app this host was last sent to; from then on what is typed for this host is spelled, until Back, Home or another app key. Saved per host.</div>
+<div class="macro-form" style="margin-top:0"><select id="skb-sel" title="This host's screen keyboards"></select><button id="skb-del" class="cancel" title="Remove the one shown">Delete</button></div>
+<div class="rpt-times">
+<label>Name <input id="skb-name" type="text" maxlength="15" size="12" autocapitalize="off" spellcheck="false" placeholder="netflix" title="What macros call it: screen_search:netflix, screen_keys:netflix. Up to 15 of a-z, 0-9 and _."></label>
+<label>App key <input id="skb-app" type="text" maxlength="12" size="9" autocapitalize="off" spellcheck="false" placeholder="spare3" title="The spare key that opens this app. App search uses the screen keyboard whose app key was pressed last on this host. Empty: this one is for any app without one of its own.&#10;&#10;A long press is written spare3@long."></label>
+<button id="skb-last" class="cancel" hidden></button>
+</div>
+<textarea id="skb-open" maxlength="255" rows="2" placeholder="How to reach search from where the app opens, e.g. left | delay:500 | up | ok | delay:1500" title="Open search: the action App search runs before text is spelled. It has to end with the app's keyboard on screen and its highlight on the key chosen under Starts on. Empty: App search only starts the spelling."></textarea>
+<textarea id="skb-rows" maxlength="400" rows="7" spellcheck="false" autocapitalize="off" style="font-family:monospace" placeholder="abcdef&#10;ghijkl&#10;mnopqr&#10;stuvwx&#10;yz1234&#10;567890&#10;_==&lt;==" title="The app's keys, a line a row, as they are on the screen."></textarea>
+<div style="font-size:11px;color:var(--muted);margin:4px 0">One line a row, one character a key. <code>_</code> Space &middot; <code>&lt;</code> Backspace &middot; <code>=</code> more of the key before it &middot; <code>#</code> a key never pressed &middot; <code>.</code> no key &middot; <code>\</code> before one of these to mean itself.</div>
+<div id="skb-grid" class="skb-grid"></div>
+<div class="rpt-times">
+<label>Starts on <select id="skb-start" title="The key highlighted when the app's search opens."></select></label>
+<label>Press gap <input id="skb-gap" type="number" min="50" max="2000" step="10" value="250" title="The time between presses. The keyboard cannot see the screen: an app that drops a press puts every letter after it wrong, so raise this until none are lost."> ms</label>
+<label>Up or down from a wide key lands under <select id="skb-wide" title="A key wider than the rest, such as Space: where the highlight goes when it is moved up or down from it."><option value="0">its left end</option><option value="1">its middle</option><option value="2">where it was come from</option></select></label>
+</div>
+<div class="macro-form"><button id="skb-save">Save</button><button id="skb-go" class="cancel" title="Runs Open search on this host and starts spelling, as the App search key does for this one.">Open search</button><button id="skb-use" class="cancel" title="Starts spelling without going anywhere: for when the app's keyboard is already on screen with its highlight on the Starts on key.">Use now</button><button id="skb-off" class="cancel" title="Stops spelling: text is typed as keys again.">Stop</button></div>
+<div id="skb-msg" style="font-size:11px;color:var(--muted);min-height:14px"></div>
 </div>
 </div>
 <div class="hid-panel" id="tpl-panel">
@@ -1777,6 +1809,20 @@ function showOffline(text){
   stxt.textContent=text;
 }
 let LOCAL_NAME='';
+// A screen keyboard in use on the active host: text for it is spelled with the
+// arrows instead of typed. Each typing box says which, and a press on that ends
+// it. Found once, here, since the remote's box can leave this document for a
+// pop-out window. On a tab driving a linked keyboard it is not that keyboard's.
+const SKB_CHIPS=[...document.querySelectorAll('.skb-chip')];
+function skbChips(name){
+  const show=!!name&&peerLock()===null;
+  SKB_CHIPS.forEach(c=>{c.hidden=!show;c.textContent=show?name+' ✕':''});
+  if(window.onSkbArmed)window.onSkbArmed(name);
+}
+SKB_CHIPS.forEach(c=>c.addEventListener('click',()=>{
+  apiPost('press',{action:'screen_keys:off'}).then(pollStatus).catch(()=>{});
+  skbChips('');
+}));
 // Host Actions and macros as saved on this keyboard, counted: when another tab,
 // Home Assistant or a linked keyboard copying them here saves some, the count
 // moves and both lists are read again, instead of waiting for a refresh. This
@@ -1795,6 +1841,7 @@ function pollStatus(){
       lastEdits=d.edits;
     }
     LOCAL_NAME=d.device_name||'';
+    skbChips(d.skb||'');
     markSeen('',d.seen);
     if(window.syncPresence)window.syncPresence(d.seen);
     if(window.syncPresenceBy)window.syncPresenceBy(d);
@@ -1884,12 +1931,17 @@ all_next:'<path d="M11.59 7.41L15.17 11H1v2h14.17l-3.59 3.59L13 18l6-6-6-6-1.41 
 kb_show:'<path d="M20 7v10H4V7h16m0-2H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2zm0 3h2v2h-2zM8 8h2v2H8zm0 3h2v2H8zm-3 0h2v2H5zm0-3h2v2H5zm3 6h8v2H8zm6-3h2v2h-2zm0-3h2v2h-2zm3 3h2v2h-2zm0-3h2v2h-2z"/>',
 text_in:'<path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/>',
 pad_show:'<path d="M12 2C8.14 2 5 5.14 5 9v6c0 3.86 3.14 7 7 7s7-3.14 7-7V9c0-3.86-3.14-7-7-7zm0 2c2.76 0 5 2.24 5 5v2h-4V5h-2v6H7V9c0-2.76 2.24-5 5-5z"/>',
-grp_show:'<path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/>'};
+grp_show:'<path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/>',
+search_app:'<path d="M7 9H2V7h5v2zm0 3H2v2h5v-2zm13.59 7l-3.83-3.83c-.8.52-1.74.83-2.76.83-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5c0 1.02-.31 1.96-.83 2.75L22 17.59 20.59 19zM17 11c0-1.65-1.35-3-3-3s-3 1.35-3 3 1.35 3 3 3 3-1.35 3-3zM2 19h10v-2H2v2z"/>'};
 // Every action the remote can show. t=title, i=icon id, x=text label,
 // c=extra classes, r=repeats by default, g=group in the Host Actions grids.
 const RMT_BTNS={
 remote_power:{t:'Power',i:'power',c:'power',g:0},
 search:{t:'Search',i:'search',g:0},
+// Opens the search screen of the app the host is on, by that app's screen
+// keyboard (Host Actions), and has text spelled on its letters from then on. On
+// a host with none it is Search.
+screen_search:{t:'App search',i:'search_app',g:0},
 info:{t:'Info',i:'info',g:0},
 mute:{t:'Mute',i:'mute',g:0},
 do_not_disturb:{t:'Do Not Disturb',i:'dnd',g:0},
@@ -4784,6 +4836,7 @@ function insertStep(el,val){
     if(hidPanel&&hidPanel.classList.contains('open'))loadHidden();
     if(rptPanel&&rptPanel.classList.contains('open'))loadRepeat();
     if(hldPanel&&hldPanel.classList.contains('open'))loadHold();
+    if(skbPanel&&skbPanel.classList.contains('open'))loadSkb();
     if(tplPanel&&tplPanel.classList.contains('open')){tplNote('');fillTplSel()}
     // Never leave a key on screen under a different host's label.
     irkClear();
@@ -5134,6 +5187,168 @@ function insertStep(el,val){
   if(typSave)typSave.addEventListener('click',()=>saveTyping(typDelay.value.trim(),typUni.value,typLay?typLay.value:''));
   if(typReset)typReset.addEventListener('click',()=>saveTyping('','',''));
 
+  // ── Screen keyboards (per host) ──
+  // An app's own letter grid, for a host whose apps take only a remote's arrows:
+  // the keyboard spells text on it. Read from the device when the panel opens
+  // and written back one at a time. The drawing under the Keys box is this
+  // page's reading of that box; the device's own reading is what refuses a bad
+  // one on Save, and says why.
+  const skbPanel=document.getElementById('skb-panel');
+  const skbToggle=document.getElementById('skb-toggle');
+  const skbEl=id=>document.getElementById('skb-'+id);
+  let skbItems=[],skbWas='',skbArmed='';
+  const skbMsg=t=>{skbEl('msg').textContent=t||''};
+  // The Keys box as rows of keys, read as the device reads it: ch is what a key
+  // types (null for a gap, '' for a key never pressed), sym how it is written.
+  function skbParse(text){
+    const SPECIAL={'_':[' ','␣'],'<':['\b','⌫'],'#':['','·']};
+    const rows=[];
+    text.split('\n').forEach(line=>{
+      const row=[],cps=[...line.replace(/[ \t\r]/g,'')];
+      for(let i=0;i<cps.length;i++){
+        const c=cps[i],last=row[row.length-1];
+        if(c==='\\'&&i+1<cps.length)row.push({ch:cps[++i],sym:'\\'+cps[i],w:1});
+        else if(c==='='){if(last&&last.ch!==null)last.w++}
+        else if(c==='.')row.push({ch:null,w:1});
+        else if(SPECIAL[c])row.push({ch:SPECIAL[c][0],label:SPECIAL[c][1],sym:c,w:1});
+        else row.push({ch:c,sym:c,w:1});
+      }
+      if(row.length)rows.push(row);
+    });
+    return rows;
+  }
+  // The start key marked in the drawing: the one chosen, or the first.
+  function skbMark(){
+    const v=skbEl('start').value,keys=[...skbEl('grid').querySelectorAll('button[data-sym]')];
+    const st=v?keys.find(k=>k.dataset.sym===v):keys[0];
+    keys.forEach(k=>k.classList.toggle('st',k===st));
+  }
+  function skbDraw(){
+    const rows=skbParse(skbEl('rows').value),grid=skbEl('grid'),start=skbEl('start');
+    const cols=Math.max(0,...rows.map(r=>r.reduce((n,k)=>n+k.w,0)));
+    const keep=start.value;
+    grid.textContent='';
+    start.length=0;
+    start.appendChild(new Option('the first key',''));
+    grid.style.gridTemplateColumns='repeat('+cols+',26px)';
+    rows.forEach(r=>{
+      let used=0;
+      r.forEach(k=>{
+        used+=k.w;
+        const el=document.createElement(k.ch===null?'span':'button');
+        el.style.gridColumn='span '+k.w;
+        if(k.ch!==null){
+          el.type='button';
+          el.textContent=k.label||k.ch;
+          if(k.ch===''){el.className='un';el.title='A key that is never pressed'}
+          else{
+            el.dataset.ch=k.ch;el.dataset.sym=k.sym;
+            if(![...start.options].some(o=>o.value===k.sym))
+              start.appendChild(new Option(k.ch===' '?'Space':k.ch==='\b'?'Backspace':k.ch,k.sym));
+          }
+        }
+        grid.appendChild(el);
+      });
+      if(used<cols){const gap=document.createElement('span');gap.style.gridColumn='span '+(cols-used);grid.appendChild(gap)}
+    });
+    start.value=keep;
+    if(start.selectedIndex<0)start.value='';
+    skbMark();
+  }
+  // Open search, Use now and a tap on a drawn key act on the one saved, on the
+  // active host: on what the device has, not on what is in the boxes.
+  function skbState(){
+    const here=slot===activeSlot,saved=!!skbWas&&here,on=saved&&skbArmed===skbWas;
+    skbEl('go').disabled=skbEl('use').disabled=!saved;
+    skbEl('off').disabled=!skbArmed||!here;
+    skbEl('del').disabled=!skbWas;
+    skbEl('grid').classList.toggle('on',on);
+    skbMsg(on?'In use on this host: press a key in the drawing to press it there, or type in any typing box.':
+      skbWas&&!here?'Switch to this host to try it.':'');
+  }
+  function skbShow(k){
+    skbWas=k?k.name:'';
+    skbEl('name').value=k?k.name:'';
+    skbEl('app').value=k?k.app:'';
+    skbEl('open').value=k?k.open:'';
+    skbEl('rows').value=k?k.rows:'';
+    skbEl('gap').value=k?k.gap:250;
+    skbEl('wide').value=k?k.wide:0;
+    skbDraw();
+    skbEl('start').value=k?k.start:'';
+    if(skbEl('start').selectedIndex<0)skbEl('start').value='';
+    skbMark();
+    skbState();
+  }
+  // `pick` names the one to show once read: the one just saved, or '' for a new
+  // one. Without it, the one that was showing, else the host's first.
+  function loadSkb(pick){
+    if(!skbPanel)return Promise.resolve();
+    return apiGetJSON('screen_keys?'+new URLSearchParams({slot:slot})).then(d=>{
+      skbItems=d.items||[];
+      skbArmed=d.armed||'';
+      const sel=skbEl('sel'),full=skbItems.length>=(d.max||6);
+      sel.length=0;
+      skbItems.forEach(k=>sel.appendChild(new Option(k.name+(k.app?' — '+k.app:''),k.name)));
+      if(!full)sel.appendChild(new Option(skbItems.length?'New…':'New screen keyboard',''));
+      const cur=skbItems.find(k=>k.name===(pick!==undefined?pick:skbWas))||(pick===undefined&&skbItems[0])||(full&&skbItems[0])||null;
+      sel.value=cur?cur.name:'';
+      skbShow(cur);
+      // The app key this host was last sent to, offered for the App key box.
+      const last=skbEl('last');
+      last.hidden=!d.station;
+      last.textContent='Last pressed here: '+d.station;
+      last.dataset.key=d.station||'';
+    }).catch(()=>skbMsg('Could not read this host’s screen keyboards.'));
+  }
+  // The status poll says which one is in use, if any (skbChips).
+  window.onSkbArmed=function(name){
+    if(!skbPanel||name===skbArmed||!skbPanel.classList.contains('open'))return;
+    skbArmed=name;
+    skbState();
+  };
+  if(skbToggle){
+    skbToggle.addEventListener('click',()=>{
+      skbPanel.classList.toggle('open');
+      skbToggle.innerHTML='Screen Keyboards '+(skbPanel.classList.contains('open')?'▴':'▾');
+      if(skbPanel.classList.contains('open'))loadSkb();
+    });
+    skbEl('sel').addEventListener('change',()=>skbShow(skbItems.find(k=>k.name===skbEl('sel').value)||null));
+    skbEl('rows').addEventListener('input',skbDraw);
+    skbEl('start').addEventListener('change',skbMark);
+    skbEl('last').addEventListener('click',()=>{skbEl('app').value=skbEl('last').dataset.key});
+    skbEl('save').addEventListener('click',()=>{
+      const p={slot:slot,was:skbWas,name:skbEl('name').value.trim(),app:skbEl('app').value.trim(),
+        open:skbEl('open').value.trim(),rows:skbEl('rows').value.replace(/\r/g,'').replace(/[ \t]+$/gm,'').replace(/\n+$/,''),
+        start:skbEl('start').value,gap:skbEl('gap').value,wide:skbEl('wide').value};
+      // One request, whose body the device takes only so much of.
+      let len=0;
+      for(const k in p)for(const ch of String(p[k]))len+=formLen(ch);
+      if(len>1800){alert('Too long to send in one piece: shorten Open search or the keys.');return}
+      apiPost('screen_keys_set',p).then(r=>{
+        if(!r.ok)return r.text().then(t=>{alert(t)});
+        return loadSkb(p.name);
+      }).catch(()=>alert('Not saved: the keyboard did not answer.'));
+    });
+    skbEl('del').addEventListener('click',()=>{
+      if(!skbWas||!confirm('Delete the screen keyboard "'+skbWas+'" from this host?'))return;
+      apiPost('screen_keys_delete',{slot:slot,name:skbWas}).then(r=>{
+        if(!r.ok)return r.text().then(t=>{alert(t)});
+        skbWas='';
+        return loadSkb();
+      });
+    });
+    // Not through api(): trying a grid out is not part of a macro being recorded.
+    const skbPress=a=>apiPost('press',{action:a}).then(()=>setTimeout(pollStatus,400)).catch(()=>{});
+    skbEl('go').addEventListener('click',()=>skbPress('screen_search:'+skbWas));
+    skbEl('use').addEventListener('click',()=>skbPress('screen_keys:'+skbWas));
+    skbEl('off').addEventListener('click',()=>skbPress('screen_keys:off'));
+    skbEl('grid').addEventListener('click',e=>{
+      const k=e.target.closest('button[data-ch]');
+      if(k&&skbEl('grid').classList.contains('on'))apiPost('string',{keys:k.dataset.ch}).catch(()=>{});
+    });
+  }
+
   // Called by the host bar whenever the device changes host, however that
   // happened — a tap here, a physical button, Home Assistant.
   //
@@ -5158,6 +5373,7 @@ function insertStep(el,val){
       if(hidPanel&&hidPanel.classList.contains('open'))loadHidden();
       if(rptPanel&&rptPanel.classList.contains('open'))loadRepeat();
       if(hldPanel&&hldPanel.classList.contains('open'))loadHold();
+      if(skbPanel&&skbPanel.classList.contains('open'))loadSkb();
       if(tplPanel&&tplPanel.classList.contains('open')){tplNote('');loadTpl()}
     }).catch(()=>{});
   };
@@ -7643,6 +7859,16 @@ function insertStep(el,val){
         });
       });
     }).then(d=>{
+      // Screen keyboards come over a host at a time, for the reason the icons
+      // do: the device keeps them in storage, not in the reply it builds whole.
+      const sk={};
+      let chain=Promise.resolve();
+      [...slotSel.options].forEach(o=>{
+        chain=chain.then(()=>apiGetJSON('screen_keys?'+new URLSearchParams({slot:o.value})))
+          .then(r=>{if(r.items&&r.items.length)sk[o.value]=r.items});
+      });
+      return chain.then(()=>{d.screen_keys=sk;return d});
+    }).then(d=>{
       const ui={};
       UI_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)ui[k]=v});
       d.ui=ui;
@@ -7689,6 +7915,7 @@ function insertStep(el,val){
         +'  • calibration for '+Object.keys(scales).length+' slot(s)\n'
         +'  • on-connect actions for '+Object.keys(onc).length+' host slot(s) — the rest are cleared\n'
         +'  • typing settings and layouts for '+Object.keys(typ).length+' host slot(s) — the rest go back to the defaults\n'
+        +'  • screen keyboards for '+(d.screen_keys&&typeof d.screen_keys==='object'?Object.keys(d.screen_keys).length:0)+' host slot(s) — existing ones are deleted first\n'
         +'  • '+(d.icons&&typeof d.icons==='object'?Object.keys(d.icons).length:0)+' button icon(s) — existing icons are deleted first\n'
         +'  • '+(Array.isArray(d.remote_templates)?d.remote_templates.length:0)+' custom remote style(s), and the style each host uses — existing custom styles are deleted first\n'
         +'  • Remote Buttons, Hold to Repeat, Press and Hold and Advertise over Bluetooth, for every host\n'
@@ -7844,6 +8071,7 @@ function insertStep(el,val){
       // Listed only for slots that have one, so an omitted slot restores as none.
       const onc=d.on_connect&&typeof d.on_connect==='object'?d.on_connect:{};
       const typ=d.typing&&typeof d.typing==='object'?d.typing:{};
+      const skbFile=d.screen_keys&&typeof d.screen_keys==='object'?d.screen_keys:{};
       slots.forEach(sl=>{
         chain=chain.then(()=>post('remote_style_set',{slot:sl,id:sty[sl]||sty[String(sl)]||''}));
         const off=bc[sl]===false||bc[String(sl)]===false;
@@ -7856,6 +8084,18 @@ function insertStep(el,val){
         const t=Array.isArray(typ[sl])?typ[sl]:Array.isArray(typ[String(sl)])?typ[String(sl)]:[0,''];
         chain=chain.then(()=>post('typing_set',{slot:sl,delay:t[0]>0?t[0]:'',unicode:typeof t[1]==='string'?t[1]:'',
           layout:typeof t[2]==='string'?t[2]:''}));
+        // Its screen keyboards: the ones it has go, then the file's are saved.
+        const sk=skbFile[sl]||skbFile[String(sl)];
+        chain=chain.then(()=>apiGetJSON('screen_keys?'+new URLSearchParams({slot:sl}))).then(cur=>{
+          let c=Promise.resolve();
+          (cur.items||[]).forEach(k=>{c=c.then(()=>post('screen_keys_delete',{slot:sl,name:k.name}))});
+          (Array.isArray(sk)?sk:[]).forEach(k=>{
+            if(!k||typeof k.name!=='string')return;
+            c=c.then(()=>post('screen_keys_set',{slot:sl,was:'',name:k.name,app:k.app||'',open:k.open||'',
+              rows:k.rows||'',start:k.start||'',gap:k.gap||250,wide:k.wide||0}));
+          });
+          return c;
+        });
       });
       return chain;
     }).then(()=>{

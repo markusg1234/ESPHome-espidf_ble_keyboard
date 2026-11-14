@@ -373,6 +373,16 @@ __attribute__((noinline)) static void append_status_json(std::string &json, Espi
   // after: timers still to fire, soonest first: [name, seconds left, host].
   json += ",\"timers\":";
   kb->append_timers_json(json);
+  // The screen keyboard typed text is being spelled on, while there is one: the
+  // page marks its typing boxes with it. Its name is a-z, 0-9 and _.
+  {
+    const std::string keys = kb->screen_keys_armed();
+    if (!keys.empty()) {
+      json += ",\"skb\":\"";
+      json += keys;
+      json += "\"";
+    }
+  }
   // Values for any ["lcd",…] panel the current remote style drew. On this
   // endpoint rather than its own: the page already polls it every 3 s, and
   // canHandle() pays a URL buffer and a heap string for every request the
@@ -380,6 +390,82 @@ __attribute__((noinline)) static void append_status_json(std::string &json, Espi
   json += ",\"lcd\":";
   json += kb->lcd_status_json();
   json += "}";
+}
+
+// A host's screen keyboards, read from storage for this reply: they are not
+// kept in RAM. `station` is the app key last pressed for the host, and `armed`
+// the one in use on it, if it is the active host. The status to answer with;
+// `body` is the JSON, or what went wrong. Out of line, like the rest here, and
+// asking for its own block first, as every multi-KB reply does (heap_short).
+__attribute__((noinline)) static int screen_keys_json(EspidfBleKeyboard *kb, int slot, std::string &body) {
+  if (slot < 0 || slot >= kb->host_slots()) {
+    body = "Invalid slot";
+    return 400;
+  }
+  // Twice what is stored covers the escaping, a line break in the grid above all.
+  const size_t est = 160 + 2 * kb->screen_keys_size((uint8_t) slot) + 96 * EspidfBleKeyboard::MAX_SCREEN_KEYS;
+  if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < est + 2048) {
+    ESP_LOGW(TAG, "Screen keyboards (%u B) deferred: low on memory", (unsigned) est);
+    body = "Low on memory, try again shortly";
+    return 409;
+  }
+  body.reserve(est);
+  body = "{\"slot\":";
+  body += std::to_string(slot);
+  body += ",\"max\":";
+  body += std::to_string((unsigned) EspidfBleKeyboard::MAX_SCREEN_KEYS);
+  body += ",\"station\":\"";
+  body += kb->station((uint8_t) slot);
+  body += "\",\"armed\":\"";
+  if (slot == kb->active_host_slot())
+    body += kb->screen_keys_armed();
+  body += "\",\"items\":[";
+  EspidfBleKeyboard::ScreenKeysCfg k;
+  bool first = true;
+  for (uint8_t i = 0; i < EspidfBleKeyboard::MAX_SCREEN_KEYS; i++) {
+    if (!kb->get_screen_keys((uint8_t) slot, i, k))
+      continue;
+    body += first ? "{\"name\":\"" : ",{\"name\":\"";
+    first = false;
+    body += k.name;
+    body += "\",\"app\":\"";
+    body += k.app;
+    body += "\",\"open\":\"";
+    json_escape_append(body, k.open);
+    body += "\",\"rows\":\"";
+    json_escape_append(body, k.rows);
+    body += "\",\"start\":\"";
+    json_escape_append(body, k.start);
+    body += "\",\"gap\":";
+    body += std::to_string((unsigned) k.gap);
+    body += ",\"wide\":";
+    body += std::to_string((unsigned) k.wide);
+    body += "}";
+  }
+  body += "]}";
+  return 200;
+}
+
+// One of a host's screen keyboards, added or replaced. `was` is its name before
+// an edit that renamed it. nullptr when saved, else what is wrong with it.
+__attribute__((noinline)) static const char *screen_keys_save(AsyncWebServerRequest *request, EspidfBleKeyboard *kb) {
+  auto arg = [request](const char *name) -> std::string {
+    return request->hasArg(name) ? std::string(request->arg(name).c_str()) : std::string();
+  };
+  const int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : -1;
+  if (slot < 0 || slot >= kb->host_slots())
+    return "Invalid slot";
+  EspidfBleKeyboard::ScreenKeysCfg k;
+  k.name = arg("name");
+  k.app = arg("app");
+  k.open = arg("open");
+  k.rows = arg("rows");
+  k.start = arg("start");
+  const int gap = request->hasArg("gap") ? atoi(request->arg("gap").c_str()) : 250;
+  const int wide = request->hasArg("wide") ? atoi(request->arg("wide").c_str()) : 0;
+  k.gap = (uint16_t) (gap < 0 || gap > 65535 ? 0 : gap);
+  k.wide = (uint8_t) (wide < 0 || wide > 255 ? 255 : wide);
+  return kb->set_screen_keys((uint8_t) slot, arg("was"), k);
 }
 
 static size_t hosts_json_size(EspidfBleKeyboard *kb) { return 64 + 200 * (size_t) kb->host_slots(); }
@@ -1218,6 +1304,14 @@ class BleKbWebHandler : public AsyncWebHandler {
       return;
     }
 
+    if (path == "screen_keys") {
+      const int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : kb_->active_host_slot();
+      std::string body;
+      const int code = screen_keys_json(kb_, slot, body);
+      send_response(code, code == 200 ? "application/json" : "text/plain", body);
+      return;
+    }
+
     if (path == "hidden") {
       // No slot given means "whatever the remote is drawing", which is the
       // active host unless an action that switched host is still running.
@@ -1728,6 +1822,12 @@ class BleKbWebHandler : public AsyncWebHandler {
       if (request->hasArg("keys")) {
         std::string keys = request->arg("keys").c_str();
         ESP_LOGD(TAG, "WEB /string keys=\"%s\"", keys.c_str());
+        // Spelled on a screen keyboard, text goes at a letter every second or
+        // two, and only so much of it waits its turn: the rest is sent again.
+        if (kb_->screen_keys_busy(keys.size())) {
+          send_response(409, "text/plain", "Still spelling; send the rest shortly");
+          return;
+        }
         kb_->send_string(keys);
       }
       send_response(200, "text/plain", "OK");
@@ -1736,7 +1836,10 @@ class BleKbWebHandler : public AsyncWebHandler {
       int modifier = request->hasArg("modifier") ? atoi(request->arg("modifier").c_str()) : 0;
       int keycode = request->hasArg("keycode") ? atoi(request->arg("keycode").c_str()) : 0;
       ESP_LOGD(TAG, "WEB /key mod=%d keycode=%d", modifier, keycode);
-      kb_->send_key_combo((uint8_t) modifier, (uint8_t) keycode);
+      // With a screen keyboard in use, a typing box's Backspace is that grid's
+      // and its Enter is dropped.
+      if (!kb_->screen_keys_take_key((uint8_t) modifier, (uint8_t) keycode))
+        kb_->send_key_combo((uint8_t) modifier, (uint8_t) keycode);
       send_response(200, "text/plain", "OK");
 
     } else if (path == "press") {
@@ -1873,6 +1976,23 @@ class BleKbWebHandler : public AsyncWebHandler {
       } else {
         send_response(200, "text/plain", "OK");
       }
+
+    } else if (path == "screen_keys_set") {
+      const char *why = screen_keys_save(request, kb_);
+      if (why != nullptr)
+        send_response(strncmp(why, "Low on", 6) == 0 ? 409 : 400, "text/plain", why);
+      else
+        send_response(200, "text/plain", "OK");
+
+    } else if (path == "screen_keys_delete") {
+      const int slot = request->hasArg("slot") ? atoi(request->arg("slot").c_str()) : -1;
+      const std::string name = request->hasArg("name") ? request->arg("name").c_str() : "";
+      if (slot < 0 || slot >= kb_->host_slots())
+        send_response(400, "text/plain", "Invalid slot");
+      else if (!kb_->delete_screen_keys((uint8_t) slot, name))
+        send_response(400, "text/plain", "No such screen keyboard, or it could not be removed");
+      else
+        send_response(200, "text/plain", "OK");
 
     } else if (path == "typing_set") {
       // A host's own typing pace, its way with characters its layout lacks, and

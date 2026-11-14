@@ -2015,7 +2015,12 @@ std::vector<std::pair<std::string, std::string>> EspidfBleKeyboard::lcd_values()
     // Left out entirely until something has happened, so a panel shows its own
     // dashes rather than an empty line pretending to be a reading.
     if (!last_action_.empty()) out.emplace_back("@last", last_action_);
-    if (!last_spare_.empty()) out.emplace_back("@station", last_spare_);
+    if (station_[active_slot_][0] != '\0') out.emplace_back("@station", station_[active_slot_]);
+    // The screen keyboard text is being spelled on, while there is one.
+    {
+        std::string keys = screen_keys_armed();
+        if (!keys.empty()) out.emplace_back("@keys", std::move(keys));
+    }
     if (!lcd_msg_.empty()) out.emplace_back("@msg", lcd_msg_);
     // The soonest after: timer's time left, while one is set.
     if (!timer_lcd_.empty()) out.emplace_back("@timer", timer_lcd_);
@@ -2072,7 +2077,7 @@ static void lcd_json_escape(const std::string &in, std::string &out) {
 // never put on a panel. Order of loss, last to go first:
 //
 //   0  a declared source — the reason `sources:` was written at all
-//   1  @state @last @station @msg @timer — changing state nothing else reports
+//   1  @state @last @station @keys @msg @timer — changing state nothing else reports
 //   2  @battery @rssi @layout — device facts, rarely on a panel
 //   3  @host @slot @mac — the card already derives these from its /hosts poll,
 //      so losing them costs nothing while it can reach the device
@@ -2080,7 +2085,8 @@ static void lcd_json_escape(const std::string &in, std::string &out) {
 // The device's own page is unaffected either way: /status serves the full map.
 static uint8_t lcd_sensor_rank(const std::string &key) {
     if (key.empty() || key[0] != '@') return 0;
-    if (key == "@state" || key == "@last" || key == "@station" || key == "@msg" || key == "@timer") return 1;
+    if (key == "@state" || key == "@last" || key == "@station" || key == "@keys" || key == "@msg" || key == "@timer")
+        return 1;
     if (key == "@battery" || key == "@rssi" || key == "@layout") return 2;
     return 3;
 }
@@ -3097,6 +3103,8 @@ void EspidfBleKeyboard::switch_host(uint8_t slot, bool from_action) {
     if (!same_slot) {
         drop_typing_("switched host");
         drop_mouse_motion_();
+        // A screen keyboard is its host's, and so is where its highlight was.
+        skb_disarm_("switched host");
     }
 
     // A switch made inside an action string leaves the remote drawn for the slot
@@ -3274,6 +3282,7 @@ void EspidfBleKeyboard::setup() {
     s_bond_list_lock = xSemaphoreCreateMutexStatic(&s_bond_list_lock_buf);
     type_mutex_ = xSemaphoreCreateMutex();
     timer_mutex_ = xSemaphoreCreateMutex();
+    skb_mutex_ = xSemaphoreCreateMutex();
 #ifdef USE_BLE_KB_PRESENCE
     s_scan_lock = xSemaphoreCreateMutex();  // before anything can advertise
 #endif
@@ -3822,6 +3831,8 @@ void EspidfBleKeyboard::loop() {
 
     // Before the return below: a timer fires whether or not a host is connected.
     timers_loop_();
+    // A screen keyboard whose host has gone, or that nobody has used for a while.
+    if (skb_slot_.load() >= 0) skb_live_();
 
     if (!is_connected_) return;
 
@@ -4213,6 +4224,19 @@ void EspidfBleKeyboard::send_string(const std::string &str) {
     }
     last_send_string_hash_ = hash;
     last_send_string_ms_ = now;
+
+    // A host whose app has a screen keyboard in use gets the text spelled on it
+    // with the arrows. That is seconds of presses: done here only where the
+    // caller is already a chain holding its task, otherwise handed to the action
+    // task, as a fired timer is.
+    if (!str.empty() && skb_slot_.load() >= 0 && skb_live_()) {
+        const TaskHandle_t me = xTaskGetCurrentTaskHandle();
+        if (me == action_task_ || action_queue_ == nullptr || (me == loop_task_ && action_depth_ > 0))
+            skb_spell_(str);
+        else
+            skb_queue_(str);
+        return;
+    }
 
     if (type_mutex_ == nullptr || str.empty()) return;
     if (active_layout_ == nullptr) active_layout_ = default_layout();
@@ -5942,6 +5966,8 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
 
     // A timer firing (timers_loop_): not a press, so never a panel's @last.
     if (!action.empty() && action[0] == TIMER_JOB) { run_timer_job_(action); return; }
+    // Text waiting to be spelled on a screen keyboard, handed over by send_string.
+    if (!action.empty() && action[0] == SPELL_JOB) { skb_spell_queued_(); return; }
     // Run this later. Before the '|' split, as repeat: is, because the whole rest
     // of the string is what runs then; and before anything a to: run gathers, so
     // the timer itself is what carries its keys to the linked keyboard.
@@ -5963,8 +5989,11 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
         // host_action:N:, and the panel wants the key — the style labels it — not
         // the wrapper.
         std::string pressed = action;
-        int page_slot = 0;
-        if (action.rfind("host_action:", 0) == 0) split_host_action(action, page_slot, pressed);
+        // The host the press belongs to: the one whose page it was made on.
+        int page_slot = active_slot_;
+        if (action.rfind("host_action:", 0) == 0 &&
+            (!split_host_action(action, page_slot, pressed) || page_slot >= host_slots_))
+            page_slot = active_slot_;
         drop_value(pressed);
         if (last_action_ != pressed) {
             last_action_ = pressed;
@@ -5973,10 +6002,14 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
         // A long press on a spare picks a station too. Kept with its @long, so
         // the panel can tell it from a tap on the same key.
         const bool spare = is_spare_action(is_long_name(pressed) ? pressed.substr(0, pressed.size() - 5) : pressed);
-        if (spare && last_spare_ != pressed) {
-            last_spare_ = pressed;
+        char *station = station_[page_slot];
+        if (spare && pressed.size() < sizeof(station_[0]) && pressed != station) {
+            memcpy(station, pressed.c_str(), pressed.size() + 1);
             pending_lcd_publish_.store(true);
         }
+        // With a screen keyboard in use, an arrow pressed by hand moves the
+        // highlight it believes in, and a key that leaves the search screen ends it.
+        if (skb_slot_.load() >= 0 && !skb_spelling_.load()) skb_note_press_(pressed);
     }
 
     // Repeat: run the rest of the action N times. Checked before the '|' split
@@ -6367,6 +6400,13 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
     }
     // Remote buttons (D-pad, Power, Channel, colour and app keys) — table-driven
     // so the chain doesn't carry 22 near-identical branches.
+    // A screen keyboard's search and its on/off: see screen_keys.cpp. Here, with
+    // the other names that must not reach the typed-text fallback.
+    else if (action == "screen_search") run_screen_search_(std::string());
+    else if (action.rfind("screen_search:", 0) == 0) run_screen_search_(action.substr(14));
+    else if (action.rfind("screen_keys:", 0) == 0) run_screen_keys_(action.substr(12));
+    // With one in use, Backspace is its Backspace key, if it has one.
+    else if (action == "backspace" && skb_slot_.load() >= 0 && skb_backspace_()) { /* spelled */ }
     else if (execute_remote_action_(action)) { /* handled */ }
     else if (action.find("string:") == 0) send_string(action.substr(7));
     else send_string(action);  // Fallback: send as typed text
