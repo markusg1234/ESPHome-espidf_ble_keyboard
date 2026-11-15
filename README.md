@@ -2371,21 +2371,25 @@ A **screen keyboard** describes one app's keys. Make them under **Host Actions �
 
 | Box | What goes in it |
 |---|---|
-| **Name** | What actions call it, e.g. `netflix`. |
-| **App key** | The spare key that opens the app. The keyboard remembers the last one pressed on each host, and that is how it knows which app is open. Empty: for any app without one of its own. |
-| **Open search** | The action that gets from the app to its search screen, e.g. `left \| delay:500 \| up \| ok \| delay:1500`. It has to finish with the app's keys on screen. |
-| **Keys** | The keys as they are on screen, a line a row, a character a key. `_` is Space, `<` Backspace, `=` more of the key before it (a wide key), `#` a key that is never pressed, `.` no key there. A backslash before one of those means the character itself. Blanks are ignored. |
+| **Name** | What actions call it, e.g. `station1`. |
+| **Station** | The key that opens the app: picked from the app keys on this host's remote, by the names its style gives them (*Station 1 (spare1)*), or typed — any spare, `spare3@long` for a long press. The keyboard remembers the last station pressed on each host, and that is how it knows which app is open. *Any app*: for an app without one of its own. |
+| **Open search** | The action that gets from the app to its search screen, e.g. `left \| delay:500 \| up \| ok \| delay:1500`, or a `macro:<name>`. It has to finish with the app's keys on screen. Its keys go through the host's Host Actions as the remote's own do, so a spare key in it does what that host maps it to; `screen_search` in it is the ordinary search. |
+| **Keys** | The keys as they are on screen, a line a row, a character a key. `_` is Space, `<` Backspace, `=` more of the key before it (a wide key), `#` a key that is never pressed, `.` no key there. A backslash before one of those means the character itself. Blanks are ignored. Rows of wide keys: `_==<==` is Space and Delete three columns each, as some apps have them over the letters; `_==<=#=` is Space, Delete and Clear, as others have them along the bottom, Clear being a `#` the highlight moves across but never presses. Make each row add up to the grid's width, matching the screen. A new screen keyboard starts with `_==<==` over `abcdef` to `567890`, starting on `a`. |
 | **Starts on** | The key highlighted when the search screen opens. |
 | **Press gap** | The time between presses, 50–2000 ms. |
-| **Up or down from a wide key** | Where the highlight lands when it leaves a wide key such as Space: under its left end, its middle, or the column it was come from. Apps differ. |
+| **Up or down from a wide key** | Where the highlight lands when it leaves a wide key such as Space: under its left end, its middle, or the column it was come from. Apps differ; a new screen keyboard starts on its middle. |
+
+Open search has a **Record** of its own, which fills it in by doing it, as the Macros card's [Record](#recording-a-macro) does: press it, then the remote's keys that get from the app to its search, then Stop. The steps go in 200 ms apart (750 ms after OK, a second after Home), so lengthen any the app needs more for, such as the one after a key that opens it.
 
 The panel draws the keys as you type them. **Open search** and **Use now** try the one shown on the active host, and while it is in use a press on a key in the drawing presses it on the TV, which is the quick way to check a grid.
 
-Then put the **`screen_search`** key (App search) on the remote. It runs Open search for the app last opened and starts the spelling. From then on text for that host is spelled instead of typed, whether it comes from the remote's typing box, the paste bar, a macro's `string:` or Home Assistant, and Backspace presses the app's own. A typing box shows the screen keyboard's name while this is on; a press on the name stops it. It also stops on Back, Home, Exit, Power, another app key, a host switch, an arrow that would leave the keys, and after ten minutes unused. On a host with no screen keyboard for the app, `screen_search` is the ordinary `search`.
+Then put the **`screen_search`** key (App search) on the remote: one key for every app. It picks the screen keyboard whose station was pressed last on that host, runs its Open search and starts the spelling. From then on text for that host is spelled instead of typed, whether it comes from the remote's typing box, the paste bar, a macro's `string:` or Home Assistant, and Backspace presses the app's own. A typing box shows the screen keyboard's name while this is on; a press on the name stops it. It also stops on Back, Home, Exit, Power, another station, a host switch, an arrow that would leave the keys, and after ten minutes unused. On a host with no screen keyboard for the app, `screen_search` is the ordinary `search`.
+
+To open one app's search from a key of its own instead, give that key the Host Action `screen_search:<name>` — for example a spare key mapped to `screen_search:station1`. Open search still goes through the Host Actions then, though a Host Action's own steps otherwise run without them. A spare mapped to plain `screen_search` is an App search key of your own: it picks by station as App search does, and isn't a station itself, so pressing it leaves the station on the app you opened. Both forms are in the action presets, under Screen Keyboards.
 
 A macro can do the lot: `spare3 | delay:8000 | screen_search | string:the office` opens the app, waits for it, opens its search and spells.
 
-> **The keyboard cannot see the screen.** It works out where the highlight is from the start key and the arrows sent since, its own and any pressed by hand on this remote. If the app drops a press, every letter after it is wrong: raise the press gap until none are lost, and press App search again to start over. An app update that moves its keys needs the Keys box changing to match.
+> **The keyboard cannot see the screen.** It works out where the highlight is from the start key and the arrows sent since, its own and any pressed by hand on this remote. If the app drops a press, every letter after it is wrong: raise the press gap until none are lost, and press App search again to start over. If instead every letter after a space lands one key over, the app leaves a wide key differently from what **Up or down from a wide key** says: try its other settings. An app update that moves its keys needs the Keys box changing to match.
 
 ### Linking a second keyboard
 
@@ -3097,7 +3101,7 @@ A few things it does on your behalf, so the result is usable rather than literal
 |---|---|
 | Consecutive typing merges into one `string:` step, however slowly you type | The keyboard sends one character per keypress, so typing `hello` would otherwise be five steps with delays wedged between the letters. Text keeps accumulating until you press something that isn't text |
 | A held button records once | Held buttons auto-repeat; you want the press, not each repeat |
-| Every press is separated by `delay:200`, or `delay:1000` after Home | Recording your own hesitation gives ragged values; one predictable number is easier to keep or edit. Home gets longer because a TV takes about a second to open its home screen |
+| Every press is separated by `delay:200`, or `delay:750` after OK and `delay:1000` after Home | Recording your own hesitation gives ragged values; one predictable number is easier to keep or edit. OK and Home get longer because they usually open something — a menu, an app, a TV's home screen — that needs a moment before the next press lands |
 | Consecutive scrolling accumulates into one step | Scrolling is one continuous gesture, not separate presses. Ten clicks of a 3-notch scroll record as `mouse_scroll:-30`, not ten steps eating 160 of the 255 characters. Reversing direction starts a new step rather than cancelling out |
 | Cursor movement is not recorded | Dragging the mouse pad streams position continuously and would fill the whole macro |
 
@@ -3116,6 +3120,9 @@ Notes and limits:
   to the page that opened it — watch the action box there fill as you press. If the pop-up was
   blocked and you opened the remote in an ordinary tab instead, that tab has no link back and won't
   record.
+- A button set to [Press and Hold](#press-and-hold-per-host) taps while you record, sent when you let
+  go, so it records as one press and the host gets what the macro will replay. It holds again once
+  recording stops.
 - Pressing an existing macro's button records its actions inline rather than as a `macro:<name>`
   reference, so the new macro stands on its own. On a tab driving a
   [linked keyboard](#linking-a-second-keyboard) it records `to:<keyboard>:macro:<name>`, a reference:

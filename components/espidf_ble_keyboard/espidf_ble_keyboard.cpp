@@ -6000,10 +6000,14 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
             pending_lcd_publish_.store(true);
         }
         // A long press on a spare picks a station too. Kept with its @long, so
-        // the panel can tell it from a tap on the same key.
+        // the panel can tell it from a tap on the same key. Not a spare whose
+        // Host Action is App search: that is a search key, and the station it
+        // must leave alone is what App search picks the app's keyboard by.
         const bool spare = is_spare_action(is_long_name(pressed) ? pressed.substr(0, pressed.size() - 5) : pressed);
+        const std::string *body = spare ? find_override_((uint8_t) page_slot, pressed) : nullptr;
         char *station = station_[page_slot];
-        if (spare && pressed.size() < sizeof(station_[0]) && pressed != station) {
+        if (spare && pressed.size() < sizeof(station_[0]) && pressed != station &&
+            (body == nullptr || !is_screen_keys_action(*body))) {
             memcpy(station, pressed.c_str(), pressed.size() + 1);
             pending_lcd_publish_.store(true);
         }
@@ -6396,7 +6400,11 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
     // Run a stored macro by name. Same placement rule as press_button: above —
     // an unmatched name must not reach the send-as-text fallback.
     else if (action.find("macro:") == 0) {
-        run_macro_by_name_(action.substr(6));
+        // Blanks after the colon are not part of the name: "macro: x" is x.
+        size_t from = 6, to = action.size();
+        while (from < to && action[from] == ' ') from++;
+        while (to > from && action[to - 1] == ' ') to--;
+        run_macro_by_name_(action.substr(from, to - from));
     }
     // Remote buttons (D-pad, Power, Channel, colour and app keys) — table-driven
     // so the chain doesn't carry 22 near-identical branches.

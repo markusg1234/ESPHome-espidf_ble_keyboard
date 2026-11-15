@@ -487,6 +487,9 @@ class EspidfBleKeyboard : public Component
   // a bound, not a table — and is_spare_action's two-digit parse covers it.
   static const uint8_t MAX_SPARES = 32;
   static bool is_spare_action(const std::string &action);
+  // A Host Action that only reaches a screen keyboard (screen_search, by name or
+  // not, or screen_keys:): a spare given one is a search key, not a station.
+  static bool is_screen_keys_action(const std::string &body);
 
   // 64, not the button count: "None" in the Remote Buttons panel saves *every*
   // action as hidden, so this ceiling has to clear the whole catalogue with room
@@ -1296,6 +1299,7 @@ class EspidfBleKeyboard : public Component
   std::atomic<int8_t> skb_slot_{-1};   // the host it is armed for; -1 for none
   uint32_t skb_used_ms_{0};
   std::atomic<bool> skb_spelling_{false};   // a spell is pressing keys
+  std::atomic<bool> skb_opening_{false};    // an Open search is pressing its way there
   // Text to spell is spelled on the action task: a word is seconds of presses,
   // and no caller's task can wait that long. It waits in skb_text_ (under
   // skb_mutex_) and one "\x1D" job on the action queue spells whatever has

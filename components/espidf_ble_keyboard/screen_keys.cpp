@@ -705,18 +705,52 @@ bool EspidfBleKeyboard::screen_keys_take_key(uint8_t modifiers, uint8_t keycode)
 
 // ── The verbs ───────────────────────────────────────────────────────────────
 
+// A Host Action that only reaches a screen keyboard. A spare mapped to one is a
+// search key, not an app: pressing it must not make it the host's station, or a
+// spare mapped to plain screen_search would only ever find its own keyboard.
+bool EspidfBleKeyboard::is_screen_keys_action(const std::string &body) {
+  size_t i = 0;
+  while (i < body.size() && (body[i] == ' ' || body[i] == '\t'))
+    i++;
+  return body.compare(i, 13, "screen_search") == 0 || body.compare(i, 12, "screen_keys:") == 0;
+}
+
+// A name as written after the colon, without the blanks around it: a Host Action
+// typed as "screen_search: station1" means station1.
+static std::string sk_trimmed(const std::string &s) {
+  size_t a = 0, b = s.size();
+  while (a < b && (s[a] == ' ' || s[a] == '\t'))
+    a++;
+  while (b > a && (s[b - 1] == ' ' || s[b - 1] == '\t'))
+    b--;
+  return s.substr(a, b - a);
+}
+
 // screen_search — open the search screen of the app this host was last sent to,
 // and spell from there. Which app that is comes from the host's station: the
 // screen keyboard whose app key was the last spare pressed, else one that names
 // no app key. With neither it is the ordinary search key. screen_search:<name>
 // names one outright, and screen_keys:<name> (`open` false) arms one without
 // going anywhere: the highlight is already on its start key.
-__attribute__((noinline)) void EspidfBleKeyboard::run_screen_search_(const std::string &name, bool open) {
+__attribute__((noinline)) void EspidfBleKeyboard::run_screen_search_(const std::string &arg, bool open) {
+  // Inside an Open search it is the ordinary search key: a Host Action there that
+  // leads back here — search remapped to screen_search, pressed on the way to an
+  // app's search — would otherwise start the whole way again inside itself. Never
+  // search's own Host Action, which may be this again.
+  if (open && skb_opening_.load()) {
+    override_depth_++;
+    execute_action("search");
+    override_depth_--;
+    return;
+  }
+  const std::string name = sk_trimmed(arg);
   const uint8_t slot = active_slot_;
   ScreenKeysCfg one, two, *cur = &one, *pick = nullptr;
+  uint8_t have = 0;   // how many this host has, for saying why none was picked
   for (uint8_t i = 0; i < MAX_SCREEN_KEYS; i++) {
     if (!get_screen_keys(slot, i, *cur))
       continue;
+    have++;
     if (!name.empty()) {
       if (cur->name != name)
         continue;
@@ -737,8 +771,17 @@ __attribute__((noinline)) void EspidfBleKeyboard::run_screen_search_(const std::
     if (!name.empty()) {
       ESP_LOGW(TAG, "No screen keyboard '%s' on slot %u", name.c_str(), (unsigned) slot);
     } else {
-      ESP_LOGI(TAG, "No screen keyboard for %s on slot %u: the ordinary search",
-               station_[slot][0] ? station_[slot] : "this host", (unsigned) slot);
+      // Why, in the words of the panel: a screen keyboard is picked by the
+      // station, which only an app key sets and a restart clears.
+      if (have == 0)
+        ESP_LOGI(TAG, "App search on slot %u: this host has no screen keyboards, so the ordinary search",
+                 (unsigned) slot);
+      else if (station_[slot][0] == '\0')
+        ESP_LOGI(TAG, "App search on slot %u: no app key pressed on this host yet, and no screen keyboard "
+                      "for any app, so the ordinary search", (unsigned) slot);
+      else
+        ESP_LOGI(TAG, "App search on slot %u: no screen keyboard for %s, nor one for any app, so the ordinary search",
+                 (unsigned) slot, station_[slot]);
       execute_action("search");
     }
     return;
@@ -751,8 +794,17 @@ __attribute__((noinline)) void EspidfBleKeyboard::run_screen_search_(const std::
   }
   // Whatever was in use is not, from the first press of the way there.
   skb_disarm_("search opened again");
-  if (open && !pick->open.empty())
+  if (open && !pick->open.empty()) {
+    // Pressed as the remote's own keys are: through this host's Host Actions,
+    // also when screen_search is itself a key's Host Action (a spare mapped to
+    // screen_search:<name>), whose body runs with them off (override_depth_).
+    const uint8_t depth = override_depth_;
+    override_depth_ = 0;
+    skb_opening_.store(true);
     execute_action(pick->open);
+    skb_opening_.store(false);
+    override_depth_ = depth;
+  }
   if (active_slot_ == slot)
     skb_arm_(slot, g);
   else
@@ -762,10 +814,11 @@ __attribute__((noinline)) void EspidfBleKeyboard::run_screen_search_(const std::
 // screen_keys:<name> — spell on that one from here on. screen_keys:off — type
 // as a keyboard again.
 void EspidfBleKeyboard::run_screen_keys_(const std::string &arg) {
-  if (arg == "off")
+  const std::string name = sk_trimmed(arg);
+  if (name == "off")
     skb_disarm_("turned off");
-  else if (!arg.empty())
-    run_screen_search_(arg, false);
+  else if (!name.empty())
+    run_screen_search_(name, false);
 }
 
 }  // namespace espidf_ble_keyboard

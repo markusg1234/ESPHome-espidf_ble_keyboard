@@ -14,11 +14,21 @@ web control page shows the matching version badge.
 - **Typing on an app's own keyboard.** For a TV app that ignores typed letters and wants its
   on-screen keys walked with the arrows: describe the keys once in Host Actions, and text is spelled
   on them. A new App search key opens the search of the app last opened and starts it, per host and
-  per app. The keyboard cannot see the screen, so each has its own press speed.
+  per app. The keyboard cannot see the screen, so each has its own press speed. The way to an app's
+  search can be recorded, as a macro is.
 
 ### Changed
 - **The station a panel shows is remembered for each host**, where one was kept for the whole
   keyboard.
+- **Recording a macro waits 750 ms after OK**, as it waits a second after Home, which it now also
+  does on a tab showing a host's page.
+
+### Fixed
+- **Recording a macro missed the remote buttons set to press and hold.** Their presses went to the
+  host around the recorder. While recording they now tap instead, as the on-screen keyboard's keys
+  already did, so the host gets what the macro will replay.
+- **A space after the colon no longer breaks running a macro by name.** It was looked for with the
+  space in its name, and not found.
 
 ## v1.20.0 — 2026-11-12
 

@@ -130,6 +130,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 #skb-body textarea{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;resize:vertical}
 #skb-body .rpt-times select{padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--fg);font-size:12px}
 #skb-name,#skb-app{width:110px}
+/* No station yet: a note, not a button to press. */
+#skb-last:disabled{background:none;border:none;color:var(--muted);font-size:11px;cursor:default;padding:0}
+/* Open search's Record: the button and its read-out on one line, lit while it
+   records as the Macros card's is. */
+.skb-recrow{margin-top:4px;flex-wrap:nowrap}
+.skb-recrow .rec-status{flex:1 1 0;min-width:0}
+.macro-form .cancel.on{background:var(--active)}
 .sbtn{padding:8px 0;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:16px;cursor:pointer;text-align:center;touch-action:manipulation;transition:background .1s}
 .sbtn:active{background:var(--active);color:#fff;border-color:var(--active)}
 .prog-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
@@ -1035,6 +1042,12 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="app_email">App: Email</option>
 <option value="app_calc">App: Calculator</option>
 </optgroup>
+<optgroup label="Screen Keyboards">
+<option value="screen_search">App Search</option>
+<option value="screen_search:">App Search by Name (edit name)</option>
+<option value="screen_keys:">Start Spelling (edit name)</option>
+<option value="screen_keys:off">Stop Spelling</option>
+</optgroup>
 <optgroup label="System">
 <option value="ctrl_alt_del">Ctrl+Alt+Del</option>
 <option value="power">Power</option>
@@ -1234,21 +1247,23 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="hid-panel" id="skb-panel">
 <button class="hid-toggle" id="skb-toggle">Screen Keyboards &#9662;</button>
 <div class="hid-body" id="skb-body">
-<div style="font-size:12px;color:var(--muted);margin:6px 0;line-height:1.5">For an app that draws its own search keyboard and ignores typed letters. Describe its keys here and text is spelled on them with the arrows and OK. The remote&rsquo;s <strong>App search</strong> key opens the search screen of the app this host was last sent to; from then on what is typed for this host is spelled, until Back, Home or another app key. Saved per host.</div>
+<div style="font-size:12px;color:var(--muted);margin:6px 0;line-height:1.5">For an app that draws its own search keyboard and ignores typed letters. Describe its keys here and text is spelled on them with the arrows and OK. Give each one its <strong>station</strong>, the remote key that opens its app: the remote&rsquo;s <strong>App search</strong> key then opens the search of the station pressed last on this host, and from then on what is typed for this host is spelled on it, until Back, Home or another station. Saved per host.</div>
 <div class="macro-form" style="margin-top:0"><select id="skb-sel" title="This host's screen keyboards"></select><button id="skb-del" class="cancel" title="Remove the one shown">Delete</button></div>
 <div class="rpt-times">
-<label>Name <input id="skb-name" type="text" maxlength="15" size="12" autocapitalize="off" spellcheck="false" placeholder="netflix" title="What macros call it: screen_search:netflix, screen_keys:netflix. Up to 15 of a-z, 0-9 and _."></label>
-<label>App key <input id="skb-app" type="text" maxlength="12" size="9" autocapitalize="off" spellcheck="false" placeholder="spare3" title="The spare key that opens this app. App search uses the screen keyboard whose app key was pressed last on this host. Empty: this one is for any app without one of its own.&#10;&#10;A long press is written spare3@long."></label>
+<label>Name <input id="skb-name" type="text" maxlength="15" size="12" autocapitalize="off" spellcheck="false" placeholder="station1" title="What macros call it: screen_search:station1, screen_keys:station1. Up to 15 of a-z, 0-9 and _."></label>
+<label>Station <select id="skb-st" title="The app this screen keyboard is for: one of this host's remote app keys, by the name its style gives it. App search uses the screen keyboard whose station was pressed last on this host.&#10;&#10;Any app: this one is for an app without one of its own."></select></label>
+<input id="skb-app" type="text" maxlength="12" size="9" autocapitalize="off" spellcheck="false" placeholder="spare3" aria-label="Station key" title="The station as a key: picked from the list, or typed — any spare key, the one that opens this app. A long press is written spare3@long. Empty: any app.">
 <button id="skb-last" class="cancel" hidden></button>
 </div>
 <textarea id="skb-open" maxlength="255" rows="2" placeholder="How to reach search from where the app opens, e.g. left | delay:500 | up | ok | delay:1500" title="Open search: the action App search runs before text is spelled. It has to end with the app's keyboard on screen and its highlight on the key chosen under Starts on. Empty: App search only starts the spelling."></textarea>
-<textarea id="skb-rows" maxlength="400" rows="7" spellcheck="false" autocapitalize="off" style="font-family:monospace;font-size:13px" placeholder="abcdef&#10;ghijkl&#10;mnopqr&#10;stuvwx&#10;yz1234&#10;567890&#10;_==&lt;==" title="The app's keys, a line a row, as they are on the screen."></textarea>
-<div style="font-size:11px;color:var(--muted);margin:4px 0">One line a row, one character a key. <code>_</code> Space &middot; <code>&lt;</code> Backspace &middot; <code>=</code> more of the key before it &middot; <code>#</code> a key never pressed &middot; <code>.</code> no key &middot; <code>\</code> before one of these to mean itself.</div>
+<div class="macro-form skb-recrow"><button id="skb-rec" class="cancel" type="button" title="Fill in Open search by doing it, as the Macros card's Record does: press Record, then the remote's keys that get from the app to its search, then Stop. Each press goes in as a step, 200 ms apart (750 ms after OK, a second after Home); lengthen any the app needs more for.">Record</button><span class="rec-status" id="skb-rec-status"></span></div>
+<textarea id="skb-rows" maxlength="400" rows="7" spellcheck="false" autocapitalize="off" style="font-family:monospace;font-size:13px" placeholder="_==&lt;==&#10;abcdef&#10;ghijkl&#10;mnopqr&#10;stuvwx&#10;yz1234&#10;567890" title="The app's keys, a line a row, as they are on the screen."></textarea>
+<div style="font-size:11px;color:var(--muted);margin:4px 0">One line a row, one character a key. <code>_</code> Space &middot; <code>&lt;</code> Backspace &middot; <code>=</code> more of the key before it &middot; <code>#</code> a key never pressed &middot; <code>.</code> no key &middot; <code>\</code> before one of these to mean itself.<br>A row of wide keys: <code>_==&lt;==</code> is Space and Delete, three columns each, as some apps have them over the letters. <code>_==&lt;=#=</code> is Space, Delete and Clear, as others have them along the bottom: Clear is <code>#</code>, there to move across but never pressed. Make each row add up to the grid&rsquo;s width, and match the widths to the screen.</div>
 <div id="skb-grid" class="skb-grid"></div>
 <div class="rpt-times">
 <label>Starts on <select id="skb-start" title="The key highlighted when the app's search opens."></select></label>
 <label>Press gap <input id="skb-gap" type="number" min="50" max="2000" step="10" value="250" title="The time between presses. The keyboard cannot see the screen: an app that drops a press puts every letter after it wrong, so raise this until none are lost."> ms</label>
-<label>Up or down from a wide key lands under <select id="skb-wide" title="A key wider than the rest, such as Space: where the highlight goes when it is moved up or down from it."><option value="0">its left end</option><option value="1">its middle</option><option value="2">where it was come from</option></select></label>
+<label>Up or down from a wide key lands under <select id="skb-wide" title="A key wider than the rest, such as Space: where the highlight goes when it is moved up or down from it.&#10;&#10;Every letter after a space one key over means this does not match the app: try another."><option value="0">its left end</option><option value="1">its middle</option><option value="2">where it was come from</option></select></label>
 </div>
 <div class="macro-form"><button id="skb-save">Save</button><button id="skb-go" class="cancel" title="Runs Open search on this host and starts spelling, as the App search key does for this one.">Open search</button><button id="skb-use" class="cancel" title="Starts spelling without going anywhere: for when the app's keyboard is already on screen with its highlight on the Starts on key.">Use now</button><button id="skb-off" class="cancel" title="Stops spelling: text is typed as keys again.">Stop</button></div>
 <div id="skb-msg" style="font-size:11px;color:var(--muted);min-height:14px"></div>
@@ -1482,13 +1497,24 @@ function api(endpoint,params){
 // opener.recSteps directly always yields undefined, however plainly it reads.
 function recIsActive(){return !!recSteps}
 
-function recForward(endpoint,params){
+// The window that opened this one, while it is recording; null otherwise.
+function recOpener(){
   try{
     const o=window.opener;
     if(o&&!o.closed&&typeof o.recIsActive==='function'&&o.recIsActive()&&typeof o.recordStep==='function')
-      o.recordStep(endpoint,params);
+      return o;
   }catch(e){}
+  return null;
 }
+function recForward(endpoint,params){
+  const o=recOpener();
+  if(o)try{o.recordStep(endpoint,params)}catch(e){}
+}
+// Whether a press made in this window is being recorded: here, or, in the
+// popped-out remote, by the page that opened it. A key that would be held down
+// taps instead while this is true — a hold goes past api(), so the recorder
+// would never see it.
+function recording(){return !!recSteps||(POPOUT&&!!recOpener())}
 
 // ── Macro recorder ──
 // Every action this page sends goes through api(), so tapping it once here
@@ -1501,7 +1527,23 @@ function recForward(endpoint,params){
 // recBase is whatever was in the action box when recording started: the steps
 // are painted after it on every press, so the box always shows the recording so
 // far and Save works at any moment, with or without pressing Stop first.
-let recSteps=null,recLastMs=0,recFlag='',recBase='';
+let recSteps=null,recLastMs=0,recFlag='',recBase='',recTo='macro';
+// Where a recording goes, one at a time: the Macros card's action box, or a
+// screen keyboard's Open search (Host Actions → Screen Keyboards). Each has the
+// box its steps are painted into, a Record button that turns into Stop, the
+// line that reports it, and what to open first so the box is there to be seen.
+const REC_TO={
+  macro:{box:'ma',btn:'macro-rec',st:'rec-status',
+    hint:'Recording — press the buttons you want, they appear above as you go.',
+    show(){
+      // The form lives behind the card's editing mode, so open it the same way
+      // the user would; the toggle also refreshes the list and updates its label.
+      const card=document.getElementById('macros-card');
+      if(card&&!card.classList.contains('editing'))document.getElementById('macro-edit-toggle').click();
+    }},
+  skb:{box:'skb-open',btn:'skb-rec',st:'skb-rec-status',
+    hint:'Recording — press the keys that get from the app to its search; each goes into Open search.'},
+};
 // Below this gap, the same action arriving twice is a held button auto-firing
 // (rptRate is 180ms by default) rather than two deliberate presses. That is all
 // this is used for — the delay between steps is fixed rather than measured, and
@@ -1511,8 +1553,10 @@ const REC_GAP=300;
 // Recording your own hesitation produces ragged values nobody wants to read;
 // one predictable number is easier to keep or edit afterwards. Home gets longer:
 // a TV opening its home screen needs about a second before the next press lands.
+// OK gets longer too: it usually opens something, a menu, an app or a search.
 const REC_DELAY=200;
 const REC_DELAY_HOME=1000;
+const REC_DELAY_OK=750;
 const REC_MAX=255;   // the action limit macro_add/macro_update enforce
 const SCROLL='mouse_scroll:';
 
@@ -1546,7 +1590,7 @@ function recBudget(){
 // rather than appended to, so a step that gets merged or dropped is reflected
 // rather than left behind.
 function recPaint(){
-  const el=document.getElementById('ma');
+  const el=document.getElementById(REC_TO[recTo].box);
   if(!el)return;
   el.value=recBase;
   if(recSteps&&recSteps.length)appendStep(el,recSteps.join(' | '));
@@ -1596,8 +1640,13 @@ function recordStep(endpoint,params){
   }else if(gap<REC_GAP&&step===prev){
     recLastMs=now;return;              // held button auto-firing: keep one press
   }else{
-    // Fixed spacing between presses, never before the first one.
-    if(next.length)next.push('delay:'+(prev.replace(/^peer:[a-z0-9_]+:/,'')==='home'?REC_DELAY_HOME:REC_DELAY));
+    // Fixed spacing between presses, never before the first one. Judged on the
+    // key itself, without the wrapper a linked keyboard's tab or a host's page
+    // puts round it.
+    if(next.length){
+      const key=prev.replace(/^(peer:[a-z0-9_]+:|host_action:\d+:)/,'');
+      next.push('delay:'+(key==='home'?REC_DELAY_HOME:key==='ok'?REC_DELAY_OK:REC_DELAY));
+    }
     next.push(step);
   }
   if(next.join(' | ').length>recBudget()){
@@ -1609,57 +1658,66 @@ function recordStep(endpoint,params){
   recSteps=next;recLastMs=now;recPaint();recRender();
 }
 
+// Every place a recording can go: the one recording shows Stop and its count,
+// the others Record — and nothing, or what stopped the last one there.
 function recRender(){
-  const btn=document.getElementById('macro-rec'),st=document.getElementById('rec-status');
-  if(!btn||!st)return;
-  const on=!!recSteps;
-  btn.classList.toggle('on',on);
-  btn.textContent=on?'Stop':'Record';
-  if(on){
-    const n=recSteps.length,len=recSteps.join(' | ').length;
-    st.textContent=n?'Recording · '+n+(n===1?' step':' steps')+' · '+len+'/'+recBudget()+' chars'+(recFlag?' · '+recFlag:'')
-                    :'Recording — press the buttons you want, they appear above as you go.';
-  }else{
-    st.textContent=recFlag||'';
+  for(const to in REC_TO){
+    const t=REC_TO[to],btn=document.getElementById(t.btn),st=document.getElementById(t.st);
+    if(!btn||!st)continue;
+    const on=!!recSteps&&recTo===to;
+    btn.classList.toggle('on',on);
+    btn.textContent=on?'Stop':'Record';
+    if(on){
+      const n=recSteps.length,len=recSteps.join(' | ').length;
+      st.textContent=n?'Recording · '+n+(n===1?' step':' steps')+' · '+len+'/'+recBudget()+' chars'+(recFlag?' · '+recFlag:'')
+                      :t.hint;
+    }else{
+      st.textContent=recTo===to?recFlag||'':'';
+    }
   }
 }
 
-function recStart(){
-  // The form lives behind the card's editing mode, so open it the same way the
-  // user would; the toggle also refreshes the list and updates its own label.
-  const card=document.getElementById('macros-card');
-  if(card&&!card.classList.contains('editing'))document.getElementById('macro-edit-toggle').click();
+// One recording at a time: Record somewhere else ends the one going on, its
+// steps staying where they were painted.
+function recStart(to){
+  to=REC_TO[to]?to:'macro';
+  recStop();
+  recTo=to;
+  const t=REC_TO[to];
+  if(t.show)t.show();
   // Whatever is already typed is kept and recorded onto the end, so recording
   // the tail of a half-built macro works.
-  const el=document.getElementById('ma');
+  const el=document.getElementById(t.box);
   recBase=el?el.value.trim():'';
   recSteps=[];recLastMs=0;recFlag='';
   recRender();
 }
 
 // Nothing to commit — every step was painted into the box as it happened. This
-// only takes the recorder out of the way so ordinary typing resumes.
-// Nothing to commit — every step was painted into the box as it happened. This
-// only takes the recorder out of the way so ordinary typing resumes.
-function recStop(){
-  if(!recSteps)return;
+// only takes the recorder out of the way so ordinary typing resumes. With `to`,
+// only a recording going there.
+function recStop(to){
+  if(!recSteps||(to&&to!==recTo))return;
   recSteps=null;
   recRender();
 }
 
-// Leaving editing mode clears the form, so an in-flight recording goes with it
-// rather than being left half-painted in a box that is about to be emptied.
-function recCancel(){
-  if(!recSteps)return;
+// A box about to be emptied or replaced — the Macros form leaving editing mode,
+// another screen keyboard shown — takes an in-flight recording with it rather
+// than being left half-painted.
+function recCancel(to){
+  if(!recSteps||(to&&to!==recTo))return;
   recSteps=null;recFlag='';
   recRender();
 }
 
 // Not in the popped-out remote: it is a second window with its own api(), and
-// the Macros card is not shown there.
+// the Macros card and Host Actions are not shown there.
 if(!POPOUT){
-  const recBtn=document.getElementById('macro-rec');
-  if(recBtn)recBtn.addEventListener('click',()=>{recSteps?recStop():recStart()});
+  for(const to in REC_TO){
+    const b=document.getElementById(REC_TO[to].btn);
+    if(b)b.addEventListener('click',()=>{recSteps&&recTo===to?recStop():recStart(to)});
+  }
 }
 
 // Tap helper: visual feedback on press, fires action on release only if finger didn't scroll
@@ -1845,6 +1903,8 @@ function pollStatus(){
     }
     LOCAL_NAME=d.device_name||'';
     skbChips(d.skb||'');
+    // The active host's station, which the device lists with the panel values.
+    if(window.onSkbStation)window.onSkbStation((d.lcd&&d.lcd['@station'])||'');
     markSeen('',d.seen);
     if(window.syncPresence)window.syncPresence(d.seen);
     if(window.syncPresenceBy)window.syncPresenceBy(d);
@@ -2227,6 +2287,29 @@ function iconNames(t){
     for(const it of s.slice(1)){
       if(s[0]==='strip'||s[0]==='rocker'){if(Array.isArray(it))it.slice(1).forEach(look)}
       else look(it);
+    }
+  };
+  for(const s of t.sections)sec(s,false);
+  for(const [,g] of tplGroups(t))for(const s of g.sections)sec(s,false);
+  return out;
+}
+// The spare keys a style draws, each with the name the style gives it ('' for a
+// key given bare), in the order it draws them: a host's stations, which its
+// screen keyboards are picked by. Walked as iconNames walks a style.
+function styleSpares(t){
+  const out=[];
+  if(!t||!Array.isArray(t.sections))return out;
+  const take=it=>{
+    const a=Array.isArray(it)?it[0]:it;
+    if(typeof a!=='string'||!/^spare\d+$/.test(a)||out.some(s=>s.key===a))return;
+    out.push({key:a,label:Array.isArray(it)&&typeof it[1]==='string'?it[1].trim():''});
+  };
+  const sec=(s,inSide)=>{
+    if(!Array.isArray(s)||s[0]==='lcd')return;
+    if(s[0]==='side'){if(!inSide)s.slice(1).forEach(c=>sec(c,true));return}
+    for(const it of s.slice(1)){
+      if(s[0]==='strip'||s[0]==='rocker'){if(Array.isArray(it))it.slice(1).forEach(take)}
+      else take(it);
     }
   };
   for(const s of t.sections)sec(s,false);
@@ -4365,7 +4448,7 @@ function insertStep(el,val){
     editToggle.classList.toggle('on');
     const editing=macrosCard.classList.contains('editing');
     editToggle.textContent=editing?'Done':'Edit';
-    if(!editing){recCancel();editIdx=-1;nameIn.value='';actIn.value='';mcMsg('')}
+    if(!editing){recCancel('macro');editIdx=-1;nameIn.value='';actIn.value='';mcMsg('')}
     loadButtons();
   });
 
@@ -4523,7 +4606,7 @@ function insertStep(el,val){
     // Saving means the recording is finished, so take the recorder out of the
     // way first — otherwise the next press would keep appending to a box that
     // has just been cleared.
-    recStop();
+    recStop('macro');
     const n=nameIn.value.trim(),a=actIn.value.trim();
     if(!n||!a){alert('Name and action are required');return}
     const ep=editIdx>=0?'macro_update':'macro_add';
@@ -5201,6 +5284,46 @@ function insertStep(el,val){
   const skbEl=id=>document.getElementById('skb-'+id);
   let skbItems=[],skbWas='',skbArmed='';
   const skbMsg=t=>{skbEl('msg').textContent=t||''};
+  // What a new screen keyboard's Keys box starts with: a wide Space and Delete
+  // over the letters and digits (the user's pick), and the box's own example.
+  // Near enough most apps' grids to be edited rather than typed.
+  const SKB_EXAMPLE_ROWS='_==<==\nabcdef\nghijkl\nmnopqr\nstuvwx\nyz1234\n567890';
+  // This host's stations: the spare keys its remote's style draws, by the names
+  // the style gives them, then a long press on one that has a Host Action of its
+  // own here. The device matches a station by its key alone; the names are the
+  // style's, which only this page reads.
+  function skbStations(){
+    const list=styleSpares(tplById(slotTpl[slot]||'default'));
+    shownItems.forEach(o=>{
+      const m=/^(spare\d+)@long$/.exec(o.name||'');
+      if(!m||list.some(s=>s.key===o.name))return;
+      const base=list.find(s=>s.key===m[1]);
+      list.push({key:o.name,label:base&&base.label?base.label+', long press':''});
+    });
+    return list;
+  }
+  // A station as a person reads it: "Station 1 (spare1)", or the key alone when the
+  // style gives it no name.
+  const skbStationText=(s)=>s.label?s.label+' ('+s.key+')':s.key;
+  function skbStationName(key){
+    const s=skbStations().find(x=>x.key===key);
+    return s?skbStationText(s):key;
+  }
+  // Its name alone, for the list of screen keyboards: "station1 — Station 1".
+  function skbStationLabel(key){
+    const s=skbStations().find(x=>x.key===key);
+    return s&&s.label?s.label:key;
+  }
+  // The Station list, kept to what the box holds. A key typed there that this
+  // host's remote doesn't draw is listed as that, rather than lost.
+  function skbFillStations(){
+    const sel=skbEl('st'),v=skbEl('app').value.trim(),list=skbStations();
+    sel.length=0;
+    sel.appendChild(new Option('Any app',''));
+    list.forEach(s=>sel.appendChild(new Option(skbStationText(s),s.key)));
+    if(v&&!list.some(s=>s.key===v))sel.appendChild(new Option(v+' — not on this host’s remote',v));
+    sel.value=v;
+  }
   // The Keys box as rows of keys, read as the device reads it: ch is what a key
   // types (null for a gap, '' for a key never pressed), sym how it is written.
   function skbParse(text){
@@ -5270,15 +5393,22 @@ function insertStep(el,val){
       skbWas&&!here?'Switch to this host to try it.':'');
   }
   function skbShow(k){
+    // Its Open search replaces the one being recorded into.
+    recCancel('skb');
     skbWas=k?k.name:'';
     skbEl('name').value=k?k.name:'';
     skbEl('app').value=k?k.app:'';
+    skbFillStations();
     skbEl('open').value=k?k.open:'';
-    skbEl('rows').value=k?k.rows:'';
+    skbEl('rows').value=k?k.rows:SKB_EXAMPLE_ROWS;
     skbEl('gap').value=k?k.gap:250;
-    skbEl('wide').value=k?k.wide:0;
+    // A new one lands under a wide key's middle: what the user's app does, and
+    // with "its left end" every letter after a space came out one key over.
+    skbEl('wide').value=k?k.wide:1;
     skbDraw();
-    skbEl('start').value=k?k.start:'';
+    // A new one starts on "a": the example's first key is its Space, and an app's
+    // search opens on its first letter.
+    skbEl('start').value=k?k.start:'a';
     if(skbEl('start').selectedIndex<0)skbEl('start').value='';
     skbMark();
     skbState();
@@ -5292,18 +5422,31 @@ function insertStep(el,val){
       skbArmed=d.armed||'';
       const sel=skbEl('sel'),full=skbItems.length>=(d.max||6);
       sel.length=0;
-      skbItems.forEach(k=>sel.appendChild(new Option(k.name+(k.app?' — '+k.app:''),k.name)));
+      skbItems.forEach(k=>sel.appendChild(new Option(k.name+(k.app?' — '+skbStationLabel(k.app):''),k.name)));
       if(!full)sel.appendChild(new Option(skbItems.length?'New…':'New screen keyboard',''));
       const cur=skbItems.find(k=>k.name===(pick!==undefined?pick:skbWas))||(pick===undefined&&skbItems[0])||(full&&skbItems[0])||null;
       sel.value=cur?cur.name:'';
       skbShow(cur);
-      // The app key this host was last sent to, offered for the App key box.
-      const last=skbEl('last');
-      last.hidden=!d.station;
-      last.textContent='Last pressed here: '+d.station;
-      last.dataset.key=d.station||'';
+      skbShowStation(d.station||'');
     }).catch(()=>skbMsg('Could not read this host’s screen keyboards.'));
   }
+  // The station this host was last sent to, offered for the Station box — or
+  // that there is none yet: App search picks by it, only an app key sets it,
+  // and a restart clears it, so a keyboard can be there and still not be used.
+  function skbShowStation(st){
+    const last=skbEl('last');
+    last.hidden=false;
+    last.disabled=!st;
+    last.textContent=st?'Last pressed here: '+skbStationName(st):'No app key pressed on this host yet';
+    last.title=st?'Put it in the Station box':'App search picks a screen keyboard by the app key pressed last on this host. A restart forgets it.';
+    last.dataset.key=st;
+  }
+  // From the status poll, for the active host: the line follows an app key
+  // pressed while the panel is open.
+  window.onSkbStation=function(st){
+    if(!skbPanel||!skbPanel.classList.contains('open')||slot!==activeSlot||st===skbEl('last').dataset.key)return;
+    skbShowStation(st);
+  };
   // The status poll says which one is in use, if any (skbChips).
   window.onSkbArmed=function(name){
     if(!skbPanel||name===skbArmed||!skbPanel.classList.contains('open'))return;
@@ -5315,12 +5458,17 @@ function insertStep(el,val){
       skbPanel.classList.toggle('open');
       skbToggle.innerHTML='Screen Keyboards '+(skbPanel.classList.contains('open')?'▴':'▾');
       if(skbPanel.classList.contains('open'))loadSkb();
+      else recCancel('skb');   // not into a box nobody can see
     });
     skbEl('sel').addEventListener('change',()=>skbShow(skbItems.find(k=>k.name===skbEl('sel').value)||null));
     skbEl('rows').addEventListener('input',skbDraw);
     skbEl('start').addEventListener('change',skbMark);
-    skbEl('last').addEventListener('click',()=>{skbEl('app').value=skbEl('last').dataset.key});
+    skbEl('last').addEventListener('click',()=>{skbEl('app').value=skbEl('last').dataset.key;skbFillStations()});
+    // The list and the box are one setting: picking writes the key, typing picks.
+    skbEl('st').addEventListener('change',()=>{skbEl('app').value=skbEl('st').value;skbFillStations()});
+    skbEl('app').addEventListener('input',skbFillStations);
     skbEl('save').addEventListener('click',()=>{
+      recStop('skb');   // saved means finished, as in the Macros card
       const p={slot:slot,was:skbWas,name:skbEl('name').value.trim(),app:skbEl('app').value.trim(),
         open:skbEl('open').value.trim(),rows:skbEl('rows').value.replace(/\r/g,'').replace(/[ \t]+$/gm,'').replace(/\n+$/,''),
         start:skbEl('start').value,gap:skbEl('gap').value,wide:skbEl('wide').value};
@@ -8394,7 +8542,9 @@ function bindKeys(kb,pip){
     // Not while a macro is being recorded either. The recorder captures what
     // goes through api(), and a hold is not a step it could write down — so
     // recording keeps the tap path and records the keystrokes it always did.
-    else if(k&&(k.t==='c'||k.t==='s')&&!recSteps){
+    // recording(), not recSteps: in the popped-out remote the recording is the
+    // opener's.
+    else if(k&&(k.t==='c'||k.t==='s')&&!recording()){
       const el=ab;
       // Only once the key has been down long enough to mean it. A press shorter
       // than this is typing, and typing goes the way it always did — one tap on
@@ -8958,11 +9108,12 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
   const holds=a=>hldSet.indexOf(a)>=0;
   // Keys with a second action on a long press (a <key>@long Host Action), for
   // this host. A tap waits for the release on these, so the two can be told
-  // apart; a key in the hold list keeps holding instead, and a long action
+  // apart; a key in the hold list keeps holding instead, and is never one of
+  // them — not even while a macro is recorded, when it only taps. A long action
   // replaces repeat.
   const LONG_MS=500;
   let lngSet=[];
-  const longs=a=>RMT_PAGE_KEYS.indexOf(a)<0&&lngSet.indexOf(a)>=0;
+  const longs=a=>RMT_PAGE_KEYS.indexOf(a)<0&&lngSet.indexOf(a)>=0&&!holds(a);
   function longPress(el,act){
     el.classList.add('long');setTimeout(()=>el.classList.remove('long'),300);
     press(act+'@long');
@@ -8973,7 +9124,7 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
   function markLong(){
     body.querySelectorAll('.rmt-btn[data-action]').forEach(b=>{
       const a=b.dataset.action;
-      b.classList.toggle('has-long',longs(a)&&!holds(a));
+      b.classList.toggle('has-long',longs(a));
     });
   }
   if(window.MutationObserver)new MutationObserver(markLong).observe(body,{childList:true,subtree:true});
@@ -9166,8 +9317,10 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
     const act=ab.dataset.action;
     // Hold wins outright: it goes down now, not after a threshold, because a
     // push-to-talk key that only engages after 400ms clips the first word.
-    // fired=true keeps pointerup from also sending the ordinary press.
-    if(holds(act)){fired=true;startHold(ab,act);return}
+    // fired=true keeps pointerup from also sending the ordinary press. While a
+    // macro is recorded the key taps instead, on release, with no repeat or long
+    // action, so the recording has it.
+    if(holds(act)){if(!recording()){fired=true;startHold(ab,act)}return}
     // A key with a long action: nothing yet. Held past LONG_MS it sends the
     // long one; let go sooner and pointerup sends the tap.
     if(longs(act)){
@@ -9245,7 +9398,8 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
     stopRepeat();  // only one repeat at a time, as on the pointer path
     kbEl=el;kbKey=e.key;el.classList.add('p');
     const act=el.dataset.action;
-    if(holds(act)){startHold(el,act);return}
+    // Recording: a tap, as on the pointer path.
+    if(holds(act)){if(recording())press(act,el);else startHold(el,act);return}
     // A key with a long action waits for the key to come up, as on the pointer
     // path, to know which of its two actions this is.
     if(longs(act)){
