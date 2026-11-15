@@ -687,7 +687,9 @@ bool EspidfBleKeyboard::gather_for_peer_(const std::string &step) {
       out_sent_ = true;
     return false;
   }
-  if (step.find('|') != std::string::npos || step.rfind("macro:", 0) == 0)
+  // A once: step is decided here, on this keyboard's sources and clock; the step
+  // it runs, when due, comes back through here to be gathered like any other.
+  if (step.find('|') != std::string::npos || step.rfind("macro:", 0) == 0 || step.rfind("once:", 0) == 0)
     return false;
   // A host by number is one of this keyboard's: the numbers in its macros are
   // its own, and the linked keyboard's are peer:<name>:switch_host:N. So

@@ -34,6 +34,7 @@
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "web_control.h"
 #endif
+#include "once_gate.h"
 
 #ifdef USE_BLE_KB_PEERS
 struct mdns_search_once_s;  // a linked keyboard's .local lookup, from mdns.h
@@ -1280,8 +1281,13 @@ class EspidfBleKeyboard : public Component
 #endif
     std::string unit;       // empty = whatever the sensor declares
     int8_t decimals{-1};    // <0 = whatever the sensor declares
+    // A binary sensor's last state (-1 before the first) and how many times it
+    // has gone from off to on since boot, for once: steps.
+    int8_t last{-1};
+    uint32_t ons{0};
   };
   std::vector<Source> sources_;
+  const Source *flag_source_(const std::string &key) const;   // a binary-sensor source by key
   // What a panel can say about what was just pressed. Held in RAM only: a
   // station key gets pressed many times an hour and none of this is worth a
   // flash write. last_action_ is every outermost press, station_ only the
@@ -1339,6 +1345,7 @@ class EspidfBleKeyboard : public Component
   // it takes them — which is what ran the 4352-byte web task down to 484 bytes.
   void run_alternate_(const std::string &body);
   void run_if_(const std::string &action);
+  void run_once_(const std::string &step);   // once:<time>:[<source>:]<action>
   void run_steps_(const std::string &action);
   /// "<key>=<number>": `key`'s Host Action on `slot`, with each {value} in it
   /// replaced by the number. False when `action` is not of that form; true once
@@ -1758,6 +1765,10 @@ class EspidfBleKeyboard : public Component
   // persisting the guess would add no accuracy.
   static const size_t MAX_ALTERNATE_COUNTERS = 16;
   std::map<std::string, uint8_t> alternate_index_;
+  // When each once: step last ran, keyed on the step's own text as alternate:
+  // keys its position. RAM only: a restart counts as a run (OnceRec).
+  static const size_t MAX_ONCE_GATES = 16;
+  std::map<std::string, OnceRec> once_ran_;
   // Nesting depth for `macro:<name>`; macros run inline, so this bounds the
   // stack when macros reference each other.
   static const uint8_t MAX_MACRO_DEPTH = 4;

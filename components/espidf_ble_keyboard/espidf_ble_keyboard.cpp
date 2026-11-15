@@ -12,6 +12,7 @@
 #include "esp_bt_defs.h"
 #include "nvs.h"
 #include "esp_random.h"
+#include "esp_timer.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -1962,7 +1963,21 @@ void EspidfBleKeyboard::add_source_binary_sensor(const std::string &key, binary_
     src.key = key;
     src.flag = s;
     sources_.push_back(src);
-    s->add_on_state_callback([this](bool) { this->pending_lcd_publish_.store(true); });
+    // Each switch-on is counted (once_note_state), for once: steps that run
+    // again after one. By index, which stays put: sources are all added during
+    // setup.
+    const size_t at = sources_.size() - 1;
+    s->add_on_state_callback([this, at](bool on) {
+        Source &me = this->sources_[at];
+        once_note_state(me.last, me.ons, on);
+        this->pending_lcd_publish_.store(true);
+    });
+}
+
+const EspidfBleKeyboard::Source *EspidfBleKeyboard::flag_source_(const std::string &key) const {
+    for (const auto &src : sources_)
+        if (src.key == key && src.flag != nullptr) return &src;
+    return nullptr;
 }
 
 bool EspidfBleKeyboard::source_bool(const std::string &key, bool &out) const {
@@ -5388,6 +5403,59 @@ __attribute__((noinline)) void EspidfBleKeyboard::run_if_(const std::string &act
         return;
     }
 
+// How long ago, for a log line: "3h12m", "45m", "20s".
+static std::string once_ago(uint64_t ms) {
+    char buf[24];
+    const uint64_t s = ms / 1000;
+    if (s >= 3600) snprintf(buf, sizeof(buf), "%uh%02um", (unsigned) (s / 3600), (unsigned) (s % 3600 / 60));
+    else if (s >= 60) snprintf(buf, sizeof(buf), "%um", (unsigned) (s / 60));
+    else snprintf(buf, sizeof(buf), "%us", (unsigned) s);
+    return buf;
+}
+
+// once:<time>:[<source>:]<action>, or once:<source>:<action> with no time (only
+// a switch-on makes it due) — a step run only when it is due: <time> since
+// it last ran, or its source switched on since. For a key that is only wanted
+// now and then, such as the OK that picks a profile in an app that asks only
+// after a while or a restart of the TV: pressed when nothing is asking, it would
+// press whatever the screen has highlighted. A restart of this keyboard counts
+// as a run (OnceRec), and every decision is logged, as a skip is otherwise a
+// mystery. Not inlined, for the reason run_alternate_ gives.
+__attribute__((noinline)) void EspidfBleKeyboard::run_once_(const std::string &step) {
+    uint32_t period = 0;
+    std::string source, todo;
+    std::string group;
+    if (!split_once(step.substr(5), [this](const std::string &key) { return flag_source_(key) != nullptr; },
+                    period, source, group) ||
+        !once_unwrap(group, todo)) {
+        ESP_LOGW(TAG, "%s: once:<time>:[<source>:]<action> or once:<source>:<action> — a time such as 20h, a "
+                      "binary-sensor source or both, then one step or (steps | in | brackets)", step.c_str());
+        return;
+    }
+    const Source *src = source.empty() ? nullptr : flag_source_(source);
+    const uint32_t ons = src != nullptr ? src->ons : 0;
+    const uint64_t now = (uint64_t) (esp_timer_get_time() / 1000);
+    auto it = once_ran_.find(step);
+    const OnceRec was = it != once_ran_.end() ? it->second : OnceRec{};
+    if (!once_due(was, now, period, src != nullptr, ons)) {
+        const std::string ago = once_ago(now - was.ran_ms);
+        ESP_LOGI(TAG, "%s skipped: %s %s ago%s%s%s", step.c_str(), it != once_ran_.end() ? "ran" : "the keyboard restarted",
+                 ago.c_str(), src != nullptr ? ", " : "", source.c_str(), src != nullptr ? " not switched on since" : "");
+        return;
+    }
+    const OnceRec now_rec{now, ons};
+    if (it != once_ran_.end()) {
+        it->second = now_rec;
+    } else if (once_ran_.size() < MAX_ONCE_GATES) {
+        once_ran_[step] = now_rec;
+    } else {
+        ESP_LOGW(TAG, "More than %u once: steps: %s is not remembered, so it runs whenever it is due from boot",
+                 (unsigned) MAX_ONCE_GATES, step.c_str());
+    }
+    ESP_LOGI(TAG, "%s: due, running %s", step.c_str(), todo.c_str());
+    execute_action(todo);
+}
+
 // Blocks the calling task until the active slot's host is connected and ready
 // for keys, or `timeout_ms` passes. Ready means the link was made for the active
 // slot and is encrypted, or the host has subscribed to reports. It is not
@@ -5527,8 +5595,9 @@ void EspidfBleKeyboard::sleep_ms_(uint32_t ms) {
 __attribute__((noinline)) void EspidfBleKeyboard::run_steps_(const std::string &action) {
     size_t start = 0;
     while (start < action.size()) {
-        size_t end = action.find('|', start);
-        if (end == std::string::npos) end = action.size();
+        // At the next '|' — or, for a once: step with its action in brackets,
+        // the first '|' after the group (once_step_end).
+        const size_t end = once_step_end(action, start);
         std::string step = action.substr(start, end - start);
         while (!step.empty() && step.front() == ' ') step.erase(step.begin());
         while (!step.empty() && step.back() == ' ') step.pop_back();
@@ -5546,42 +5615,7 @@ __attribute__((noinline)) void EspidfBleKeyboard::run_steps_(const std::string &
 }
 
 // ── Timers ───────────────────────────────────────────────────────
-
-// "90", "90s", "30m", "1h30m", "2d": seconds when bare. False for anything else,
-// and outside 1 s to 24 days — how far apart two millis() readings can be and
-// still compare the right way round.
-static bool parse_after_time(const std::string &s, uint32_t &ms) {
-    uint64_t total = 0;
-    size_t i = 0;
-    if (s.empty()) return false;
-    while (i < s.size()) {
-        if (s[i] < '0' || s[i] > '9') return false;
-        uint64_t n = 0;
-        while (i < s.size() && s[i] >= '0' && s[i] <= '9') {
-            n = n * 10 + (uint64_t) (s[i] - '0');
-            if (n > 100000000ULL) return false;
-            i++;
-        }
-        uint64_t unit = 1000;
-        if (i < s.size()) {
-            switch (s[i]) {
-                case 's': unit = 1000; break;
-                case 'm': unit = 60000; break;
-                case 'h': unit = 3600000; break;
-                case 'd': unit = 86400000; break;
-                default: return false;
-            }
-            i++;
-        } else if (total != 0) {
-            return false;   // "1h30": a bare number only on its own
-        }
-        total += n * unit;
-        if (total > 24ULL * 86400000ULL) return false;
-    }
-    if (total < 1000) return false;
-    ms = (uint32_t) total;
-    return true;
-}
+// parse_after_time, the time format after: and once: share, is in once_gate.h.
 
 static std::string after_trim(const std::string &s) {
     const size_t b = s.find_first_not_of(' ');
@@ -5984,7 +6018,7 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
     // and so are the keys of a to: step.
     if (action_depth_ == 1 && action.find("lcd:") != 0 && action.find("if:") != 0 &&
         action.find("alternate:") != 0 && action.find("repeat:") != 0 && action.find("peer:") != 0 &&
-        action.find("to:") != 0) {
+        action.find("to:") != 0 && action.find("once:") != 0) {
         // A key pressed on a tab showing another host's page arrives wrapped in
         // host_action:N:, and the panel wants the key — the style labels it — not
         // the wrapper.
@@ -6068,8 +6102,9 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
         }
     }
 #endif
-    // Multi-step actions: split on '|' and execute each step
-    if (action.find('|') != std::string::npos) { run_steps_(action); return; }
+    // Multi-step actions: split on '|' and execute each step. A once: step whose
+    // bracketed group holds the bars is one step, not several (once_step_end).
+    if (once_step_end(action, 0) < action.size()) { run_steps_(action); return; }
     // Delay action for multi-step macros
     if (action.find("delay:") == 0) {
         int ms = 0;
@@ -6396,6 +6431,11 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
     // string gets typed to the host as literal text instead of running.
     else if (action.find("press_button:") == 0) {
         press_external_button_(action.substr(13));
+    }
+    // A step run only when it is due. One step, after the '|' split, so the
+    // steps after it in a macro always run.
+    else if (action.find("once:") == 0) {
+        run_once_(action);
     }
     // Run a stored macro by name. Same placement rule as press_button: above —
     // an unmatched name must not reach the send-as-text fallback.

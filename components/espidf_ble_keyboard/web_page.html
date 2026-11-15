@@ -1105,6 +1105,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="repeat:5:">Repeat 5&times; (edit count)</option>
 <option value="after:30m:">After 30 min (edit time)</option>
 <option value="after:cancel">Cancel Timers</option>
+<option value="once:20h:">Once Per 20h (edit)</option>
 <option value="switch_host:">Switch to Host (edit slot)</option>
 <option value="switch_host:next">Next Host</option>
 <option value="switch_host:prev">Prev Host</option>
@@ -4236,6 +4237,30 @@ let knownMacroNames=null;
 // without a page reload.
 let reflagOverrides=null;
 
+// Where the step starting at `start` ends, as the firmware's once_step_end has
+// it: at its '|', except that a once: step whose action is a group in brackets
+// — once:20h:(delay:750 | ok) — runs to the bracket that closes it.
+function onceStepEnd(s,start){
+  const bar=s.indexOf('|',start),stop=bar===-1?s.length:bar;
+  let i=start;
+  while(i<s.length&&(s[i]===' '||s[i]==='\t'))i++;
+  if(s.substr(i,5)!=='once:')return stop;
+  let open=-1,colon=s.indexOf(':',i+5);
+  for(let tries=0;tries<2&&colon!==-1&&colon<stop;tries++){
+    let k=colon+1;
+    while(k<s.length&&(s[k]===' '||s[k]==='\t'))k++;
+    if(s[k]==='('){open=k;break}
+    colon=s.indexOf(':',colon+1);
+  }
+  if(open===-1)return stop;
+  let depth=0;
+  for(let k=open;k<s.length;k++){
+    if(s[k]==='(')depth++;
+    else if(s[k]===')'&&--depth===0){const next=s.indexOf('|',k);return next===-1?s.length:next}
+  }
+  return stop;
+}
+
 // Pull every macro reference out of an action string, mirroring the firmware's
 // own parse order (repeat: and alternate: are read before the '|' split, a to:
 // step runs its action here, and a step is only a reference if it *starts* with
@@ -4262,13 +4287,29 @@ function macroRefs(action,out){
     if(sep!==-1)macroRefs(rest.substring(sep+1),out);
     return out;
   }
-  if(a.indexOf('|')!==-1){
-    a.split('|').forEach(s=>macroRefs(s,out));
+  if(onceStepEnd(a,0)<a.length){
+    for(let s=0;s<a.length;){const e=onceStepEnd(a,s);macroRefs(a.substring(s,e),out);s=e+1}
     return out;
   }
   if(a.indexOf('to:')===0){
     const sep=a.indexOf(':',3);
     if(sep!==-1)macroRefs(a.substring(sep+1),out);
+    return out;
+  }
+  if(a.indexOf('once:')===0){
+    // once:<time>:[<source>:]<action> — the page knows no sources, so the
+    // action is read both ways: only one of them can start with macro:. A
+    // bracketed group is read as the steps it holds.
+    let rest=a.substring(5),sep=rest.indexOf(':');
+    if(sep===-1)return out;
+    rest=rest.substring(sep+1).trim();
+    const group=r=>{r=r.trim();if(/^\(.*\)$/.test(r))macroRefs(r.slice(1,-1),out)};
+    if(rest.charAt(0)==='('){group(rest);return out}
+    sep=rest.indexOf(':');
+    const tail=sep===-1?'':rest.substring(sep+1).trim();
+    if(tail.charAt(0)==='('){group(tail);return out}   // a source, then the group
+    macroRefs(rest,out);
+    if(sep!==-1&&!/^\s*macro\s*$/.test(rest.substring(0,sep)))macroRefs(tail,out);
     return out;
   }
   if(a.indexOf('macro:')===0){

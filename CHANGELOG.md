@@ -16,6 +16,9 @@ web control page shows the matching version badge.
   on them. A new App search key opens the search of the app last opened and starts it, per host and
   per app. The keyboard cannot see the screen, so each has its own press speed. The way to an app's
   search can be recorded, as a macro is.
+- **A macro step that runs only once in a while**: not again until a set time has passed, or a
+  source such as a display's power has been switched on since. For a screen that asks only now and
+  then, such as an app's profile picker. A restart of the keyboard counts as a run.
 
 ### Changed
 - **The station a panel shows is remembered for each host**, where one was kept for the whole

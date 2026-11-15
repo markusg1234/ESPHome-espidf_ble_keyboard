@@ -311,6 +311,10 @@ button:
     action: "if:phone: lcd:Phone is home || lcd:Phone is away"
   - platform: espidf_ble_keyboard
     keyboard_id: my_keyboard
+    name: "OK Once a Day"
+    action: "once:20h:phone:(delay:750 | ok)"   # again after 20 h, or once the phone source turns on again
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
     name: "Type Without Caps Lock"
     action: "caps_lock:off | string:Hello World"
   - platform: espidf_ble_keyboard

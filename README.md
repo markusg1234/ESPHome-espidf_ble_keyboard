@@ -639,6 +639,7 @@ espidf_ble_keyboard:
 | `"forget_host:N"` | Remove BLE bond for host slot N (0–9) and clear the slot. |
 | `"lcd:<text>"` | Put text on an [LCD panel](#lcd-panels)'s `@msg` line. Everything after the colon is the text. |
 | `"if:<source>: <when on> \|\| <when off>"` | Run one branch or the other depending on a [source](#branching-on-real-state). Does nothing until the source has a state. |
+| `"once:[<time>:][<source>:]<action>"` | Run a step, or several in brackets, only when it is due: `<time>` after it last ran, or once the optional source has been switched on since — `once:20h:(delay:750 \| ok)`. A source and no time, `once:panel:ok`: only a switch-on. See [Running a step once in a while](#running-a-step-once-in-a-while). |
 | `"string:hello"` | Explicit text typing — useful in multi-step macros to distinguish text from action names. |
 | `"delay:N"` | Pause for N milliseconds (max 10000). Used between steps in multi-step macros. For longer, `after:`. |
 | `"after:<time>:<action>"` | Run `<action>` later, without holding up other keys — `after:30m:remote_power`. The time is seconds, or `90s`, `30m`, `2h`, `1h30m`, up to 24 days. Set again, it starts over. See [Running an action later](#running-an-action-later). |
@@ -1615,6 +1616,7 @@ The panel is a deliberate 16 characters wide, so it sits inside the 280px body a
 | `"alternate:<a> \|\| <b> \|\| …"` | Run **one branch** per press, advancing each time. Branches split on `\|\|`; a single `\|` still means "next step", so a branch can be a whole sequence. See [Toggling one button between two actions](#toggling-one-button-between-two-actions). |
 | `"macro:<name>"` | Run a stored [web macro](#web-macros) by name — a live reference, so editing the macro updates everything pointing at it. Macros may call each other (nesting is capped). |
 | `"if:<source>: <when on> \|\| <when off>"` | Branch on something the device actually knows, instead of `alternate:`'s blind counter. Branches split on `\|\|` and each may be a whole sequence. Nothing runs until the source has a state. See [Branching on real state](#branching-on-real-state). |
+| `"once:[<time>:][<source>:]<action>"` | A step, or several in brackets, that runs only now and then: not again until `<time>` has passed, or an optional source has been switched on since — the OK that picks an app's profile, which it asks for only after a while or a restart of the TV. See [Running a step once in a while](#running-a-step-once-in-a-while). |
 | `"<key>=<number>"` | Run that key's [Host Action](#host-actions-per-host-overrides) with each `{value}` in it replaced by the number — `spare12=40`. What a [pot](#pots) with `set` sends. |
 | `"lcd:<text>"` | Write text to an [LCD panel](#lcd-panels)'s `@msg` line, so a key can name where it just took you — `consumer:0x0223 \| lcd:Netflix`. Up to 64 characters. |
 | `"ha_action:<domain>.<action>;<key>=<value>;…"` | Ask Home Assistant to run one of its own actions — e.g. an IR blaster's `remote.send_command`. Needs `ha_action: true` here and **Allow the device to perform Home Assistant actions** in HA. See [Calling Home Assistant Actions](#calling-home-assistant-actions). |
@@ -1874,6 +1876,22 @@ A TV-style sleep key, a step further each press, as a Host Action:
 ```
 alternate: lcd:Sleep 30 | after:sleep:30m:remote_power || lcd:Sleep 60 | after:sleep:60m:remote_power || lcd:Sleep off | after:sleep:cancel
 ```
+
+## Running a Step Once in a While
+
+Some screens only ask now and then — an app that wants its profile picked after a day, or after the TV has been off — and a key pressed when nothing is asking presses whatever the screen has highlighted instead. `once:` runs a step only when it is due:
+
+```
+spare1 | delay:8000 | once:20h:(ok | delay:1500) | right | ok
+```
+
+That opens the app and, only if 20 hours have passed since it last did, presses OK to pick the profile and waits for the app behind it. The steps after it run either way.
+
+- **The time** is what `after:` takes: seconds, or `90s`, `30m`, `20h`, `1d`, up to 24 days.
+- **One step, or several in brackets.** `once:20h:ok` is a single step; in `once:20h:(delay:750 | ok)` the bars inside the brackets belong to it. A macro works too: `once:20h:macro:Pick profile`.
+- **A source, if you like:** put the key of a binary-sensor [`sources:`](#branching-on-real-state) entry, such as a display's power, before the action — `once:20h:panel:(delay:750 | ok)` — and the step is also due once that source has been switched on since it last ran. It counts a switch from off to on; the first state it reports after a restart doesn't count, so a display that was already on opens nothing. Leave the time out — `once:panel:(delay:750 | ok)` — and only a switch-on makes it due.
+- **A restart counts as a run**, so after the keyboard restarts — a flash, a power cut — the step waits for the time or the next switch-on rather than guessing. Remembered in memory, keyed on the step's own text, so the same step in two macros shares one record; up to 16.
+- **The log says why** each time: `once:20h:(delay:750 | ok): due, running delay:750 | ok`, or `… skipped: ran 3h12m ago`, adding `, panel not switched on since` when it has a source.
 
 ---
 
