@@ -1300,6 +1300,7 @@ class EspidfBleKeyboard : public Component
   uint32_t skb_used_ms_{0};
   std::atomic<bool> skb_spelling_{false};   // a spell is pressing keys
   std::atomic<bool> skb_opening_{false};    // an Open search is pressing its way there
+  std::atomic<bool> skb_moved_{false};      // the highlight moved by hand since the last spell
   // Text to spell is spelled on the action task: a word is seconds of presses,
   // and no caller's task can wait that long. It waits in skb_text_ (under
   // skb_mutex_) and one "\x1D" job on the action queue spells whatever has

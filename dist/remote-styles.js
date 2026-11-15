@@ -1049,7 +1049,7 @@ function typeWire(input,send,ctl){
   if(ctl&&ctl.auto){
     let v=null;
     try{v=localStorage.getItem(ctl.store)}catch(e){}
-    ctl.auto.checked=v!=='0';
+    ctl.auto.checked=v===null?ctl.def!==false:v!=='0';
     setLive(ctl.auto.checked);
     ctl.auto.addEventListener('change',()=>{
       try{localStorage.setItem(ctl.store,ctl.auto.checked?'1':'0')}catch(e){}
@@ -1088,6 +1088,7 @@ function typeWire(input,send,ctl){
     if(e.isComposing||e.keyCode===229||e.key==='Dead'||e.key==='Process')return;
     // Written first: every other key edits the box, as it would any box.
     if(!live){
+      if(ctl&&ctl.liveOnly)return;   // its caller sends what is written
       if((e.key==='Enter'||e.key==='Tab')&&!e.ctrlKey&&!e.altKey&&!e.metaKey){
         e.preventDefault();
         flush();

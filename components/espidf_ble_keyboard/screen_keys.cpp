@@ -508,6 +508,7 @@ void EspidfBleKeyboard::skb_arm_(uint8_t slot, ScreenGrid *grid) {
   free(skb_);
   skb_ = grid;
   skb_used_ms_ = millis();
+  skb_moved_.store(false);
   skb_slot_.store((int8_t) slot);
   xSemaphoreGive(skb_mutex_);
   pending_lcd_publish_.store(true);
@@ -603,6 +604,7 @@ void EspidfBleKeyboard::skb_note_press_(const std::string &pressed) {
       skb_->r = r;
       skb_->c = c;
       skb_used_ms_ = millis();
+      skb_moved_.store(true);
     } else {
       off = true;
     }
@@ -677,6 +679,8 @@ __attribute__((noinline)) void EspidfBleKeyboard::skb_spell_(const std::string &
   }
   skb_spelling_.store(false);
   skb_used_ms_ = millis();
+  // The highlight is on the last key spelled: Enter now would only press it again.
+  skb_moved_.store(false);
   if (skipped > 0) {
     ESP_LOGI(TAG, "Spelled %u, skipped %u the grid has no key for", spelled, skipped);
   }
@@ -695,11 +699,25 @@ bool EspidfBleKeyboard::skb_backspace_() {
   return has;
 }
 
+// A key from a typing box — the page's, a card's — while a grid is in use.
 bool EspidfBleKeyboard::screen_keys_take_key(uint8_t modifiers, uint8_t keycode) {
   if (modifiers != 0 || skb_slot_.load() < 0 || !skb_live_())
     return false;
-  if (keycode == 0x28 || keycode == 0x58)
-    return true;   // Enter: it would press the highlighted letter again
+  // An arrow is the remote's own: pressed as that key, it goes through the
+  // host's Host Actions and moves the highlight this keyboard follows, or, taken
+  // off the keys, lets go of them. Sent as a bare arrow it went past both, and
+  // what Enter would pick was then anyone's guess.
+  if (keycode >= 0x4F && keycode <= 0x52) {
+    static const char *const ARROW[] = {"right", "left", "down", "up"};
+    return queue_action(ARROW[keycode - 0x4F]);
+  }
+  // Enter picks what the arrows moved to, as the remote's OK. Straight after a
+  // spell it would only press the last letter again, so there it is dropped.
+  if (keycode == 0x28 || keycode == 0x58) {
+    if (skb_moved_.load())
+      queue_action("ok");
+    return true;
+  }
   return keycode == 0x2A && skb_backspace_();
 }
 

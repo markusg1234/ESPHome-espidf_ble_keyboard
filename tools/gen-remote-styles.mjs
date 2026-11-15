@@ -18,13 +18,16 @@
 // It also copies the page's pad gestures (padWire) into dist/mouse-card.js,
 // between that file's two marker lines. The mouse card imports nothing, so that
 // it can be installed by hand as one file, and a copy kept by hand would drift
-// just the same. Re-run after touching padWire too.
+// just the same. Re-run after touching padWire too. The page's typing box
+// (typeWire) goes into dist/keyboard-card.js the same way, for its Type or
+// paste box, which types live when auto is ticked.
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const here = new URL('./', import.meta.url);
 const PAGE = new URL('../components/espidf_ble_keyboard/web_page.html', here);
 const OUT = new URL('../dist/remote-styles.js', here);
 const MOUSE = new URL('../dist/mouse-card.js', here);
+const KEYBOARD = new URL('../dist/keyboard-card.js', here);
 
 // Normalised to LF the moment it is read. The working copy is CRLF on Windows
 // (core.autocrlf), and everything lifted below is pasted into the output — so
@@ -502,6 +505,19 @@ const padAt = mouseWas.indexOf(PAD_OPEN), padEnd = mouseWas.indexOf(PAD_CLOSE);
 if (padAt < 0 || padEnd < padAt) throw new Error('dist/mouse-card.js has lost its padWire marker lines');
 const mouseNow = mouseWas.slice(0, padAt + PAD_OPEN.length) + '\n' + padJs + '\n' + mouseWas.slice(padEnd);
 
+// ── the keyboard card's typing box ────────────────────────────────
+// typeWire, into the keyboard card as padWire goes into the mouse card. Checked
+// first that it stands alone: the card has nothing else of the page's.
+const typeJs = balanced('function typeWire(');
+if (new Function(`${typeJs}\nreturn typeof typeWire;`)() !== 'function') throw new Error('typeWire does not stand alone');
+const TYPE_OPEN = '// >>> typeWire (generated)', TYPE_CLOSE = '// <<< typeWire';
+const kbRaw = readFileSync(KEYBOARD, 'utf8');
+const kbCrlf = kbRaw.includes('\r\n');
+const kbWas = kbRaw.replace(/\r\n/g, '\n');
+const typeAt = kbWas.indexOf(TYPE_OPEN), typeEnd = kbWas.indexOf(TYPE_CLOSE);
+if (typeAt < 0 || typeEnd < typeAt) throw new Error('dist/keyboard-card.js has lost its typeWire marker lines');
+const kbNow = kbWas.slice(0, typeAt + TYPE_OPEN.length) + '\n' + typeJs + '\n' + kbWas.slice(typeEnd);
+
 const out = `// GENERATED FILE — do not edit by hand.
 //
 // Lifted from components/espidf_ble_keyboard/web_page.html so the Home
@@ -546,4 +562,10 @@ if (mouseNow === mouseWas) {
 } else {
   writeFileSync(MOUSE, mouseCrlf ? mouseNow.replace(/\n/g, '\r\n') : mouseNow);
   console.log(`wrote dist/mouse-card.js — padWire, ${(padJs.length / 1024).toFixed(1)} KB`);
+}
+if (kbNow === kbWas) {
+  console.log('dist/keyboard-card.js — typeWire already as the page has it');
+} else {
+  writeFileSync(KEYBOARD, kbCrlf ? kbNow.replace(/\n/g, '\r\n') : kbNow);
+  console.log(`wrote dist/keyboard-card.js — typeWire, ${(typeJs.length / 1024).toFixed(1)} KB`);
 }

@@ -498,6 +498,183 @@ function hostSlotList(spec) {
 // doesn't.
 const capsKey = (k) => k.shiftChar !== k.char && k.shiftChar === k.char.toUpperCase();
 
+// The typing box. Copied here from the device's own web page by
+// tools/gen-remote-styles.mjs, so the Type or paste box types live as that
+// page's does, and this file still stands alone for anyone installing it by
+// hand. Change it in web_page.html and regenerate: whatever sits between the two
+// marker lines is overwritten.
+// >>> typeWire (generated)
+function typeWire(input,send,ctl){
+  // HID usages. Named keys by name; the rest by where the key is (code), which is
+  // what a usage numbers anyway, so a shortcut needs no layout.
+  const SPECIAL={Enter:0x28,Escape:0x29,Backspace:0x2A,Tab:0x2B,Insert:0x49,Home:0x4A,PageUp:0x4B,
+    Delete:0x4C,End:0x4D,PageDown:0x4E,ArrowRight:0x4F,ArrowLeft:0x50,ArrowDown:0x51,ArrowUp:0x52};
+  const CODES={Space:0x2C,Minus:0x2D,Equal:0x2E,BracketLeft:0x2F,BracketRight:0x30,Backslash:0x31,
+    Semicolon:0x33,Quote:0x34,Backquote:0x35,Comma:0x36,Period:0x37,Slash:0x38,IntlBackslash:0x64};
+  const usage=e=>{
+    if(SPECIAL[e.key])return SPECIAL[e.key];
+    const f=/^F([1-9]|1[0-2])$/.exec(e.key);if(f)return 0x39+(+f[1]);
+    let m=/^Key([A-Z])$/.exec(e.code||'');if(m)return 0x04+m[1].charCodeAt(0)-65;
+    m=/^Digit([0-9])$/.exec(e.code||'');if(m)return m[1]==='0'?0x27:0x1D+(+m[1]);
+    return CODES[e.code]||0;
+  };
+  // What a character costs in a form-encoded body, so each piece of text stays
+  // well inside what the keyboard takes in one request.
+  const cost=ch=>ch===' '||/^[A-Za-z0-9*\-._]$/.test(ch)?1:3*new TextEncoder().encode(ch).length;
+  // What the box held last time — all of it already on its way to the host.
+  let last='',composing=false,live=true;
+  input.value='';
+  const q=[];let running=false,waits=0,badT=null;
+  const hint=input.placeholder;
+  function flag(){
+    input.classList.add('tw-bad');
+    clearTimeout(badT);badT=setTimeout(()=>input.classList.remove('tw-bad'),1500);
+  }
+  // Text typed while earlier text is still going joins it, so fast typing goes
+  // in a few requests rather than one per letter.
+  function push(op){
+    const t=q[q.length-1];
+    if(op.s!==undefined&&t&&t.s!==undefined&&!t.held===!op.held)t.s+=op.s;
+    else q.push(op);
+    if(!running)next();
+  }
+  function next(){
+    const op=q[0];
+    if(!op){running=false;return}
+    running=true;
+    let part=null,p;
+    if(op.s!==undefined){
+      let n=0;part='';
+      for(const ch of op.s){if(n+cost(ch)>400&&part)break;part+=ch;n+=cost(ch)}
+      p=send.text(part,waits>0);
+    }else p=send.key(op.m,op.k);
+    const done=()=>{
+      // Whatever joined the text while this piece was out stays queued behind it.
+      if(part!==null&&op.s.length>part.length)op.s=op.s.slice(part.length);
+      else q.shift();
+      // 35ms apart: the keyboard drops an identical string or key repeated within
+      // 30ms, which the same letter typed twice would otherwise risk.
+      setTimeout(next,35);
+    };
+    const fail=()=>{
+      waits=0;flag();
+      // Written text that didn't go goes back into the box, if nothing has been
+      // written there since, rather than being lost — and the Enter or Tab sent
+      // after it with it.
+      if(op.held&&!input.value){
+        input.value=q.filter(o=>o.held).map(o=>o.s).join('');
+        q.length=0;running=false;return;
+      }
+      done();
+    };
+    Promise.resolve(p).then(r=>{
+      // Still typing what it has. The same piece again shortly, for up to half a
+      // minute, as the paste bar waits.
+      if(r==='busy'&&++waits<=100){setTimeout(next,300);return}
+      if(r==='busy'){fail();return}
+      waits=0;done();
+    },fail);
+  }
+  // The box's text, whole, and the box empty for the next.
+  function flush(){
+    const v=input.value;
+    input.value='';
+    if(v)push({s:v,held:true});
+  }
+  function reset(){input.value='';last='';input.classList.remove('tw-bad')}
+  // Ticked, what is typed goes as it is typed. Unticked the box is written in
+  // first — autocorrect's swaps made, a password checked — and goes whole with
+  // Send, or with Enter or Tab, which follow it. Kept per browser.
+  function setLive(on){
+    live=on;
+    if(ctl.go)ctl.go.hidden=on;
+    input.enterKeyHint=on?'enter':'send';
+    input.placeholder=on?hint:'Write, then Send';
+    // A phone's own corrections help text that waits to be read over; typed
+    // live, each one is a run of Backspaces on the host.
+    input.spellcheck=!on;
+    input.setAttribute('autocorrect',on?'off':'on');
+  }
+  if(ctl&&ctl.auto){
+    let v=null;
+    try{v=localStorage.getItem(ctl.store)}catch(e){}
+    ctl.auto.checked=v===null?ctl.def!==false:v!=='0';
+    setLive(ctl.auto.checked);
+    ctl.auto.addEventListener('change',()=>{
+      try{localStorage.setItem(ctl.store,ctl.auto.checked?'1':'0')}catch(e){}
+      setLive(ctl.auto.checked);
+      reset();
+      input.focus();
+    });
+  }
+  if(ctl&&ctl.go){
+    // The box keeps the focus, and a phone its keyboard.
+    ctl.go.addEventListener('mousedown',e=>e.preventDefault());
+    ctl.go.addEventListener('click',()=>{flush();input.focus()});
+  }
+  input.addEventListener('compositionstart',()=>{composing=true});
+  input.addEventListener('compositionend',()=>{composing=false});
+  input.addEventListener('input',()=>{
+    if(!live)return;
+    const v=input.value;
+    let i=0;const n=Math.min(v.length,last.length);
+    while(i<n&&v.charCodeAt(i)===last.charCodeAt(i))i++;
+    // Never between the two halves of an emoji: the host deletes characters.
+    if(i>0&&/[\uD800-\uDBFF]/.test(last[i-1]))i--;
+    const del=Array.from(last.slice(i)).length;
+    for(let k=0;k<del;k++)push({m:0,k:0x2A});
+    if(i<v.length)push({s:v.slice(i)});
+    last=v;
+    // The host has the whole line, so a long one only needs its end on show.
+    // Not mid-word on a phone: replacing the text would end what its keyboard is
+    // composing.
+    if(!composing&&v.length>200){input.value=Array.from(v).slice(-100).join('');last=input.value}
+  });
+  input.addEventListener('keydown',e=>{
+    // An input method at work types through the box, Enter included — there it
+    // picks a word rather than ending a line. So does a key still to be combined
+    // with the next one (Dead).
+    if(e.isComposing||e.keyCode===229||e.key==='Dead'||e.key==='Process')return;
+    // Written first: every other key edits the box, as it would any box.
+    if(!live){
+      if(ctl&&ctl.liveOnly)return;   // its caller sends what is written
+      if((e.key==='Enter'||e.key==='Tab')&&!e.ctrlKey&&!e.altKey&&!e.metaKey){
+        e.preventDefault();
+        flush();
+        push({m:e.shiftKey?2:0,k:e.key==='Enter'?0x28:0x2B});
+      }
+      return;
+    }
+    const altGr=!!(e.getModifierState&&e.getModifierState('AltGraph'));
+    // Paste is the one shortcut the box keeps: what it pastes is typed.
+    if((e.ctrlKey||e.metaKey)&&!e.altKey&&e.code==='KeyV')return;
+    if(e.shiftKey&&e.key==='Insert')return;
+    let kc;
+    if(e.key.length===1){
+      // A character types through the box, unless Ctrl or Win makes it a
+      // shortcut. AltGr reads as Ctrl+Alt on Windows and still types (@ on a
+      // German keyboard), so it stays text.
+      if(!(e.ctrlKey||e.metaKey)||altGr)return;
+      kc=usage(e);
+    }else if(e.key==='Backspace'){
+      // With text in the box the deletion is seen as it happens. An empty box
+      // has nothing to delete, so its Backspace goes from here.
+      if(input.value)return;
+      kc=0x2A;
+    }else kc=usage(e);
+    if(!kc)return;
+    e.preventDefault();
+    push({m:(e.ctrlKey&&!altGr?1:0)|(e.shiftKey?2:0)|(e.altKey&&!altGr?4:0)|(e.metaKey?8:0),k:kc});
+    // A line ends with Enter, and a field with Tab: the box starts again.
+    if(kc===0x28||kc===0x2B){input.value='';last=''}
+  });
+  return {reset,
+    // The box shut: typed live it starts again, as the host has it all; written
+    // and not sent, the text waits there for it to open again.
+    leave(){if(live)reset();else input.classList.remove('tw-bad')}};
+}
+// <<< typeWire
+
 class BleKeyboardCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
@@ -732,6 +909,8 @@ class BleKeyboardCard extends HTMLElement {
         overflow-y: hidden;
         scrollbar-width: thin;
       }
+      /* Typed live, a piece or key that did not go flashes the box. */
+      .paste-bar textarea.tw-bad { border-color: var(--error-color, #db4437); }
       .paste-bar textarea::-webkit-scrollbar {
         height: 8px;
       }
@@ -1341,13 +1520,10 @@ class BleKeyboardCard extends HTMLElement {
 
     const autoLabel = document.createElement('label');
     autoLabel.className = 'paste-auto';
-    autoLabel.title = 'Type pasted text immediately';
+    autoLabel.title = 'Ticked, it goes as you type: Enter, Tab and the arrows go to the host as keys, as in the ' +
+      'remote card\'s typing box, and a paste is typed at once. Untick to write first and send it whole with Send or Enter.';
     const autoCk = document.createElement('input');
     autoCk.type = 'checkbox';
-    autoCk.checked = localStorage.getItem('blekb_card_paste_auto') === '1';
-    autoCk.addEventListener('change', () => {
-      localStorage.setItem('blekb_card_paste_auto', autoCk.checked ? '1' : '0');
-    });
     autoLabel.appendChild(autoCk);
     autoLabel.appendChild(document.createTextNode('auto'));
 
@@ -1378,16 +1554,32 @@ class BleKeyboardCard extends HTMLElement {
       });
     };
 
+    // Ticked, the box is a typing box like the remote card's: what is typed goes
+    // as it is typed, and Enter, Tab, the arrows and the rest go to the host as
+    // keys. Unticked it is written in first and goes whole with Send or Enter. The
+    // ticks are kept in this browser, unticked until one is made.
+    const offline = () => !this._hass;
+    typeWire(ta, {
+      text: (s) => (offline() ? Promise.reject(new Error('not connected')) : Promise.resolve(this._sendString(s))),
+      key: (m, k) => (offline() ? Promise.reject(new Error('not connected')) : Promise.resolve(this._sendKey(m, k))),
+    }, { auto: autoCk, store: 'blekb_card_paste_auto', def: false, liveOnly: true });
+    // Typed live, there is nothing left in the box for Send to send.
+    const showSend = () => { sendBtn.style.display = autoCk.checked ? 'none' : ''; };
+    showSend();
+    autoCk.addEventListener('change', showSend);
+
     sendBtn.addEventListener('click', () => send(ta.value, true));
-    // Physical Enter sends; Shift+Enter inserts a newline.
+    // Written first, Enter sends; Shift+Enter inserts a newline. Ticked, Enter
+    // is the host's own, sent by the typing box.
     ta.addEventListener('keydown', (e) => {
+      if (autoCk.checked || e.isComposing) return;
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         send(ta.value, true);
       }
     });
-    // Auto mode: grab the text straight from the paste event (works on plain
-    // HTTP origins where navigator.clipboard does not exist) and type it.
+    // Ticked: grab a paste straight from the paste event (works on plain HTTP
+    // origins where navigator.clipboard does not exist) and type it whole.
     ta.addEventListener('paste', (e) => {
       if (!autoCk.checked) return;
       const t = (e.clipboardData || window.clipboardData).getData('text');
@@ -1412,13 +1604,12 @@ class BleKeyboardCard extends HTMLElement {
     return bar;
   }
 
+  // Returned so the typing box can tell a key that went from one that didn't;
+  // the keys ignore it.
   _sendKey(modifier, keycode) {
-    if (!this._hass) return;
-    if (this._peerName()) {
-      this._runAction(`combo:${modifier}:${keycode}`);
-      return;
-    }
-    this._hass.callService('esphome', `${this._config.device}_send_key`, { modifier, keycode });
+    if (!this._hass) return undefined;
+    if (this._peerName()) return this._runAction(`combo:${modifier}:${keycode}`);
+    return this._hass.callService('esphome', `${this._config.device}_send_key`, { modifier, keycode });
   }
 
   // Run an action string on the device. The one route that reaches it from a

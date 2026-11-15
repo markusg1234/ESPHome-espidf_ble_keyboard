@@ -871,7 +871,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rkb-type{text-overflow:ellipsis}
 .rkb-type::placeholder{font-size:14px}
 /* Something typed that did not reach the keyboard. */
-.rkb-type.tw-bad{border-color:#e53935}
+.rkb-type.tw-bad,#kb-paste-text.tw-bad{border-color:#e53935}
 /* In a window of its own the keys stay off its edges. The width that makes them
    square, more than the remote's, is asked of the window by fitSize rather than
    set here: a window that can't give it — a phone's, or one a scrollbar has
@@ -915,7 +915,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <div class="host-bar" id="host-bar" style="display:none"></div>
 <div id="peer-bars"></div>
 <div class="card" id="keyboard">
-<div class="kb-header"><span class="kb-title">Keyboard<span class="kb-drives" data-why="Typing and pointing go to %s, the keyboard the remote is driving." hidden></span></span><div class="kb-paste"><textarea id="kb-paste-text" rows="1" maxlength="5000" placeholder="Type or paste" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea><button class="kb-paste-btn" id="kb-paste-clip" title="Read clipboard &amp; type it" style="display:none">&#128203;</button><label class="kb-paste-auto" title="Type pasted text immediately"><input type="checkbox" id="kb-paste-autock">auto</label><button class="kb-paste-btn" id="kb-paste-send">Send</button><button type="button" class="kb-paste-btn skb-chip" hidden title="Text for this host is being spelled on this screen keyboard, with the arrows and OK. Click to stop: text is typed as keys again."></button></div><select id="layoutSel" class="layout-sel" title="The active host's keyboard layout, saved for that host. It has to match the layout the host itself is set to."></select></div>
+<div class="kb-header"><span class="kb-title">Keyboard<span class="kb-drives" data-why="Typing and pointing go to %s, the keyboard the remote is driving." hidden></span></span><div class="kb-paste"><textarea id="kb-paste-text" rows="1" maxlength="5000" placeholder="Type or paste" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea><button class="kb-paste-btn" id="kb-paste-clip" title="Read clipboard &amp; type it" style="display:none">&#128203;</button><label class="kb-paste-auto" title="Ticked, it goes as you type: Enter, Tab and the arrows go to the host as keys, as in the remote&rsquo;s typing box, and a paste is typed at once. Untick to write first and send it whole with Send or Enter."><input type="checkbox" id="kb-paste-autock">auto</label><button class="kb-paste-btn" id="kb-paste-send">Send</button><button type="button" class="kb-paste-btn skb-chip" hidden title="Text for this host is being spelled on this screen keyboard, with the arrows and OK. Click to stop: text is typed as keys again."></button></div><select id="layoutSel" class="layout-sel" title="The active host's keyboard layout, saved for that host. It has to match the layout the host itself is set to."></select></div>
 <div id="kb-rows"></div>
 </div>
 
@@ -1258,7 +1258,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <textarea id="skb-open" maxlength="255" rows="2" placeholder="How to reach search from where the app opens, e.g. left | delay:500 | up | ok | delay:1500" title="Open search: the action App search runs before text is spelled. It has to end with the app's keyboard on screen and its highlight on the key chosen under Starts on. Empty: App search only starts the spelling."></textarea>
 <div class="macro-form skb-recrow"><button id="skb-rec" class="cancel" type="button" title="Fill in Open search by doing it, as the Macros card's Record does: press Record, then the remote's keys that get from the app to its search, then Stop. Each press goes in as a step, 200 ms apart (750 ms after OK, a second after Home); lengthen any the app needs more for.">Record</button><span class="rec-status" id="skb-rec-status"></span></div>
 <textarea id="skb-rows" maxlength="400" rows="7" spellcheck="false" autocapitalize="off" style="font-family:monospace;font-size:13px" placeholder="_==&lt;==&#10;abcdef&#10;ghijkl&#10;mnopqr&#10;stuvwx&#10;yz1234&#10;567890" title="The app's keys, a line a row, as they are on the screen."></textarea>
-<div style="font-size:11px;color:var(--muted);margin:4px 0">One line a row, one character a key. <code>_</code> Space &middot; <code>&lt;</code> Backspace &middot; <code>=</code> more of the key before it &middot; <code>#</code> a key never pressed &middot; <code>.</code> no key &middot; <code>\</code> before one of these to mean itself.<br>A row of wide keys: <code>_==&lt;==</code> is Space and Delete, three columns each, as some apps have them over the letters. <code>_==&lt;=#=</code> is Space, Delete and Clear, as others have them along the bottom: Clear is <code>#</code>, there to move across but never pressed. Make each row add up to the grid&rsquo;s width, and match the widths to the screen.</div>
+<div style="font-size:11px;color:var(--muted);margin:4px 0">One line a row, one character a key. <code>_</code> Space &middot; <code>&lt;</code> Backspace &middot; <code>=</code> more of the key before it &middot; <code>#</code> a key never pressed &middot; <code>.</code> no key &middot; <code>\</code> before one of these to mean itself.<br>A row of wide keys: <code>_==&lt;==</code> is Space and Delete, three columns each, as some apps have them over the letters. <code>_=&lt;=#=</code> is Space, Delete and Clear, two columns each, as others have them along the bottom: Clear is <code>#</code>, there to move across but never pressed. Make each row add up to the grid&rsquo;s width, and match the widths to the screen.</div>
 <div id="skb-grid" class="skb-grid"></div>
 <div class="rpt-times">
 <label>Starts on <select id="skb-start" title="The key highlighted when the app's search opens."></select></label>
@@ -2939,6 +2939,11 @@ function groupWire(root,body,fit){
 // piece asked for once more. send.key(mod,kc) taps a key. Both return promises
 // and go one at a time, in order, so a key never overtakes text typed before it.
 // Returns reset(), which empties the box without sending anything.
+// ctl, all optional: auto, the tick box for typing as you go, kept in this
+// browser under ctl.store and ticked when nothing is kept unless ctl.def is
+// false; go, the Send button of a box written first; liveOnly, a box whose
+// caller sends what is written itself, so unticked it is left alone (the
+// keyboard's paste bar, which paces a long paste with the device).
 function typeWire(input,send,ctl){
   // HID usages. Named keys by name; the rest by where the key is (code), which is
   // what a usage numbers anyway, so a shortcut needs no layout.
@@ -3033,7 +3038,7 @@ function typeWire(input,send,ctl){
   if(ctl&&ctl.auto){
     let v=null;
     try{v=localStorage.getItem(ctl.store)}catch(e){}
-    ctl.auto.checked=v!=='0';
+    ctl.auto.checked=v===null?ctl.def!==false:v!=='0';
     setLive(ctl.auto.checked);
     ctl.auto.addEventListener('change',()=>{
       try{localStorage.setItem(ctl.store,ctl.auto.checked?'1':'0')}catch(e){}
@@ -3072,6 +3077,7 @@ function typeWire(input,send,ctl){
     if(e.isComposing||e.keyCode===229||e.key==='Dead'||e.key==='Process')return;
     // Written first: every other key edits the box, as it would any box.
     if(!live){
+      if(ctl&&ctl.liveOnly)return;   // its caller sends what is written
       if((e.key==='Enter'||e.key==='Tab')&&!e.ctrlKey&&!e.altKey&&!e.metaKey){
         e.preventDefault();
         flush();
@@ -8746,8 +8752,21 @@ apiPost('release').catch(()=>{});
   const clipBtn=document.getElementById('kb-paste-clip');
   const autoCk=document.getElementById('kb-paste-autock');
   if(!ta)return;
-  autoCk.checked=localStorage.getItem('blekb_paste_auto')==='1';
-  autoCk.addEventListener('change',()=>localStorage.setItem('blekb_paste_auto',autoCk.checked?'1':'0'));
+  // Ticked, the box is a typing box like the remote's: what is typed goes as it
+  // is typed, and Enter, Tab, the arrows and the rest go to the host as keys —
+  // Enter picks what a search found, the arrows move the host's cursor. Unticked
+  // it is written in first and goes whole with Send or Enter, as below. A paste
+  // goes whole either way, at the pace the keyboard types.
+  typeWire(ta,{
+    text:(s,again)=>(again?apiPost('string',{keys:s}):api('string',{keys:s})).then(r=>
+      r&&r.status===409?'busy':r&&r.ok?true:Promise.reject(new Error('not typed'))),
+    key:(m,k)=>api('key',{modifier:m,keycode:k}).then(r=>
+      r&&r.ok?true:Promise.reject(new Error('not sent'))),
+  },{auto:autoCk,store:'blekb_paste_auto',def:false,liveOnly:true});
+  // Typed live, there is nothing left in the box for Send to send.
+  const showSend=()=>{sendBtn.hidden=autoCk.checked};
+  showSend();
+  autoCk.addEventListener('change',showSend);
   // CRLF and bare CR both become LF — the firmware maps BOTH to Enter, so
   // Windows clipboard text would double-Enter without this.
   function norm(t){return t.replace(/\r\n/g,'\n').replace(/\r/g,'\n')}
@@ -8814,12 +8833,14 @@ apiPost('release').catch(()=>{});
       hostsJSON().then(d=>typeof d.active==='number'?d.active:null,()=>null)).then(s=>{slot=s;next()});
   }
   sendBtn.addEventListener('click',()=>send(ta.value,true));
-  // Physical Enter sends; Shift+Enter inserts a newline.
+  // Written first, Enter sends; Shift+Enter inserts a newline. Ticked, Enter is
+  // the host's own, sent by the typing box above.
   ta.addEventListener('keydown',e=>{
+    if(autoCk.checked||e.isComposing)return;
     if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send(ta.value,true)}
   });
-  // Auto mode: grab the text straight from the paste event (works on plain-HTTP
-  // origins where navigator.clipboard doesn't exist) and type it immediately.
+  // Ticked: grab a paste straight from the paste event (works on plain-HTTP
+  // origins where navigator.clipboard doesn't exist) and type it whole, paced.
   ta.addEventListener('paste',e=>{
     if(!autoCk.checked)return;
     const t=(e.clipboardData||window.clipboardData).getData('text');

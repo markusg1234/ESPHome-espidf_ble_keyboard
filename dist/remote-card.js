@@ -2176,8 +2176,12 @@ class BleRemoteCard extends HTMLElement {
         return this._peerName() ? this._runAction('string:' + s)
           : this._hass.callService('esphome', `${this._config.device}_send_string`, { keys: s });
       },
+      // This keyboard's send_key, which a screen keyboard in use answers as the
+      // page's typing box does: an arrow is the remote's own arrow, and Enter is
+      // OK once the highlight has been moved. A linked keyboard's combo verb.
       key: (m, k) => (offline() ? Promise.reject(new Error('not connected'))
-        : this._runAction(`combo:${m}:${k}`)),
+        : this._peerName() ? this._runAction(`combo:${m}:${k}`)
+        : this._hass.callService('esphome', this._svc('send_key'), { modifier: m, keycode: k })),
     }, { auto: this.shadowRoot.getElementById('kbd-auto'), go: this.shadowRoot.getElementById('kbd-send'),
          store: 'blekb_card_type_auto' });
   }

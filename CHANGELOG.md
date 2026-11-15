@@ -22,6 +22,9 @@ web control page shows the matching version badge.
   keyboard.
 - **Recording a macro waits 750 ms after OK**, as it waits a second after Home, which it now also
   does on a tab showing a host's page.
+- **The keyboard's text box types as you go when its auto box is ticked**, on the web page and the
+  Home Assistant keyboard card, as the remote's typing box does: Enter, Tab and the arrows go to the
+  host as keys. It used to type only a paste at once. Unticked, it still sends what you write whole.
 
 ### Fixed
 - **Recording a macro missed the remote buttons set to press and hold.** Their presses went to the
