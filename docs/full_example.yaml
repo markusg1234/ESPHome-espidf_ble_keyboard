@@ -145,6 +145,7 @@ espidf_ble_keyboard:
       binary_sensor: phone_nearby
 
   presence_scan: true
+  bluetooth_logs: warnings       # the Bluetooth stack's own log lines: warnings, errors or none (less flash)
   # battery_level: battery_pct   # the ADC sensor below
 
   on_rssi_above:

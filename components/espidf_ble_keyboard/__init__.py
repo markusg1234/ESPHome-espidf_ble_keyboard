@@ -71,6 +71,23 @@ CONF_LAYOUT = "layout"
 CONF_ACTIONS = "actions"
 CONF_BATTERY_LEVEL = "battery_level"
 CONF_PRESENCE_SCAN = "presence_scan"
+CONF_BLUETOOTH_LOGS = "bluetooth_logs"
+# How much of Bluedroid's own logging is built in: its BT_… lines, not this
+# component's. Each message is text in flash plus a call where it is printed.
+BLUETOOTH_LOGS = ("warnings", "errors", "none")
+# Every layer Bluedroid keeps a trace level for. The classic-Bluetooth ones have
+# no code in this build; they are listed so the setting means what it says.
+BT_LOG_LAYERS = (
+    "HCI", "BTM", "L2CAP", "RFCOMM", "SDP", "GAP", "BNEP", "PAN", "A2D", "AVDT",
+    "AVCT", "AVRC", "MCA", "HID", "APPL", "GATT", "SMP", "BTIF", "BTC", "OSI",
+    "BLUFI",
+)
+# ESPHome's own Bluetooth components. With one of them in the config the GATT
+# client is theirs to decide: esp32_ble switches it on for a tracker or a client.
+ESPHOME_BLE_COMPONENTS = (
+    "esp32_ble", "esp32_ble_tracker", "esp32_ble_client", "esp32_ble_server",
+    "bluetooth_proxy",
+)
 CONF_PEERS = "peers"
 CONF_URL = "url"
 CONF_USERNAME = "username"
@@ -611,6 +628,13 @@ CONFIG_SCHEMA = cv.All(
         # mark a host it heard. Off by default: the radio then spends about a
         # tenth of its time listening.
         cv.Optional(CONF_PRESENCE_SCAN, default=False): cv.boolean,
+        # How much the Bluetooth stack says for itself. Its warnings and errors
+        # are the only account of what went wrong inside it — a pairing it
+        # threw away, a send it could not allocate — so they stay unless a
+        # board short of flash gives them up.
+        cv.Optional(CONF_BLUETOOTH_LOGS, default="warnings"): cv.one_of(
+            *BLUETOOTH_LOGS, lower=True
+        ),
         cv.Optional(CONF_CUSTOM_TEXT_ID): cv.ensure_list(cv.use_id(cg.EntityBase)),
         cv.Optional(CONF_SOURCES): cv.All(
             cv.ensure_list(_validate_source),
@@ -668,6 +692,53 @@ async def _raise_httpd_header_limit():
         return  # not a number; leave it to ESPHome to report
     from esphome.components.esp32 import add_idf_sdkconfig_option
     add_idf_sdkconfig_option("CONFIG_HTTPD_MAX_REQ_HDR_LEN", value)
+
+
+def _user_sdkconfig():
+    """What the user's own sdkconfig_options sets."""
+    return CORE.config.get("esp32", {}).get("framework", {}).get("sdkconfig_options", {})
+
+
+def _sdkconfig_default(name, value):
+    """Set an sdkconfig option unless something has set it already. A value in
+    the user's sdkconfig_options wins, whichever order the generators run in."""
+    try:
+        from esphome.components.esp32 import set_idf_sdkconfig_default
+    except ImportError:
+        # ESPHome from before that helper: the user's options are all there is
+        # to defer to.
+        if name in _user_sdkconfig():
+            return
+        try:
+            from esphome.components.esp32 import add_idf_sdkconfig_option
+        except ImportError:
+            return
+        add_idf_sdkconfig_option(name, value)
+        return
+    set_idf_sdkconfig_default(name, value)
+
+
+def _trim_bluedroid(config):
+    """Leave out the parts of the Bluetooth stack a keyboard has no use for."""
+    # The GATT client is the half of the stack that reads another device's
+    # services: what a phone does to this keyboard, and what this keyboard never
+    # does to anything. Nothing here calls esp_ble_gattc_*, so it was flash that
+    # never ran. Arduino's own Bluetooth library is written against the client,
+    # so an Arduino build keeps it.
+    if not CORE.using_arduino and not any(c in CORE.config for c in ESPHOME_BLE_COMPONENTS):
+        _sdkconfig_default("CONFIG_BT_GATTC_ENABLE", False)
+
+    logs = config[CONF_BLUETOOTH_LOGS]
+    if logs == "none":
+        _sdkconfig_default("CONFIG_BT_STACK_NO_LOG", True)
+    elif logs == "errors":
+        user = _user_sdkconfig()
+        for layer in BT_LOG_LAYERS:
+            stem = f"CONFIG_BT_LOG_{layer}_TRACE_LEVEL"
+            # Each level is one choice of several; a layer the user has set by
+            # hand is left with theirs rather than given two.
+            if not any(str(key).startswith(stem) for key in user):
+                _sdkconfig_default(f"{stem}_ERROR", True)
 
 
 async def to_code(config):
@@ -849,6 +920,8 @@ async def to_code(config):
         include_builtin_idf_component("nvs_flash")
     except ImportError:
         pass
+
+    _trim_bluedroid(config)
 
     idf = _idf_version()
     if idf is not None and idf >= SMP_KEY_WIPE_FROM:
