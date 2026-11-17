@@ -20,8 +20,8 @@ web control page shows the matching version badge.
   source such as a display's power has been switched on since. For a screen that asks only now and
   then, such as an app's profile picker. A restart of the keyboard counts as a run.
 - **A choice of how much the Bluetooth stack logs.** `bluetooth_logs: errors` leaves out its
-  warnings and frees about 25 KB of firmware space; `none` leaves out everything it logs and frees
-  about 85 KB, for a board that is nearly full. Without the option it logs as before.
+  warnings and frees about 27 KB of firmware space; `none` leaves out everything it logs and frees
+  about 100 KB, for a board that is nearly full. Without the option it logs as before.
 
 ### Changed
 - **The station a panel shows is remembered for each host**, where one was kept for the whole
@@ -31,8 +31,6 @@ web control page shows the matching version badge.
 - **The keyboard's text box types as you go when its auto box is ticked**, on the web page and the
   Home Assistant keyboard card, as the remote's typing box does: Enter, Tab and the arrows go to the
   host as keys. It used to type only a paste at once. Unticked, it still sends what you write whole.
-- **The firmware is about 40 KB smaller.** The part of the Bluetooth stack that reads other
-  devices is left out, as a keyboard is only ever read from.
 
 ### Fixed
 - **Recording a macro missed the remote buttons set to press and hold.** Their presses went to the

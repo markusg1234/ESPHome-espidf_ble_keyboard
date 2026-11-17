@@ -82,12 +82,6 @@ BT_LOG_LAYERS = (
     "AVCT", "AVRC", "MCA", "HID", "APPL", "GATT", "SMP", "BTIF", "BTC", "OSI",
     "BLUFI",
 )
-# ESPHome's own Bluetooth components. With one of them in the config the GATT
-# client is theirs to decide: esp32_ble switches it on for a tracker or a client.
-ESPHOME_BLE_COMPONENTS = (
-    "esp32_ble", "esp32_ble_tracker", "esp32_ble_client", "esp32_ble_server",
-    "bluetooth_proxy",
-)
 CONF_PEERS = "peers"
 CONF_URL = "url"
 CONF_USERNAME = "username"
@@ -718,16 +712,15 @@ def _sdkconfig_default(name, value):
     set_idf_sdkconfig_default(name, value)
 
 
-def _trim_bluedroid(config):
-    """Leave out the parts of the Bluetooth stack a keyboard has no use for."""
-    # The GATT client is the half of the stack that reads another device's
-    # services: what a phone does to this keyboard, and what this keyboard never
-    # does to anything. Nothing here calls esp_ble_gattc_*, so it was flash that
-    # never ran. Arduino's own Bluetooth library is written against the client,
-    # so an Arduino build keeps it.
-    if not CORE.using_arduino and not any(c in CORE.config for c in ESPHOME_BLE_COMPONENTS):
-        _sdkconfig_default("CONFIG_BT_GATTC_ENABLE", False)
-
+def _bluetooth_logs(config):
+    """Build in as much of Bluedroid's own logging as bluetooth_logs asks for."""
+    # The GATT client (CONFIG_BT_GATTC_ENABLE) stays in the build, though nothing
+    # here calls it and it is 41 KB: it is what answers an indication a host
+    # sends the keyboard. Android sends its Service Changed indication to every
+    # bonded device, subscribed or not, and waits 30 seconds for the answer; a
+    # keyboard built without the client never gives one. Leaving it out was
+    # tried on 2026-11-16 and taken back the next day: a phone needed pairing
+    # again within the hour, which nothing in the source had predicted.
     logs = config[CONF_BLUETOOTH_LOGS]
     if logs == "none":
         _sdkconfig_default("CONFIG_BT_STACK_NO_LOG", True)
@@ -921,7 +914,7 @@ async def to_code(config):
     except ImportError:
         pass
 
-    _trim_bluedroid(config)
+    _bluetooth_logs(config)
 
     idf = _idf_version()
     if idf is not None and idf >= SMP_KEY_WIPE_FROM:
