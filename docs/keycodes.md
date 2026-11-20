@@ -246,6 +246,7 @@ action:
 | `caps_lock:on` / `caps_lock:off` / `caps_lock:toggle` | Set the host's Caps Lock: on and off tap it only when the host reports it the other way, then wait for the host to confirm. |
 | `wait:connected` / `wait:connected:N` | Hold a macro until the active host is connected and ready for keys, for at most N ms (default 10000, max 60000). On timeout the macro carries on. |
 | `forget_host:N` | Remove BLE bond for host slot N (0–9) and clear the stored address. Disconnects the host if currently active. |
+| `advertise:N:on` / `advertise:N:off` / `advertise:N:toggle` | Turn host slot N's Bluetooth on or off, as the Host Actions tick does. Without N (`advertise:off`), the active host's. |
 
 ### Dict Format
 
@@ -265,6 +266,11 @@ action:
 action:
   type: forget_host
   slot: 2
+
+action:
+  type: advertise
+  slot: 4             # leave out for the active host
+  state: toggle       # on, off or toggle
 ```
 
 ---

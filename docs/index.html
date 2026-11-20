@@ -526,6 +526,7 @@
       <tr><td><code>"host_action:6:spare1"</code></td><td class="desc">Run slot 6's Host Action for <code>spare1</code> without switching host. A name that slot has no action for runs as an ordinary press on the active host.</td></tr>
       <tr><td><code>"wait:connected"</code></td><td class="desc">Hold a macro until the active host is connected and ready for keys, rather than guessing a delay. Up to 10 s, or <code>"wait:connected:N"</code> ms (max 60000); carries on if the host never connects.</td></tr>
       <tr><td><code>"forget_host:0"</code></td><td class="desc">Remove BLE bond for host slot 0–9 and clear the stored address.</td></tr>
+      <tr><td><code>"advertise:4:off"</code></td><td class="desc">Turn host slot 4's Bluetooth off (<code>on</code>, <code>toggle</code>), as the Host Actions tick does. Without the slot, the active host's.</td></tr>
       <tr><td><code>"string:hello"</code></td><td class="desc">Explicit text typing — useful in multi-step macros to distinguish text from action names.</td></tr>
       <tr><td><code>"delay:200"</code></td><td class="desc">Pause for N milliseconds (max 10000). Used between steps in multi-step macros.</td></tr>
       <tr><td><code>"after:30m:remote_power"</code></td><td class="desc">Run an action later without holding up other keys: seconds, or <code>90s</code>, <code>30m</code>, <code>1h30m</code>, up to 24 days. <code>"after:sleep:30m:…"</code> names it so the same name replaces it; <code>"after:sleep:cancel"</code> and <code>"after:cancel"</code> cancel one or all.</td></tr>

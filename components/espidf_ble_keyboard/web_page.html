@@ -1110,6 +1110,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <option value="switch_host:next">Next Host</option>
 <option value="switch_host:prev">Prev Host</option>
 <option value="switch_host:back">Return to Last Host</option>
+<option value="advertise:0:toggle">Host Bluetooth On/Off (edit slot)</option>
 <option value="wait:connected">Wait for Host to Connect</option>
 <option value="ha_action:remote.send_command;entity_id=remote.living_room_ir;command=power" class="ha-preset">HA action: send IR command (edit)</option>
 <option value="__br__">&mdash; New branch (||) &mdash;</option>
@@ -1166,7 +1167,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <select id="ov-slot"></select>
 <button id="ov-forget" title="Remove the BLE bond for the selected host slot and clear its stored address.&#10;Disconnects it if it is the active host.&#10;&#10;Tap once to arm, tap again to confirm.">Forget Host</button>
 </div>
-<label class="kb-paste-auto" id="ov-bcast-lbl" style="margin-bottom:8px" title="On: an ordinary BLE host slot &mdash; it advertises, pairs and sends HID.&#10;&#10;Off: the radio stays silent on this slot. Nothing can find or connect to it and HID keys go nowhere, so use it as a remote page whose buttons drive Home Assistant instead &mdash; an IR blaster, say.&#10;&#10;Turning it off while this slot is the active one disconnects its host straight away."><input type="checkbox" id="ov-bcast">Advertise over Bluetooth</label>
+<label class="kb-paste-auto" id="ov-bcast-lbl" style="margin-bottom:8px" title="On: an ordinary BLE host slot &mdash; it advertises, pairs and sends HID.&#10;&#10;Off: the radio stays silent on this slot. Nothing can find or connect to it and HID keys go nowhere, so use it as a remote page whose buttons drive Home Assistant instead &mdash; an IR blaster, say.&#10;&#10;Turning it off while this slot is the active one disconnects its host straight away.&#10;&#10;advertise: in this host's YAML entry sets where it starts. A change made here, or by an advertise: action, holds until the tick goes back to the YAML's value or a reflash changes it."><input type="checkbox" id="ov-bcast">Advertise over Bluetooth</label>
 <div id="ov-list"><span class="prog-empty">Loading...</span></div>
 <div class="ov-copy" id="ov-copy" hidden><span>Copy ticked to:</span><span class="ov-copy-hosts" id="ov-copy-hosts"></span><button class="mod-btn" id="ov-copy-go" disabled>Copy</button></div>
 <div class="ov-copy-note" id="ov-copy-note"></div>
@@ -4728,8 +4729,8 @@ function insertStep(el,val){
     preset.value='';
   });
 
-  function loadSlots(){
-    return hostsJSON().then(d=>{
+  function loadSlots(fresh){
+    return hostsJSON(fresh).then(d=>{
       // The slot the remote is drawn for — what this card follows, and what the
       // style stepper compares against before redrawing the remote live.
       if(slot===null)slot=styleSlot(d);
@@ -4874,7 +4875,8 @@ function insertStep(el,val){
   reflagOverrides=applyMacroFlags;
   // When /status says Host Actions were saved elsewhere: the shown host's list
   // again. Its on-connect box is left alone while it has unsaved edits (load()).
-  window.reloadHostActionsNow=()=>{if(slot!==null)load()};
+  // The slot list too: an advertise: action changes the tick from elsewhere.
+  window.reloadHostActionsNow=()=>{if(slot!==null)loadSlots(true).then(load)};
 
   // A <key>@long override gives the remote a long-press key (or takes one away),
   // which the remote learns from its hold list — this one and a popped-out one.

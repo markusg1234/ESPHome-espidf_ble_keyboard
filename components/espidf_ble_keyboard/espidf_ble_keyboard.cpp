@@ -2187,22 +2187,50 @@ void EspidfBleKeyboard::publish_lcd_() {
     lcd_sensor_->publish_state(lcd_sensor_json_);
 }
 
+// "bcast" holds what each slot did when last saved, which is all older firmware
+// reads. "bcpick" marks the slots whose bit is a choice made on the device, and
+// "bcyaml" the hosts: entries' advertise: values the device last booted with.
 void EspidfBleKeyboard::load_broadcast_() {
+    // The YAML's, until NVS says otherwise — for good on a device whose
+    // namespace does not exist yet.
+    broadcast_mask_ = yaml_advertise_;
     nvs_handle_t handle;
-    if (nvs_open("espidf_ble_kb", NVS_READONLY, &handle) != ESP_OK) return;
-    uint16_t mask = 0xFFFF;
-    // Absent key leaves every slot advertising, which is what this firmware did
-    // before the setting existed.
-    if (nvs_get_u16(handle, "bcast", &mask) == ESP_OK) broadcast_mask_ = mask;
+    if (nvs_open("espidf_ble_kb", NVS_READWRITE, &handle) != ESP_OK) return;
+    const uint16_t all = (uint16_t) ((1u << MAX_HOST_SLOTS) - 1);
+    uint16_t v, mask = 0xFFFF, pick = 0, yaml = 0xFFFF;
+    const bool had_mask = nvs_get_u16(handle, "bcast", &v) == ESP_OK;
+    if (had_mask) mask = v;
+    // Before advertise: every slot advertised unless the tick turned it off, so
+    // there a cleared bit is a choice made on the device and a set bit is none.
+    if (nvs_get_u16(handle, "bcpick", &v) == ESP_OK) pick = v;
+    else if (had_mask) pick = (uint16_t) (~mask & all);
+    // None saved: the firmware before advertise:, on which every slot did.
+    if (nvs_get_u16(handle, "bcyaml", &v) == ESP_OK) yaml = v;
+    // A reflash that changed a host's advertise: hands that host back to the
+    // YAML, so the flash takes effect without a trip to Host Actions.
+    const uint16_t changed = (uint16_t) ((yaml ^ yaml_advertise_) & all);
+    if (changed != 0) {
+        for (uint8_t s = 0; s < MAX_HOST_SLOTS; s++)
+            if (changed & pick & (1u << s))
+                ESP_LOGI(TAG, "Host slot %u: advertise: changed in the YAML, which replaces the device's choice", s);
+        pick &= (uint16_t) ~changed;
+        nvs_set_u16(handle, "bcyaml", yaml_advertise_);
+        nvs_set_u16(handle, "bcpick", pick);
+        nvs_commit(handle);
+    }
     nvs_close(handle);
+    broadcast_pick_ = pick;
+    broadcast_mask_ = (uint16_t) ((mask & pick) | (yaml_advertise_ & ~pick));
     for (uint8_t s = 0; s < MAX_HOST_SLOTS; s++)
-        if (!slot_broadcasts(s)) ESP_LOGI(TAG, "Host slot %u does not advertise", s);
+        if (!slot_broadcasts(s))
+            ESP_LOGI(TAG, "Host slot %u does not advertise (%s)", s, (pick & (1u << s)) ? "set on the device" : "YAML");
 }
 
 void EspidfBleKeyboard::save_broadcast_() {
     nvs_handle_t handle;
     if (nvs_open("espidf_ble_kb", NVS_READWRITE, &handle) != ESP_OK) return;
     nvs_set_u16(handle, "bcast", broadcast_mask_);
+    nvs_set_u16(handle, "bcpick", broadcast_pick_);
     nvs_commit(handle);
     nvs_close(handle);
 }
@@ -2211,10 +2239,17 @@ bool EspidfBleKeyboard::set_slot_broadcast(uint8_t slot, bool on) {
     if (slot >= MAX_HOST_SLOTS) return false;
     const uint16_t bit = (uint16_t) (1u << slot);
     const bool was = (broadcast_mask_ & bit) != 0;
-    if (was == on) return true;
+    // The YAML's own value is kept as no choice, so a reflash that changes it
+    // still takes effect.
+    const bool yaml = (yaml_advertise_ & bit) != 0;
+    const uint16_t pick = on == yaml ? (uint16_t) (broadcast_pick_ & ~bit) : (uint16_t) (broadcast_pick_ | bit);
+    if (was == on && pick == broadcast_pick_) return true;
+    broadcast_pick_ = pick;
     if (on) broadcast_mask_ |= bit; else broadcast_mask_ &= (uint16_t) ~bit;
     save_broadcast_();
-    ESP_LOGI(TAG, "Host slot %u %s advertise", slot, on ? "will" : "will not");
+    edits_++;   // an open page's tick follows a change the verb or another tab made
+    ESP_LOGI(TAG, "Host slot %u %s advertise%s", slot, on ? "will" : "will not", (pick & bit) ? "" : " (as the YAML says)");
+    if (was == on) return true;   // only whose choice it is changed
 
     // Only the active slot's radio state is live; any other slot takes effect
     // when it is switched to.
@@ -6316,6 +6351,26 @@ void EspidfBleKeyboard::execute_action(const std::string &action) {
         int slot = 0;
         if (sscanf(action.c_str(), "forget_host:%i", &slot) == 1)
             forget_host((uint8_t) slot);
+        return;
+    }
+    // advertise:<N>:on|off|toggle, or advertise:on|off|toggle for the active
+    // host: the Host Actions tick from a button or a macro, under its rules.
+    if (action.rfind("advertise:", 0) == 0) {
+        std::string how = action.substr(10);
+        long slot = active_slot_;
+        const size_t colon = how.find(':');
+        if (colon != std::string::npos) {
+            char *end = nullptr;
+            slot = strtol(how.c_str(), &end, 10);
+            if (colon == 0 || end != how.c_str() + colon) slot = -1;
+            how.erase(0, colon + 1);
+        }
+        if (slot < 0 || slot >= host_slots_ || (how != "on" && how != "off" && how != "toggle")) {
+            ESP_LOGW(TAG, "advertise: takes on, off or toggle after an optional host slot "
+                          "(advertise:4:off), got %s", action.c_str());
+            return;
+        }
+        set_slot_broadcast((uint8_t) slot, how == "toggle" ? !slot_broadcasts((uint8_t) slot) : how == "on");
         return;
     }
     // Fire a Home Assistant action — the escape hatch to hardware BLE can't

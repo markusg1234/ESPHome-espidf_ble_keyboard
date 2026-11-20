@@ -563,6 +563,7 @@
       <tr><td><code>caps_lock:on</code> / <code>caps_lock:off</code> / <code>caps_lock:toggle</code></td><td>Set the host's Caps Lock: on and off tap it only when the host reports it the other way, then wait for the host to confirm.</td></tr>
       <tr><td><code>wait:connected</code></td><td>Hold a macro until the active host is ready for keys, up to 10 s — <code>wait:connected:N</code> for N ms (max 60000). On timeout the macro carries on.</td></tr>
       <tr><td><code>forget_host:0</code></td><td>Remove BLE bond for host slot 0–9 and clear the stored address.</td></tr>
+      <tr><td><code>advertise:4:off</code></td><td>Turn host slot 4's Bluetooth off (<code>on</code>, <code>toggle</code>), as the Host Actions tick does. Without the slot, the active host's.</td></tr>
     </table>
     <div class="note">Up to 10 host slots. Paired hosts are stored in NVS and persist across reboots. Dict format: <span>type: switch_host</span>, <span>slot: 1</span> — or <span>slot: next</span>, <span>prev</span>, <span>back</span>.</div>
   </div>

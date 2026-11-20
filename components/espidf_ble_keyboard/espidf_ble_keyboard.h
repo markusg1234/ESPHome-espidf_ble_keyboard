@@ -558,12 +558,14 @@ class EspidfBleKeyboard : public Component
   // (an IR blaster, say) with no host on the other end. Everything else about a
   // slot still applies — its style, overrides, hidden/hold/repeat lists and its
   // place in the switcher — only the radio stays quiet. HID actions on such a
-  // slot go nowhere, because there is nothing connected to send them to.
+  // slot go nowhere, because there is nothing connected to send them to. The
+  // YAML's advertise: sets it, and the device's own choice wins over that.
   bool slot_broadcasts(uint8_t slot) const {
     return slot >= MAX_HOST_SLOTS || (broadcast_mask_ & (uint16_t) (1u << slot)) != 0;
   }
   /// Persist the choice, and act on it now when it is the active slot — the tick
-  /// would otherwise do nothing until the next host switch. False = bad slot.
+  /// would otherwise do nothing until the next host switch. The YAML's own value
+  /// is stored as no choice, so the YAML has the slot back. False = bad slot.
   bool set_slot_broadcast(uint8_t slot, bool on);
 
   static const uint8_t MAX_STYLE_LEN = 15;
@@ -954,6 +956,13 @@ class EspidfBleKeyboard : public Component
   void set_host_slot_name(uint8_t slot, const char *name) {
     if (slot < MAX_HOST_SLOTS) host_slot_configs_[slot].name = (name != nullptr && *name) ? name : nullptr;
   }
+  /// The hosts: entry's advertise:, the slot's default until the device is told
+  /// otherwise. Codegen runs it before setup() reads NVS.
+  void set_host_slot_advertise(uint8_t slot, bool on) {
+    if (slot >= MAX_HOST_SLOTS) return;
+    const uint16_t bit = (uint16_t) (1u << slot);
+    yaml_advertise_ = on ? (uint16_t) (yaml_advertise_ | bit) : (uint16_t) (yaml_advertise_ & ~bit);
+  }
 
   // Custom text entities
 #ifdef USE_TEXT
@@ -1266,11 +1275,14 @@ class EspidfBleKeyboard : public Component
   void publish_hidden_();  // push the shown slot's list to the text sensor
   void publish_remote_style_();  // push the shown slot's style id to the text sensor
 
-  // One bit per slot, set = that slot advertises. A bitmask in a single NVS key
-  // rather than ten keys: it is one boolean per slot and one write. An absent
-  // key reads as all-set, so a device updating to this firmware keeps behaving
-  // exactly as it did.
+  // One bit per slot, set = that slot advertises: what it does now. A slot with
+  // its bit in broadcast_pick_ follows a choice made on the device (the Host
+  // Actions tick, the advertise: verb); the rest follow yaml_advertise_, the
+  // hosts: entries' advertise:. Bitmasks in single NVS keys rather than ten
+  // keys each: one boolean per slot and one write. See load_broadcast_().
   uint16_t broadcast_mask_{0xFFFF};
+  uint16_t yaml_advertise_{0xFFFF};
+  uint16_t broadcast_pick_{0};
   void load_broadcast_();
   void save_broadcast_();
 

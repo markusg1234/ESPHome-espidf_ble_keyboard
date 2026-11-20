@@ -74,7 +74,18 @@ def validate_action(value):
         elif action_type == "forget_host":
             slot = int(value.get("slot", 0))
             return f"forget_host:{slot}"
-        raise cv.Invalid(f"Unknown action type '{action_type}'. Use 'combo', 'consumer', 'mouse_click', 'mouse_move', 'mouse_scroll', 'mouse_abs', 'mouse_abs_px', 'mouse_abs_mon', 'mouse_goto', 'switch_host', or 'forget_host'.")
+        elif action_type == "advertise":
+            # Whether a host advertises at all; no slot means the active host
+            state = value.get("state", "")
+            if isinstance(state, bool):  # YAML reads a bare on/off as a boolean
+                state = "on" if state else "off"
+            state = str(state).lower()
+            if state not in ("on", "off", "toggle"):
+                raise cv.Invalid("advertise takes state: on, off or toggle")
+            if "slot" not in value:
+                return f"advertise:{state}"
+            return f"advertise:{cv.int_range(min=0, max=9)(value['slot'])}:{state}"
+        raise cv.Invalid(f"Unknown action type '{action_type}'. Use 'combo', 'consumer', 'mouse_click', 'mouse_move', 'mouse_scroll', 'mouse_abs', 'mouse_abs_px', 'mouse_abs_mon', 'mouse_goto', 'switch_host', 'forget_host', or 'advertise'.")
     raise cv.Invalid("Action must be a string or a mapping with 'type' key.")
 
 

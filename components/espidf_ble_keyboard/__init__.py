@@ -92,6 +92,7 @@ MAX_OVERRIDES_PER_HOST = 48
 PASSKEY_MODE_LEGACY = "legacy"
 PASSKEY_MODE_SECURE_CONNECTIONS = "secure_connections"
 CONF_APPEARANCE = "appearance"
+CONF_ADVERTISE = "advertise"
 # What a host slot calls itself in its advertising — Bluetooth appearance
 # values. Keep "keyboard" in sync with APPEARANCE_KEYBOARD in the header.
 # "audio" is the earbud code (0x0941): Android files it as an audio device,
@@ -329,6 +330,10 @@ HOST_SCHEMA = cv.Schema({
     # watch whose Bluetooth menu lists nothing but audio devices finds an
     # "audio" slot, and once paired uses it as a keyboard, mouse and remote.
     cv.Optional(CONF_APPEARANCE): _appearance,
+    # False: the slot never advertises, a remote page with no radio behind it.
+    # Host Actions' tick and the advertise: verb override it; a reflash that
+    # changes it drops that override.
+    cv.Optional(CONF_ADVERTISE): cv.boolean,
     # Remap named actions for this host, e.g. record: "combo:0x0C:0x15" so a
     # Windows slot drives Game Bar while a TV slot keeps HID Record.
     cv.Optional(CONF_ACTIONS): cv.All(
@@ -800,6 +805,8 @@ async def to_code(config):
                 cg.add(var.set_host_slot_layout(host[CONF_SLOT], host[CONF_LAYOUT]))
             if CONF_APPEARANCE in host:
                 cg.add(var.set_host_slot_appearance(host[CONF_SLOT], host[CONF_APPEARANCE]))
+            if CONF_ADVERTISE in host:
+                cg.add(var.set_host_slot_advertise(host[CONF_SLOT], host[CONF_ADVERTISE]))
             if CONF_KEY_DELAY_MS in host or CONF_UNICODE_INPUT in host:
                 method = host.get(CONF_UNICODE_INPUT)
                 cg.add(var.set_host_slot_typing(

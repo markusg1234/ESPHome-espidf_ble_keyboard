@@ -95,6 +95,7 @@ espidf_ble_keyboard:
     - slot: 2                    # TV box
       name: "TV Box"
       layout: us
+      advertise: true                # false: no radio, a page of ha_action: keys
       actions:
         ok: "consumer:0x0041"          # Menu Pick instead of Enter
         back@long: "home"              # hold Back for Home
@@ -213,6 +214,10 @@ button:
     action:
       type: forget_host
       slot: 4
+  - platform: espidf_ble_keyboard
+    keyboard_id: my_keyboard
+    name: "Watch Bluetooth"
+    action: "advertise:4:toggle"     # on, off or toggle; no slot = the active host
 
   - platform: espidf_ble_keyboard
     keyboard_id: my_keyboard

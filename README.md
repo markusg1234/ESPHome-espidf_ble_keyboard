@@ -348,6 +348,7 @@ binary_sensor:
   * **unicode_input** (Optional, string): `fold`, `windows` or `linux` for this host, instead of the top-level one.
   * **layout** (Optional, string): This host's keyboard layout, instead of `keyboard_layout`. One picked for it on the web page wins. See [Setting the layout](#setting-the-layout).
   * **appearance** (Optional): What the slot shows up as to a host scanning for it: `keyboard` (default), `audio`, or any Bluetooth appearance number. `audio` lets a watch whose Bluetooth menu lists only audio devices find the slot; paired, it is still a keyboard, mouse and media keys. Only the slot's advertising changes. See [Pairing with a Galaxy Watch](#pairing-with-a-galaxy-watch).
+  * **advertise** (Optional, bool): `false` makes the slot [one that never advertises](#a-slot-that-never-advertises). Defaults to `true`. The Host Actions tick and the `advertise:` action override it until set back to this value, or until a reflash changes it.
 
 ### `button` (Platform: `espidf_ble_keyboard`)
 
@@ -639,6 +640,7 @@ espidf_ble_keyboard:
 | `"to:<name>:<action>"` | Run `<action>` on this keyboard, with its keys sent to a [linked keyboard](#linking-a-second-keyboard)'s host — `to:bedroom:macro:Netflix`. `macro:`, `if:`, `alternate:`, `repeat:`, `press_button:` and `ha_action:` are worked out here as the macro reaches them; the rest go over in one request, delays included. `switch_host:N` is this keyboard's host N: from there the macro runs here until `switch_host:back`. One step, like `peer:`: for a sequence, name a macro. |
 | `"wait:connected"` / `"wait:connected:N"` | Pause a macro until the active host is connected and ready for keys, for at most N ms (default 10000, max 60000). On timeout the macro carries on. |
 | `"forget_host:N"` | Remove BLE bond for host slot N (0–9) and clear the slot. |
+| `"advertise:N:on"` / `":off"` / `":toggle"` | Turn host slot N's Bluetooth on or off, as the Host Actions tick does. Without N (`advertise:off`), the active host's. See [A Slot That Never Advertises](#a-slot-that-never-advertises). |
 | `"lcd:<text>"` | Put text on an [LCD panel](#lcd-panels)'s `@msg` line. Everything after the colon is the text. |
 | `"if:<source>: <when on> \|\| <when off>"` | Run one branch or the other depending on a [source](#branching-on-real-state). Does nothing until the source has a state. |
 | `"once:[<time>:][<source>:]<action>"` | Run a step, or several in brackets, only when it is due: `<time>` after it last ran, or once the optional source has been switched on since — `once:20h:(delay:750 \| ok)`. A source and no time, `once:panel:ok`: only a switch-on. See [Running a step once in a while](#running-a-step-once-in-a-while). |
@@ -974,7 +976,7 @@ button:
       slot: 3
 ```
 
-String action format is also supported: `"switch_host:0"`, `"forget_host:2"`.
+String action format is also supported: `"switch_host:0"`, `"forget_host:2"`, and `"advertise:4:toggle"` to turn a slot's Bluetooth on or off (see [A Slot That Never Advertises](#a-slot-that-never-advertises)).
 
 ### Naming the hosts
 
@@ -1019,13 +1021,13 @@ Keys sent before a host is ready are lost, so put `wait:connected` after every s
 
 ### A Slot That Never Advertises
 
-Not every slot has to be a Bluetooth host. Untick **Advertise over Bluetooth** in the [Host Actions](#host-actions-per-host-overrides) card and the slot keeps everything that makes a slot useful — its own remote style, per-host overrides, hidden/hold/repeat lists, a place in the host switcher — but the radio stays silent on it. Nothing advertises, nothing can find it, nothing can connect.
+Not every slot has to be a Bluetooth host. Give it `advertise: false` in its `hosts:` entry, or untick **Advertise over Bluetooth** in the [Host Actions](#host-actions-per-host-overrides) card, and the slot keeps everything that makes a slot useful — its own remote style, per-host overrides, hidden/hold/repeat lists, a place in the host switcher — but the radio stays silent on it. Nothing advertises, nothing can find it, nothing can connect.
 
 What you get is a remote page with no host behind it: a universal-remote page whose buttons drive Home Assistant instead. Override them with `ha_action:` and they reach an IR blaster, a media player, a scene — anything HA can call. Or leave the keyboard where it is and [show the slot's page on one tab](#remote-style-per-host) — a tablet whose keys run this slot's Host Actions whichever host is active.
 
 > **HID actions on such a slot go nowhere.** There is no host to send them to, so a button you have not overridden — Volume Up, the D-pad, a `string:` step — does nothing at all. Every button that should work on the page needs an override that leaves via Home Assistant.
 
-* The setting is stored per slot on the device, so changing it needs no reflash, and it travels in [Backup & Restore](#backup-and-restore).
+* The YAML's `advertise:` is where each slot starts. The tick changes it with no reflash, and so does the `advertise:` action from a button or macro: `advertise:4:off`, `advertise:4:on` or `advertise:4:toggle`, or with no slot number (`advertise:off`) for the active host. Either one is saved on the device until it is set back to the YAML's value or a reflash changes that slot's `advertise:`. It travels in [Backup & Restore](#backup-and-restore).
 * Switching *to* the slot disconnects whichever host was live. That is the point: otherwise keys would keep reaching the old host while the screen says you are on the IR page.
 * `switch_host:next` does **not** skip it — reaching the page is why it exists.
 * It reports **No BLE** wherever a connection state is shown: the web page's host bar, the dashboard cards, and an `@state` line on an [LCD panel](#lcd-panels). "Disconnected" would read as a fault.
@@ -1146,7 +1148,7 @@ A dangling reference is flagged: any override row pointing at a macro that no lo
 
 **Forget Host** sits next to the slot picker and removes the BLE bond for whichever slot the picker shows — including one that isn't the active host. It takes two taps: the first turns it red and reads `Confirm?`, the second does it, and it disarms itself after three seconds or if you change slot.
 
-**Advertise over Bluetooth** is a tick under the picker, and it too applies to the slot shown rather than the active one. Untick it to turn that slot into [a remote page with no host behind it](#a-slot-that-never-advertises).
+**Advertise over Bluetooth** is a tick under the picker, and it too applies to the slot shown rather than the active one. Untick it to turn that slot into [a remote page with no host behind it](#a-slot-that-never-advertises). The slot's `advertise:` in the YAML is where it starts.
 
 **When this host connects** holds one action the slot runs each time its host connects and is ready for keys — after a switch, a reboot or waking from sleep. Anything an override can do works here, chains and macros included, e.g. `consumer:0x00E9 | delay:500 | macro:Open Kodi`. It doesn't run again for the same host within 30 seconds, nor while a macro is visiting that host, so two hosts whose actions switch to each other stop after one round. Saved on the device like the overrides and included in [Backup and restore](#backup-and-restore); a slot that doesn't advertise never connects, so its box is disabled. Fixed automations belong in YAML instead: the `paired` binary sensor and the `active_host` sensor already fire on every connect and switch.
 
@@ -1627,6 +1629,7 @@ The panel is a deliberate 16 characters wide, so it sits inside the 280px body a
 | `"wait:connected"` | Hold a macro until the active host is ready for keys, up to 10 s (`wait:connected:N` for N ms). |
 | `"after:<time>:<action>"` | Run an action later without holding up other keys — `after:30m:remote_power`. Named, `after:sleep:30m:…` replaces the timer of that name and `after:sleep:cancel` cancels it. See [Running an action later](#running-an-action-later). |
 | `"forget_host:N"` | Remove the bond for host slot N (0–9). Clears the stored address and removes the BLE bond from the ESP32. If the forgotten host is currently connected, it is disconnected. |
+| `"advertise:N:on"` / `":off"` / `":toggle"` | Turn host slot N's Bluetooth on or off, as the Host Actions tick does; without N, the active host's. Off on the active host disconnects it. See [A Slot That Never Advertises](#a-slot-that-never-advertises). |
 | `"press_button:<object_id>"` | Press another ESPHome button — e.g. `press_button:samsung_43_m70f_wol`. See [Pressing other ESPHome buttons](#pressing-other-esphome-buttons). |
 | `"alternate:<a> \|\| <b> \|\| …"` | Run **one branch** per press, advancing each time. Branches split on `\|\|`; a single `\|` still means "next step", so a branch can be a whole sequence. See [Toggling one button between two actions](#toggling-one-button-between-two-actions). |
 | `"macro:<name>"` | Run a stored [web macro](#web-macros) by name — a live reference, so editing the macro updates everything pointing at it. Macros may call each other (nesting is capped). |

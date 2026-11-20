@@ -10,6 +10,9 @@ web control page shows the matching version badge.
 - **Hosts can be named in the YAML**, with `name:` in their `hosts:` entry. The web page's host bar,
   the cards' host switcher and LCD panels show it ahead of a host-switch button's name, so a host
   needs no button to be called something. A `host_names:` there now says it belongs on the cards.
+- **A host's Bluetooth can be set in the YAML**, with `advertise: false` in its `hosts:` entry, and
+  switched from a button or macro with the `advertise:` action. Both the Host Actions tick and the
+  action override the YAML until set back to its value or until a reflash changes it.
 
 ## v1.21.1 — 2026-11-20
 

@@ -695,11 +695,13 @@ bool EspidfBleKeyboard::gather_for_peer_(const std::string &step) {
   // its own, and the linked keyboard's are peer:<name>:switch_host:N. So
   // switch_host:N starts a visit — what follows is for that host and runs here,
   // until switch_host:back hands the rest back. A macro that visits host 5 does
-  // so whichever keyboard the tab drives. forget_host:N is this keyboard's too.
+  // so whichever keyboard the tab drives. forget_host:N and advertise: are this
+  // keyboard's too.
   int slot = 0;
   const bool visit = step.rfind("switch_host:", 0) == 0 && sscanf(step.c_str() + 12, "%i", &slot) == 1;
   if (visit || (step.rfind("forget_host:", 0) == 0 && sscanf(step.c_str() + 12, "%i", &slot) == 1) ||
-      step.rfind("press_button:", 0) == 0 || step.rfind("ha_action:", 0) == 0) {
+      step.rfind("advertise:", 0) == 0 || step.rfind("press_button:", 0) == 0 ||
+      step.rfind("ha_action:", 0) == 0) {
     flush_for_peer_(true);
     if (visit) {
       out_away_ = out_peer_;
