@@ -339,8 +339,9 @@ binary_sensor:
 * **presence_scan** (Optional, bool): Listen for paired hosts nearby, all the time — for the `presence`, `presence_count` and `presence_rssi` sensors, and for the web page's green dots, which the **Green dot** tick box under **Host Actions → Identity Key (IRK)** shows or hides in each browser; the **IRK** and **MAC** boxes beside it choose what counts as hearing a host. The radio spends about a tenth of its time listening. Defaults to `false`. See [Paired hosts nearby](#paired-hosts-nearby).
 * **bluetooth_logs** (Optional, string): How much of the Bluetooth stack's own logging is built into the firmware — its `BT_…` lines, not this component's. `warnings` (default) keeps its warnings and errors, `errors` drops the warnings and frees about 27 KB of flash, and `none` drops everything it logs and frees about 100 KB. They are the only account of a fault inside the stack, so give them up only on a board that is short of flash, and put them back while chasing a pairing or connection problem.
 * **keyboard_layout** (Optional, string): Default keyboard layout. One of `us` (default), `uk`, `de`, `be`. Controls how `send_string` maps each character to USB HID keycodes — must match the *host's* keyboard layout. A host can have its own: `layout:` in its `hosts:` entry, or one picked for it on the web page. See [Keyboard layouts](#keyboard-layouts) below.
-* **hosts** (Optional, list): Per-slot passkey and pairing mode overrides. Each entry has:
+* **hosts** (Optional, list): Per-slot settings. Each entry has:
   * **slot** (Required, int): Host slot number (0–9).
+  * **name** (Optional, string): What the web page's host bar, the cards' host switcher and an [LCD panel](#lcd-panels) call this host, 1–120 characters. It wins over a `switch_host` button's name. A card's own `host_names` still wins on that card. See [Naming the hosts](#naming-the-hosts).
   * **passkey** (Optional, int): 6-digit PIN for this slot (000000–999999). If omitted, the slot uses the global `passkey` setting (or Just Works if no global passkey).
   * **passkey_mode** (Optional, string): `legacy` (default) or `secure_connections`. Overrides the global `passkey_mode` for this slot.
   * **key_delay_ms** (Optional, int): This host's typing speed, 2–10000 ms a character, instead of the top-level one.
@@ -975,6 +976,19 @@ button:
 
 String action format is also supported: `"switch_host:0"`, `"forget_host:2"`.
 
+### Naming the hosts
+
+Give a host a `name:` in its `hosts:` entry, and the web page's host bar, the cards' host switcher and an [LCD panel](#lcd-panels) all use it:
+
+```yaml
+espidf_ble_keyboard:
+  hosts:
+    - slot: 0
+      name: "Office PC"
+```
+
+A host with no `name:` takes its `switch_host` button's name, and one with neither is Host 1, Host 2 and so on. The cards' `host_names` is a card option, so it goes in the card's YAML, not here.
+
 **Cycling instead of naming a slot.** `"switch_host:next"` and `"switch_host:prev"` step one slot forward or back and wrap around at the ends, so one button rotates through the hosts:
 
 ```yaml
@@ -1416,7 +1430,7 @@ A title line centres by default, since it has no value to sit opposite; give it 
 
 | Key | Shows |
 |---|---|
-| `@host` | The active host's name — its `switch_host:` button's name if it has one, otherwise "Host 1", "Host 2"… |
+| `@host` | The active host's name — its [`name:`](#naming-the-hosts) under `hosts:`, else its `switch_host:` button's name, otherwise "Host 1", "Host 2"… |
 | `@slot` | The active slot number, counting from 0, the same number `switch_host:N` takes. |
 | `@mac` | The active host's address, or nothing if the slot is empty. |
 | `@state` | `Paired`, `Connected` or `Disconnected`. |
@@ -2017,7 +2031,7 @@ Optional configuration:
 | `gestures` | `true` | On a touch screen: two fingers dragged scroll, two tapped right-click, three tapped middle-click, and a tap followed within 0.3 s by a drag holds the left button until the finger lifts. `false` keeps the pad to one finger. |
 | `natural_scroll` | `true` | Two fingers move what is on the host's screen the way they go, as on a phone. `false` scrolls as a mouse wheel turns. |
 | `host_slots` | `0` | Which hosts the switcher offers. A number is a count — `4` is the first four — and a string picks them out by the numbers the switcher shows, e.g. `'1-3, 5, 7-10'`, for a keyboard whose other slots don't belong on this card. Needs at least two hosts; `0` hides the switcher. See [Host switcher on the cards](#host-switcher-on-the-cards). |
-| `host_names` | `[]` | Names for the hosts the switcher shows, in the order it shows them (e.g., `["TV", "Phone"]`). With a count that is slot 0, slot 1 and so on; with a list like `'1,5'` the first name is host 1 and the second host 5. Falls back to `switch_host` button names from the ESP32, then "Host N". |
+| `host_names` | `[]` | Names for the hosts the switcher shows, in the order it shows them (e.g., `["TV", "Phone"]`). With a count that is slot 0, slot 1 and so on; with a list like `'1,5'` the first name is host 1 and the second host 5. Falls back to the names the ESP32 gives its hosts (a [`name:`](#naming-the-hosts) under `hosts:`, else a `switch_host` button's), then "Host N". |
 | `active_host_entity` | Auto | Entity ID of the [active host sensor](#active-host-sensor). Auto-detected by name pattern (`sensor.*_active_host`). Set explicitly if auto-detection fails. |
 | `show_mac` | `true` | Show the active host's MAC address to the left of the switcher. |
 | `show_forget_host` | `false` | Add a **Forget** button to the switcher: it drops the Bluetooth pairing for the host shown, in two taps — the first reads `Confirm?` and gives up after three seconds. Needs the `forget_host` service. |
@@ -2823,7 +2837,7 @@ Optional configuration:
 | `show_paste` | `true` | Show the paste bar above the keys. Paste or type text there and press Send to type the whole thing at once; with **auto** ticked the box types as you go instead, Enter, Tab and the arrows going to the host as keys, and a paste is typed at once. On HTTPS a clipboard button sends the clipboard in one tap. |
 | `layout` | `us` | Keyboard layout for the on-screen card: `us`, `uk`, `de`, or `be`. UK draws the ISO shape (extra `\|` key, `£` on Shift+3); DE draws QWERTZ (Y/Z swapped, `ü`/`ö`/`ä`/`ß` keys, German modifier labels); BE draws AZERTY (A↔Q and Z↔W swapped, `M` on home row, `é è à ç ù` on the digit row). Set this to match the ESP's `keyboard_layout` option so the visual matches what gets typed. |
 | `host_slots` | `0` | Which hosts the switcher offers. A number is a count — `4` is the first four — and a string picks them out by the numbers the switcher shows, e.g. `'1-3, 5, 7-10'`, for a keyboard whose other slots don't belong on this card. Needs at least two hosts; `0` hides the switcher. See [Host switcher on the cards](#host-switcher-on-the-cards). |
-| `host_names` | `[]` | Names for the hosts the switcher shows, in the order it shows them (e.g., `["TV", "Phone"]`). With a count that is slot 0, slot 1 and so on; with a list like `'1,5'` the first name is host 1 and the second host 5. Falls back to switch_host button names from the ESP32, then "Host N". |
+| `host_names` | `[]` | Names for the hosts the switcher shows, in the order it shows them (e.g., `["TV", "Phone"]`). With a count that is slot 0, slot 1 and so on; with a list like `'1,5'` the first name is host 1 and the second host 5. Falls back to the names the ESP32 gives its hosts (a [`name:`](#naming-the-hosts) under `hosts:`, else a `switch_host` button's), then "Host N". |
 | `active_host_entity` | Auto | Entity ID of the [active host sensor](#active-host-sensor). Auto-detected by name pattern (`sensor.*_active_host`). Set explicitly if auto-detection fails. |
 | `show_mac` | `true` | Show the active host's MAC address to the left of the switcher. |
 | `show_forget_host` | `false` | Add a **Forget** button to the switcher: it drops the Bluetooth pairing for the host shown, in two taps — the first reads `Confirm?` and gives up after three seconds. Needs the `forget_host` service. |
@@ -2934,7 +2948,7 @@ Optional configuration:
 | `lcd_entity` | `sensor.<device>_lcd` | Text sensor carrying the values an [LCD panel](#lcd-panels) shows. Only needed if the style has one. |
 | `lcd_entities` | — | Map of panel key to Home Assistant entity, e.g. `temp: sensor.lounge_temperature`. Read from HA directly, so it reaches things the keyboard's node never sees — and wins over the device's value for the same key. |
 | `host_slots` | `0` | Which hosts the switcher offers. A number is a count — `4` is the first four — and a string picks them out by the numbers the switcher shows, e.g. `'1-3, 5, 7-10'`, for a keyboard whose other slots don't belong on this card. Needs at least two hosts; `0` hides the switcher. See [Host switcher on the cards](#host-switcher-on-the-cards). |
-| `host_names` | `[]` | Names for the hosts the switcher shows, in the order it shows them (e.g., `["TV", "Phone"]`). With a count that is slot 0, slot 1 and so on; with a list like `'1,5'` the first name is host 1 and the second host 5. Falls back to `switch_host` button names from the ESP32, then "Host N". |
+| `host_names` | `[]` | Names for the hosts the switcher shows, in the order it shows them (e.g., `["TV", "Phone"]`). With a count that is slot 0, slot 1 and so on; with a list like `'1,5'` the first name is host 1 and the second host 5. Falls back to the names the ESP32 gives its hosts (a [`name:`](#naming-the-hosts) under `hosts:`, else a `switch_host` button's), then "Host N". |
 | `active_host_entity` | Auto | Entity ID of the [active host sensor](#active-host-sensor). Auto-detected by name pattern (`sensor.*_active_host`). Set explicitly if auto-detection fails. |
 | `show_host_switcher` | `true` | Show the host switcher. Off hides the arrows and the host's name, and the card still follows the active host: an `auto` style found through `/hosts`, and an [LCD panel](#lcd-panels)'s host readouts with your `host_names`. `host_slots: 0` hides the switcher too, but drops those as well. |
 | `show_mac` | `true` | Show the active host's MAC address to the left of the switcher. |
@@ -3074,7 +3088,7 @@ sensor:
 
 It stops being optional when the poll can't run — when Home Assistant is served over **HTTPS** (see the note below), or when the card can't work out the device's address. In those cases the sensor is the only thing keeping the cards in sync. If the MAC address is showing on your cards, the poll is working and the sensor is purely a speed-up.
 
-**Where the name and MAC come from.** The name is `host_names[slot]` if you set one, otherwise the name of the matching `switch_host:N` button on the ESP32, otherwise "Host N". The MAC is read from the device's `/api/ble_keyboard/hosts` endpoint — the card finds the ESP32's address automatically from its Home Assistant device entry, or you can set `host_url: http://192.168.1.50` explicitly. An unpaired slot shows `Empty`.
+**Where the name and MAC come from.** The name is `host_names[slot]` if you set one, otherwise the host's [`name:`](#naming-the-hosts) in the ESP32's YAML, otherwise the name of the matching `switch_host:N` button on the ESP32, otherwise "Host N". The MAC is read from the device's `/api/ble_keyboard/hosts` endpoint — the card finds the ESP32's address automatically from its Home Assistant device entry, or you can set `host_url: http://192.168.1.50` explicitly. An unpaired slot shows `Empty`.
 
 > **If the MAC doesn't appear:** the card reads it directly from the ESP32 over plain HTTP, so it needs firmware **v1.5.0 or newer** — earlier builds sent a duplicated CORS header that browsers reject, blocking the read. Beyond that, when Home Assistant itself is served over **HTTPS** (Nabu Casa remote access, or a TLS reverse proxy) the browser blocks the request as mixed content and the MAC line hides itself. The switcher works regardless — it goes through Home Assistant, not the browser. Set `show_mac: false` to hide the line deliberately.
 >

@@ -2002,8 +2002,10 @@ void EspidfBleKeyboard::add_source_text(const std::string &key, text::Text *t) {
 #endif
 
 std::string EspidfBleKeyboard::host_label(uint8_t slot) const {
-    // The switch_host button's own name, which is what the host bar and the
-    // /hosts response already use — so a panel never disagrees with them.
+    // The same order the /hosts response gives the host bar — the YAML name,
+    // then the switch_host button's own — so a panel never disagrees with it.
+    if (slot < MAX_HOST_SLOTS && host_slot_configs_[slot].name != nullptr)
+        return host_slot_configs_[slot].name;
     char want[24];
     snprintf(want, sizeof(want), "switch_host:%u", (unsigned) slot);
     for (const auto &btn : buttons_) {

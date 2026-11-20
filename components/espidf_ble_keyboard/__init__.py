@@ -309,6 +309,10 @@ def _appearance(value):
 
 HOST_SCHEMA = cv.Schema({
     cv.Required(CONF_SLOT): cv.int_range(min=0, max=9),
+    # What the host bar, the cards' switcher and an LCD panel call this host,
+    # ahead of its switch_host button's name. 120 like the button names it
+    # stands in for.
+    cv.Optional(CONF_NAME): cv.All(cv.string, cv.Length(min=1, max=120)),
     cv.Optional(CONF_PASSKEY): cv.int_range(min=0, max=999999),
     cv.Optional(CONF_PASSKEY_MODE, default=PASSKEY_MODE_LEGACY): cv.one_of(
         PASSKEY_MODE_LEGACY,
@@ -644,6 +648,12 @@ CONFIG_SCHEMA = cv.All(
         cv.Optional(CONF_HIDE_BUTTONS): cv.ensure_list(cv.use_id(button.Button)),
         cv.Optional(CONF_HOST_SLOTS, default=4): cv.int_range(min=1, max=10),
         cv.Optional(CONF_HOSTS): cv.All(cv.ensure_list(HOST_SCHEMA)),
+        # The Home Assistant cards take host_names, and it gets copied here; say
+        # where names go rather than leave ESPHome's bare "invalid option".
+        cv.Optional("host_names"): cv.invalid(
+            "host_names is an option of the Home Assistant cards. Here, name a host "
+            "with name: in its hosts: entry"
+        ),
         cv.Optional(CONF_ON_RSSI_ABOVE): automation.validate_automation({
             cv.GenerateID(automation.CONF_TRIGGER_ID): cv.declare_id(RssiAboveTrigger),
             cv.Required(CONF_THRESHOLD): cv.int_range(min=-127, max=0),
@@ -781,6 +791,8 @@ async def to_code(config):
 
     if CONF_HOSTS in config:
         for host in config[CONF_HOSTS]:
+            if CONF_NAME in host:
+                cg.add(var.set_host_slot_name(host[CONF_SLOT], host[CONF_NAME]))
             if CONF_PASSKEY in host:
                 sc = host[CONF_PASSKEY_MODE] == PASSKEY_MODE_SECURE_CONNECTIONS
                 cg.add(var.set_host_slot_passkey(host[CONF_SLOT], host[CONF_PASSKEY], sc))

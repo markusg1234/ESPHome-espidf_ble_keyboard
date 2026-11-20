@@ -468,7 +468,16 @@ __attribute__((noinline)) static const char *screen_keys_save(AsyncWebServerRequ
   return kb->set_screen_keys((uint8_t) slot, arg("was"), k);
 }
 
-static size_t hosts_json_size(EspidfBleKeyboard *kb) { return 64 + 200 * (size_t) kb->host_slots(); }
+static size_t hosts_json_size(EspidfBleKeyboard *kb) {
+  size_t n = 64 + 200 * (size_t) kb->host_slots();
+  // A YAML name is up to 120 characters: counted, escaped at worst, so a long
+  // one can't outgrow the reserve this guards — a failed regrow aborts.
+  for (uint8_t i = 0; i < kb->host_slots(); i++) {
+    if (const char *name = kb->get_host_slot_config(i).name)
+      n += 2 * strlen(name);
+  }
+  return n;
+}
 
 __attribute__((noinline)) static void append_hosts_json(std::string &json, EspidfBleKeyboard *kb) {
   // Build slot-to-name map from registered switch_host buttons
@@ -531,10 +540,15 @@ __attribute__((noinline)) static void append_hosts_json(std::string &json, Espid
       json += ",\"bonded\":";
       json += kb->host_slot_bonded(i) ? "true" : "false";
     }
+    // The YAML name first, then the switch_host button's — host_label() keeps
+    // the same order for LCD panels.
+    const char *yaml_name = kb->get_host_slot_config(i).name;
     auto it = slot_names.find(i);
-    if (it != slot_names.end()) {
+    if (yaml_name != nullptr || it != slot_names.end()) {
       json += ",\"name\":\"";
-      json_escape_append(json, it->second);  // button names are user-supplied
+      // Both are user-supplied.
+      if (yaml_name != nullptr) json_escape_append(json, yaml_name, strlen(yaml_name));
+      else json_escape_append(json, it->second);
       json += "\"";
     }
     // Which remote style this host is drawn in. Rides along here rather than

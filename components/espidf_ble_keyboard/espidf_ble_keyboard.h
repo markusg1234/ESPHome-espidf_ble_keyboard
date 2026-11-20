@@ -834,6 +834,7 @@ class EspidfBleKeyboard : public Component
     uint16_t appearance{APPEARANCE_KEYBOARD};  // advertised only; GATT stays a keyboard
     uint16_t key_delay_ms{0};                  // 0 = the top-level key_delay_ms
     uint8_t unicode_input{UNICODE_UNSET};      // unset = the top-level unicode_input
+    const char *name{nullptr};                 // YAML name:; null = the switch_host button's
   };
 
   struct HostSlot {
@@ -947,6 +948,12 @@ class EspidfBleKeyboard : public Component
   void set_host_slot_appearance(uint8_t slot, uint16_t appearance) {
     if (slot < MAX_HOST_SLOTS) host_slot_configs_[slot].appearance = appearance;
   }
+  /// Codegen passes a string literal, so the pointer lives as long as the
+  /// program; a pointer rather than a std::string keeps the ten slots at 40 bytes
+  /// for the builds that name none. Set once at setup, so any task may read it.
+  void set_host_slot_name(uint8_t slot, const char *name) {
+    if (slot < MAX_HOST_SLOTS) host_slot_configs_[slot].name = (name != nullptr && *name) ? name : nullptr;
+  }
 
   // Custom text entities
 #ifdef USE_TEXT
@@ -1031,8 +1038,8 @@ class EspidfBleKeyboard : public Component
     lcd_sensor_ = sensor;
     publish_lcd_();
   }
-  /// What a host slot is called — its switch_host button's name if it has one,
-  /// otherwise "Host N", counting from 1 as every other display of it does.
+  /// What a host slot is called — its YAML name, else its switch_host button's
+  /// name, otherwise "Host N", counting from 1 as every other display of it does.
   std::string host_label(uint8_t slot) const;
 
   // Press-and-hold buttons for the active host, published the same way — the

@@ -79,6 +79,7 @@ espidf_ble_keyboard:
   host_slots: 5
   hosts:
     - slot: 0                    # Windows PC
+      name: "PC"                     # what the host bar and cards call it
       passkey: 111111
       passkey_mode: legacy
       layout: us                     # us, uk, de or be
@@ -87,18 +88,22 @@ espidf_ble_keyboard:
       actions:
         record: "combo:0x0C:0x15"      # Record starts Game Bar recording
     - slot: 1                    # iPhone
+      name: "iPhone"
       passkey: 222222
       passkey_mode: secure_connections
       layout: us
     - slot: 2                    # TV box
+      name: "TV Box"
       layout: us
       actions:
         ok: "consumer:0x0041"          # Menu Pick instead of Enter
         back@long: "home"              # hold Back for Home
         spare12: "ha_action:light.turn_on;entity_id=light.living_room;brightness_pct={value}"   # a pot's "set" fills {value}
     - slot: 3                    # laptop
+      name: "Laptop"
       layout: us
     - slot: 4                    # Galaxy Watch
+      name: "Watch"
       layout: us
       appearance: audio              # keyboard or audio; the watch lists only audio
 
