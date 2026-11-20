@@ -4,6 +4,13 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
+## v1.21.1 — 2026-11-20
+
+### Fixed
+- The Ctrl+A, Ctrl+C, Ctrl+V and Ctrl+Z picks in the macro editor's action list sent Shift
+  instead of Ctrl, typing a capital letter. Macros already saved with one keep the wrong key until
+  picked again. The docs' copy and paste examples had the same mistake.
+
 ## v1.21.0 — 2026-11-18
 
 ### Added

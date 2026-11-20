@@ -3154,12 +3154,12 @@ Macros support multiple commands separated by `|`. A 50ms delay is automatically
 Examples:
 | Action string | Description |
 |---------------|-------------|
-| `combo:2:6 \| delay:100 \| combo:2:25` | Copy, wait 100ms, Paste |
-| `combo:2:4 \| delay:50 \| combo:2:6` | Select All, Copy |
+| `combo:1:6 \| delay:100 \| combo:1:25` | Copy, wait 100ms, Paste |
+| `combo:1:4 \| delay:50 \| combo:1:6` | Select All, Copy |
 | `play_pause \| delay:500 \| next_track` | Play/Pause, wait 500ms, Next Track |
 | `combo:0:40 \| delay:200 \| combo:0:40` | Enter twice with 200ms gap |
 | `repeat:3:combo:0:40 \| delay:200` | Press Enter 3 times, 200ms apart |
-| `combo:2:4 \| delay:50 \| string:hello` | Select All, type "hello" |
+| `combo:1:4 \| delay:50 \| string:hello` | Select All, type "hello" |
 | `mouse_abs_save \| mouse_abs:90:10 \| left_click \| mouse_abs_restore` | Click top-right corner, then return the cursor |
 
 Multi-step actions work everywhere: web macros, YAML buttons, `execute_action()`, and the `/api/ble_keyboard/press` endpoint.
@@ -3195,7 +3195,7 @@ binary_sensor:
       then:
         - espidf_ble_keyboard.run_action:
             id: my_keyboard
-            action: "combo:2:6 | delay:100 | combo:2:25"
+            action: "combo:1:6 | delay:100 | combo:1:25"
 ```
 
 `action:` is templatable, so a lambda can still choose the string at runtime if you need it to:
