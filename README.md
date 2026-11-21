@@ -2271,6 +2271,21 @@ text_sensor:
 
 In Home Assistant, the sensor value will be a URL like `http://192.168.1.100/ble_keyboard`. Click it to open the web control page directly.
 
+### In the Home Assistant sidebar
+
+In Settings → Dashboards, press **Add dashboard**, pick **Webpage** and give it
+`http://<device-ip>/ble_keyboard`. Call it *BLE Keyboard* with the icon `mdi:keyboard`, and turn on
+**Admin only**, since it types on your computer.
+
+The page refuses to be shown inside another site's frame, so the panel stays blank until
+`web_allow_framing: true` is under `espidf_ble_keyboard:` and the keyboard is flashed. See
+[Securing the web control page](#securing-the-web-control-page) for what that opens up.
+
+This works where Home Assistant is opened over `http` at home. Over `https`, Nabu Casa or the app
+away from home the panel shows nothing; use
+[Setting up a keyboard from outside the house](#setting-up-a-keyboard-from-outside-the-house)
+there, which needs neither.
+
 ### Setting up a keyboard from outside the house
 
 The page is for the local network; the [Home Assistant cards](#media-remote-card-for-home-assistant)
