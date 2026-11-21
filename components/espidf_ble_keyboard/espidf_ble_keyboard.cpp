@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/version.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_gatt_defs.h"
@@ -6690,7 +6691,16 @@ const std::vector<EspidfBleKeyboard::ButtonInfo> &EspidfBleKeyboard::get_externa
         // .str() on both: these are StringRefs into ESPHome's own storage, and
         // c_str() on one isn't guaranteed null-terminated. str() copies using
         // the length, which is what we want anyway since we keep the strings.
-        external_buttons_.push_back({b->get_name().str(),
+        // The name is copied out before oid_buf is reused for the object id.
+        // get_name() is deprecated from 2026.11 (gone in 2027.5), and
+        // get_name_to() doesn't exist before it.
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 11, 0)
+        static_assert(ENTITY_NAME_BUF_SIZE <= OBJECT_ID_MAX_LEN, "oid_buf holds the name too");
+        std::string name = b->get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE>(oid_buf, ENTITY_NAME_BUF_SIZE)).str();
+#else
+        std::string name = b->get_name().str();
+#endif
+        external_buttons_.push_back({std::move(name),
                                      "press_button:" + b->get_object_id_to(oid_buf).str()});
     }
     ESP_LOGI(TAG, "Discovered %u external button(s) for the web page",
