@@ -14,6 +14,13 @@ web control page shows the matching version badge.
   switched from a button or macro with the `advertise:` action. Both the Host Actions tick and the
   action override the YAML until set back to its value or until a reflash changes it.
 
+### Changed
+- **Remote Style's JSON reference opens from a Docs button** beside the style box, instead of always
+  showing under it.
+
+### Fixed
+- Remote Style's JSON reference no longer runs off the side of a phone's screen.
+
 ## v1.21.1 — 2026-11-20
 
 ### Fixed

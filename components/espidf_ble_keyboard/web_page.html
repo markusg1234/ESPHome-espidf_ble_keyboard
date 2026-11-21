@@ -196,9 +196,13 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
    are. `auto 1fr` lets the widest kind set that column and gives the rest of
    the width to the prose. */
 .tpl-help{font-size:12px;color:var(--muted);margin:8px 0 4px;line-height:1.55}
-.tpl-help code{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0 3px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
+/* anywhere: a fragment too long for a phone's line breaks rather than widening the
+   whole column of descriptions past the card. One that fits is never broken. */
+.tpl-help code{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0 3px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;overflow-wrap:anywhere}
 .tpl-help dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:7px 0}
 .tpl-help dt,.tpl-help dd{margin:0}
+/* The reference stays folded away until Docs, beside the box's heading, is pressed. */
+#tpl-docs-btn{margin-left:8px}
 /* The style builder. No selector here may name an .rmt- class:
    tools/gen-remote-styles.mjs lifts every rule that does into the Home Assistant
    card, which has no builder. The drawing is marked with sb- classes instead. */
@@ -1293,10 +1297,10 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 </div>
 <datalist id="sb-src"></datalist><datalist id="sb-lit"></datalist><datalist id="sb-icons"></datalist>
 </div>
-<div class="tpl-help" style="margin-bottom:0"><strong>Or roll your own</strong> in JSON</div>
+<div class="tpl-help" style="margin-bottom:0"><strong>Or roll your own</strong> in JSON<button class="mod-btn" id="tpl-docs-btn">Docs</button></div>
 <div class="macro-form"><textarea id="tpl-json" placeholder="Paste a style JSON here to import &mdash; or a whole Export all list&hellip;" rows="8" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="tpl-import">Import</button></div>
 <div id="tpl-msg" style="font-size:11px;color:var(--muted)"></div>
-<div class="tpl-help">Export a style, change its <code>id</code> and <code>name</code>, rearrange its <code>sections</code>, then Import. Import also takes a whole <strong>Export all</strong> list &mdash; one paste copies a set of styles to another keyboard. It adds and replaces by <code>id</code>, never deletes: a style the other keyboard has that the list does not stays where it is. The remote card redraws as you type &mdash; nothing is saved until you press Import.
+<div class="tpl-help" id="tpl-docs" hidden>Export a style, change its <code>id</code> and <code>name</code>, rearrange its <code>sections</code>, then Import. Import also takes a whole <strong>Export all</strong> list &mdash; one paste copies a set of styles to another keyboard. It adds and replaces by <code>id</code>, never deletes: a style the other keyboard has that the list does not stays where it is. The remote card redraws as you type &mdash; nothing is saved until you press Import.
 <dl>
 <dt><code>["row",…]</code></dt><dd>A row of round buttons. <code>"|"</code> spaces it out.</dd>
 <dt><code>["dpad"]</code></dt><dd>The arrow cluster.</dd>
@@ -7814,6 +7818,13 @@ function insertStep(el,val){
     // Closing the panel puts the host's own style back: a preview that outlived
     // the editor it belongs to just looks like the remote went wrong.
     else tplEndPreview();
+  });
+
+  // The JSON reference opens and folds with Docs, lit while it shows.
+  const tplDocs=document.getElementById('tpl-docs'),tplDocsBtn=document.getElementById('tpl-docs-btn');
+  if(tplDocsBtn)tplDocsBtn.addEventListener('click',()=>{
+    tplDocs.hidden=!tplDocs.hidden;
+    tplDocsBtn.classList.toggle('on',!tplDocs.hidden);
   });
 
   // ── Button icons ──
