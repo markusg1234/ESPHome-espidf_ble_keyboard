@@ -20,6 +20,7 @@ web control page shows the matching version badge.
 
 ### Fixed
 - Remote Style's JSON reference no longer runs off the side of a phone's screen.
+- The remote's typing box now empties after a paste when typing as you go, as it does after Enter.
 
 ## v1.21.1 — 2026-11-20
 

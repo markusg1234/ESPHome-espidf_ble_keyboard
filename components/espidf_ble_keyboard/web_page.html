@@ -3060,7 +3060,7 @@ function typeWire(input,send,ctl){
   }
   input.addEventListener('compositionstart',()=>{composing=true});
   input.addEventListener('compositionend',()=>{composing=false});
-  input.addEventListener('input',()=>{
+  input.addEventListener('input',e=>{
     if(!live)return;
     const v=input.value;
     let i=0;const n=Math.min(v.length,last.length);
@@ -3071,6 +3071,9 @@ function typeWire(input,send,ctl){
     for(let k=0;k<del;k++)push({m:0,k:0x2A});
     if(i<v.length)push({s:v.slice(i)});
     last=v;
+    // A paste, or text dropped in, is typed and the box starts again, as after
+    // Enter.
+    if(!composing&&/^insertFrom(Paste|Drop)/.test(e.inputType||'')){input.value='';last='';return}
     // The host has the whole line, so a long one only needs its end on show.
     // Not mid-word on a phone: replacing the text would end what its keyboard is
     // composing.
