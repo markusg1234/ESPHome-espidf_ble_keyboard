@@ -69,6 +69,7 @@ const PARTS = [
   ['const RMT_OPTS=', () => oneLine('const RMT_OPTS=')],
   ['const RMT_KEY_H=', () => oneLine('const RMT_KEY_H=')],
   ['const RMT_ICON_H=', () => oneLine('const RMT_ICON_H=')],
+  ['const RMT_TEXT_PX=', () => oneLine('const RMT_TEXT_PX=')],
   ['const RMT_RING=', () => oneLine('const RMT_RING=')],
   ['const RMT_CROSS=', () => oneLine('const RMT_CROSS=')],
   ['const RMT_KNOB=', () => oneLine('const RMT_KNOB=')],
@@ -222,6 +223,13 @@ if (!/class="rmt-btn rmt-ih"/.test(ihProbe[0]) ||
     !ihProbe[0].includes('style="background:#336699;border-color:#336699;--rb-ih:36px"') ||
     ihProbe[1].includes('rb-ih') || ihProbe[1].includes('rmt-ih')) {
   throw new Error(`ih: renders incorrectly:\n${ihProbe.join('\n')}`);
+}
+// ts:<px> as well: the label's text size, after anything else the key writes.
+const tsProbe = new Function(`${js}
+return [sectionHtml(['row',['spare1','A','h:80 ts:18']]),
+        sectionHtml(['row',['spare2','B','ts:5'],['spare3','C','ts:61'],['spare4','D','ts:1x']])];`)();
+if (!tsProbe[0].includes('style="height:80px;font-size:18px"') || tsProbe[1].includes('font-size')) {
+  throw new Error(`ts: renders incorrectly:\n${tsProbe.join('\n')}`);
 }
 // A ring's size and centre reach an inline style too: in range they land, and
 // the actions after the settings object are the ones drawn.

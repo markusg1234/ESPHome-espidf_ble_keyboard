@@ -166,7 +166,7 @@ const RMT_VARS={bg:'--rb-bg',border:'--rb-border',radius:'--rb-radius',pad:'--rb
 maxw:'--rb-maxw',zoom:'--rb-zoom',btn_bg:'--rb-btn-bg',btn_fg:'--rb-btn-fg',btn_border:'--rb-btn-border',
 btn_radius:'--rb-btn-radius',ok_bg:'--rb-ok-bg',ok_fg:'--rb-ok-fg',
 ring_bg:'--rb-ring-bg',ring_fg:'--rb-ring-fg',light_bg:'--rb-light-bg',light_fg:'--rb-light-fg',shadow:'--rb-shadow',
-label:'--rb-label',divider:'--rb-divider',clip:'--rb-clip',
+label:'--rb-label',label_size:'--rb-label-size',divider:'--rb-divider',clip:'--rb-clip',
 lcd_bg:'--rb-lcd-bg',lcd_fg:'--rb-lcd-fg',lcd_label:'--rb-lcd-label',
 lcd_border:'--rb-lcd-border',lcd_radius:'--rb-lcd-radius',
 lit_bg:'--rb-lit-bg',lit_fg:'--rb-lit-fg',level:'--rb-level'};
@@ -274,6 +274,8 @@ const RMT_OPTS=['light','sm','md','lg','xl','wide','sq','squircle','fill'];
 const RMT_KEY_H=[24,160];
 
 const RMT_ICON_H=[8,160];
+
+const RMT_TEXT_PX=[6,60];
 
 const RMT_RING=[120,320],RMT_RING_C=[40,200],RMT_RING_ROOM=40,RMT_RING_R=[0,160];
 
@@ -1175,7 +1177,7 @@ function btnHtml(item,inner){
     const b=grp?{t:'Opens group '+grp,i:'grp_show'}:Object.prototype.hasOwnProperty.call(RMT_BTNS,a)?RMT_BTNS[a]:null;
     if(!b)return '';   // a style naming a button this firmware doesn't have
     const tip=(lab!=null&&lab!=='')?esc(lab)+(grp?' — opens group '+grp:' — runs '+a):b.t;
-    let cls='',css='',lit='',ic='',hgt=0,ih=0,sz=0;
+    let cls='',css='',lit='',ic='',hgt=0,ih=0,sz=0,ts=0;
     if(typeof opt==='string'){
       for(const tok of opt.split(/\s+/)){
         if(!tok)continue;
@@ -1197,6 +1199,12 @@ function btnHtml(item,inner){
         if(/^ih:\d{1,3}$/.test(tok)){
           const n=Number(tok.slice(3));
           if(n>=RMT_ICON_H[0]&&n<=RMT_ICON_H[1])ih=n;
+          continue;
+        }
+        // ts:<px> — the same care, for the label's text size.
+        if(/^ts:\d{1,2}$/.test(tok)){
+          const n=Number(tok.slice(3));
+          if(n>=RMT_TEXT_PX[0]&&n<=RMT_TEXT_PX[1])ts=n;
           continue;
         }
         // The only value that reaches an inline style attribute, so it is
@@ -1225,6 +1233,8 @@ function btnHtml(item,inner){
     // A custom property the .rmt-ih rules read, so every key size and shape
     // takes the one height without a rule per size here.
     if(ih){cls+=' rmt-ih';css+=(css?';':'')+'--rb-ih:'+ih+'px'}
+    // Inline, so it wins over the size a key's class gives its text.
+    if(ts)css+=(css?';':'')+'font-size:'+ts+'px';
     // icon:<name> puts a picture on the face: one of ours first, then one imported
     // onto the device. The label stays as the tooltip, and is the face again when
     // the icon cannot be found — a key whose logo is missing still says what it is.
@@ -1660,8 +1670,15 @@ function validateTpl(t){
             return 'ih: sets an icon height of '+RMT_ICON_H[0]+'-'+RMT_ICON_H[1]+' pixels, e.g. ih:36 — "'+tok+'"';
           continue;
         }
+        // ts:<px> — the label's text size, a whole number within RMT_TEXT_PX.
+        if(tok.indexOf('ts:')===0){
+          const n=/^ts:\d{1,2}$/.test(tok)?Number(tok.slice(3)):NaN;
+          if(!(n>=RMT_TEXT_PX[0]&&n<=RMT_TEXT_PX[1]))
+            return 'ts: sets a text size of '+RMT_TEXT_PX[0]+'-'+RMT_TEXT_PX[1]+' pixels, e.g. ts:18 — "'+tok+'"';
+          continue;
+        }
         if(!RMT_HEX.test(tok)&&RMT_OPTS.indexOf(tok)<0)
-          return 'Unknown button option "'+tok+'" — use a #hex colour, lit:<source>, icon:<name>, s:<px>, h:<px>, ih:<px> or '+RMT_OPTS.join(', ');
+          return 'Unknown button option "'+tok+'" — use a #hex colour, lit:<source>, icon:<name>, s:<px>, h:<px>, ih:<px>, ts:<px> or '+RMT_OPTS.join(', ');
       }
       return '';
     };
@@ -2159,7 +2176,7 @@ export const RMT_CSS = `
 .rmt-dpad .empty{visibility:hidden}
 .rmt-strip{display:flex;align-items:flex-start;justify-content:center;gap:16px}
 .rmt-strip-group{display:flex;flex-direction:column;align-items:center;gap:4px}
-.rmt-strip-label{font-size:10px;color:var(--rb-label,var(--muted));font-weight:600;text-transform:uppercase}
+.rmt-strip-label{font-size:var(--rb-label-size,10px);color:var(--rb-label,var(--muted));font-weight:600;text-transform:uppercase}
 .rmt-divider{height:1px;background:var(--rb-divider,var(--border));margin:10px 0}
 .rmt-popping{position:relative}
 .rmt-popping:not(.rmt-popfull):not(.rmt-poppin)::after{content:"";position:absolute;top:0;right:0;bottom:0;left:0;z-index:2;background:rgba(0,0,0,.35);border-radius:inherit}
@@ -2251,7 +2268,7 @@ export const RMT_CSS = `
 .rmt-knob-cap{display:flex;align-items:center;justify-content:center}
 .rmt-knob-val{max-width:88%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:calc(var(--rb-knob-c,75px) * .24);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
-.rmt-knob-label{font-size:9px;color:var(--rb-label,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.rmt-knob-label{font-size:var(--rb-label-size,9px);color:var(--rb-label,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:.4px}
 .rmt-knob.off:not([data-level]) .rmt-knob-face,.rmt-knob.off .rmt-knob-mk{visibility:hidden}
 .rmt-knob.off .rmt-knob-ring{cursor:default}
 .rmt-knob-gauge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
@@ -2318,7 +2335,7 @@ export const RMT_CSS = `
   border:1px solid var(--rb-btn-border,var(--border))}
 .rmt-rocker-col .rmt-btn{background:none;border-color:transparent;height:40px}
 .rmt-rocker-col .rmt-btn:active,.rmt-rocker-col .rmt-btn.p{background:rgba(255,255,255,.18);border-color:transparent}
-.rmt-rocker-label{font-size:9px;color:var(--rb-label,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.rmt-rocker-label{font-size:var(--rb-label-size,9px);color:var(--rb-label,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:.4px}
 .rmt-rocker-solo{background:none;border:none;padding:0;width:auto}
 .rmt-rocker.rk-w .rmt-rocker-col:not(.rmt-rocker-solo){width:var(--rb-rk-w)}
 .rmt-rocker.rk-w .rmt-rocker-col:not(.rmt-rocker-solo) .rmt-btn{width:100%}

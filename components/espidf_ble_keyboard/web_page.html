@@ -416,7 +416,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-strip-group{display:flex;flex-direction:column;align-items:center;gap:4px}
 /* Themeable because a light-bodied remote (alloy, white) needs a dark label —
    the page's own --muted is tuned for a dark card and vanishes on one. */
-.rmt-strip-label{font-size:10px;color:var(--rb-label,var(--muted));font-weight:600;text-transform:uppercase}
+.rmt-strip-label{font-size:var(--rb-label-size,10px);color:var(--rb-label,var(--muted));font-weight:600;text-transform:uppercase}
 .rmt-divider{height:1px;background:var(--rb-divider,var(--border));margin:10px 0}
 /* An open group (groupWire). As a rule a panel over the key that opened it, the
    rest of the remote dimmed by a shade that is the body's own ::after — so a tap
@@ -562,7 +562,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 .rmt-knob-cap{display:flex;align-items:center;justify-content:center}
 .rmt-knob-val{max-width:88%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:calc(var(--rb-knob-c,75px) * .24);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
-.rmt-knob-label{font-size:9px;color:var(--rb-label,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.rmt-knob-label{font-size:var(--rb-label-size,9px);color:var(--rb-label,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:.4px}
 /* Both its actions hidden for this host: nothing to turn, so nothing to show it
    turns — though a level knob goes on showing its reading. */
 .rmt-knob.off:not([data-level]) .rmt-knob-face,.rmt-knob.off .rmt-knob-mk{visibility:hidden}
@@ -656,7 +656,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
   border:1px solid var(--rb-btn-border,var(--border))}
 .rmt-rocker-col .rmt-btn{background:none;border-color:transparent;height:40px}
 .rmt-rocker-col .rmt-btn:active,.rmt-rocker-col .rmt-btn.p{background:rgba(255,255,255,.18);border-color:transparent}
-.rmt-rocker-label{font-size:9px;color:var(--rb-label,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.rmt-rocker-label{font-size:var(--rb-label-size,9px);color:var(--rb-label,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:.4px}
 .rmt-rocker-solo{background:none;border:none;padding:0;width:auto}
 .rmt-rocker.rk-w .rmt-rocker-col:not(.rmt-rocker-solo){width:var(--rb-rk-w)}
 .rmt-rocker.rk-w .rmt-rocker-col:not(.rmt-rocker-solo) .rmt-btn{width:100%}
@@ -1320,7 +1320,7 @@ h2 svg{width:18px;height:18px;fill:var(--accent)}
 <dt><code>"keyboard"</code></dt><dd>The layout of the keys its <code>keyboard</code> key opens: <code>"us"</code>, <code>"uk"</code>, <code>"de"</code> or <code>"be"</code>. Left out, the keyboard&rsquo;s own here, and the card&rsquo;s <code>keyboard_layout</code> in Home Assistant.</dd>
 <dt><code>"theme"</code></dt><dd>Size and colour, e.g. <code>"maxw": "250px", "zoom": "1.25",</code> &mdash; <code>maxw</code> is how wide the remote may draw, <code>zoom</code> scales all of it at once: buttons, their icons and labels, the gaps, the d&#8209;pad and the rockers. <code>maxw</code> is measured before the zoom, so it grows too &mdash; halve one to hold the width while the buttons get bigger.</dd>
 </dl>
-A button is its action name, or <code>["spare1","Netflix"]</code> to label it &mdash; pair that with an override on the same host and the key both reads and does what you want &mdash; or <code>["spare1","Netflix","#e50914 wide"]</code> to colour and size it (<code>light sm md lg xl wide sq squircle</code>, <code>s:50</code> for a size in pixels instead of <code>sm</code>&ndash;<code>xl</code>, or <code>fill h:80</code> for rectangles that share their row's width). Add <code>icon:</code> and a name among those options to put an icon from <strong>Button Icons</strong> on the key &mdash; <code>["spare1","Netflix","icon:netflix lg sq"]</code>, with <code>ih:36</code> to draw it larger or smaller than the key's size gives it &mdash; and its label becomes the tooltip, and what the key shows if the icon is missing. <code>theme</code> is optional, and its <code>bg</code> takes a gradient.</div>
+A button is its action name, or <code>["spare1","Netflix"]</code> to label it &mdash; pair that with an override on the same host and the key both reads and does what you want &mdash; or <code>["spare1","Netflix","#e50914 wide"]</code> to colour and size it (<code>light sm md lg xl wide sq squircle</code>, <code>s:50</code> for a size in pixels instead of <code>sm</code>&ndash;<code>xl</code>, or <code>fill h:80</code> for rectangles that share their row's width, and <code>ts:18</code> for the label's text size). Add <code>icon:</code> and a name among those options to put an icon from <strong>Button Icons</strong> on the key &mdash; <code>["spare1","Netflix","icon:netflix lg sq"]</code>, with <code>ih:36</code> to draw it larger or smaller than the key's size gives it &mdash; and its label becomes the tooltip, and what the key shows if the icon is missing. <code>theme</code> is optional, its <code>bg</code> takes a gradient, and <code>label_size</code> sizes the captions over key columns, rockers, pots and sliders.</div>
 </div>
 </div>
 <div class="hid-panel" id="ico-panel">
@@ -2125,7 +2125,7 @@ const RMT_VARS={bg:'--rb-bg',border:'--rb-border',radius:'--rb-radius',pad:'--rb
 maxw:'--rb-maxw',zoom:'--rb-zoom',btn_bg:'--rb-btn-bg',btn_fg:'--rb-btn-fg',btn_border:'--rb-btn-border',
 btn_radius:'--rb-btn-radius',ok_bg:'--rb-ok-bg',ok_fg:'--rb-ok-fg',
 ring_bg:'--rb-ring-bg',ring_fg:'--rb-ring-fg',light_bg:'--rb-light-bg',light_fg:'--rb-light-fg',shadow:'--rb-shadow',
-label:'--rb-label',divider:'--rb-divider',clip:'--rb-clip',
+label:'--rb-label',label_size:'--rb-label-size',divider:'--rb-divider',clip:'--rb-clip',
 lcd_bg:'--rb-lcd-bg',lcd_fg:'--rb-lcd-fg',lcd_label:'--rb-lcd-label',
 lcd_border:'--rb-lcd-border',lcd_radius:'--rb-lcd-radius',
 lit_bg:'--rb-lit-bg',lit_fg:'--rb-lit-fg',level:'--rb-level'};
@@ -2168,6 +2168,8 @@ const RMT_KEY_H=[24,160];
 // some logos are drawn with room around them and read small at the size keys
 // give icons. Never taller than the key it sits on, whatever this allows.
 const RMT_ICON_H=[8,160];
+// ts:<px> sets the size of a key's label text, apart from the key's own size.
+const RMT_TEXT_PX=[6,60];
 // A ring's optional {"size","center","radius"}: the circle's diameter and its
 // centre button's, in pixels. The centre also has to leave the arrows room, which
 // is checked against the size at import (RMT_RING_ROOM each side between the two).
@@ -6035,8 +6037,15 @@ function insertStep(el,val){
             return 'ih: sets an icon height of '+RMT_ICON_H[0]+'-'+RMT_ICON_H[1]+' pixels, e.g. ih:36 — "'+tok+'"';
           continue;
         }
+        // ts:<px> — the label's text size, a whole number within RMT_TEXT_PX.
+        if(tok.indexOf('ts:')===0){
+          const n=/^ts:\d{1,2}$/.test(tok)?Number(tok.slice(3)):NaN;
+          if(!(n>=RMT_TEXT_PX[0]&&n<=RMT_TEXT_PX[1]))
+            return 'ts: sets a text size of '+RMT_TEXT_PX[0]+'-'+RMT_TEXT_PX[1]+' pixels, e.g. ts:18 — "'+tok+'"';
+          continue;
+        }
         if(!RMT_HEX.test(tok)&&RMT_OPTS.indexOf(tok)<0)
-          return 'Unknown button option "'+tok+'" — use a #hex colour, lit:<source>, icon:<name>, s:<px>, h:<px>, ih:<px> or '+RMT_OPTS.join(', ');
+          return 'Unknown button option "'+tok+'" — use a #hex colour, lit:<source>, icon:<name>, s:<px>, h:<px>, ih:<px>, ts:<px> or '+RMT_OPTS.join(', ');
       }
       return '';
     };
@@ -6850,7 +6859,7 @@ function insertStep(el,val){
     ['light_bg','Light keys'],['light_fg','Light key text'],['label','Labels'],['divider','Dividers'],
     ['lit_bg','Lit keys'],['lit_fg','Lit key text'],['level','Levels'],['lcd_bg','Screen'],['lcd_fg','Screen text'],
     ['lcd_label','Screen labels'],['lcd_border','Screen edge'],
-    ['maxw','Width','250px'],['zoom','Zoom','1.25'],['radius','Corners','34px'],['btn_radius','Key corners','12px'],
+    ['maxw','Width','250px'],['zoom','Zoom','1.25'],['radius','Corners','34px'],['btn_radius','Key corners','12px'],['label_size','Label size','12px'],
     ['pad','Padding','22px 12px'],['shadow','Shadow','0 2px 10px rgba(0,0,0,.4)'],
     ['clip','Outline','polygon(0% 0%, 100% 0%, 82% 100%, 18% 100%)'],['lcd_radius','Screen corners','8px']];
 
@@ -7569,7 +7578,7 @@ function insertStep(el,val){
   // token the fields have no place for — a second colour, say — is kept as it is,
   // and still comes last, so it still wins as it did.
   function sbOpts(str){
-    const r={icon:'',size:'',px:'',shape:'',width:'',light:false,colour:'',h:'',ih:'',lit:'',litc:'',rest:[]};
+    const r={icon:'',size:'',px:'',shape:'',width:'',light:false,colour:'',h:'',ih:'',ts:'',lit:'',litc:'',rest:[]};
     for(const tok of String(str||'').split(/\s+/)){
       if(!tok)continue;
       if(tok.indexOf('icon:')===0&&!r.icon)r.icon=tok.slice(5);
@@ -7577,6 +7586,7 @@ function insertStep(el,val){
       else if(/^s:\d+$/.test(tok)&&!r.px)r.px=tok.slice(2);
       else if(/^h:\d+$/.test(tok)&&!r.h)r.h=tok.slice(2);
       else if(/^ih:\d+$/.test(tok)&&!r.ih)r.ih=tok.slice(3);
+      else if(/^ts:\d+$/.test(tok)&&!r.ts)r.ts=tok.slice(3);
       else if(RMT_HEX.test(tok)&&!r.colour)r.colour=tok;
       else if(['sm','md','lg','xl'].indexOf(tok)>=0&&!r.size)r.size=tok;
       else if((tok==='sq'||tok==='squircle')&&!r.shape)r.shape=tok;
@@ -7589,7 +7599,7 @@ function insertStep(el,val){
   // The four sizes in pixels, as the .rmt-btn size rules draw them.
   const SB_SIZE_PX={sm:36,md:42,lg:56,xl:64};
   const sbOptsOut=r=>[r.icon&&'icon:'+r.icon,r.size,r.px&&'s:'+r.px,r.shape,r.width,r.light&&'light',r.colour,r.h&&'h:'+r.h,
-    r.ih&&'ih:'+r.ih,r.lit&&'lit:'+r.lit+(r.litc?':'+r.litc:'')].concat(r.rest).filter(Boolean).join(' ');
+    r.ih&&'ih:'+r.ih,r.ts&&'ts:'+r.ts,r.lit&&'lit:'+r.lit+(r.litc?':'+r.litc:'')].concat(r.rest).filter(Boolean).join(' ');
   // How a key looks, as fields. put(fn) runs fn on the parsed options and writes
   // them back; a grid's options for every key use the same fields.
   function sbLook(o,put,fp){
@@ -7609,6 +7619,7 @@ function insertStep(el,val){
       sbColour('Colour',fp+'co',o.colour,v=>put(r=>{r.colour=v||''})),
       sbNum('Height',fp+'h',o.h,RMT_KEY_H,'auto',v=>put(r=>{r.h=v===undefined?'':String(v)}),'px'),
       sbNum('Icon height',fp+'ih',o.ih,RMT_ICON_H,'auto',v=>put(r=>{r.ih=v===undefined?'':String(v)}),'px'),
+      sbNum('Text size',fp+'ts',o.ts,RMT_TEXT_PX,'auto',v=>put(r=>{r.ts=v===undefined?'':String(v)}),'px'),
       sbText('Lights with',fp+'li',o.lit,v=>put(r=>{r.lit=v.trim();if(!r.lit)r.litc=''}),
              {list:'sb-lit',max:16,w:'90px',ph:'a source'}),
       o.lit?sbColour('lit colour',fp+'lc',o.litc,v=>put(r=>{r.litc=v||''})):null];
@@ -9724,7 +9735,7 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
     const b=grp?{t:'Opens group '+grp,i:'grp_show'}:Object.prototype.hasOwnProperty.call(RMT_BTNS,a)?RMT_BTNS[a]:null;
     if(!b)return '';   // a style naming a button this firmware doesn't have
     const tip=(lab!=null&&lab!=='')?esc(lab)+(grp?' — opens group '+grp:' — runs '+a):b.t;
-    let cls='',css='',lit='',ic='',hgt=0,ih=0,sz=0;
+    let cls='',css='',lit='',ic='',hgt=0,ih=0,sz=0,ts=0;
     if(typeof opt==='string'){
       for(const tok of opt.split(/\s+/)){
         if(!tok)continue;
@@ -9746,6 +9757,12 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
         if(/^ih:\d{1,3}$/.test(tok)){
           const n=Number(tok.slice(3));
           if(n>=RMT_ICON_H[0]&&n<=RMT_ICON_H[1])ih=n;
+          continue;
+        }
+        // ts:<px> — the same care, for the label's text size.
+        if(/^ts:\d{1,2}$/.test(tok)){
+          const n=Number(tok.slice(3));
+          if(n>=RMT_TEXT_PX[0]&&n<=RMT_TEXT_PX[1])ts=n;
           continue;
         }
         // The only value that reaches an inline style attribute, so it is
@@ -9774,6 +9791,8 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
     // A custom property the .rmt-ih rules read, so every key size and shape
     // takes the one height without a rule per size here.
     if(ih){cls+=' rmt-ih';css+=(css?';':'')+'--rb-ih:'+ih+'px'}
+    // Inline, so it wins over the size a key's class gives its text.
+    if(ts)css+=(css?';':'')+'font-size:'+ts+'px';
     // icon:<name> puts a picture on the face: one of ours first, then one imported
     // onto the device. The label stays as the tooltip, and is the face again when
     // the icon cannot be found — a key whose logo is missing still says what it is.

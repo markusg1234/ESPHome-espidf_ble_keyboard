@@ -16,6 +16,9 @@ web control page shows the matching version badge.
 - **The style builder moves keys up and down** as well as sideways: a grid key to the cell above or
   below, and a key on the top or bottom line of its section into the nearest row or grid of keys.
   Keys in a column or an upright rocker now move up and down rather than sideways.
+- **Label text sizes in remote styles**: a key's own label size, and one size for the captions over
+  key columns, rockers, pots and sliders. In the style builder they are Text size on a key and Label
+  size under Colours and size.
 
 ### Changed
 - **Remote Style's JSON reference opens from a Docs button** beside the style box, instead of always
