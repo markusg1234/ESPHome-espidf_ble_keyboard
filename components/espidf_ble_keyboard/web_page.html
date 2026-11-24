@@ -6856,6 +6856,8 @@ function insertStep(el,val){
 
   const sbCfg=s=>(s[1]&&typeof s[1]==='object'&&!Array.isArray(s[1]))?s[1]:null;
   const sbO=s=>sbCfg(s)?2:1;   // where a section's own items start
+  // A grid's columns, by the renderer's rule.
+  const sbCols=s=>{const c=sbCfg(s),n=c?c.cols|0:0;return n>=1&&n<=8?n:2};
   const sbHas=a=>typeof a==='string'&&Object.prototype.hasOwnProperty.call(RMT_BTNS,a);
   // What btnHtml draws a key for: an action, or a key that opens a group.
   const sbKnown=a=>sbHas(a)||!!groupOf(a);
@@ -7620,6 +7622,38 @@ function insertStep(el,val){
       return {sec:p,item:grp?[path[0],j]:[j]};
     });
   }
+  // A key or gap a line up (d -1) or down (1) the drawing, made on t: to the cell
+  // above or below in a grid, and from a row of keys — or a grid's first or last
+  // line — into the nearest row or grid of keys above or below, at its place along
+  // the line. A section left with no keys goes. The selection to have after, or
+  // nothing when it cannot move.
+  function sbVert(t,q,d){
+    const p=q.sec,S=sbSec(t,p),k=S[0],o=sbO(S),at0=q.item[0],i=at0-o,n=S.length-o,it=S[at0];
+    let c=i;
+    if(k==='grid'){
+      const w=sbCols(S),j=i+d*w;
+      if(j>=0&&j<n){[S[at0],S[o+j]]=[S[o+j],S[at0]];return {sec:p,item:[o+j]}}
+      // Over a shorter last line: to the grid's end, which is the line under it.
+      if(d>0&&Math.floor(i/w)<Math.floor((n-1)/w)){S.splice(at0,1);S.push(it);return {sec:p,item:[S.length-1]}}
+      c=i%w;
+    }else if(k!=='row'&&k!=='media'&&k!=='apps')return;
+    if(it==='|'||p.length>1)return;
+    const L=sbList(t),lined=s=>Array.isArray(s)&&['row','media','apps','grid'].indexOf(s[0])>=0;
+    let m=p[0]+d;
+    while(m>=0&&m<L.length&&!lined(L[m]))m+=d;
+    if(m<0||m>=L.length)return;
+    const T=L[m],oT=sbO(T),nT=T.length-oT;
+    let at=oT+Math.min(c,nT);
+    // Into a grid: in its column, on its last line going up and its first going down.
+    if(T[0]==='grid'){
+      const w=sbCols(T);
+      at=oT+Math.min((d<0&&nT?Math.floor((nT-1)/w)*w:0)+Math.min(c,w-1),nT);
+    }
+    S.splice(at0,1);
+    T.splice(at,0,it);
+    if(S.slice(o).every(x=>x==='|')){L.splice(p[0],1);if(p[0]<m)m--}
+    return {sec:[m],item:[at]};
+  }
   function sbKeyInsp(t){
     const q=sbSel,p=q.sec,s=sbSec(t,p),k=s[0],virt=q.slot!=null;
     const it=virt?SB_DEF[k][q.slot]:sbGet(s,q.item);
@@ -7632,11 +7666,22 @@ function insertStep(el,val){
     const fixed=virt||k==='dpad'||k==='ring'||k==='cross'||k==='pot';
     const holder=x=>grp?sbSec(x,p)[q.item[0]]:sbSec(x,p);
     const at=j=>({sec:p,item:grp?[q.item[0],j]:[j]});
+    // Its arrows, each moving it the way it points in the drawing. A strip's or an
+    // upright rocker's keys run down a column, and a rocker laid across draws its
+    // pair the other way round, the first on the right. Up and down leave a row
+    // for the next one, which a gap and a side section's part never do.
+    const col=grp&&!(k==='rocker'&&sbCfg(s)&&sbCfg(s).horizontal===true),rev=grp&&!col;
+    const vert=d=>sbBtn(d<0?'▲':'▼',d<0?'Move it up':'Move it down',d<0?'mv-u':'mv-d',
+      ()=>sbDo(x=>sbVert(x,q,d)),sbVert(sbClone(t),q,d)===undefined);
+    const arrows=()=>col?[
+        sbBtn('▲','Move it up','mv-u',()=>sbKeyMove(p,q.item,-1),idx<=lo),
+        sbBtn('▼','Move it down','mv-d',()=>sbKeyMove(p,q.item,1),idx>=list.length-1)]:
+      [sbBtn('◀','Move it left','mv-l',()=>sbKeyMove(p,q.item,rev?1:-1),rev?idx>=list.length-1:idx<=lo),
+       sbBtn('▶','Move it right','mv-r',()=>sbKeyMove(p,q.item,rev?-1:1),rev?idx<=lo:idx>=list.length-1)].concat(
+       !grp&&(k==='grid'||p.length===1&&it!=='|')?[vert(-1),vert(1)]:[]);
     if(it==='|'){
-      sbInsp.appendChild(sbEl('div',{class:'sb-row'},[back,sbEl('span',{class:'sb-title'},[k==='grid'?'An empty cell':'A gap']),
-        sbBtn('◀','Move it left','mv-l',()=>sbKeyMove(p,q.item,-1),idx<=lo),
-        sbBtn('▶','Move it right','mv-r',()=>sbKeyMove(p,q.item,1),idx>=list.length-1),
-        sbBtn('Delete','Remove it','del',()=>sbDo(x=>{holder(x).splice(idx,1);return {sec:p}}))]));
+      sbInsp.appendChild(sbEl('div',{class:'sb-row'},[back,sbEl('span',{class:'sb-title'},[k==='grid'?'An empty cell':'A gap'])].concat(
+        arrows(),[sbBtn('Delete','Remove it','del',()=>sbDo(x=>{holder(x).splice(idx,1);return {sec:p}}))])));
       return;
     }
     const K=sbKey(it);
@@ -7676,8 +7721,7 @@ function insertStep(el,val){
     // A rocker group holds one key or two.
     const rk=k==='rocker'&&grp;
     if(!fixed){
-      head.appendChild(sbBtn('◀','Move it left','mv-l',()=>sbKeyMove(p,q.item,-1),idx<=lo));
-      head.appendChild(sbBtn('▶','Move it right','mv-r',()=>sbKeyMove(p,q.item,1),idx>=list.length-1));
+      for(const b of arrows())head.appendChild(b);
       if(!rk||list.length<3)head.appendChild(sbBtn('Duplicate','Add a copy after it','dup',
         ()=>sbDo(x=>{const L=holder(x);L.splice(idx+1,0,sbClone(L[idx]));return at(idx+1)})));
       if(!rk||list.length>2)head.appendChild(sbBtn('Delete','Remove the key','del',

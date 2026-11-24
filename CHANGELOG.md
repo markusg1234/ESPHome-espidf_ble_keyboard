@@ -13,6 +13,9 @@ web control page shows the matching version badge.
 - **A host's Bluetooth can be set in the YAML**, with `advertise: false` in its `hosts:` entry, and
   switched from a button or macro with the `advertise:` action. Both the Host Actions tick and the
   action override the YAML until set back to its value or until a reflash changes it.
+- **The style builder moves keys up and down** as well as sideways: a grid key to the cell above or
+  below, and a key on the top or bottom line of its section into the nearest row or grid of keys.
+  Keys in a column or an upright rocker now move up and down rather than sideways.
 
 ### Changed
 - **Remote Style's JSON reference opens from a Docs button** beside the style box, instead of always
@@ -21,6 +24,7 @@ web control page shows the matching version badge.
 ### Fixed
 - Remote Style's JSON reference no longer runs off the side of a phone's screen.
 - The remote's typing box now empties after a paste when typing as you go, as it does after Enter.
+- The style builder's left and right arrows moved a key of a rocker laid across the wrong way.
 
 ## v1.21.1 — 2026-11-20
 
