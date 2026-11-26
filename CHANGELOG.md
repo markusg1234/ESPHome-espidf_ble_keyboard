@@ -19,15 +19,24 @@ web control page shows the matching version badge.
 - **Label text sizes in remote styles**: a key's own label size, and one size for the captions over
   key columns, rockers, pots and sliders. In the style builder they are Text size on a key and Label
   size under Colours and size.
+- **The style builder sets a grid's rows** beside its columns: more adds whole lines of new keys,
+  fewer takes the last lines away.
+- **Button Icons exports and imports all its icons as one list**, to copy them to another
+  keyboard. Its Import also takes an exported style, adding just the icons it carries.
 
 ### Changed
 - **Remote Style's JSON reference opens from a Docs button** beside the style box, instead of always
   showing under it.
+- **A style kept in the page's address survives a typo**: a stray space or capitals no longer lose
+  it, and it can follow the remote-only view's `#remote` as well as come before it. Adding `#remote`
+  to an open tab's address now switches to that view at once, where it needed a reload.
 
 ### Fixed
 - Remote Style's JSON reference no longer runs off the side of a phone's screen.
 - The remote's typing box now empties after a paste when typing as you go, as it does after Enter.
 - The style builder's left and right arrows moved a key of a rocker laid across the wrong way.
+- A remote-only tab opened from a bookmark or a typed address no longer takes the remote out of the
+  page in another tab, and closing one no longer closes another.
 
 ## v1.21.1 — 2026-11-20
 

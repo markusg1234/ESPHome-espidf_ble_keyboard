@@ -10,8 +10,9 @@
 <!-- The remote pops out into a window of its own by reloading this same page under
      #remote. A hash, not a query string, so the request the device sees is byte for
      byte the one it already serves. Set here rather than in the main script at the
-     end of the body, so the page never paints as the full page first. -->
-<script>if(location.hash==='#remote')document.documentElement.classList.add('popout')</script>
+     end of the body, so the page never paints as the full page first. A tab's style
+     or page may follow it (#remote?style=style6): see TAB_ADDR. -->
+<script>if(/^#remote(?:[?&]|$)/.test(location.hash))document.documentElement.classList.add('popout')</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#1a1e28;--fg:#e2e8f0;--card:#13161e;--border:#252a38;--muted:#7c8aad;--accent:#00d4aa;--active:#03a9f4;--caps:#ff9800;--name:var(--fg)}
@@ -1326,9 +1327,9 @@ A button is its action name, or <code>["spare1","Netflix"]</code> to label it &m
 <div class="hid-panel" id="ico-panel">
 <button class="hid-toggle" id="ico-toggle">Button Icons &#9662;</button>
 <div class="hid-body" id="ico-body">
-<div style="font-size:12px;color:var(--muted);margin:6px 0">Put a logo on a key. Paste the <strong>text</strong> of a logo's <code>.svg</code> file &mdash; open the file in Notepad and copy all of it, from <code>&lt;svg</code> to <code>&lt;/svg&gt;</code> &mdash; or drag the file onto the box. Give it a name and Import: it is turned into plain shapes in this browser and stored on the keyboard. Then any style can use it: <code>["spare1","Netflix","icon:netflix lg sq"]</code>. <code>lg sq</code> gives the logo a bigger, squarer key; <code>wide</code> suits a long wordmark. <strong>Style 6</strong> is a ready example &mdash; pick it under Remote Style and Export it to see the syntax. Exporting a style takes its icons along, so a style pasted into the Home Assistant card draws them too.</div>
+<div style="font-size:12px;color:var(--muted);margin:6px 0">Put a logo on a key. Paste the <strong>text</strong> of a logo's <code>.svg</code> file &mdash; open the file in Notepad and copy all of it, from <code>&lt;svg</code> to <code>&lt;/svg&gt;</code> &mdash; or drag the file onto the box. Give it a name and Import: it is turned into plain shapes in this browser and stored on the keyboard. Then any style can use it: <code>["spare1","Netflix","icon:netflix lg sq"]</code>. <code>lg sq</code> gives the logo a bigger, squarer key; <code>wide</code> suits a long wordmark. <strong>Style 6</strong> is a ready example &mdash; pick it under Remote Style and Export it to see the syntax. Exporting a style takes its icons along, so a style pasted into the Home Assistant card draws them too. <strong>Export</strong> here puts every icon in the box as one list, and Import takes such a list back &mdash; the way to copy them all to another keyboard.</div>
 <div id="ico-list"></div>
-<div class="macro-form"><input id="ico-name" placeholder="Name, e.g. netflix" maxlength="15" autocomplete="off" autocapitalize="off" spellcheck="false" title="1-15 characters of a-z, 0-9 or _. A style names the icon with icon: and this name."><textarea id="ico-svg" placeholder="Paste the SVG's text here &mdash; open the .svg file in Notepad, select all and copy. It starts with &lt;svg.&#10;&#10;Or drag the .svg file onto this box." rows="5" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="ico-import">Import</button></div>
+<div class="macro-form"><input id="ico-name" placeholder="Name, e.g. netflix" maxlength="15" autocomplete="off" autocapitalize="off" spellcheck="false" title="1-15 characters of a-z, 0-9 or _. A style names the icon with icon: and this name."><textarea id="ico-svg" placeholder="Paste the SVG's text here &mdash; open the .svg file in Notepad, select all and copy. It starts with &lt;svg.&#10;&#10;Or drag the .svg file onto this box." rows="5" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><button id="ico-import">Import</button><button id="ico-export" class="cancel" title="Copy every icon into the box as one list. Import takes the list back, on this keyboard or another.">Export</button></div>
 <div class="ico-preview" id="ico-preview" hidden><span class="ico-face dark"><span class="rmt-btn"></span><span class="rmt-btn wide"></span></span><span class="ico-face light"><span class="rmt-btn"></span><span class="rmt-btn wide"></span></span></div>
 <div id="ico-msg" style="font-size:11px;color:var(--muted)"></div>
 </div>
@@ -1494,10 +1495,10 @@ function api(endpoint,params){
 // its presses to the window that opened it instead, so recording covers the
 // remote whether it is pinned in the page or floating on top.
 //
-// Same origin and no noopener on that window.open, so opener is reachable. The
-// try/catch is for the cases where it isn't: the pop-up-blocked fallback opens
-// an ordinary tab with target="_blank", which modern browsers sever, and the
-// opener may simply have been closed.
+// Same origin and no noopener on that window.open, so opener is reachable, and
+// the pop-up-blocked fallback's link names its target rather than _blank, which
+// modern browsers would sever. The try/catch is for the cases where it isn't: a
+// #remote tab opened by hand has no opener, and the opener may have been closed.
 // Asked across the window boundary, so it has to be a function *declaration*:
 // those become properties of window, while the `let` above does not — reading
 // opener.recSteps directly always yields undefined, however plainly it reads.
@@ -3297,9 +3298,31 @@ const lockHost=v=>(typeof v==='string'&&/^\d$/.test(v))?Number(v):(typeof v==='n
 // and every key sent there as peer:<name>:<key> for this keyboard to pass on.
 // Named as the YAML's peers: names it. Excludes the other two, and wins over them.
 const lockPeer=v=>(typeof v==='string'&&/^[a-z0-9_]{1,15}$/.test(v))?v:null;
-let RMT_PEER=lockPeer(new URLSearchParams(location.search).get('peer'));
-let RMT_HOST=RMT_PEER===null?lockHost(new URLSearchParams(location.search).get('host')):null;
-let RMT_LOCK=RMT_HOST===null&&RMT_PEER===null?lockId(new URLSearchParams(location.search).get('style')):null;
+// The address is often typed by hand, so it is read the way the builder reads an
+// id: names and values trimmed and lower-cased, and a run of spaces in a value
+// made one _. A space before the = had the browser call the name "style ", and
+// the tab quietly followed the host. The lock may also come after #remote
+// (#remote?style=style6), which reads naturally but which the browser counts as
+// part of the hash; written there, it replaces any before it. setTabLock, run
+// once below, then writes the address back in the form a bookmark should keep.
+const TAB_KEYS=['style','host','peer'];
+const tabKey=k=>String(k).trim().toLowerCase();
+const TAB_ADDR=(()=>{
+  const read=q=>{
+    const o={};
+    new URLSearchParams(q).forEach((v,k)=>{
+      k=tabKey(k);
+      if(TAB_KEYS.includes(k))o[k]=String(v).trim().toLowerCase().replace(/\s+/g,'_');
+    });
+    return o;
+  };
+  const m=/^#remote[?&](.*)$/.exec(location.hash);
+  const h=m?read(m[1]):{};
+  return Object.keys(h).length?h:read(location.search);
+})();
+let RMT_PEER=lockPeer(TAB_ADDR.peer);
+let RMT_HOST=RMT_PEER===null?lockHost(TAB_ADDR.host):null;
+let RMT_LOCK=RMT_HOST===null&&RMT_PEER===null?lockId(TAB_ADDR.style):null;
 function styleLock(){return RMT_LOCK}
 function hostLock(){return RMT_HOST}
 function peerLock(){return RMT_PEER}
@@ -3332,13 +3355,28 @@ function setTabLock(kind,value){
   RMT_LOCK=kind==='style'?lockId(value):null;
   try{
     const u=new URL(location.href);
-    u.searchParams.delete('style');u.searchParams.delete('host');u.searchParams.delete('peer');
+    // Every spelling TAB_ADDR would read, so none is left to be taken for a
+    // second lock on the next load.
+    [...u.searchParams.keys()].forEach(k=>{if(TAB_KEYS.includes(tabKey(k)))u.searchParams.delete(k)});
     if(RMT_PEER!==null)u.searchParams.set('peer',RMT_PEER);
     else if(RMT_HOST!==null)u.searchParams.set('host',RMT_HOST);
     else if(RMT_LOCK)u.searchParams.set('style',RMT_LOCK);
-    history.replaceState(history.state,'',u);
+    if(/^#remote[?&]/.test(u.hash))u.hash='#remote';
+    if(u.href!==location.href)history.replaceState(history.state,'',u);
   }catch(e){}
 }
+// Once at load: a hand-typed address comes back in the form that works, so a
+// bookmark made from here keeps that. A lock no style or host could ever match
+// is dropped, the same as Follow the host would.
+setTabLock(RMT_PEER!==null?'peer':RMT_HOST!==null?'host':'style',
+           RMT_PEER!==null?RMT_PEER:RMT_HOST!==null?RMT_HOST:RMT_LOCK);
+// The view is chosen as the page loads, so a change to it in the address bar
+// needs a load too: adding #remote to an open tab used to do nothing until F5.
+// replaceState fires no hashchange, so the tidying above cannot set this off.
+window.addEventListener('hashchange',()=>{
+  const h=location.hash;
+  if(/^#remote(?:[?&]|$)/.test(h)!==POPOUT||/^#remote[?&]/.test(h))location.reload();
+});
 // The same lock as it goes in an address, for the pop-out to carry along. Built
 // from the checked values, never copied from location.search.
 function tabLockQuery(){
@@ -6821,7 +6859,8 @@ function insertStep(el,val){
     cross:[['size','Size','int',RMT_CROSS,150,'px'],['center','Centre key','int',RMT_CROSS_C,'auto','px']],
     rocker:[['width','Width','int',RMT_KEY_H,'auto','px'],['h','Half height','int',RMT_KEY_H,'auto','px'],
             ['horizontal','Across','bool',null,false]],
-    grid:[['cols','Columns','int',[1,8],2],['h','Key height','int',RMT_KEY_H,'auto','px'],['opts','Every key','opts']],
+    grid:[['cols','Columns','int',[1,8],2],['rows','Rows','rows',[1,16]],['h','Key height','int',RMT_KEY_H,'auto','px'],
+          ['opts','Every key','opts']],
     side:[['gap','Gap','int',RMT_SIDE_GAP,12,'px']],
     lcd:[['cols','Characters across','int',[4,40],'fill'],['rows','Lines','int',[1,8],'auto'],
          ['fg','Text','hex'],['bg','Screen','hex'],['label','Labels','hex'],['border','Edge','hex']],
@@ -6899,12 +6938,26 @@ function insertStep(el,val){
     const k=sbKey(it),g=groupOf(k.a);
     return k.l||(g?'Group “'+g+'”':sbHas(k.a)?RMT_BTNS[k.a].t:String(k.a));
   }
-  // The n-th spare the style leaves unused, its groups included, so a new key
-  // does not double up on one that already does something.
-  function sbSpare(t,n){
-    const used=JSON.stringify([t.sections,t.groups||null]);
-    for(let i=1;i<=32;i++)if(used.indexOf('"spare'+i+'"')<0&&n--<=0)return 'spare'+i;
-    return 'spare1';
+  // The spares the style leaves unused, its groups included, so a new key does
+  // not double up on one that already does something.
+  function sbFreeSpares(t){
+    const used=JSON.stringify([t.sections,t.groups||null]),out=[];
+    for(let i=1;i<=32;i++)if(used.indexOf('"spare'+i+'"')<0)out.push('spare'+i);
+    return out;
+  }
+  function sbSpare(t,n){return sbFreeSpares(t)[n]||'spare1'}
+  // A grid's rows are not stored: they follow from its keys and columns. Set to
+  // a number, the grid gains whole lines of new keys at its end, each on a spare
+  // nothing else uses (an empty cell once all 32 are taken), or loses its last
+  // lines. Undo brings those back.
+  function sbGridRows(t,p,rows){
+    const S=sbSec(t,p),o=sbO(S),want=rows*sbCols(S);
+    if(S.length-o>want){S.splice(o+want);return}
+    const free=sbFreeSpares(t);
+    while(S.length-o<want){
+      const a=free.shift();
+      S.push(a?[a,'Key '+(S.length-o+1)]:'|');
+    }
   }
   // Writes out the keys a section draws by default, so one of them can be
   // changed: an arrow pad that lists none draws the standard five.
@@ -7378,6 +7431,11 @@ function insertStep(el,val){
   // One setting as a field.
   function sbSetting(p,s,[key,label,type,range,def,unit]){
     const c=sbCfg(s)||{},v=c[key],f='set-'+key;
+    // How many lines the grid has now, at its columns; nothing is written for it.
+    if(type==='rows')return sbNum(label,f,Math.ceil((s.length-sbO(s))/sbCols(s))||1,range,null,val=>{
+      if(val===undefined||!isFinite(val))return sbRenderSoon();
+      sbDo(x=>{sbGridRows(x,p,Math.max(range[0],Math.min(range[1],Math.round(val))))});
+    });
     const put=val=>sbDo(x=>{
       const S=sbSec(x,p),C=sbCfg(S);
       if(key==='set'){sbSetSet(S,val);return}
@@ -7892,6 +7950,7 @@ function insertStep(el,val){
   const icoName=document.getElementById('ico-name');
   const icoSvg=document.getElementById('ico-svg');
   const icoImport=document.getElementById('ico-import');
+  const icoExport=document.getElementById('ico-export');
   const icoPreview=document.getElementById('ico-preview');
   const icoMsg=document.getElementById('ico-msg');
   let icoItems=[],icoMax=RMT_ICON_MAX,icoPrevT=null;
@@ -7932,6 +7991,7 @@ function insertStep(el,val){
     });
   }
 
+  // Resolves true once the list is read, false when it could not be.
   function loadIcons(){
     return fetch('api/ble_keyboard/icons').then(r=>r.json()).then(d=>{
       icoMax=d.max||icoMax;
@@ -7943,13 +8003,69 @@ function insertStep(el,val){
       if(pruned)saveIconCache();
       renderIcons();
       return Promise.all(have.map(n=>fetchIcon(n).catch(()=>null)));
-    }).then(renderIcons).catch(()=>icoNote('Could not read the icons.',true));
+    }).then(()=>{renderIcons();return true}).catch(()=>{icoNote('Could not read the icons.',true);return false});
+  }
+
+  // An exported list, {"icons":{name:record,…}}, a style carrying icons, or a
+  // list of either: every icon in it, by name. null when the box holds no JSON,
+  // which leaves it to be read as an SVG.
+  function icoListOf(text){
+    const s=String(text||'').trim();
+    if(s[0]!=='{'&&s[0]!=='[')return null;
+    let v;
+    try{v=JSON.parse(s)}catch(e){return {err:'That is not a list of icons: '+e.message}}
+    const icons={};
+    (Array.isArray(v)?v:[v]).forEach(o=>{
+      const m=o&&typeof o==='object'?o.icons:null;
+      if(m&&typeof m==='object'&&!Array.isArray(m))Object.keys(m).forEach(n=>{icons[n]=m[n]});
+    });
+    return Object.keys(icons).length?{icons:icons}:{err:'No icons in it. An exported list has "icons" at the top.'};
+  }
+  // Every icon of a list checked before any is written, so one bad icon, or more
+  // new ones than there is room for, leaves the store as it was. One already here
+  // and identical is not written again. null if a replacement was turned down.
+  function icoImportList(icons){
+    const names=Object.keys(icons);
+    for(const n of names){
+      if(!RMT_ICON_NAME.test(n))return Promise.reject(new Error('"'+n+'" cannot be an icon\'s name: 1-15 characters of a-z, 0-9 or _.'));
+      if(Object.prototype.hasOwnProperty.call(RI,n))return Promise.reject(new Error('"'+n+'" is a built-in icon — give it another name in the list.'));
+      const bad=iconBad(icons[n]);
+      if(bad)return Promise.reject(new Error('icon "'+n+'": '+bad+'.'));
+      if(JSON.stringify(icons[n]).length>RMT_ICON_LEN)return Promise.reject(new Error('icon "'+n+'" is over '+RMT_ICON_LEN+' characters.'));
+    }
+    // Against what the keyboard holds now, not the list this panel drew: a
+    // style's import, a restore or another browser may have changed it since.
+    let have=[];
+    return loadIcons().then(ok=>{
+      if(!ok)throw new Error('could not read the icons the keyboard has.');
+      have=icoItems.map(i=>i.name);
+      const fresh=names.filter(n=>have.indexOf(n)<0);
+      if(have.length+fresh.length>icoMax)throw new Error('no room for '+fresh.length+' new icon'+
+        (fresh.length>1?'s':'')+' — the device has space for '+Math.max(0,icoMax-have.length)+' more. Delete some first.');
+      return Promise.all(names.map(n=>have.indexOf(n)>=0?fetchIcon(n).catch(()=>null):null));
+    }).then(cur=>{
+      const same=names.filter((n,k)=>cur[k]&&JSON.stringify(cur[k])===JSON.stringify(icons[n]));
+      const repl=names.filter(n=>have.indexOf(n)>=0&&same.indexOf(n)<0);
+      if(repl.length&&!confirm('Replace '+(repl.length>1?'these '+repl.length+' icons':'the icon')+': '+repl.join(', ')+'?'))return null;
+      const todo=names.filter(n=>same.indexOf(n)<0);
+      let chain=Promise.resolve();
+      todo.forEach(n=>{chain=chain.then(()=>uploadIcon(n,icons[n]))});
+      return chain.then(()=>({sent:todo.length,same:same.length}));
+    });
   }
 
   function icoShowPreview(){
     if(!icoSvg||!icoPreview)return;
     const raw=icoSvg.value.trim();
     if(!raw){icoPreview.hidden=true;icoNote('');return}
+    const L=icoListOf(raw);
+    if(L){
+      icoPreview.hidden=true;
+      if(L.err){icoNote(L.err,true);return}
+      const n=Object.keys(L.icons);
+      icoNote(n.length+' icon'+(n.length>1?'s':'')+' in the box: '+n.join(', ')+'. Import adds them, under these names.');
+      return;
+    }
     const r=svgToIcon(raw);
     if(r.err){icoPreview.hidden=true;icoNote(r.err,true);return}
     const html=icon(r.rec);
@@ -7963,7 +8079,9 @@ function insertStep(el,val){
   // than its text, and pasting that into a text box gives nothing. So a file —
   // pasted, where the browser hands it over, or dropped — is read as text here.
   function icoTakeFile(file){
-    if(!/\.svg$/i.test(file.name||'')&&file.type!=='image/svg+xml'){
+    // A list saved from Export comes in the same way.
+    const list=/\.json$/i.test(file.name||'')||file.type==='application/json';
+    if(!list&&!/\.svg$/i.test(file.name||'')&&file.type!=='image/svg+xml'){
       icoNote('That is not an SVG file. A PNG or JPG picture cannot be used — look for the logo as .svg.',true);
       return;
     }
@@ -7986,6 +8104,22 @@ function insertStep(el,val){
   }
 
   if(icoImport)icoImport.addEventListener('click',()=>{
+    // A preview still due from the paste would write over what Import says.
+    clearTimeout(icoPrevT);
+    const L=icoListOf(icoSvg.value);
+    if(L){
+      if(L.err){icoNote(L.err,true);return}
+      icoNote('Uploading…');
+      icoImportList(L.icons).then(r=>{
+        if(!r){icoNote('Nothing imported.');return}
+        return loadIcons().then(()=>{
+          icoSvg.value='';icoName.value='';icoPreview.hidden=true;
+          icoNote(r.sent?'Imported '+r.sent+' icon'+(r.sent>1?'s':'')+(r.same?', and '+r.same+' were here already.':'.'):
+                  'Nothing to import — '+(r.same>1?'all '+r.same+' are':'it is')+' here already.');
+        });
+      }).catch(e=>{icoNote('Import failed: '+e.message,true);loadIcons()});
+      return;
+    }
     const name=(icoName.value||'').trim().toLowerCase();
     if(!RMT_ICON_NAME.test(name)){icoNote('Give it a name: 1-15 characters of a-z, 0-9 or _.',true);return}
     // Built-in icons are found first, so an import under one of their names could
@@ -8001,6 +8135,27 @@ function insertStep(el,val){
       icoSvg.value='';icoName.value='';icoPreview.hidden=true;
       icoNote('Saved "'+name+'". A style uses it as icon:'+name+'.');
     }).catch(e=>icoNote('Import failed: '+e.message,true));
+  });
+
+  // Every icon into the box as one list, one to a line as a style's export
+  // writes them, so one can be deleted whole before the list is passed on.
+  // Read afresh first: icons a style brought, or a restore put back, are not in
+  // the list this panel drew when it opened.
+  if(icoExport)icoExport.addEventListener('click',()=>{
+    icoNote('Reading the icons…');
+    loadIcons().then(ok=>{
+      if(!ok)return;
+      if(!icoItems.length){icoNote('No icons to export yet.',true);return}
+      return Promise.all(icoItems.map(i=>fetchIcon(i.name).catch(()=>null))).then(recs=>{
+        const got=icoItems.map((i,k)=>[i.name,recs[k]]).filter(x=>x[1]);
+        if(!got.length){icoNote('Could not read the icons.',true);return}
+        icoSvg.value='{\n  "icons": {\n'+got.map(([n,r])=>'    '+JSON.stringify(n)+': '+JSON.stringify(r)).join(',\n')+'\n  }\n}';
+        icoName.value='';icoPreview.hidden=true;
+        const miss=icoItems.length-got.length;
+        icoNote('Exported '+got.length+' icon'+(got.length>1?'s':'')+(miss?' — '+miss+' could not be read':'')+
+                '. Copy the box, then Import it on another keyboard.',!!miss);
+      });
+    });
   });
 
   if(icoToggle)icoToggle.addEventListener('click',()=>{
@@ -10362,6 +10517,7 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
   if(!card)return;
   const KEY='blekb_rmt_popout';   // '1' while the pop-up window is open
   const WKEY='blekb_rmt_win';     // its last size and position
+  const WNAME='blekb-remote';     // its window name, which no hand-opened tab has
   // A timestamp the pop-out window refreshes while it is alive, and the only
   // honest answer to "is it still there?" once this page has no handle to it —
   // which is every time this page is reloaded, and on a phone every time the
@@ -10577,6 +10733,12 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
       const kp=document.getElementById('rmt-kbd');
       if(rmtRO&&kp)rmtRO.observe(kp);
     }
+    // Only the window Pop out opened stands in for the page's remote: it carries
+    // the name window.open gave it, and a reload keeps that. Any other #remote tab
+    // (a bookmark, a phone's home-screen shortcut) is a view of its own. It must
+    // not take the remote out of a page loaded beside it, nor shut when that
+    // page's Pin back is pressed or another such tab closes.
+    if(window.name!==WNAME)return;
     localStorage.setItem(KEY,'1');   // and again after a reload of this window
     // The heartbeat. Every two seconds, so four of them can be missed before the
     // page gives up on this window — and immediately, so a page that reloads a
@@ -11003,13 +11165,14 @@ if(!POPOUT)addMouseRoot(document.getElementById('mouse-card'));
     // blocked-pop-up link below goes through innerHTML. Relative, like every URL
     // here: see apiPost.
     const popUrl='ble_keyboard'+tabLockQuery()+'#remote';
-    popRef=window.open(popUrl,'blekb-remote',feat);
+    popRef=window.open(popUrl,WNAME,feat);
     if(!popRef){
       // Blocked. An anchor click is not blocked, so offer one rather than leave a
-      // button that appears to do nothing; Pin back still returns the card.
+      // button that appears to do nothing; Pin back still returns the card. The
+      // tab it opens takes the pop-up's name, so it is this page's to pin back.
       ph.querySelector('.rmt-out-note').innerHTML=
         (why?'Always-on-top was refused ('+esc2(why)+'), and the ':'The ')+
-        'browser blocked the pop-up. <a href="'+popUrl+'" target="_blank" '+
+        'browser blocked the pop-up. <a href="'+popUrl+'" target="'+WNAME+'" '+
         'style="color:var(--active)">Open it in a tab</a>, or allow pop-ups for this page.';
       return;
     }
