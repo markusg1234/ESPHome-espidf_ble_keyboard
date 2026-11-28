@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows
 [semantic versioning](https://semver.org/); releases are tagged `vX.Y.Z` and the
 web control page shows the matching version badge.
 
-## Unreleased
+## v1.22.0 — 2026-11-28
 
 ### Added
 - **Hosts can be named in the YAML**, with `name:` in their `hosts:` entry. The web page's host bar,
